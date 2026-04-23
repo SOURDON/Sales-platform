@@ -24,6 +24,8 @@ interface CreateSaleBody {
     qty: number;
   }>;
   totalAmount?: number;
+  /** CASH = наличные, NON_CASH = безнал / эквайринг */
+  paymentType?: 'CASH' | 'NON_CASH';
 }
 
 interface SetPercentBody {
@@ -324,15 +326,17 @@ export class AdminController {
       throw new BadRequestException('totalAmount must be greater than zero');
     }
 
+    const paymentType = body.paymentType === 'NON_CASH' ? 'NON_CASH' : 'CASH';
     const result = this.authService.addAdminSale(
       body.sellerId,
       body.items,
       body.totalAmount,
       session.nickname,
+      paymentType,
     );
     if (!result) {
       throw new BadRequestException(
-        'Could not add sale: check items and make sure shift is open',
+        'Нельзя оформить продажу: нет открытой смены, неверные позиции, или продавец не в текущей смене. В разделе «Смена» сначала откройте смену и добавьте продавцов.',
       );
     }
     return result as unknown;

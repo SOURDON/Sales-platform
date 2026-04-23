@@ -61,6 +61,7 @@ type AdminSale = {
   totalAmount: number;
   units: number;
   items: Array<{ name: string; qty: number }>;
+  paymentType?: 'CASH' | 'NON_CASH';
 };
 
 type ShiftInfo = {
@@ -328,6 +329,7 @@ function App() {
     sellerId: number,
     items: Array<{ name: string; qty: number }>,
     totalAmount: number,
+    paymentType: 'CASH' | 'NON_CASH',
   ) => {
     const response = await fetch(`${API_BASE_URL}/admin/sales`, {
       method: 'POST',
@@ -335,10 +337,20 @@ function App() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ sellerId, items, totalAmount }),
+      body: JSON.stringify({ sellerId, items, totalAmount, paymentType }),
     });
     if (!response.ok) {
-      throw new Error('add sale error');
+      const text = await response.text();
+      let message = 'Не удалось сохранить продажу';
+      try {
+        const parsed = JSON.parse(text) as { message?: string | string[] };
+        if (typeof parsed.message === 'string') {
+          message = parsed.message;
+        }
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
     }
     await loadSellers(token);
     await loadSales(token);
@@ -769,7 +781,14 @@ function App() {
                   <div className="dashboard">
                     <section className="sectionCard">
                       <AddSaleForm
-                        sellers={sellers}
+                        sellers={(() => {
+                          const open = shifts.find((s) => s.status === 'OPEN');
+                          if (!open) {
+                            return [] as SellerProfile[];
+                          }
+                          return sellers.filter((x) => open.assignedSellerIds.includes(x.id));
+                        })()}
+                        hasOpenShift={shifts.some((s) => s.status === 'OPEN')}
                         products={products}
                         token={session.token}
                         onAddSale={addSale}
@@ -794,6 +813,9 @@ function App() {
                                 <p className="saleHeader">
                                   <strong>{new Date(sale.createdAt).toLocaleString('ru-RU')}</strong> –{' '}
                                   {sale.sellerName}
+                                  <span className="salePay">
+                                    {sale.paymentType === 'NON_CASH' ? 'Безнал' : 'Наличные'}
+                                  </span>
                                   <span className="saleTotal">
                                     Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
                                   </span>
@@ -821,8 +843,8 @@ function App() {
                 isSellerOnly ? (
                   <Navigate to="/home" replace />
                 ) : (
-                  <div className="dashboard">
-                    <section className="sectionCard">
+                  <div className="dashboard teamPage">
+                    <section className="sectionCard teamPanelCard">
                       <StaffPanel
                         token={session.token}
                         staff={staff}
@@ -910,11 +932,13 @@ function App() {
 
 function AddSaleForm({
   sellers,
+  hasOpenShift,
   products,
   token,
   onAddSale,
 }: {
   sellers: SellerProfile[];
+  hasOpenShift: boolean;
   products: ProductItem[];
   token: string;
   onAddSale: (
@@ -922,44 +946,59 @@ function AddSaleForm({
     sellerId: number,
     items: Array<{ name: string; qty: number }>,
     totalAmount: number,
+    paymentType: 'CASH' | 'NON_CASH',
   ) => Promise<void>;
 }) {
   const [sellerId, setSellerId] = useState(sellers[0]?.id ?? 0);
+  const [paymentType, setPaymentType] = useState<'CASH' | 'NON_CASH'>('CASH');
   const [qty, setQty] = useState<Record<string, string>>({});
   const [totalAmount, setTotalAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
+
+  const resolvedSeller = sellers.find((s) => s.id === sellerId) ?? sellers[0] ?? null;
+  const selectSellerId = resolvedSeller?.id ?? '';
 
   const updateQty = (name: string, value: string) => {
     setQty((current) => ({ ...current, [name]: value }));
   };
 
   const submit = async () => {
-    if (!sellerId) {
+    if (!hasOpenShift) {
+      setFormError('Сначала откройте смену в разделе «Смена».');
+      return;
+    }
+    if (sellers.length === 0) {
+      setFormError('В смене нет продавцов. В разделе «Смена» добавьте людей в текущую смену.');
+      return;
+    }
+    if (!resolvedSeller) {
       setFormError('Выберите продавца');
+      return;
+    }
+    const items = products
+      .map((item) => ({
+        name: item.name,
+        qty: Number(qty[item.name] || 0) || 0,
+      }))
+      .filter((line) => line.qty > 0);
+    if (items.length === 0) {
+      setFormError('Укажите хотя бы одну позицию');
+      return;
+    }
+    const parsedTotal = Number(totalAmount);
+    if (!parsedTotal || parsedTotal <= 0) {
+      setFormError('Укажите итоговую сумму продажи');
       return;
     }
     setFormError('');
     setBusy(true);
     try {
-      const items = products
-        .map((item) => ({
-          name: item.name,
-          qty: Number(qty[item.name] || 0) || 0,
-        }))
-        .filter((line) => line.qty > 0);
-      if (items.length === 0) {
-        setFormError('Укажите хотя бы одну позицию');
-        return;
-      }
-      const parsedTotal = Number(totalAmount);
-      if (!parsedTotal || parsedTotal <= 0) {
-        setFormError('Укажите итоговую сумму продажи');
-        return;
-      }
-      await onAddSale(token, sellerId, items, parsedTotal);
+      await onAddSale(token, resolvedSeller.id, items, parsedTotal, paymentType);
       setQty({});
       setTotalAmount('');
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Ошибка сохранения');
     } finally {
       setBusy(false);
     }
@@ -968,16 +1007,46 @@ function AddSaleForm({
   return (
     <div className="addSaleForm">
       <h4>Добавить продажу</h4>
-      <p className="hint">Укажите товар и количество, затем вручную введите итоговую сумму продажи.</p>
+      <p className="hint">
+        Продажа только для продавцов, назначенных на текущую смену. Укажите товары, сумму и вид оплаты.
+      </p>
+      {!hasOpenShift && (
+        <p className="error" role="alert">
+          Нет открытой смены — откройте её в разделе «Смена».
+        </p>
+      )}
+      {hasOpenShift && sellers.length === 0 && (
+        <p className="error" role="alert">
+          В смене пока никого нет. В «Смене» нажмите «Добавить в смену» и отметьте продавцов.
+        </p>
+      )}
       <div className="addSaleRow">
         <label>
           Продавец
-          <select value={sellerId} onChange={(event) => setSellerId(Number(event.target.value))}>
-            {sellers.map((seller) => (
-              <option key={seller.id} value={seller.id}>
-                {seller.fullName}
-              </option>
-            ))}
+          <select
+            value={selectSellerId}
+            onChange={(event) => setSellerId(Number(event.target.value))}
+            disabled={sellers.length === 0}
+          >
+            {sellers.length === 0 ? (
+              <option value="">—</option>
+            ) : (
+              sellers.map((seller) => (
+                <option key={seller.id} value={seller.id}>
+                  {seller.fullName}
+                </option>
+              ))
+            )}
+          </select>
+        </label>
+        <label>
+          Вид оплаты
+          <select
+            value={paymentType}
+            onChange={(event) => setPaymentType(event.target.value as 'CASH' | 'NON_CASH')}
+          >
+            <option value="CASH">Наличные</option>
+            <option value="NON_CASH">Безнал (эквайринг, перевод)</option>
           </select>
         </label>
         <label>
@@ -989,7 +1058,12 @@ function AddSaleForm({
             placeholder="Например, 4250"
           />
         </label>
-        <button className="primaryAction" type="button" onClick={submit} disabled={busy}>
+        <button
+          className="primaryAction"
+          type="button"
+          onClick={submit}
+          disabled={busy || !hasOpenShift || sellers.length === 0}
+        >
           Сохранить продажу
         </button>
       </div>
@@ -1403,9 +1477,12 @@ function StaffPanel({
   const alreadyInStore = selectedEmployee ? staffIds.has(selectedEmployee.id) : false;
   const openShift = shifts.find((item) => item.status === 'OPEN');
   return (
-    <div className="opsCard">
-      <h4>Управление персоналом</h4>
-      <div className="inlineGrid">
+    <div className="opsCard staffPanelRoot">
+      <h4 className="staffPanelTitle">Управление персоналом</h4>
+      <p className="staffPanelIntro">
+        Добавьте сотрудника вручную или из общей базы. Ниже — карточки с действиями и показателями.
+      </p>
+      <div className="inlineGrid staffPanelAddRow">
         <label>
           ФИО
           <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
@@ -1426,7 +1503,7 @@ function StaffPanel({
           Добавить сотрудника
         </button>
       </div>
-      <div className="inlineGrid inlineGridStaffBase">
+      <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
         <label>
           Сотрудник из общей базы
           <select

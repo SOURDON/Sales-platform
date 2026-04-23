@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import {
   CashEventType as PrismaCashEventType,
   CommissionRequestStatus as PrismaCommissionRequestStatus,
+  PaymentType as PrismaPaymentType,
   ShiftStatus,
   UserRole as PrismaUserRole,
   WriteOffReason,
@@ -53,12 +54,15 @@ interface SaleLine {
   qty: number;
 }
 
+type SalePaymentType = 'CASH' | 'NON_CASH';
+
 interface SaleRecord {
   id: string;
   createdAt: string;
   items: SaleLine[];
   totalAmount: number;
   units: number;
+  paymentType: SalePaymentType;
 }
 
 interface SellerProfile {
@@ -340,6 +344,7 @@ export class AuthService implements OnModuleInit {
           totalAmount: sale.totalAmount,
           units: sale.units,
           items: sale.items,
+          paymentType: sale.paymentType,
         }));
       })
       .sort(
@@ -427,8 +432,19 @@ export class AuthService implements OnModuleInit {
     items: Array<{ name: string; qty: number }>,
     totalAmount: number,
     actor = 'system',
+    paymentType: SalePaymentType = 'CASH',
   ) {
     if (!this.currentShiftId) {
+      return null;
+    }
+
+    const shiftOpen = this.shiftHistory.find(
+      (item) => item.id === this.currentShiftId && item.status === 'OPEN',
+    );
+    if (!shiftOpen) {
+      return null;
+    }
+    if (!shiftOpen.assignedSellerIds.includes(sellerId)) {
       return null;
     }
 
@@ -466,6 +482,7 @@ export class AuthService implements OnModuleInit {
       items: lines,
       totalAmount,
       units,
+      paymentType,
     };
 
     seller.sales.push(sale);
@@ -481,7 +498,11 @@ export class AuthService implements OnModuleInit {
     for (const line of lines) {
       this.productStock[line.name] = Math.max(0, (this.productStock[line.name] ?? 0) - line.qty);
     }
-    this.pushAudit(actor, 'SALE_CREATED', `sale=${sale.id}, seller=${seller.fullName}, total=${totalAmount}`);
+    this.pushAudit(
+      actor,
+      'SALE_CREATED',
+      `sale=${sale.id}, seller=${seller.fullName}, total=${totalAmount}, pay=${paymentType}`,
+    );
     this.queuePersist();
     return sale;
   }
@@ -1180,6 +1201,7 @@ export class AuthService implements OnModuleInit {
         items: saleItemsBySaleId.get(sale.id) ?? [],
         totalAmount: sale.totalAmount,
         units: sale.units,
+        paymentType: sale.paymentType === PrismaPaymentType.NON_CASH ? 'NON_CASH' : 'CASH',
       });
       salesBySellerId.set(sale.sellerId, current);
     }
@@ -1330,6 +1352,8 @@ export class AuthService implements OnModuleInit {
           totalAmount: sale.totalAmount,
           units: sale.units,
           sellerId: seller.id,
+          paymentType:
+            sale.paymentType === 'NON_CASH' ? PrismaPaymentType.NON_CASH : PrismaPaymentType.CASH,
         })),
       );
       if (salesFlat.length > 0) {

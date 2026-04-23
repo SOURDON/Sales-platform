@@ -541,6 +541,63 @@ button.primaryAction {
   gap: 12px;
 }
 
+/* Страница «Команда» */
+.teamPage {
+  gap: 16px;
+}
+
+.teamPanelCard {
+  padding: 16px;
+}
+
+.staffPanelRoot {
+  gap: 14px;
+}
+
+.staffPanelTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0b4f82;
+  letter-spacing: 0.02em;
+}
+
+.staffPanelIntro {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.staffPanelAddRow {
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.staffBaseBlock {
+  padding-top: 4px;
+}
+
+.teamMemberStats {
+  align-items: stretch;
+}
+
+.statCell {
+  align-items: center;
+  text-align: center;
+  justify-content: center;
+  min-height: 72px;
+  box-sizing: border-box;
+}
+
+.statLabel {
+  text-align: center;
+}
+
+.statValue {
+  text-align: center;
+}
+
 select {
   border: 1px solid #93c5d9;
   border-radius: 10px;
@@ -632,9 +689,14 @@ select {
 
 .addSaleRow {
   display: grid;
-  grid-template-columns: 1.2fr 1fr auto;
-  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
   align-items: end;
+}
+
+.addSaleRow .primaryAction {
+  grid-column: 1 / -1;
+  justify-self: stretch;
 }
 
 .productGrid {
@@ -676,16 +738,29 @@ select {
 .saleHeader {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 6px;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 8px 12px;
   color: #0b4f82;
   font-size: 13px;
   margin: 0 0 4px;
 }
 
+.salePay {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #0369a1;
+  background: #e0f2fe;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
 .saleTotal {
   color: #075985;
   font-size: 12px;
+  margin-left: auto;
 }
 
 .saleItem ul {
@@ -870,6 +945,10 @@ select {
 
   .addSaleRow {
     grid-template-columns: 1fr;
+  }
+
+  .addSaleRow .primaryAction {
+    grid-column: 1;
   }
 
   .writeOffRow {

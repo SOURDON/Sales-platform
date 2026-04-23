@@ -29,6 +29,11 @@ enum ShiftStatus {
   CLOSED
 }
 
+enum PaymentType {
+  CASH
+  NON_CASH
+}
+
 enum CashEventType {
   RETURN
   CANCEL
@@ -65,13 +70,14 @@ model SellerProfile {
 }
 
 model Sale {
-  id          String     @id
-  createdAt   DateTime
-  totalAmount Float
-  units       Int
-  sellerId    Int
-  seller      SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  items       SaleItem[]
+  id            String         @id
+  createdAt     DateTime
+  totalAmount   Float
+  units         Int
+  paymentType   PaymentType    @default(CASH)
+  sellerId      Int
+  seller        SellerProfile  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  items         SaleItem[]
 }
 
 model SaleItem {
