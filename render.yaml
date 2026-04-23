@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: sales-platform-api-prod
+    env: node
+    rootDir: backend
+    buildCommand: npm ci && npm run build && npm run prisma:migrate:deploy && npm run prisma:seed
+    startCommand: npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+
+  - type: web
+    name: sales-platform-api-staging
+    env: node
+    rootDir: backend
+    buildCommand: npm ci && npm run build && npm run prisma:migrate:deploy && npm run prisma:seed
+    startCommand: npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false

@@ -1,4 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  CashEventType as PrismaCashEventType,
+  CommissionRequestStatus as PrismaCommissionRequestStatus,
+  ShiftStatus,
+  UserRole as PrismaUserRole,
+  WriteOffReason,
+} from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 export type UserRole = 'DIRECTOR' | 'ADMIN' | 'SELLER';
 
@@ -119,57 +127,22 @@ interface AuditLogItem {
 }
 
 @Injectable()
-export class AuthService {
-  public readonly productCatalog: Array<{ name: string; price: number }> = [
-    { name: 'Магнит', price: 200 },
-    { name: 'Рамка А4', price: 500 },
-    { name: 'Декоративная рамка', price: 800 },
-    { name: 'Бамбуковая рамка', price: 900 },
-    { name: 'электронный вариант и фото', price: 1500 },
-    { name: 'Рамка А6', price: 300 },
-  ];
+export class AuthService implements OnModuleInit {
+  public productCatalog: Array<{ name: string; price: number }> = [];
+
+  private readonly logger = new Logger(AuthService.name);
+  private readonly persistenceEnabled = Boolean(process.env.DATABASE_URL);
+  private persistChain: Promise<void> = Promise.resolve();
 
   private commissionChangeRequests: CommissionChangeRequest[] = [];
   private currentShiftId: string | null = null;
   private lastSaleAt: string | null = null;
   private shiftHistory: Shift[] = [];
   private cashDisciplineEvents: CashDisciplineEvent[] = [];
-  private staff: StaffMember[] = [
-    { id: 3, fullName: 'Cashier Seller', nickname: 'seller1', isActive: true },
-    { id: 4, fullName: 'Anna Romanova', nickname: 'seller2', isActive: true },
-  ];
-  private productStock: Record<string, number> = {
-    Магнит: 35,
-    'Рамка А4': 18,
-    'Декоративная рамка': 12,
-    'Бамбуковая рамка': 9,
-    'электронный вариант и фото': 30,
-    'Рамка А6': 22,
-  };
+  private staff: StaffMember[] = [];
+  private productStock: Record<string, number> = {};
   private auditLog: AuditLogItem[] = [];
-  private readonly adminWriteOffs: WriteOffItem[] = [
-    {
-      id: 'wo-1',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
-      name: 'Рамка А4',
-      qty: 2,
-      reason: 'Брак',
-    },
-    {
-      id: 'wo-2',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
-      name: 'Магнит',
-      qty: 5,
-      reason: 'Поломка',
-    },
-    {
-      id: 'wo-3',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-      name: 'Рамка А6',
-      qty: 1,
-      reason: 'Брак',
-    },
-  ];
+  private adminWriteOffs: WriteOffItem[] = [];
 
   getWriteOffs(filters?: { reason?: 'Брак' | 'Поломка'; dateFrom?: string; dateTo?: string }) {
     return this.adminWriteOffs
@@ -197,69 +170,20 @@ export class AuthService {
     return [header, ...lines].join('\n');
   }
 
-  private readonly demoUsers: DemoUser[] = [
-    {
-      id: 1,
-      nickname: 'director',
-      password: '123456',
-      fullName: 'Director User',
-      role: 'DIRECTOR',
-      storeName: 'All Stores',
-      isActive: true,
-    },
-    {
-      id: 2,
-      nickname: 'admin1',
-      password: '123456',
-      fullName: 'Store Admin',
-      role: 'ADMIN',
-      storeName: 'Store #1',
-      isActive: true,
-    },
-    {
-      id: 3,
-      nickname: 'seller1',
-      password: '123456',
-      fullName: 'Cashier Seller',
-      role: 'SELLER',
-      storeName: 'Store #1',
-      isActive: true,
-    },
-    {
-      id: 4,
-      nickname: 'seller2',
-      password: '123456',
-      fullName: 'Anna Romanova',
-      role: 'SELLER',
-      storeName: 'Store #1',
-      isActive: true,
-    },
-  ];
+  private demoUsers: DemoUser[] = [];
+  private sellerProfiles: SellerProfile[] = [];
 
-  private readonly sellerProfiles: SellerProfile[] = [
-    {
-      id: 3,
-      fullName: 'Cashier Seller',
-      nickname: 'seller1',
-      storeName: 'Store #1',
-      ratePercent: 5,
-      salesAmount: 0,
-      checksCount: 0,
-      sales: [],
-      commissionAmount: 0,
-    },
-    {
-      id: 4,
-      fullName: 'Anna Romanova',
-      nickname: 'seller2',
-      storeName: 'Store #1',
-      ratePercent: 4,
-      salesAmount: 0,
-      checksCount: 0,
-      sales: [],
-      commissionAmount: 0,
-    },
-  ];
+  constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleInit() {
+    if (!this.persistenceEnabled) {
+      this.loadDefaultState();
+      this.logger.warn('DATABASE_URL is not set. Using in-memory fallback mode.');
+      return;
+    }
+    await this.seedIfNeeded();
+    await this.loadState();
+  }
 
   login(nickname: string, password: string) {
     const user = this.demoUsers.find(
@@ -434,6 +358,7 @@ export class AuthService {
     }
     seller.ratePercent = ratePercent;
     this.recomputeSeller(seller);
+    this.queuePersist();
     return this.getSellerProfiles().find((item) => item.id === sellerId) ?? null;
   }
 
@@ -467,6 +392,7 @@ export class AuthService {
       comment,
     };
     this.commissionChangeRequests.push(request);
+    this.queuePersist();
     return request;
   }
 
@@ -484,6 +410,7 @@ export class AuthService {
     }
     if (decision === 'REJECT') {
       request.status = 'REJECTED';
+      this.queuePersist();
       return request;
     }
     const applied = this.setSellerPercentDirect(request.sellerId, request.requestedPercent);
@@ -491,6 +418,7 @@ export class AuthService {
       return null;
     }
     request.status = 'APPROVED';
+    this.queuePersist();
     return { request, seller: applied };
   }
 
@@ -554,6 +482,7 @@ export class AuthService {
       this.productStock[line.name] = Math.max(0, (this.productStock[line.name] ?? 0) - line.qty);
     }
     this.pushAudit(actor, 'SALE_CREATED', `sale=${sale.id}, seller=${seller.fullName}, total=${totalAmount}`);
+    this.queuePersist();
     return sale;
   }
 
@@ -573,6 +502,7 @@ export class AuthService {
     this.adminWriteOffs.push(writeOff);
     this.productStock[name] = Math.max(0, (this.productStock[name] ?? 0) - writeOff.qty);
     this.pushAudit(actor, 'WRITE_OFF_CREATED', `${name} qty=${writeOff.qty}, reason=${reason}`);
+    this.queuePersist();
     return writeOff;
   }
 
@@ -589,6 +519,7 @@ export class AuthService {
       (this.productStock[writeOff.name] ?? 0) - diff,
     );
     this.pushAudit(actor, 'WRITE_OFF_UPDATED', `${writeOff.name} qty=${writeOff.qty}, reason=${reason}`);
+    this.queuePersist();
     return writeOff;
   }
 
@@ -601,6 +532,7 @@ export class AuthService {
     this.productStock[deleted.name] = (this.productStock[deleted.name] ?? 0) + deleted.qty;
     this.adminWriteOffs.splice(index, 1);
     this.pushAudit(actor, 'WRITE_OFF_DELETED', `${deleted.name} qty=${deleted.qty}`);
+    this.queuePersist();
     return true;
   }
 
@@ -624,6 +556,7 @@ export class AuthService {
       member.assignedShiftId = assignedSellerIds.includes(member.id) ? shift.id : undefined;
     }
     this.pushAudit(openedBy, 'SHIFT_OPENED', `shift=${shift.id}`);
+    this.queuePersist();
     return shift;
   }
 
@@ -643,6 +576,7 @@ export class AuthService {
       member.assignedShiftId = undefined;
     }
     this.pushAudit(closedBy, 'SHIFT_CLOSED', `shift=${shift.id}`);
+    this.queuePersist();
     return shift;
   }
 
@@ -665,6 +599,7 @@ export class AuthService {
     };
     this.cashDisciplineEvents.push(event);
     this.pushAudit(actor, 'CASH_DISCIPLINE_EVENT', `${type}: ${event.comment}`);
+    this.queuePersist();
     return event;
   }
 
@@ -715,10 +650,11 @@ export class AuthService {
         'STAFF_REACTIVATED',
         `${normalizedFullName} (${existingMember.nickname})`,
       );
+      this.queuePersist();
       return existingMember;
     }
     const member: StaffMember = {
-      id: Date.now(),
+      id: this.getNextNumericId(),
       fullName: normalizedFullName,
       nickname: normalizedNickname,
       isActive: true,
@@ -745,6 +681,7 @@ export class AuthService {
       commissionAmount: 0,
     });
     this.pushAudit(actor, 'STAFF_ADDED', `${member.fullName} (${member.nickname})`);
+    this.queuePersist();
     return member;
   }
 
@@ -760,6 +697,7 @@ export class AuthService {
       demoUser.isActive = false;
     }
     this.pushAudit(actor, 'STAFF_DEACTIVATED', `${member.fullName}`);
+    this.queuePersist();
     return member;
   }
 
@@ -774,6 +712,7 @@ export class AuthService {
       demoUser.isActive = true;
     }
     this.pushAudit(actor, 'STAFF_ACTIVATED', `${member.fullName}`);
+    this.queuePersist();
     return member;
   }
 
@@ -818,6 +757,7 @@ export class AuthService {
       'STAFF_ATTACHED_FROM_BASE',
       `${member.fullName} (${member.nickname})`,
     );
+    this.queuePersist();
     return member;
   }
 
@@ -832,6 +772,7 @@ export class AuthService {
       shift.assignedSellerIds.push(member.id);
     }
     this.pushAudit(actor, 'STAFF_SHIFT_ASSIGNED', `${member.fullName} -> ${shift.id}`);
+    this.queuePersist();
     return member;
   }
 
@@ -924,6 +865,563 @@ export class AuthService {
       actor,
       action,
       details,
+    });
+  }
+
+  private getNextNumericId() {
+    const userIds = this.demoUsers.map((user) => user.id);
+    const staffIds = this.staff.map((member) => member.id);
+    const maxId = Math.max(0, ...userIds, ...staffIds);
+    return maxId + 1;
+  }
+
+  private queuePersist() {
+    if (!this.persistenceEnabled) {
+      return;
+    }
+    this.persistChain = this.persistChain
+      .then(async () => this.persistState())
+      .catch((error: unknown) => {
+        this.logger.error('Failed to persist auth state', error as Error);
+      });
+  }
+
+  private async seedIfNeeded() {
+    const usersCount = await this.prisma.user.count();
+    if (usersCount > 0) {
+      return;
+    }
+    const now = Date.now();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.createMany({
+        data: [
+          {
+            id: 1,
+            nickname: 'director',
+            password: '123456',
+            fullName: 'Director User',
+            role: PrismaUserRole.DIRECTOR,
+            storeName: 'All Stores',
+            isActive: true,
+          },
+          {
+            id: 2,
+            nickname: 'admin1',
+            password: '123456',
+            fullName: 'Store Admin',
+            role: PrismaUserRole.ADMIN,
+            storeName: 'Store #1',
+            isActive: true,
+          },
+          {
+            id: 3,
+            nickname: 'seller1',
+            password: '123456',
+            fullName: 'Cashier Seller',
+            role: PrismaUserRole.SELLER,
+            storeName: 'Store #1',
+            isActive: true,
+          },
+          {
+            id: 4,
+            nickname: 'seller2',
+            password: '123456',
+            fullName: 'Anna Romanova',
+            role: PrismaUserRole.SELLER,
+            storeName: 'Store #1',
+            isActive: true,
+          },
+        ],
+      });
+      await tx.sellerProfile.createMany({
+        data: [
+          { id: 3, storeName: 'Store #1', ratePercent: 5 },
+          { id: 4, storeName: 'Store #1', ratePercent: 4 },
+        ],
+      });
+      await tx.staffMember.createMany({
+        data: [
+          { id: 3, fullName: 'Cashier Seller', nickname: 'seller1', isActive: true },
+          { id: 4, fullName: 'Anna Romanova', nickname: 'seller2', isActive: true },
+        ],
+      });
+      await tx.productCatalog.createMany({
+        data: [
+          { name: 'Магнит', price: 200 },
+          { name: 'Рамка А4', price: 500 },
+          { name: 'Декоративная рамка', price: 800 },
+          { name: 'Бамбуковая рамка', price: 900 },
+          { name: 'электронный вариант и фото', price: 1500 },
+          { name: 'Рамка А6', price: 300 },
+        ],
+      });
+      await tx.productStock.createMany({
+        data: [
+          { name: 'Магнит', qty: 35 },
+          { name: 'Рамка А4', qty: 18 },
+          { name: 'Декоративная рамка', qty: 12 },
+          { name: 'Бамбуковая рамка', qty: 9 },
+          { name: 'электронный вариант и фото', qty: 30 },
+          { name: 'Рамка А6', qty: 22 },
+        ],
+      });
+      await tx.writeOff.createMany({
+        data: [
+          {
+            id: 'wo-1',
+            createdAt: new Date(now - 1000 * 60 * 60 * 8),
+            name: 'Рамка А4',
+            qty: 2,
+            reason: WriteOffReason.BRAK,
+          },
+          {
+            id: 'wo-2',
+            createdAt: new Date(now - 1000 * 60 * 60 * 4),
+            name: 'Магнит',
+            qty: 5,
+            reason: WriteOffReason.POLOMKA,
+          },
+          {
+            id: 'wo-3',
+            createdAt: new Date(now - 1000 * 60 * 60 * 2),
+            name: 'Рамка А6',
+            qty: 1,
+            reason: WriteOffReason.BRAK,
+          },
+        ],
+      });
+      await tx.appState.create({
+        data: {
+          id: 1,
+          currentShiftId: null,
+          lastSaleAt: null,
+        },
+      });
+    });
+  }
+
+  private loadDefaultState() {
+    this.productCatalog = [
+      { name: 'Магнит', price: 200 },
+      { name: 'Рамка А4', price: 500 },
+      { name: 'Декоративная рамка', price: 800 },
+      { name: 'Бамбуковая рамка', price: 900 },
+      { name: 'электронный вариант и фото', price: 1500 },
+      { name: 'Рамка А6', price: 300 },
+    ];
+    this.demoUsers = [
+      {
+        id: 1,
+        nickname: 'director',
+        password: '123456',
+        fullName: 'Director User',
+        role: 'DIRECTOR',
+        storeName: 'All Stores',
+        isActive: true,
+      },
+      {
+        id: 2,
+        nickname: 'admin1',
+        password: '123456',
+        fullName: 'Store Admin',
+        role: 'ADMIN',
+        storeName: 'Store #1',
+        isActive: true,
+      },
+      {
+        id: 3,
+        nickname: 'seller1',
+        password: '123456',
+        fullName: 'Cashier Seller',
+        role: 'SELLER',
+        storeName: 'Store #1',
+        isActive: true,
+      },
+      {
+        id: 4,
+        nickname: 'seller2',
+        password: '123456',
+        fullName: 'Anna Romanova',
+        role: 'SELLER',
+        storeName: 'Store #1',
+        isActive: true,
+      },
+    ];
+    this.sellerProfiles = [
+      {
+        id: 3,
+        fullName: 'Cashier Seller',
+        nickname: 'seller1',
+        storeName: 'Store #1',
+        ratePercent: 5,
+        salesAmount: 0,
+        checksCount: 0,
+        sales: [],
+        commissionAmount: 0,
+      },
+      {
+        id: 4,
+        fullName: 'Anna Romanova',
+        nickname: 'seller2',
+        storeName: 'Store #1',
+        ratePercent: 4,
+        salesAmount: 0,
+        checksCount: 0,
+        sales: [],
+        commissionAmount: 0,
+      },
+    ];
+    this.staff = [
+      { id: 3, fullName: 'Cashier Seller', nickname: 'seller1', isActive: true },
+      { id: 4, fullName: 'Anna Romanova', nickname: 'seller2', isActive: true },
+    ];
+    this.productStock = {
+      Магнит: 35,
+      'Рамка А4': 18,
+      'Декоративная рамка': 12,
+      'Бамбуковая рамка': 9,
+      'электронный вариант и фото': 30,
+      'Рамка А6': 22,
+    };
+    this.adminWriteOffs = [
+      {
+        id: 'wo-1',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
+        name: 'Рамка А4',
+        qty: 2,
+        reason: 'Брак',
+      },
+      {
+        id: 'wo-2',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
+        name: 'Магнит',
+        qty: 5,
+        reason: 'Поломка',
+      },
+      {
+        id: 'wo-3',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+        name: 'Рамка А6',
+        qty: 1,
+        reason: 'Брак',
+      },
+    ];
+    this.commissionChangeRequests = [];
+    this.shiftHistory = [];
+    this.cashDisciplineEvents = [];
+    this.auditLog = [];
+    this.currentShiftId = null;
+    this.lastSaleAt = null;
+  }
+
+  private async loadState() {
+    const [
+      users,
+      sellerProfiles,
+      sales,
+      saleItems,
+      writeOffs,
+      shifts,
+      shiftAssignments,
+      cashEvents,
+      staff,
+      products,
+      stock,
+      requests,
+      audit,
+      appState,
+    ] = await this.prisma.$transaction([
+      this.prisma.user.findMany(),
+      this.prisma.sellerProfile.findMany(),
+      this.prisma.sale.findMany(),
+      this.prisma.saleItem.findMany(),
+      this.prisma.writeOff.findMany(),
+      this.prisma.shift.findMany(),
+      this.prisma.shiftAssignment.findMany(),
+      this.prisma.cashDisciplineEvent.findMany(),
+      this.prisma.staffMember.findMany(),
+      this.prisma.productCatalog.findMany(),
+      this.prisma.productStock.findMany(),
+      this.prisma.commissionChangeRequest.findMany(),
+      this.prisma.auditLogItem.findMany(),
+      this.prisma.appState.findUnique({ where: { id: 1 } }),
+    ]);
+
+    const saleItemsBySaleId = new Map<string, SaleLine[]>();
+    for (const item of saleItems) {
+      const current = saleItemsBySaleId.get(item.saleId) ?? [];
+      current.push({ name: item.name, qty: item.qty });
+      saleItemsBySaleId.set(item.saleId, current);
+    }
+
+    const salesBySellerId = new Map<number, SaleRecord[]>();
+    for (const sale of sales) {
+      const current = salesBySellerId.get(sale.sellerId) ?? [];
+      current.push({
+        id: sale.id,
+        createdAt: sale.createdAt.toISOString(),
+        items: saleItemsBySaleId.get(sale.id) ?? [],
+        totalAmount: sale.totalAmount,
+        units: sale.units,
+      });
+      salesBySellerId.set(sale.sellerId, current);
+    }
+
+    const userById = new Map(users.map((user) => [user.id, user]));
+    this.demoUsers = users.map((user) => ({
+      id: user.id,
+      nickname: user.nickname,
+      password: user.password,
+      fullName: user.fullName,
+      role: user.role as UserRole,
+      storeName: user.storeName,
+      isActive: user.isActive,
+    }));
+    this.sellerProfiles = sellerProfiles.map((profile) => {
+      const user = userById.get(profile.id);
+      return {
+        id: profile.id,
+        fullName: user?.fullName ?? '',
+        nickname: user?.nickname ?? '',
+        storeName: profile.storeName,
+        ratePercent: profile.ratePercent,
+        salesAmount: 0,
+        checksCount: 0,
+        sales: (salesBySellerId.get(profile.id) ?? []).sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        ),
+        commissionAmount: 0,
+      };
+    });
+    this.adminWriteOffs = writeOffs.map((item) => ({
+      id: item.id,
+      createdAt: item.createdAt.toISOString(),
+      name: item.name,
+      qty: item.qty,
+      reason: item.reason === WriteOffReason.BRAK ? 'Брак' : 'Поломка',
+    }));
+    const assignedByShiftId = new Map<string, number[]>();
+    for (const assignment of shiftAssignments) {
+      const current = assignedByShiftId.get(assignment.shiftId) ?? [];
+      current.push(assignment.sellerId);
+      assignedByShiftId.set(assignment.shiftId, current);
+    }
+    this.shiftHistory = shifts.map((shift) => ({
+      id: shift.id,
+      openedAt: shift.openedAt.toISOString(),
+      closedAt: shift.closedAt?.toISOString(),
+      openedBy: shift.openedBy,
+      closedBy: shift.closedBy ?? undefined,
+      assignedSellerIds: assignedByShiftId.get(shift.id) ?? [],
+      checksCount: shift.checksCount,
+      itemsCount: shift.itemsCount,
+      status: shift.status === ShiftStatus.OPEN ? 'OPEN' : 'CLOSED',
+    }));
+    this.cashDisciplineEvents = cashEvents.map((event) => ({
+      id: event.id,
+      createdAt: event.createdAt.toISOString(),
+      type: event.type as CashEventType,
+      comment: event.comment,
+      createdBy: event.createdBy,
+    }));
+    this.staff = staff.map((member) => ({
+      id: member.id,
+      fullName: member.fullName,
+      nickname: member.nickname,
+      isActive: member.isActive,
+      assignedShiftId: member.assignedShiftId ?? undefined,
+    }));
+    this.productCatalog = products.map((item) => ({ name: item.name, price: item.price }));
+    this.productStock = Object.fromEntries(stock.map((item) => [item.name, item.qty]));
+    this.commissionChangeRequests = requests.map((item) => ({
+      id: item.id,
+      createdAt: item.createdAt.toISOString(),
+      sellerId: item.sellerId,
+      requestedByNickname: item.requestedByNickname,
+      requestedPercent: item.requestedPercent,
+      previousPercent: item.previousPercent,
+      status: item.status as CommissionRequestStatus,
+      comment: item.comment ?? undefined,
+    }));
+    this.auditLog = audit.map((item) => ({
+      id: item.id,
+      createdAt: item.createdAt.toISOString(),
+      actor: item.actor,
+      action: item.action,
+      details: item.details,
+    }));
+    this.currentShiftId = appState?.currentShiftId ?? null;
+    this.lastSaleAt = appState?.lastSaleAt?.toISOString() ?? null;
+  }
+
+  private async persistState() {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.appState.upsert({
+        where: { id: 1 },
+        update: {
+          currentShiftId: this.currentShiftId,
+          lastSaleAt: this.lastSaleAt ? new Date(this.lastSaleAt) : null,
+        },
+        create: {
+          id: 1,
+          currentShiftId: this.currentShiftId,
+          lastSaleAt: this.lastSaleAt ? new Date(this.lastSaleAt) : null,
+        },
+      });
+
+      await tx.user.deleteMany();
+      await tx.user.createMany({
+        data: this.demoUsers.map((user) => ({
+          id: user.id,
+          nickname: user.nickname,
+          password: user.password,
+          fullName: user.fullName,
+          role: user.role as PrismaUserRole,
+          storeName: user.storeName,
+          isActive: user.isActive,
+        })),
+      });
+
+      await tx.sellerProfile.deleteMany();
+      await tx.sellerProfile.createMany({
+        data: this.sellerProfiles.map((seller) => ({
+          id: seller.id,
+          storeName: seller.storeName,
+          ratePercent: seller.ratePercent,
+        })),
+      });
+
+      await tx.staffMember.deleteMany();
+      if (this.staff.length > 0) {
+        await tx.staffMember.createMany({
+          data: this.staff.map((member) => ({
+            id: member.id,
+            fullName: member.fullName,
+            nickname: member.nickname,
+            isActive: member.isActive,
+            assignedShiftId: member.assignedShiftId ?? null,
+          })),
+        });
+      }
+
+      await tx.saleItem.deleteMany();
+      await tx.sale.deleteMany();
+      const salesFlat = this.sellerProfiles.flatMap((seller) =>
+        seller.sales.map((sale) => ({
+          id: sale.id,
+          createdAt: new Date(sale.createdAt),
+          totalAmount: sale.totalAmount,
+          units: sale.units,
+          sellerId: seller.id,
+        })),
+      );
+      if (salesFlat.length > 0) {
+        await tx.sale.createMany({ data: salesFlat });
+      }
+      const saleItemsFlat = this.sellerProfiles.flatMap((seller) =>
+        seller.sales.flatMap((sale) =>
+          sale.items.map((item, index) => ({
+            id: `${sale.id}-${index}`,
+            saleId: sale.id,
+            name: item.name,
+            qty: item.qty,
+          })),
+        ),
+      );
+      if (saleItemsFlat.length > 0) {
+        await tx.saleItem.createMany({ data: saleItemsFlat });
+      }
+
+      await tx.writeOff.deleteMany();
+      if (this.adminWriteOffs.length > 0) {
+        await tx.writeOff.createMany({
+          data: this.adminWriteOffs.map((item) => ({
+            id: item.id,
+            createdAt: new Date(item.createdAt),
+            name: item.name,
+            qty: item.qty,
+            reason: item.reason === 'Брак' ? WriteOffReason.BRAK : WriteOffReason.POLOMKA,
+          })),
+        });
+      }
+
+      await tx.shiftAssignment.deleteMany();
+      await tx.shift.deleteMany();
+      if (this.shiftHistory.length > 0) {
+        await tx.shift.createMany({
+          data: this.shiftHistory.map((shift) => ({
+            id: shift.id,
+            openedAt: new Date(shift.openedAt),
+            closedAt: shift.closedAt ? new Date(shift.closedAt) : null,
+            openedBy: shift.openedBy,
+            closedBy: shift.closedBy ?? null,
+            checksCount: shift.checksCount,
+            itemsCount: shift.itemsCount,
+            status: shift.status === 'OPEN' ? ShiftStatus.OPEN : ShiftStatus.CLOSED,
+          })),
+        });
+        const assignments = this.shiftHistory.flatMap((shift) =>
+          shift.assignedSellerIds.map((sellerId) => ({
+            shiftId: shift.id,
+            sellerId,
+          })),
+        );
+        if (assignments.length > 0) {
+          await tx.shiftAssignment.createMany({ data: assignments });
+        }
+      }
+
+      await tx.cashDisciplineEvent.deleteMany();
+      if (this.cashDisciplineEvents.length > 0) {
+        await tx.cashDisciplineEvent.createMany({
+          data: this.cashDisciplineEvents.map((item) => ({
+            id: item.id,
+            createdAt: new Date(item.createdAt),
+            type: item.type as PrismaCashEventType,
+            comment: item.comment,
+            createdBy: item.createdBy,
+          })),
+        });
+      }
+
+      await tx.commissionChangeRequest.deleteMany();
+      if (this.commissionChangeRequests.length > 0) {
+        await tx.commissionChangeRequest.createMany({
+          data: this.commissionChangeRequests.map((item) => ({
+            id: item.id,
+            createdAt: new Date(item.createdAt),
+            sellerId: item.sellerId,
+            requestedByNickname: item.requestedByNickname,
+            requestedPercent: item.requestedPercent,
+            previousPercent: item.previousPercent,
+            status: item.status as PrismaCommissionRequestStatus,
+            comment: item.comment ?? null,
+          })),
+        });
+      }
+
+      await tx.productCatalog.deleteMany();
+      if (this.productCatalog.length > 0) {
+        await tx.productCatalog.createMany({ data: this.productCatalog });
+      }
+      await tx.productStock.deleteMany();
+      const stockRows = Object.entries(this.productStock).map(([name, qty]) => ({ name, qty }));
+      if (stockRows.length > 0) {
+        await tx.productStock.createMany({ data: stockRows });
+      }
+
+      await tx.auditLogItem.deleteMany();
+      if (this.auditLog.length > 0) {
+        await tx.auditLogItem.createMany({
+          data: this.auditLog.map((item) => ({
+            id: item.id,
+            createdAt: new Date(item.createdAt),
+            actor: item.actor,
+            action: item.action,
+            details: item.details,
+          })),
+        });
+      }
     });
   }
 }

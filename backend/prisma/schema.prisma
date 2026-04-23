@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  DIRECTOR
+  ADMIN
+  SELLER
+}
+
+enum CommissionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum WriteOffReason {
+  BRAK
+  POLOMKA
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashEventType {
+  RETURN
+  CANCEL
+  ADJUSTMENT
+}
+
+model AppState {
+  id             Int       @id
+  currentShiftId String?
+  lastSaleAt     DateTime?
+  updatedAt      DateTime  @updatedAt
+}
+
+model User {
+  id         Int           @id
+  nickname   String        @unique
+  password   String
+  fullName   String
+  role       UserRole
+  storeName  String
+  isActive   Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  profile    SellerProfile?
+  staff      StaffMember?
+}
+
+model SellerProfile {
+  id         Int      @id
+  user       User     @relation(fields: [id], references: [id], onDelete: Cascade)
+  storeName  String
+  ratePercent Float
+  sales      Sale[]
+}
+
+model Sale {
+  id          String     @id
+  createdAt   DateTime
+  totalAmount Float
+  units       Int
+  sellerId    Int
+  seller      SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  items       SaleItem[]
+}
+
+model SaleItem {
+  id       String @id
+  saleId   String
+  name     String
+  qty      Int
+  sale     Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+}
+
+model WriteOff {
+  id        String         @id
+  createdAt DateTime
+  name      String
+  qty       Int
+  reason    WriteOffReason
+}
+
+model Shift {
+  id             String      @id
+  openedAt       DateTime
+  closedAt       DateTime?
+  openedBy       String
+  closedBy       String?
+  checksCount    Int
+  itemsCount     Int
+  status         ShiftStatus
+  assignedSellers ShiftAssignment[]
+}
+
+model ShiftAssignment {
+  shiftId   String
+  sellerId  Int
+  shift     Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@id([shiftId, sellerId])
+}
+
+model CashDisciplineEvent {
+  id        String       @id
+  createdAt DateTime
+  type      CashEventType
+  comment   String
+  createdBy String
+}
+
+model StaffMember {
+  id              Int    @id
+  user            User   @relation(fields: [id], references: [id], onDelete: Cascade)
+  fullName        String
+  nickname        String @unique
+  isActive        Boolean @default(true)
+  assignedShiftId String?
+}
+
+model ProductCatalog {
+  name  String @id
+  price Float
+}
+
+model ProductStock {
+  name String @id
+  qty  Int
+}
+
+model CommissionChangeRequest {
+  id                 String                  @id
+  createdAt          DateTime
+  sellerId           Int
+  requestedByNickname String
+  requestedPercent   Float
+  previousPercent    Float
+  status             CommissionRequestStatus
+  comment            String?
+}
+
+model AuditLogItem {
+  id        String @id
+  createdAt DateTime
+  actor     String
+  action    String
+  details   String
+}

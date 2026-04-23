@@ -8,7 +8,7 @@ Monorepo for the sales accounting app:
 
 - Windows 10+
 - Node.js with npm available
-- PostgreSQL (install later, when we connect the database)
+- PostgreSQL (Neon recommended for cloud deployment)
 
 ## Run locally
 
@@ -17,6 +17,7 @@ Monorepo for the sales accounting app:
 ```bash
 cd backend
 npm install
+copy .env.example .env
 npm run start:dev
 ```
 
@@ -32,9 +33,13 @@ npm run dev
 
 Frontend default URL: `http://localhost:5173`
 
-Environment variables examples:
+Environment variable examples:
 - Backend: `backend/.env.example`
+- Backend staging: `backend/.env.staging.example`
+- Backend production: `backend/.env.production.example`
 - Frontend: `frontend/.env.example`
+- Frontend staging: `frontend/.env.staging.example`
+- Frontend production: `frontend/.env.production.example`
 
 ## Verified commands
 
@@ -46,22 +51,37 @@ Both projects already compile:
 ## Deploy (public URL, independent of your PC)
 
 Recommended stack:
+- PostgreSQL: Neon
 - Backend: Render (Web Service)
 - Frontend + PWA: Vercel
+
+### 0) Create PostgreSQL in Neon (staging + prod)
+
+1. Create a Neon project.
+2. Create two databases (or branches):
+   - `sales_platform_staging`
+   - `sales_platform_prod`
+3. Copy both connection strings as:
+   - `DATABASE_URL_STAGING`
+   - `DATABASE_URL_PRODUCTION`
+4. Managed backups:
+   - keep Neon default PITR/backup retention enabled
+   - test restore into staging at least once
 
 ### 1) Deploy backend to Render
 
 1. Push this repository to GitHub.
 2. In Render create a new **Web Service** from the repo:
    - Root Directory: `backend`
-   - Build Command: `npm ci && npm run build`
+   - Build Command: `npm ci && npm run build && npm run prisma:migrate:deploy && npm run prisma:seed`
    - Start Command: `npm run start:prod`
 3. Add environment variables:
    - `PORT=3000`
+   - `DATABASE_URL=<DATABASE_URL_PRODUCTION>`
    - `CORS_ORIGIN=https://<your-frontend-domain>`
 4. Deploy and copy backend URL, e.g. `https://sales-platform-api.onrender.com`.
 
-### 2) Deploy frontend to Vercel
+### 2) Deploy frontend to Vercel (production)
 
 1. In Vercel import the same repository.
 2. Configure:
@@ -72,23 +92,33 @@ Recommended stack:
    - `VITE_API_URL=https://<your-backend-domain>`
 4. Deploy and open frontend URL.
 
-### 3) Allow frontend origin in backend
+### 3) Deploy staging backend + staging frontend
+
+- Render staging backend:
+  - Root Directory: `backend`
+  - Build Command: `npm ci && npm run build && npm run prisma:migrate:deploy && npm run prisma:seed`
+  - Start Command: `npm run start:prod`
+  - Env:
+    - `PORT=3000`
+    - `DATABASE_URL=<DATABASE_URL_STAGING>`
+    - `CORS_ORIGIN=https://<staging-vercel-domain>`
+- Vercel staging frontend:
+  - Use Preview/branch deployment or separate project
+  - Set `VITE_API_URL=https://<staging-render-domain>`
+
+### 4) Allow frontend origin in backend
 
 Set `CORS_ORIGIN` on Render to your real frontend URL from Vercel.
 
-### 4) Install on phone as PWA
+### 5) Install on phone as PWA
 
 - iOS (Safari): Share -> Add to Home Screen.
 - Android (Chrome): Install app / Add to Home Screen.
 
-## Notes about data persistence
+## Persistence status
 
-Current backend uses in-memory demo state. The app will be publicly accessible after deploy, but data resets when backend restarts.
-
-Next step for production persistence:
-1. Provision PostgreSQL (Neon/Supabase/Render Postgres).
-2. Add ORM migration layer (Prisma/TypeORM).
-3. Move current in-memory entities to database tables.
+Backend now persists operational state in PostgreSQL through Prisma models and seed/migration scripts.
+Data no longer resets after API restarts when `DATABASE_URL` points to Neon/managed Postgres.
 
 ## Next implementation steps
 
