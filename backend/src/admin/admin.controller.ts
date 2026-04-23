@@ -1,0 +1,436 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Headers,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Put,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { AuthService } from '../auth/auth.service';
+import type { Response } from 'express';
+
+interface CreateSaleBody {
+  sellerId?: number;
+  items?: Array<{
+    name: string;
+    qty: number;
+  }>;
+  totalAmount?: number;
+}
+
+interface SetPercentBody {
+  sellerId?: number;
+  ratePercent?: number;
+}
+
+interface WriteOffBody {
+  name?: string;
+  qty?: number;
+  reason?: 'Брак' | 'Поломка';
+}
+
+interface OpenShiftBody {
+  assignedSellerIds?: number[];
+}
+
+interface CashDisciplineBody {
+  type?: 'RETURN' | 'CANCEL' | 'ADJUSTMENT';
+  comment?: string;
+}
+
+interface StaffCreateBody {
+  fullName?: string;
+  nickname?: string;
+}
+
+interface StaffFromBaseBody {
+  employeeId?: number;
+}
+
+interface WriteOffQuery {
+  reason?: 'Брак' | 'Поломка';
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+interface CommissionRequestBody {
+  sellerId?: number;
+  requestedPercent?: number;
+  comment?: string;
+}
+
+@Controller('admin')
+export class AdminController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Get('products')
+  getProducts(@Headers('authorization') authorization?: string) {
+    this.requireAdminOrDirector(authorization);
+    return this.authService.productCatalog;
+  }
+
+  @Get('shifts')
+  getShifts(@Headers('authorization') authorization?: string) {
+    this.requireShiftOperator(authorization);
+    return this.authService.getShifts() as unknown;
+  }
+
+  @Post('shifts/open')
+  openShift(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: OpenShiftBody,
+  ) {
+    const session = this.requireShiftOperator(authorization);
+    const shift = this.authService.openShift(
+      session.nickname,
+      body.assignedSellerIds ?? [],
+    );
+    if (!shift) {
+      throw new BadRequestException('Shift is already open');
+    }
+    return shift as unknown;
+  }
+
+  @Post('shifts/close')
+  closeShift(@Headers('authorization') authorization: string | undefined) {
+    const session = this.requireShiftOperator(authorization);
+    const shift = this.authService.closeShift(session.nickname);
+    if (!shift) {
+      throw new BadRequestException('No open shift');
+    }
+    return shift as unknown;
+  }
+
+  @Get('sellers')
+  getSellers(@Headers('authorization') authorization?: string) {
+    this.requireAdminOrDirector(authorization);
+    return this.authService.getSellerProfiles();
+  }
+
+  @Get('sales')
+  getSales(@Headers('authorization') authorization?: string) {
+    this.requireAdminOrDirector(authorization);
+    return this.authService.getSalesSnapshot() as unknown;
+  }
+
+  @Get('write-offs')
+  getWriteOffs(
+    @Headers('authorization') authorization?: string,
+    @Query() query?: WriteOffQuery,
+  ) {
+    this.requireAdminOrDirector(authorization);
+    return this.authService.getWriteOffs(query) as unknown;
+  }
+
+  @Get('cash-discipline')
+  getCashDiscipline(@Headers('authorization') authorization?: string) {
+    this.requireAdminOrDirector(authorization);
+    return this.authService.getCashDisciplineEvents() as unknown;
+  }
+
+  @Post('cash-discipline')
+  addCashDiscipline(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: CashDisciplineBody,
+  ) {
+    const session = this.requireAdminOrDirector(authorization);
+    if (!body.type || !body.comment) {
+      throw new BadRequestException('type and comment are required');
+    }
+    const event = this.authService.addCashDisciplineEvent(
+      body.type,
+      body.comment,
+      session.nickname,
+    );
+    if (!event) {
+      throw new BadRequestException('Invalid cash discipline event');
+    }
+    return event as unknown;
+  }
+
+  @Get('staff')
+  getStaff(@Headers('authorization') authorization?: string) {
+    this.requireAdminOrDirector(authorization);
+    return this.authService.getStaff() as unknown;
+  }
+
+  @Get('employees/global')
+  getGlobalEmployees(@Headers('authorization') authorization?: string) {
+    this.requireAdminOrDirector(authorization);
+    return this.authService.getGlobalEmployees() as unknown;
+  }
+
+  @Post('staff')
+  addStaff(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: StaffCreateBody,
+  ) {
+    const session = this.requireAdminOrDirector(authorization);
+    if (!body.fullName || !body.nickname) {
+      throw new BadRequestException('fullName and nickname are required');
+    }
+    const staff = this.authService.addStaff(body.fullName, body.nickname, session.nickname);
+    if (!staff) {
+      throw new BadRequestException('Could not add staff (possibly duplicate nickname)');
+    }
+    return staff as unknown;
+  }
+
+  @Post('staff/from-base')
+  addStaffFromBase(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: StaffFromBaseBody,
+  ) {
+    const session = this.requireAdminOrDirector(authorization);
+    if (!body.employeeId) {
+      throw new BadRequestException('employeeId is required');
+    }
+    const staff = this.authService.addStaffFromGlobal(body.employeeId, session.nickname);
+    if (!staff) {
+      throw new BadRequestException('Employee not found in global base');
+    }
+    return staff as unknown;
+  }
+
+  @Patch('staff/:id/deactivate')
+  deactivateStaff(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireAdminOrDirector(authorization);
+    const staff = this.authService.deactivateStaff(Number(id), session.nickname);
+    if (!staff) {
+      throw new BadRequestException('Staff not found');
+    }
+    return staff as unknown;
+  }
+
+  @Patch('staff/:id/activate')
+  activateStaff(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireAdminOrDirector(authorization);
+    const staff = this.authService.activateStaff(Number(id), session.nickname);
+    if (!staff) {
+      throw new BadRequestException('Staff not found');
+    }
+    return staff as unknown;
+  }
+
+  @Patch('staff/:id/assign-shift')
+  assignShift(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: { shiftId?: string },
+  ) {
+    const session = this.requireAdminOrDirector(authorization);
+    if (!body.shiftId) {
+      throw new BadRequestException('shiftId is required');
+    }
+    const staff = this.authService.assignStaffToShift(
+      Number(id),
+      body.shiftId,
+      session.nickname,
+    );
+    if (!staff) {
+      throw new BadRequestException('Staff or open shift not found');
+    }
+    return staff as unknown;
+  }
+
+  @Get('notifications/thresholds')
+  getThresholds(@Headers('authorization') authorization?: string) {
+    this.requireAdminOrDirector(authorization);
+    return this.authService.getThresholdNotifications() as unknown;
+  }
+
+  @Get('audit-log')
+  getAuditLog(@Headers('authorization') authorization?: string) {
+    this.requireAdminOrDirector(authorization);
+    return this.authService.getAuditLog() as unknown;
+  }
+
+  @Get('write-offs/export')
+  exportWriteOffsCsv(
+    @Headers('authorization') authorization: string | undefined,
+    @Query() query: WriteOffQuery,
+    @Res() response: Response,
+  ) {
+    this.requireAdminOrDirector(authorization);
+    const csv = this.authService.getWriteOffsCsv(query);
+    response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="write-offs-${Date.now()}.csv"`,
+    );
+    response.send(csv);
+  }
+
+  @Get('commission-requests')
+  listCommissionRequests(@Headers('authorization') authorization?: string) {
+    this.requireAdminOrDirector(authorization);
+    return this.authService.getCommissionChangeRequests() as unknown;
+  }
+
+  @Post('commission-requests')
+  createCommissionRequest(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: CommissionRequestBody,
+  ) {
+    this.requireAdminOrDirector(authorization);
+    void body;
+    throw new ForbiddenException('Процент может редактировать только директор');
+  }
+
+  @Put('sellers/percent')
+  setSellerPercent(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: SetPercentBody,
+  ) {
+    const session = this.requireAdminOrDirector(authorization);
+    if (session.role !== 'DIRECTOR') {
+      throw new ForbiddenException('Only director can change percent directly');
+    }
+    if (!body.sellerId || body.ratePercent === undefined) {
+      throw new BadRequestException('sellerId and ratePercent are required');
+    }
+
+    const result = this.authService.setSellerPercentDirect(body.sellerId, body.ratePercent);
+    if (!result) {
+      throw new BadRequestException('Seller not found or invalid percent');
+    }
+    return result;
+  }
+
+  @Post('sales')
+  createSale(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: CreateSaleBody,
+  ) {
+    const session = this.requireAdminOrDirector(authorization);
+    if (!body.sellerId || !body.items || body.totalAmount === undefined) {
+      throw new BadRequestException('sellerId, items and totalAmount are required');
+    }
+    if (body.totalAmount <= 0) {
+      throw new BadRequestException('totalAmount must be greater than zero');
+    }
+
+    const result = this.authService.addAdminSale(
+      body.sellerId,
+      body.items,
+      body.totalAmount,
+      session.nickname,
+    );
+    if (!result) {
+      throw new BadRequestException(
+        'Could not add sale: check items and make sure shift is open',
+      );
+    }
+    return result as unknown;
+  }
+
+  @Post('write-offs')
+  createWriteOff(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: WriteOffBody,
+  ) {
+    const session = this.requireAdminOrDirector(authorization);
+    if (!body.name || !body.qty || !body.reason) {
+      throw new BadRequestException('name, qty and reason are required');
+    }
+    if (body.reason !== 'Брак' && body.reason !== 'Поломка') {
+      throw new BadRequestException('reason must be Брак or Поломка');
+    }
+
+    const result = this.authService.addWriteOff(
+      body.name,
+      body.qty,
+      body.reason,
+      session.nickname,
+    );
+    if (!result) {
+      throw new BadRequestException('Invalid write-off data');
+    }
+    return result as unknown;
+  }
+
+  @Patch('write-offs/:id')
+  updateWriteOff(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: { qty?: number; reason?: 'Брак' | 'Поломка' },
+  ) {
+    const session = this.requireAdminOrDirector(authorization);
+    if (!body.qty || !body.reason) {
+      throw new BadRequestException('qty and reason are required');
+    }
+    if (body.reason !== 'Брак' && body.reason !== 'Поломка') {
+      throw new BadRequestException('reason must be Брак or Поломка');
+    }
+    const result = this.authService.updateWriteOff(
+      id,
+      body.qty,
+      body.reason,
+      session.nickname,
+    );
+    if (!result) {
+      throw new BadRequestException('Write-off not found or invalid qty');
+    }
+    return result as unknown;
+  }
+
+  @Delete('write-offs/:id')
+  removeWriteOff(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireAdminOrDirector(authorization);
+    const ok = this.authService.deleteWriteOff(id, session.nickname);
+    if (!ok) {
+      throw new BadRequestException('Write-off not found');
+    }
+    return { ok: true };
+  }
+
+  private requireAdminOrDirector(authorization?: string) {
+    const token = authorization?.replace('Bearer ', '').trim();
+    if (!token) {
+      throw new UnauthorizedException('Missing token');
+    }
+
+    const session = this.authService.parseToken(token);
+    if (!session || (session.role !== 'ADMIN' && session.role !== 'DIRECTOR')) {
+      throw new UnauthorizedException('Only admin or director allowed');
+    }
+
+    return session;
+  }
+
+  private requireShiftOperator(authorization?: string) {
+    const token = authorization?.replace('Bearer ', '').trim();
+    if (!token) {
+      throw new UnauthorizedException('Missing token');
+    }
+
+    const session = this.authService.parseToken(token);
+    if (
+      !session ||
+      (session.role !== 'ADMIN' &&
+        session.role !== 'DIRECTOR' &&
+        session.role !== 'SELLER')
+    ) {
+      throw new UnauthorizedException('Only admin, director, or seller allowed');
+    }
+
+    return session;
+  }
+}
