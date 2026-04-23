@@ -113,16 +113,25 @@ type AuditLogItem = {
   details: string;
 };
 
+/** Backend base URL. In production builds, only VITE_API_URL (set at build time in Vercel) is used. */
 const API_BASE_URL = (() => {
-  const fromEnv = import.meta.env.VITE_API_URL as string | undefined;
+  const fromEnv = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
   if (fromEnv) {
     return fromEnv.replace(/\/$/, '');
   }
-  if (typeof window !== 'undefined') {
-    return `http://${window.location.hostname}:3000`;
+  if (import.meta.env.DEV) {
+    if (typeof window !== 'undefined') {
+      return `http://${window.location.hostname}:3000`;
+    }
+    return 'http://localhost:3000';
   }
-  return 'http://localhost:3000';
+  return '';
 })();
+
+const API_CONFIG_ERROR =
+  !import.meta.env.DEV && !API_BASE_URL
+    ? 'Сборка без адреса API: в Vercel добавьте переменную VITE_API_URL = https://… (URL backend на Render) и сделайте Redeploy.'
+    : '';
 
 function App() {
   const [nickname, setNickname] = useState('');
@@ -143,6 +152,13 @@ function App() {
   const [thresholds, setThresholds] = useState<ThresholdNotification[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([]);
   const [adminError, setAdminError] = useState('');
+
+  const scrollToSection = (id: string) => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
@@ -441,6 +457,10 @@ function App() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
+    if (!API_BASE_URL) {
+      setError(API_CONFIG_ERROR || 'Адрес сервера не задан.');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -509,10 +529,26 @@ function App() {
       setGlobalEmployees([]);
       setThresholds([]);
       setAuditLog([]);
-      setError('Не удалось войти. Проверьте данные и запущенный backend.');
+      setError(
+        'Не удалось войти. Проверьте логин/пароль, что backend запущен, в Vercel задан VITE_API_URL (https://…), в Render у backend в CORS_ORIGIN — адрес фронта.',
+      );
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogout = () => {
+    setSession(null);
+    setDashboard(null);
+    setSellers([]);
+    setProducts([]);
+    setSales([]);
+    setCommissionRequests([]);
+    setShifts([]);
+    setCashEvents([]);
+    setStaff([]);
+    setThresholds([]);
+    setAuditLog([]);
   };
 
   return (
@@ -521,6 +557,12 @@ function App() {
         <span className="badge">Геленджикская бухта</span>
         <h1>Фототографы</h1>
         <p className="subtitle">Авторизация в системе</p>
+
+        {API_CONFIG_ERROR ? (
+          <p className="error" role="alert">
+            {API_CONFIG_ERROR}
+          </p>
+        ) : null}
 
         {session ? (
           <div className="dashboard">
@@ -540,87 +582,101 @@ function App() {
               </p>
             </div>
 
-            {dashboardLoading ? (
-              <p className="muted">Загружаем сводку...</p>
-            ) : (
-              dashboard && (
-                <>
-                  {dashboard.sellerDataManagedByAdmin && (
-                    <p className="notice">
-                      Данные продавца заполняет администратор точки.
-                    </p>
+            {session && (
+              <>
+                <div className="quickNav">
+                  <button type="button" className="ghost" onClick={() => scrollToSection('overviewSection')}>
+                    Главная
+                  </button>
+                  <button type="button" className="ghost" onClick={() => scrollToSection('shiftSection')}>
+                    Смена
+                  </button>
+                  {session.user.role !== 'SELLER' && (
+                    <>
+                      <button type="button" className="ghost" onClick={() => scrollToSection('saleSection')}>
+                        Продажи
+                      </button>
+                      <button type="button" className="ghost" onClick={() => scrollToSection('teamSection')}>
+                        Команда
+                      </button>
+                      <button type="button" className="ghost" onClick={() => scrollToSection('opsSection')}>
+                        Контроль
+                      </button>
+                    </>
                   )}
-                  <h3>{dashboard.title}</h3>
-                  <div className="metrics">
-                    {dashboard.metrics
-                      .filter(
-                        (metric) =>
-                          dashboard.role !== 'ADMIN' ||
-                          !metric.label.toLowerCase().includes('чистая прибыль'),
-                      )
-                      .map((metric) => (
-                      <article key={metric.label} className="metricCard">
-                        <p>{metric.label}</p>
-                        <strong>{metric.value}</strong>
-                      </article>
-                    ))}
-                  </div>
+                </div>
+                <section id="overviewSection" className="sectionCard">
+                  {dashboardLoading ? (
+                    <p className="muted">Загружаем сводку...</p>
+                  ) : (
+                    dashboard && (
+                      <>
+                        {dashboard.sellerDataManagedByAdmin && (
+                          <p className="notice">
+                            Данные продавца заполняет администратор точки.
+                          </p>
+                        )}
+                        <h3>{dashboard.title}</h3>
+                        <div className="metrics">
+                          {dashboard.metrics
+                            .filter(
+                              (metric) =>
+                                dashboard.role !== 'ADMIN' ||
+                                !metric.label.toLowerCase().includes('чистая прибыль'),
+                            )
+                            .map((metric) => (
+                              <article key={metric.label} className="metricCard">
+                                <p>{metric.label}</p>
+                                <strong>{metric.value}</strong>
+                              </article>
+                            ))}
+                        </div>
 
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Магазин</th>
-                        <th>Выручка</th>
-                        {dashboard.role === 'DIRECTOR' && <th>Чистая прибыль</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dashboard.stores.map((store) => (
-                        <tr key={store.name}>
-                          <td>{store.name}</td>
-                          <td>{store.revenue}</td>
-                          {dashboard.role === 'DIRECTOR' && <td>{store.netProfit}</td>}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        <div className="tableWrap">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Магазин</th>
+                                <th>Выручка</th>
+                                {dashboard.role === 'DIRECTOR' && <th>Чистая прибыль</th>}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {dashboard.stores.map((store) => (
+                                <tr key={store.name}>
+                                  <td>{store.name}</td>
+                                  <td>{store.revenue}</td>
+                                  {dashboard.role === 'DIRECTOR' && <td>{store.netProfit}</td>}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
 
-                  {dashboard.role === 'ADMIN' && dashboard.writeOffs && (
-                    <div className="writeOffsBlock">
-                      <h3>Списания за день (товарный эквивалент)</h3>
-                      {dashboard.writeOffs.length === 0 ? (
-                        <p className="muted">Списаний за день нет</p>
-                      ) : (
-                        <ul>
-                          {dashboard.writeOffs.map((item) => (
-                            <li key={`${item.name}-${item.reason}`}>
-                              {item.name} - {item.qty} шт. ({item.reason})
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                        {dashboard.role === 'ADMIN' && dashboard.writeOffs && (
+                          <div className="writeOffsBlock">
+                            <h3>Списания за день (товарный эквивалент)</h3>
+                            {dashboard.writeOffs.length === 0 ? (
+                              <p className="muted">Списаний за день нет</p>
+                            ) : (
+                              <ul>
+                                {dashboard.writeOffs.map((item) => (
+                                  <li key={`${item.name}-${item.reason}`}>
+                                    {item.name} - {item.qty} шт. ({item.reason})
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )
                   )}
-                </>
-              )
+                </section>
+              </>
             )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setSession(null);
-                setDashboard(null);
-                setSellers([]);
-                setProducts([]);
-                setSales([]);
-                setCommissionRequests([]);
-                setShifts([]);
-                setCashEvents([]);
-                setStaff([]);
-                setThresholds([]);
-                setAuditLog([]);
-              }}
-            >
+            <button type="button" onClick={handleLogout}>
               Выйти
             </button>
           </div>
@@ -677,96 +733,149 @@ function App() {
           <section className="adminPanel">
             <h3>Операционная панель</h3>
             {adminError && <p className="error">{adminError}</p>}
-            <ShiftPanel
-              token={session.token}
-              sellers={sellers}
-              shifts={shifts}
-              onOpen={openShift}
-              onClose={closeShift}
-            />
+            <details id="shiftSection" className="mobileAccordion" open>
+              <summary>Смена</summary>
+              <section className="sectionCard">
+                <ShiftPanel
+                  token={session.token}
+                  sellers={sellers}
+                  shifts={shifts}
+                  onOpen={openShift}
+                  onClose={closeShift}
+                />
+              </section>
+            </details>
             {session.user.role !== 'SELLER' && (
               <>
-                <AddSaleForm
-                  sellers={sellers}
-                  products={products}
-                  token={session.token}
-                  onAddSale={addSale}
-                />
-                <WriteOffForm
-                  products={products}
-                  token={session.token}
-                  onAddWriteOff={addWriteOff}
-                />
-                <CashDisciplinePanel
-                  token={session.token}
-                  events={cashEvents}
-                  onAdd={addCashEvent}
-                />
-                <StaffPanel
-                  token={session.token}
-                  staff={staff}
-                  globalEmployees={globalEmployees}
-                  shifts={shifts}
-                  onAdd={addStaffMember}
-                  onAddFromBase={addStaffFromBase}
-                  onDeactivate={deactivateStaff}
-                  onActivate={activateStaff}
-                  onAssignShift={assignStaffToShift}
-                />
-                <ThresholdPanel notifications={thresholds} />
-                <AuditLogPanel items={auditLog} />
+                <details id="saleSection" className="mobileAccordion" open>
+                  <summary>Продажи и списания</summary>
+                  <section className="sectionCard">
+                    <AddSaleForm
+                      sellers={sellers}
+                      products={products}
+                      token={session.token}
+                      onAddSale={addSale}
+                    />
+                    <WriteOffForm
+                      products={products}
+                      token={session.token}
+                      onAddWriteOff={addWriteOff}
+                    />
+                  </section>
+                </details>
+                <details id="opsSection" className="mobileAccordion" open>
+                  <summary>Контроль точки</summary>
+                  <section className="sectionCard">
+                    <CashDisciplinePanel
+                      token={session.token}
+                      events={cashEvents}
+                      onAdd={addCashEvent}
+                    />
+                    <ThresholdPanel notifications={thresholds} />
+                    <AuditLogPanel items={auditLog} />
+                  </section>
+                </details>
+                <details id="teamSection" className="mobileAccordion" open>
+                  <summary>Команда</summary>
+                  <section className="sectionCard">
+                    <StaffPanel
+                      token={session.token}
+                      staff={staff}
+                      globalEmployees={globalEmployees}
+                      shifts={shifts}
+                      onAdd={addStaffMember}
+                      onAddFromBase={addStaffFromBase}
+                      onDeactivate={deactivateStaff}
+                      onActivate={activateStaff}
+                      onAssignShift={assignStaffToShift}
+                    />
+                  </section>
+                </details>
               </>
             )}
             {session.user.role === 'DIRECTOR' && (
-              <DirectorRequestList
-                requests={commissionRequests.filter((item) => item.status === 'PENDING')}
-                token={session.token}
-                onDecide={decideRequest}
-              />
+              <section className="sectionCard">
+                <DirectorRequestList
+                  requests={commissionRequests.filter((item) => item.status === 'PENDING')}
+                  token={session.token}
+                  onDecide={decideRequest}
+                />
+              </section>
             )}
             {session.user.role !== 'SELLER' && (
               <>
-                <div className="sellerList">
-                  {sellers.map((seller) => (
-                    <SellerRow
-                      key={seller.id}
-                      seller={seller}
-                      role={session.user.role}
-                      token={session.token}
-                      onDirectorSetPercent={setDirectorPercent}
-                    />
-                  ))}
-                </div>
-                <div className="salesLog">
-                  <h3>Недавние продажи</h3>
-                  {sales.length === 0 ? (
-                    <p className="muted">Пока нет внесенных продаж</p>
-                  ) : (
-                    <div className="salesList">
-                      {sales.map((sale) => (
-                        <article key={sale.id} className="saleItem">
-                          <p className="saleHeader">
-                            <strong>{new Date(sale.createdAt).toLocaleString('ru-RU')}</strong> –{' '}
-                            {sale.sellerName}
-                            <span className="saleTotal">
-                              Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
-                            </span>
-                          </p>
-                          <ul>
-                            {sale.items.map((line) => (
-                              <li key={line.name}>
-                                {line.name} × {line.qty}
-                              </li>
-                            ))}
-                          </ul>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <section className="sectionCard">
+                  <div className="sellerList">
+                    {sellers.map((seller) => (
+                      <SellerRow
+                        key={seller.id}
+                        seller={seller}
+                        role={session.user.role}
+                        token={session.token}
+                        onDirectorSetPercent={setDirectorPercent}
+                      />
+                    ))}
+                  </div>
+                </section>
+                <section className="sectionCard">
+                  <div className="salesLog">
+                    <h3>Недавние продажи</h3>
+                    {sales.length === 0 ? (
+                      <p className="muted">Пока нет внесенных продаж</p>
+                    ) : (
+                      <div className="salesList">
+                        {sales.map((sale) => (
+                          <article key={sale.id} className="saleItem">
+                            <p className="saleHeader">
+                              <strong>{new Date(sale.createdAt).toLocaleString('ru-RU')}</strong> –{' '}
+                              {sale.sellerName}
+                              <span className="saleTotal">
+                                Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
+                              </span>
+                            </p>
+                            <ul>
+                              {sale.items.map((line) => (
+                                <li key={line.name}>
+                                  {line.name} × {line.qty}
+                                </li>
+                              ))}
+                            </ul>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </section>
               </>
             )}
           </section>
+        )}
+
+        {session && (
+          <nav className="mobileDock" aria-label="Навигация по разделам">
+            <button type="button" onClick={() => scrollToSection('overviewSection')}>
+              Главная
+            </button>
+            <button type="button" onClick={() => scrollToSection('shiftSection')}>
+              Смена
+            </button>
+            {session.user.role !== 'SELLER' && (
+              <>
+                <button type="button" onClick={() => scrollToSection('saleSection')}>
+                  Продажи
+                </button>
+                <button type="button" onClick={() => scrollToSection('teamSection')}>
+                  Команда
+                </button>
+                <button type="button" onClick={() => scrollToSection('opsSection')}>
+                  Контроль
+                </button>
+              </>
+            )}
+            <button type="button" className="ghost" onClick={handleLogout}>
+              Выход
+            </button>
+          </nav>
         )}
       </section>
     </main>

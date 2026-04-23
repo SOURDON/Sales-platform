@@ -1,4 +1,5 @@
-const CACHE_NAME = 'sales-platform-v1'
+// Bump when shell caching logic changes; avoids stale SW breaking API calls.
+const CACHE_NAME = 'sales-platform-v2'
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -37,6 +38,13 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') {
+    return
+  }
+
+  const requestUrl = new URL(event.request.url)
+  if (requestUrl.origin !== self.location.origin) {
+    // Do not touch API or other origins: no cache, no index.html fallback on error.
+    event.respondWith(fetch(event.request))
     return
   }
 
