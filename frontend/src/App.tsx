@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import './App.css';
 
 type LoginResponse = {
@@ -133,7 +134,12 @@ const API_CONFIG_ERROR =
     ? 'Сборка без адреса API: в Vercel добавьте переменную VITE_API_URL = https://… (URL backend на Render) и сделайте Redeploy.'
     : '';
 
+function navTabClass({ isActive }: { isActive: boolean }) {
+  return isActive ? 'ghost navActive' : 'ghost';
+}
+
 function App() {
+  const navigate = useNavigate();
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -152,13 +158,6 @@ function App() {
   const [thresholds, setThresholds] = useState<ThresholdNotification[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([]);
   const [adminError, setAdminError] = useState('');
-
-  const scrollToSection = (id: string) => {
-    if (typeof document === 'undefined') {
-      return;
-    }
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
@@ -479,6 +478,7 @@ function App() {
       const data = (await response.json()) as LoginResponse;
       setSession(data);
       setPassword('');
+      navigate('/home', { replace: true });
       await loadDashboard(data.token);
       if (data.user.role === 'ADMIN' || data.user.role === 'DIRECTOR') {
         setAdminError('');
@@ -549,138 +549,23 @@ function App() {
     setStaff([]);
     setThresholds([]);
     setAuditLog([]);
+    navigate('/', { replace: true });
   };
 
-  return (
-    <main className="app">
-      <section className="card">
-        <span className="badge">Геленджикская бухта</span>
-        <h1>Фототографы</h1>
-        <p className="subtitle">Авторизация в системе</p>
+  if (!session) {
+    return (
+      <main className="app">
+        <section className="card">
+          <span className="badge">Геленджикская бухта</span>
+          <h1>Фототографы</h1>
+          <p className="subtitle">Авторизация в системе</p>
 
-        {API_CONFIG_ERROR ? (
-          <p className="error" role="alert">
-            {API_CONFIG_ERROR}
-          </p>
-        ) : null}
+          {API_CONFIG_ERROR ? (
+            <p className="error" role="alert">
+              {API_CONFIG_ERROR}
+            </p>
+          ) : null}
 
-        {session ? (
-          <div className="dashboard">
-            <div className="success">
-              <h2>Вход выполнен</h2>
-              <p>
-                <strong>Пользователь:</strong> {session.user.fullName}
-              </p>
-              <p>
-                <strong>Ник:</strong> {session.user.nickname}
-              </p>
-              <p>
-                <strong>Роль:</strong> {session.user.role}
-              </p>
-              <p>
-                <strong>Точка:</strong> {session.user.storeName}
-              </p>
-            </div>
-
-            {session && (
-              <>
-                <div className="quickNav">
-                  <button type="button" className="ghost" onClick={() => scrollToSection('overviewSection')}>
-                    Главная
-                  </button>
-                  <button type="button" className="ghost" onClick={() => scrollToSection('shiftSection')}>
-                    Смена
-                  </button>
-                  {session.user.role !== 'SELLER' && (
-                    <>
-                      <button type="button" className="ghost" onClick={() => scrollToSection('saleSection')}>
-                        Продажи
-                      </button>
-                      <button type="button" className="ghost" onClick={() => scrollToSection('teamSection')}>
-                        Команда
-                      </button>
-                      <button type="button" className="ghost" onClick={() => scrollToSection('opsSection')}>
-                        Контроль
-                      </button>
-                    </>
-                  )}
-                </div>
-                <section id="overviewSection" className="sectionCard">
-                  {dashboardLoading ? (
-                    <p className="muted">Загружаем сводку...</p>
-                  ) : (
-                    dashboard && (
-                      <>
-                        {dashboard.sellerDataManagedByAdmin && (
-                          <p className="notice">
-                            Данные продавца заполняет администратор точки.
-                          </p>
-                        )}
-                        <h3>{dashboard.title}</h3>
-                        <div className="metrics">
-                          {dashboard.metrics
-                            .filter(
-                              (metric) =>
-                                dashboard.role !== 'ADMIN' ||
-                                !metric.label.toLowerCase().includes('чистая прибыль'),
-                            )
-                            .map((metric) => (
-                              <article key={metric.label} className="metricCard">
-                                <p>{metric.label}</p>
-                                <strong>{metric.value}</strong>
-                              </article>
-                            ))}
-                        </div>
-
-                        <div className="tableWrap">
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>Магазин</th>
-                                <th>Выручка</th>
-                                {dashboard.role === 'DIRECTOR' && <th>Чистая прибыль</th>}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {dashboard.stores.map((store) => (
-                                <tr key={store.name}>
-                                  <td>{store.name}</td>
-                                  <td>{store.revenue}</td>
-                                  {dashboard.role === 'DIRECTOR' && <td>{store.netProfit}</td>}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {dashboard.role === 'ADMIN' && dashboard.writeOffs && (
-                          <div className="writeOffsBlock">
-                            <h3>Списания за день (товарный эквивалент)</h3>
-                            {dashboard.writeOffs.length === 0 ? (
-                              <p className="muted">Списаний за день нет</p>
-                            ) : (
-                              <ul>
-                                {dashboard.writeOffs.map((item) => (
-                                  <li key={`${item.name}-${item.reason}`}>
-                                    {item.name} - {item.qty} шт. ({item.reason})
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )
-                  )}
-                </section>
-              </>
-            )}
-
-            <button type="button" onClick={handleLogout}>
-              Выйти
-            </button>
-          </div>
-        ) : (
           <form onSubmit={handleSubmit} className="form">
             <label>
               Никнейм
@@ -705,178 +590,315 @@ function App() {
 
             {error && <p className="error">{error}</p>}
 
-            <button type="submit" disabled={loading}>
+            <button type="submit" className="primaryAction" disabled={loading}>
               {loading ? 'Входим...' : 'Войти'}
             </button>
           </form>
-        )}
 
-        <div className="help">
-          <p>Тестовые пользователи:</p>
-          <ul>
-            <li>
-              <code>director / 123456</code>
-            </li>
-            <li>
-              <code>admin1 / 123456</code>
-            </li>
-            <li>
-              <code>seller1 / 123456</code>
-            </li>
-          </ul>
+          <div className="help">
+            <p>Тестовые пользователи:</p>
+            <ul>
+              <li>
+                <code>director / 123456</code>
+              </li>
+              <li>
+                <code>admin1 / 123456</code>
+              </li>
+              <li>
+                <code>seller1 / 123456</code>
+              </li>
+            </ul>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  const role = session.user.role;
+  const isSellerOnly = role === 'SELLER';
+
+  return (
+    <main className="app">
+      <section className="card">
+        <span className="badge">Геленджикская бухта</span>
+        <h1>Фототографы</h1>
+        <p className="subtitle">Рабочий стол</p>
+
+        <div className="quickNav desktopNav" role="tablist" aria-label="Разделы">
+          <NavLink to="/home" className={navTabClass} end>
+            Главная
+          </NavLink>
+          <NavLink to="/shift" className={navTabClass}>
+            Смена
+          </NavLink>
+          {!isSellerOnly && (
+            <>
+              <NavLink to="/sales" className={navTabClass}>
+                Продажи
+              </NavLink>
+              <NavLink to="/team" className={navTabClass}>
+                Команда
+              </NavLink>
+              <NavLink to="/control" className={navTabClass}>
+                Контроль
+              </NavLink>
+            </>
+          )}
         </div>
 
-        {session &&
-          (session.user.role === 'ADMIN' ||
-            session.user.role === 'DIRECTOR' ||
-            session.user.role === 'SELLER') && (
-          <section className="adminPanel">
-            <h3>Операционная панель</h3>
-            {adminError && <p className="error">{adminError}</p>}
-            <details id="shiftSection" className="mobileAccordion" open>
-              <summary>Смена</summary>
-              <section className="sectionCard">
-                <ShiftPanel
-                  token={session.token}
-                  sellers={sellers}
-                  shifts={shifts}
-                  onOpen={openShift}
-                  onClose={closeShift}
-                />
-              </section>
-            </details>
-            {session.user.role !== 'SELLER' && (
-              <>
-                <details id="saleSection" className="mobileAccordion" open>
-                  <summary>Продажи и списания</summary>
+        {adminError && <p className="error">{adminError}</p>}
+
+        <div className="pageOutlet">
+          <Routes>
+            <Route path="/" element={<Navigate to="/home" replace />} />
+            <Route
+              path="/home"
+              element={
+                <div className="dashboard">
+                  <div className="success">
+                    <h2>Профиль</h2>
+                    <p>
+                      <strong>Пользователь:</strong> {session.user.fullName}
+                    </p>
+                    <p>
+                      <strong>Ник:</strong> {session.user.nickname}
+                    </p>
+                    <p>
+                      <strong>Роль:</strong> {session.user.role}
+                    </p>
+                    <p>
+                      <strong>Точка:</strong> {session.user.storeName}
+                    </p>
+                  </div>
+
                   <section className="sectionCard">
-                    <AddSaleForm
+                    {dashboardLoading ? (
+                      <p className="muted">Загружаем сводку...</p>
+                    ) : (
+                      dashboard && (
+                        <>
+                          {dashboard.sellerDataManagedByAdmin && (
+                            <p className="notice">Данные продавца заполняет администратор точки.</p>
+                          )}
+                          <h3>{dashboard.title}</h3>
+                          <div className="metrics">
+                            {dashboard.metrics
+                              .filter(
+                                (metric) =>
+                                  dashboard.role !== 'ADMIN' ||
+                                  !metric.label.toLowerCase().includes('чистая прибыль'),
+                              )
+                              .map((metric) => (
+                                <article key={metric.label} className="metricCard">
+                                  <p>{metric.label}</p>
+                                  <strong>{metric.value}</strong>
+                                </article>
+                              ))}
+                          </div>
+
+                          <div className="tableWrap">
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>Магазин</th>
+                                  <th>Выручка</th>
+                                  {dashboard.role === 'DIRECTOR' && <th>Чистая прибыль</th>}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {dashboard.stores.map((store) => (
+                                  <tr key={store.name}>
+                                    <td>{store.name}</td>
+                                    <td>{store.revenue}</td>
+                                    {dashboard.role === 'DIRECTOR' && <td>{store.netProfit}</td>}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {dashboard.role === 'ADMIN' && dashboard.writeOffs && (
+                            <div className="writeOffsBlock">
+                              <h3>Списания за день (товарный эквивалент)</h3>
+                              {dashboard.writeOffs.length === 0 ? (
+                                <p className="muted">Списаний за день нет</p>
+                              ) : (
+                                <ul>
+                                  {dashboard.writeOffs.map((item) => (
+                                    <li key={`${item.name}-${item.reason}`}>
+                                      {item.name} - {item.qty} шт. ({item.reason})
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )
+                    )}
+                  </section>
+                </div>
+              }
+            />
+            <Route
+              path="/shift"
+              element={
+                <div className="dashboard">
+                  <section className="sectionCard">
+                    <ShiftPanel
+                      token={session.token}
                       sellers={sellers}
-                      products={products}
-                      token={session.token}
-                      onAddSale={addSale}
-                    />
-                    <WriteOffForm
-                      products={products}
-                      token={session.token}
-                      onAddWriteOff={addWriteOff}
-                    />
-                  </section>
-                </details>
-                <details id="opsSection" className="mobileAccordion" open>
-                  <summary>Контроль точки</summary>
-                  <section className="sectionCard">
-                    <CashDisciplinePanel
-                      token={session.token}
-                      events={cashEvents}
-                      onAdd={addCashEvent}
-                    />
-                    <ThresholdPanel notifications={thresholds} />
-                    <AuditLogPanel items={auditLog} />
-                  </section>
-                </details>
-                <details id="teamSection" className="mobileAccordion" open>
-                  <summary>Команда</summary>
-                  <section className="sectionCard">
-                    <StaffPanel
-                      token={session.token}
-                      staff={staff}
-                      globalEmployees={globalEmployees}
                       shifts={shifts}
-                      onAdd={addStaffMember}
-                      onAddFromBase={addStaffFromBase}
-                      onDeactivate={deactivateStaff}
-                      onActivate={activateStaff}
-                      onAssignShift={assignStaffToShift}
+                      onOpen={openShift}
+                      onClose={closeShift}
                     />
                   </section>
-                </details>
-              </>
-            )}
-            {session.user.role === 'DIRECTOR' && (
-              <section className="sectionCard">
-                <DirectorRequestList
-                  requests={commissionRequests.filter((item) => item.status === 'PENDING')}
-                  token={session.token}
-                  onDecide={decideRequest}
-                />
-              </section>
-            )}
-            {session.user.role !== 'SELLER' && (
-              <>
-                <section className="sectionCard">
-                  <div className="sellerList">
-                    {sellers.map((seller) => (
-                      <SellerRow
-                        key={seller.id}
-                        seller={seller}
-                        role={session.user.role}
+                </div>
+              }
+            />
+            <Route
+              path="/sales"
+              element={
+                isSellerOnly ? (
+                  <Navigate to="/home" replace />
+                ) : (
+                  <div className="dashboard">
+                    <section className="sectionCard">
+                      <AddSaleForm
+                        sellers={sellers}
+                        products={products}
                         token={session.token}
+                        onAddSale={addSale}
+                      />
+                    </section>
+                    <section className="sectionCard">
+                      <WriteOffForm
+                        products={products}
+                        token={session.token}
+                        onAddWriteOff={addWriteOff}
+                      />
+                    </section>
+                    <section className="sectionCard">
+                      <div className="salesLog">
+                        <h3>Недавние продажи</h3>
+                        {sales.length === 0 ? (
+                          <p className="muted">Пока нет внесенных продаж</p>
+                        ) : (
+                          <div className="salesList">
+                            {sales.map((sale) => (
+                              <article key={sale.id} className="saleItem">
+                                <p className="saleHeader">
+                                  <strong>{new Date(sale.createdAt).toLocaleString('ru-RU')}</strong> –{' '}
+                                  {sale.sellerName}
+                                  <span className="saleTotal">
+                                    Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
+                                  </span>
+                                </p>
+                                <ul>
+                                  {sale.items.map((line) => (
+                                    <li key={line.name}>
+                                      {line.name} × {line.qty}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </article>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  </div>
+                )
+              }
+            />
+            <Route
+              path="/team"
+              element={
+                isSellerOnly ? (
+                  <Navigate to="/home" replace />
+                ) : (
+                  <div className="dashboard">
+                    <section className="sectionCard">
+                      <StaffPanel
+                        token={session.token}
+                        staff={staff}
+                        sellers={sellers}
+                        globalEmployees={globalEmployees}
+                        shifts={shifts}
+                        role={role}
+                        onAdd={addStaffMember}
+                        onAddFromBase={addStaffFromBase}
+                        onDeactivate={deactivateStaff}
+                        onActivate={activateStaff}
+                        onAssignShift={assignStaffToShift}
                         onDirectorSetPercent={setDirectorPercent}
                       />
-                    ))}
-                  </div>
-                </section>
-                <section className="sectionCard">
-                  <div className="salesLog">
-                    <h3>Недавние продажи</h3>
-                    {sales.length === 0 ? (
-                      <p className="muted">Пока нет внесенных продаж</p>
-                    ) : (
-                      <div className="salesList">
-                        {sales.map((sale) => (
-                          <article key={sale.id} className="saleItem">
-                            <p className="saleHeader">
-                              <strong>{new Date(sale.createdAt).toLocaleString('ru-RU')}</strong> –{' '}
-                              {sale.sellerName}
-                              <span className="saleTotal">
-                                Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
-                              </span>
-                            </p>
-                            <ul>
-                              {sale.items.map((line) => (
-                                <li key={line.name}>
-                                  {line.name} × {line.qty}
-                                </li>
-                              ))}
-                            </ul>
-                          </article>
-                        ))}
-                      </div>
+                    </section>
+                    {role === 'DIRECTOR' && (
+                      <section className="sectionCard">
+                        <DirectorRequestList
+                          requests={commissionRequests.filter((item) => item.status === 'PENDING')}
+                          token={session.token}
+                          onDecide={decideRequest}
+                        />
+                      </section>
                     )}
                   </div>
-                </section>
-              </>
-            )}
-          </section>
-        )}
+                )
+              }
+            />
+            <Route
+              path="/control"
+              element={
+                isSellerOnly ? (
+                  <Navigate to="/home" replace />
+                ) : (
+                  <div className="dashboard">
+                    <section className="sectionCard">
+                      <CashDisciplinePanel
+                        token={session.token}
+                        events={cashEvents}
+                        onAdd={addCashEvent}
+                      />
+                    </section>
+                    <section className="sectionCard">
+                      <ThresholdPanel notifications={thresholds} />
+                    </section>
+                    <section className="sectionCard">
+                      <AuditLogPanel items={auditLog} />
+                    </section>
+                  </div>
+                )
+              }
+            />
+            <Route path="*" element={<Navigate to="/home" replace />} />
+          </Routes>
+        </div>
 
-        {session && (
-          <nav className="mobileDock" aria-label="Навигация по разделам">
-            <button type="button" onClick={() => scrollToSection('overviewSection')}>
-              Главная
-            </button>
-            <button type="button" onClick={() => scrollToSection('shiftSection')}>
-              Смена
-            </button>
-            {session.user.role !== 'SELLER' && (
-              <>
-                <button type="button" onClick={() => scrollToSection('saleSection')}>
-                  Продажи
-                </button>
-                <button type="button" onClick={() => scrollToSection('teamSection')}>
-                  Команда
-                </button>
-                <button type="button" onClick={() => scrollToSection('opsSection')}>
-                  Контроль
-                </button>
-              </>
-            )}
-            <button type="button" className="ghost" onClick={handleLogout}>
-              Выход
-            </button>
-          </nav>
-        )}
+        <nav className="mobileDock" aria-label="Навигация по разделам">
+          <NavLink to="/home" className={navTabClass} end>
+            Главная
+          </NavLink>
+          <NavLink to="/shift" className={navTabClass}>
+            Смена
+          </NavLink>
+          {!isSellerOnly && (
+            <>
+              <NavLink to="/sales" className={navTabClass}>
+                Продажи
+              </NavLink>
+              <NavLink to="/team" className={navTabClass}>
+                Команда
+              </NavLink>
+              <NavLink to="/control" className={navTabClass}>
+                Контроль
+              </NavLink>
+            </>
+          )}
+          <button type="button" className="ghost dockLogout" onClick={handleLogout}>
+            Выход
+          </button>
+        </nav>
       </section>
     </main>
   );
@@ -963,7 +985,7 @@ function AddSaleForm({
             placeholder="Например, 4250"
           />
         </label>
-        <button type="button" onClick={submit} disabled={busy}>
+        <button className="primaryAction" type="button" onClick={submit} disabled={busy}>
           Сохранить продажу
         </button>
       </div>
@@ -1060,7 +1082,7 @@ function WriteOffForm({
             <option value="Поломка">Поломка</option>
           </select>
         </label>
-        <button type="button" onClick={submit} disabled={busy}>
+        <button className="primaryAction" type="button" onClick={submit} disabled={busy}>
           Списать
         </button>
       </div>
@@ -1109,6 +1131,7 @@ function ShiftPanel({
       </div>
       <div className="inlineActions">
         <button
+          className="primaryAction"
           type="button"
           disabled={busy || !!openShift}
           onClick={async () => {
@@ -1187,6 +1210,7 @@ function CashDisciplinePanel({
           <input value={comment} onChange={(event) => setComment(event.target.value)} />
         </label>
         <button
+          className="primaryAction"
           type="button"
           onClick={async () => {
             await onAdd(token, type, comment);
@@ -1208,37 +1232,162 @@ function CashDisciplinePanel({
   );
 }
 
+function TeamMemberCard({
+  token,
+  member,
+  seller,
+  role,
+  openShiftId,
+  onDeactivate,
+  onActivate,
+  onAssignShift,
+  onDirectorSetPercent,
+}: {
+  token: string;
+  member: StaffMember;
+  seller?: SellerProfile;
+  role: 'DIRECTOR' | 'ADMIN' | 'SELLER';
+  openShiftId?: string;
+  onDeactivate: (token: string, id: number) => Promise<void>;
+  onActivate: (token: string, id: number) => Promise<void>;
+  onAssignShift: (token: string, id: number, shiftId: string) => Promise<void>;
+  onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
+}) {
+  const [newPercent, setNewPercent] = useState(String(seller?.ratePercent ?? 0));
+  const [busy, setBusy] = useState(false);
+
+  const applyDirector = async () => {
+    if (!seller) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await onDirectorSetPercent(token, seller.id, Number(newPercent) || 0);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <article className="teamMemberCard">
+      <div className="teamMemberTop">
+        <div>
+          <p className="teamMemberName">
+            <strong>{member.fullName}</strong>{' '}
+            <span className="teamMemberNick">({member.nickname})</span>
+          </p>
+          <p className="teamMemberMeta">
+            Смена: {member.assignedShiftId ?? '—'}
+          </p>
+        </div>
+        <span
+          className={member.isActive ? 'statusPill statusPillOn' : 'statusPill statusPillOff'}
+        >
+          {member.isActive ? 'Активен' : 'Отключён'}
+        </span>
+      </div>
+
+      <div className="inlineActions teamMemberActions">
+        <button
+          type="button"
+          className="ghost"
+          disabled={!openShiftId}
+          onClick={() => openShiftId && onAssignShift(token, member.id, openShiftId)}
+        >
+          <span className="btnTextFull">Назначить на открытую смену</span>
+          <span className="btnTextShort">К смене</span>
+        </button>
+        {member.isActive ? (
+          <button type="button" className="ghost" onClick={() => onDeactivate(token, member.id)}>
+            <span className="btnTextFull">Деактивировать</span>
+            <span className="btnTextShort">Откл.</span>
+          </button>
+        ) : (
+          <button type="button" className="ghost" onClick={() => onActivate(token, member.id)}>
+            Активировать
+          </button>
+        )}
+      </div>
+
+      {seller && (
+        <div className="teamMemberStats">
+          <div className="statCell">
+            <span className="statLabel">Продажи</span>
+            <span className="statValue">{seller.salesAmount.toLocaleString('ru-RU')} ₽</span>
+          </div>
+          <div className="statCell">
+            <span className="statLabel">Чеки</span>
+            <span className="statValue">{seller.checksCount}</span>
+          </div>
+          <div className="statCell">
+            <span className="statLabel">Начислено</span>
+            <span className="statValue">{seller.commissionAmount.toLocaleString('ru-RU')} ₽</span>
+          </div>
+          <div className="statCell">
+            <span className="statLabel">% сейчас</span>
+            <span className="statValue strong">{seller.ratePercent}%</span>
+          </div>
+        </div>
+      )}
+
+      {seller && role === 'DIRECTOR' && (
+        <div className="directorPercent teamPercentEdit">
+          <label>
+            Новый % (директор)
+            <input value={newPercent} onChange={(event) => setNewPercent(event.target.value)} />
+          </label>
+          <button className="primaryAction" type="button" onClick={applyDirector} disabled={busy}>
+            OK
+          </button>
+        </div>
+      )}
+
+      {seller && role === 'ADMIN' && (
+        <p className="hint teamHint">Процент меняет только директор (по согласованию).</p>
+      )}
+
+      {!seller && (
+        <p className="hint teamHint">Нет профиля продавца — показатели появятся после синхронизации.</p>
+      )}
+    </article>
+  );
+}
+
 function StaffPanel({
   token,
   staff,
+  sellers,
   globalEmployees,
   shifts,
+  role,
   onAdd,
   onAddFromBase,
   onDeactivate,
   onActivate,
   onAssignShift,
+  onDirectorSetPercent,
 }: {
   token: string;
   staff: StaffMember[];
+  sellers: SellerProfile[];
   globalEmployees: GlobalEmployee[];
   shifts: ShiftInfo[];
+  role: 'DIRECTOR' | 'ADMIN' | 'SELLER';
   onAdd: (token: string, fullName: string, nickname: string) => Promise<void>;
   onAddFromBase: (token: string, employeeId: number) => Promise<void>;
   onDeactivate: (token: string, id: number) => Promise<void>;
   onActivate: (token: string, id: number) => Promise<void>;
   onAssignShift: (token: string, id: number, shiftId: string) => Promise<void>;
+  onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
 }) {
   const [fullName, setFullName] = useState('');
   const [nickname, setNickname] = useState('');
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number>(
-    globalEmployees[0]?.id ?? 0,
-  );
-  useEffect(() => {
-    if (!selectedEmployeeId && globalEmployees.length > 0) {
-      setSelectedEmployeeId(globalEmployees[0].id);
-    }
-  }, [globalEmployees, selectedEmployeeId]);
+  const [pickedEmployeeId, setPickedEmployeeId] = useState<number | null>(null);
+  const firstGlobalId = globalEmployees[0]?.id ?? 0;
+  const selectedEmployeeId =
+    pickedEmployeeId !== null && globalEmployees.some((employee) => employee.id === pickedEmployeeId)
+      ? pickedEmployeeId
+      : firstGlobalId;
   const staffIds = new Set(staff.map((member) => member.id));
   const selectedEmployee = globalEmployees.find((employee) => employee.id === selectedEmployeeId);
   const alreadyInStore = selectedEmployee ? staffIds.has(selectedEmployee.id) : false;
@@ -1256,6 +1405,7 @@ function StaffPanel({
           <input value={nickname} onChange={(event) => setNickname(event.target.value)} />
         </label>
         <button
+          className="primaryAction"
           type="button"
           onClick={async () => {
             await onAdd(token, fullName, nickname);
@@ -1271,7 +1421,7 @@ function StaffPanel({
           Сотрудник из общей базы
           <select
             value={selectedEmployeeId}
-            onChange={(event) => setSelectedEmployeeId(Number(event.target.value))}
+            onChange={(event) => setPickedEmployeeId(Number(event.target.value))}
           >
             {globalEmployees.map((employee) => (
               <option key={employee.id} value={employee.id}>
@@ -1282,6 +1432,7 @@ function StaffPanel({
           </select>
         </label>
         <button
+          className="primaryAction"
           type="button"
           disabled={!selectedEmployeeId || alreadyInStore}
           onClick={() => selectedEmployeeId && onAddFromBase(token, selectedEmployeeId)}
@@ -1290,62 +1441,24 @@ function StaffPanel({
         </button>
         <p className="inlineStatus">{alreadyInStore ? 'Уже добавлен в эту точку' : ''}</p>
       </div>
-      <div className="opsList">
-        {staff.map((member) => (
-          <StaffRow
-            key={member.id}
-            token={token}
-            member={member}
-            openShiftId={openShift?.id}
-            onDeactivate={onDeactivate}
-            onActivate={onActivate}
-            onAssignShift={onAssignShift}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function StaffRow({
-  token,
-  member,
-  openShiftId,
-  onDeactivate,
-  onActivate,
-  onAssignShift,
-}: {
-  token: string;
-  member: StaffMember;
-  openShiftId?: string;
-  onDeactivate: (token: string, id: number) => Promise<void>;
-  onActivate: (token: string, id: number) => Promise<void>;
-  onAssignShift: (token: string, id: number, shiftId: string) => Promise<void>;
-}) {
-  return (
-    <div className="staffRow">
-      <p>
-        {member.fullName} ({member.nickname}) | {member.isActive ? 'Активен' : 'Отключен'} | Смена:{' '}
-        {member.assignedShiftId ?? '-'}
-      </p>
-      <div className="inlineActions">
-        <button
-          type="button"
-          className="ghost"
-          disabled={!openShiftId}
-          onClick={() => openShiftId && onAssignShift(token, member.id, openShiftId)}
-        >
-          Назначить на открытую смену
-        </button>
-        {member.isActive ? (
-          <button type="button" className="ghost" onClick={() => onDeactivate(token, member.id)}>
-            Деактивировать
-          </button>
-        ) : (
-          <button type="button" className="ghost" onClick={() => onActivate(token, member.id)}>
-            Активировать
-          </button>
-        )}
+      <div className="opsList teamRoster">
+        {staff.map((member) => {
+          const seller = sellers.find((item) => item.id === member.id);
+          return (
+            <TeamMemberCard
+              key={seller ? `${member.id}-${seller.ratePercent}` : String(member.id)}
+              token={token}
+              member={member}
+              seller={seller}
+              role={role}
+              openShiftId={openShift?.id}
+              onDeactivate={onDeactivate}
+              onActivate={onActivate}
+              onAssignShift={onAssignShift}
+              onDirectorSetPercent={onDirectorSetPercent}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -1409,7 +1522,11 @@ function DirectorRequestList({
           </p>
           {request.comment && <p className="hint">Комментарий: {request.comment}</p>}
           <div className="requestActions">
-            <button type="button" onClick={() => onDecide(token, request.id, 'APPROVE')}>
+            <button
+              className="primaryAction"
+              type="button"
+              onClick={() => onDecide(token, request.id, 'APPROVE')}
+            >
               Согласовать
             </button>
             <button type="button" className="ghost" onClick={() => onDecide(token, request.id, 'REJECT')}>
@@ -1419,63 +1536,6 @@ function DirectorRequestList({
         </article>
       ))}
     </div>
-  );
-}
-
-function SellerRow({
-  seller,
-  role,
-  token,
-  onDirectorSetPercent,
-}: {
-  seller: SellerProfile;
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER';
-  token: string;
-  onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
-}) {
-  const [newPercent, setNewPercent] = useState(String(seller.ratePercent));
-  const [busy, setBusy] = useState(false);
-
-  const applyDirector = async () => {
-    setBusy(true);
-    try {
-      await onDirectorSetPercent(token, seller.id, Number(newPercent) || 0);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <article className="sellerCard">
-      <p>
-        <strong>{seller.fullName}</strong> ({seller.nickname})
-      </p>
-      <p>
-        Точка: {seller.storeName} | Продажи: {seller.salesAmount.toLocaleString('ru-RU')} ₽ | Чеки:{' '}
-        {seller.checksCount} | Начислено: {seller.commissionAmount.toLocaleString('ru-RU')} ₽
-      </p>
-      <p className="percentLine">
-        Текущий процент: <strong>{seller.ratePercent}%</strong>
-      </p>
-
-      {role === 'DIRECTOR' && (
-        <div className="directorPercent">
-          <label>
-            Новый процент (директор)
-            <input value={newPercent} onChange={(event) => setNewPercent(event.target.value)} />
-          </label>
-          <button type="button" onClick={applyDirector} disabled={busy}>
-            Применить
-          </button>
-        </div>
-      )}
-
-      {role === 'ADMIN' && (
-        <div className="adminPercent">
-          <p className="hint">Изменять процент может только директор.</p>
-        </div>
-      )}
-    </article>
   );
 }
 

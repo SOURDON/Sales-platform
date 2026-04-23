@@ -22,10 +22,11 @@
 }
 
 .sectionCard {
-  border: 1px solid #bfdbfe;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
-  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #fff;
+  padding: 12px;
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.04);
 }
 
 .mobileAccordion {
@@ -359,9 +360,160 @@ th {
   flex-wrap: wrap;
 }
 
-button.ghost {
+button.ghost,
+a.ghost {
   background: #e2e8f0;
   color: #0f172a;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+a.ghost.navActive,
+button.ghost.navActive {
+  background: linear-gradient(135deg, #0f4c81, #0ea5a6);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(15, 76, 129, 0.28);
+}
+
+a.ghost.navActive:hover,
+button.ghost.navActive:hover {
+  transform: none;
+}
+
+button.primaryAction {
+  background: linear-gradient(135deg, #0f4c81, #0ea5a6);
+  color: #fff;
+  border: none;
+  font-weight: 700;
+}
+
+.pageOutlet {
+  min-height: 40vh;
+}
+
+/* Объединённая карточка сотрудника (команда) */
+.teamMemberCard {
+  border: none;
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px 14px 12px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
+  display: grid;
+  gap: 10px;
+}
+
+.teamMemberTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.teamMemberName {
+  margin: 0 0 4px;
+  font-size: 15px;
+  color: #0b4f82;
+  line-height: 1.3;
+}
+
+.teamMemberNick {
+  font-weight: 600;
+  color: #0f4c81;
+  font-size: 14px;
+}
+
+.teamMemberMeta {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.statusPill {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.statusPillOn {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.statusPillOff {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.teamMemberStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.statCell {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.statValue {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0b4f82;
+}
+
+.statValue.strong {
+  font-size: 16px;
+}
+
+.teamMemberActions {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.teamMemberActions .ghost {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.btnTextShort {
+  display: none;
+}
+
+.teamPercentEdit {
+  margin-top: 0;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.teamHint {
+  margin: 0;
+}
+
+.teamRoster {
+  gap: 12px;
 }
 
 select {
@@ -544,12 +696,13 @@ select {
 }
 
 .opsCard {
-  border: 1px solid #bfdbfe;
-  border-radius: 12px;
-  background: #eff6ff;
-  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  box-shadow: 0 1px 8px rgba(15, 23, 42, 0.05);
 }
 
 .opsCard h4 {
@@ -625,7 +778,19 @@ select {
     max-width: none;
     border-radius: 0;
     min-height: 100vh;
-    padding: 14px 12px 90px;
+    padding: 12px 12px 76px;
+  }
+
+  .desktopNav {
+    display: none;
+  }
+
+  .btnTextFull {
+    display: none;
+  }
+
+  .btnTextShort {
+    display: inline;
   }
 
   .sectionCard {
@@ -700,7 +865,8 @@ select {
     border-bottom: 1px dashed #93c5d9;
   }
 
-  .quickNav button {
+  .quickNav button,
+  .quickNav a.ghost {
     min-height: 40px;
     font-size: 13px;
   }
@@ -711,20 +877,49 @@ select {
     right: 0;
     bottom: 0;
     z-index: 20;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
     gap: 6px;
-    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
-    background: rgba(255, 248, 220, 0.96);
-    border-top: 1px solid #93c5d9;
-    backdrop-filter: blur(6px);
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.94);
+    border-top: 1px solid #e2e8f0;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.06);
   }
 
-  .mobileDock button {
-    min-height: 40px;
-    padding: 8px 6px;
+  .mobileDock button,
+  .mobileDock a.ghost {
+    flex: 0 0 auto;
+    min-height: 38px;
+    min-width: min-content;
+    padding: 8px 12px;
     font-size: 12px;
-    line-height: 1.15;
+    line-height: 1.2;
+    border-radius: 999px;
+  }
+
+  .mobileDock .dockLogout {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #e2e8f0;
+  }
+
+  .card button[type='button']:not(.ghost):not(.primaryAction) {
+    background: #fff;
+    color: #0b4f82;
+    border: 1px solid #bfdbfe;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    font-weight: 600;
+  }
+
+  .addSaleForm,
+  .writeOffForm {
+    background: #f8fafc;
+    border-color: #e2e8f0;
   }
 
   .inlineGridStaffBase button {
