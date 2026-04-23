@@ -74,7 +74,7 @@ Recommended stack:
 2. In Render create a new **Web Service** from the repo:
    - Root Directory: `backend`
    - Build Command: `npm ci && npm run build && npm run prisma:migrate:deploy && npm run prisma:seed`
-   - Start Command: `npm run start:prod`
+   - Start Command: `npm run start:prod` (запускает собранный `dist/src/main.js`)
 3. Add environment variables:
    - `PORT=3000`
    - `DATABASE_URL=<DATABASE_URL_PRODUCTION>`
@@ -97,7 +97,7 @@ Recommended stack:
 - Render staging backend:
   - Root Directory: `backend`
   - Build Command: `npm ci && npm run build && npm run prisma:migrate:deploy && npm run prisma:seed`
-  - Start Command: `npm run start:prod`
+  - Start Command: `npm run start:prod` (тот же entrypoint: `dist/src/main.js`)
   - Env:
     - `PORT=3000`
     - `DATABASE_URL=<DATABASE_URL_STAGING>`
