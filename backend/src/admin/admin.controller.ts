@@ -94,7 +94,7 @@ export class AdminController {
       body.assignedSellerIds ?? [],
     );
     if (!shift) {
-      throw new BadRequestException('Shift is already open');
+      throw new BadRequestException('Failed to open shift');
     }
     return shift as unknown;
   }

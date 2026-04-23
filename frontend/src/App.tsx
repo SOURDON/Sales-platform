@@ -556,9 +556,11 @@ function App() {
     return (
       <main className="app">
         <section className="card">
-          <span className="badge">Геленджикская бухта</span>
-          <h1>Фототографы</h1>
-          <p className="subtitle">Авторизация в системе</p>
+          <header className="brandHeader">
+            <span className="badge">Геленджикская бухта</span>
+            <h1>Фототографы</h1>
+            <p className="subtitle">Авторизация в системе</p>
+          </header>
 
           {API_CONFIG_ERROR ? (
             <p className="error" role="alert">
@@ -620,9 +622,11 @@ function App() {
   return (
     <main className="app">
       <section className="card">
-        <span className="badge">Геленджикская бухта</span>
-        <h1>Фототографы</h1>
-        <p className="subtitle">Рабочий стол</p>
+        <header className="brandHeader">
+          <span className="badge">Геленджикская бухта</span>
+          <h1>Фототографы</h1>
+          <p className="subtitle">Рабочий стол</p>
+        </header>
 
         <div className="quickNav desktopNav" role="tablist" aria-label="Разделы">
           <NavLink to="/home" className={navTabClass} end>
@@ -1117,6 +1121,12 @@ function ShiftPanel({
   return (
     <div className="opsCard">
       <h4>Открытие/закрытие смены</h4>
+      {openShift && (
+        <p className="notice shiftNotice">
+          Смена уже идёт. Отметьте ещё продавцов и нажмите «Добавить в смену» — все выбранные
+          останутся на одной смене.
+        </p>
+      )}
       <div className="inlineGrid">
         {sellers.map((seller) => (
           <label key={seller.id}>
@@ -1133,7 +1143,7 @@ function ShiftPanel({
         <button
           className="primaryAction"
           type="button"
-          disabled={busy || !!openShift}
+          disabled={busy}
           onClick={async () => {
             setBusy(true);
             try {
@@ -1143,7 +1153,7 @@ function ShiftPanel({
             }
           }}
         >
-          Открыть смену
+          {openShift ? 'Добавить в смену' : 'Открыть смену'}
         </button>
         <button
           type="button"

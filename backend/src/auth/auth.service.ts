@@ -539,7 +539,24 @@ export class AuthService implements OnModuleInit {
   openShift(openedBy: string, assignedSellerIds: number[]) {
     const existingOpen = this.shiftHistory.find((item) => item.status === 'OPEN');
     if (existingOpen) {
-      return null;
+      const merged = [
+        ...new Set([...existingOpen.assignedSellerIds, ...assignedSellerIds]),
+      ];
+      existingOpen.assignedSellerIds = merged;
+      for (const member of this.staff) {
+        if (merged.includes(member.id)) {
+          member.assignedShiftId = existingOpen.id;
+        } else if (member.assignedShiftId === existingOpen.id) {
+          member.assignedShiftId = undefined;
+        }
+      }
+      this.pushAudit(
+        openedBy,
+        'SHIFT_OPEN_ASSIGNEES',
+        `shift=${existingOpen.id} sellers=${merged.join(',')}`,
+      );
+      this.queuePersist();
+      return existingOpen;
     }
     const shift: Shift = {
       id: `shift-${Date.now()}`,
