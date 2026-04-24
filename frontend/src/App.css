@@ -849,8 +849,8 @@ select {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: max(0px, env(safe-area-inset-bottom));
-  z-index: 30;
+  bottom: 0;
+  z-index: 1000;
   display: grid;
   align-items: center;
   gap: 8px;
@@ -860,13 +860,6 @@ select {
   border-top: 1px solid var(--ui-border);
   backdrop-filter: blur(12px);
   box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.1);
-  transition: transform 0.22s ease, opacity 0.2s ease;
-}
-
-.mobileDockHidden {
-  transform: translateY(calc(100% + env(safe-area-inset-bottom)));
-  opacity: 0;
-  pointer-events: none;
 }
 
 .mobileDock a.ghost {

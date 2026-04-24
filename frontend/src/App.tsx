@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import './App.css';
@@ -223,8 +223,6 @@ function ControlIcon() {
 
 function App() {
   const navigate = useNavigate();
-  const lastScrollYRef = useRef(0);
-  const [isDockHidden, setIsDockHidden] = useState(false);
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -243,26 +241,6 @@ function App() {
   const [thresholds, setThresholds] = useState<ThresholdNotification[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([]);
   const [adminError, setAdminError] = useState('');
-
-  useEffect(() => {
-    const onScroll = () => {
-      if (window.innerWidth > 860) {
-        setIsDockHidden(false);
-        return;
-      }
-      const current = window.scrollY;
-      const delta = current - lastScrollYRef.current;
-      if (current < 72 || delta < -6) {
-        setIsDockHidden(false);
-      } else if (delta > 8) {
-        setIsDockHidden(true);
-      }
-      lastScrollYRef.current = current;
-    };
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
@@ -1023,7 +1001,7 @@ function App() {
         </div>
 
         <nav
-          className={`mobileDock ${isDockHidden ? 'mobileDockHidden' : ''}`}
+          className="mobileDock"
           aria-label="Навигация по разделам"
           style={{ gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))` }}
         >
