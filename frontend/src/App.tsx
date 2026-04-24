@@ -244,6 +244,26 @@ function App() {
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([]);
   const [adminError, setAdminError] = useState('');
 
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.innerWidth > 860) {
+        setIsDockHidden(false);
+        return;
+      }
+      const current = window.scrollY;
+      const delta = current - lastScrollYRef.current;
+      if (current < 72 || delta < -6) {
+        setIsDockHidden(false);
+      } else if (delta > 8) {
+        setIsDockHidden(true);
+      }
+      lastScrollYRef.current = current;
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
     try {
@@ -726,26 +746,6 @@ function App() {
         { to: '/team', label: 'Команда', icon: <TeamIcon /> },
         { to: '/control', label: 'Контроль', icon: <ControlIcon /> },
       ];
-
-  useEffect(() => {
-    const onScroll = () => {
-      if (window.innerWidth > 860) {
-        setIsDockHidden(false);
-        return;
-      }
-      const current = window.scrollY;
-      const delta = current - lastScrollYRef.current;
-      if (current < 72 || delta < -6) {
-        setIsDockHidden(false);
-      } else if (delta > 8) {
-        setIsDockHidden(true);
-      }
-      lastScrollYRef.current = current;
-    };
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   return (
     <main className="app appWorkspace">
