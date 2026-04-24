@@ -849,7 +849,7 @@ select {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: max(0px, env(safe-area-inset-bottom));
   z-index: 30;
   display: grid;
   align-items: center;
@@ -1159,10 +1159,6 @@ select {
 }
 
 @media (min-width: 861px) {
-  .mobileDock {
-    display: none;
-  }
-
   .appWorkspace {
     align-items: center;
     padding: 20px;
@@ -1172,7 +1168,7 @@ select {
     max-width: 960px;
     min-height: auto;
     border-radius: 20px;
-    padding: 28px;
+    padding: 28px 28px 120px;
   }
 }
 
