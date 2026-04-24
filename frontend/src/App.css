@@ -803,6 +803,12 @@ select {
   min-height: 42px;
 }
 
+.staffBaseBlock .inlineStatus {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .inlineActions {
   display: flex;
   flex-wrap: wrap;
@@ -931,6 +937,38 @@ select {
   width: 100%;
   margin-left: auto;
   margin-right: auto;
+  min-width: 0;
+}
+
+.teamPanelCard,
+.staffPanelRoot,
+.staffPanelRoot .inlineGrid,
+.staffPanelRoot label,
+.staffPanelRoot select,
+.staffPanelRoot input,
+.staffPanelRoot button,
+.teamMemberCard,
+.teamMemberTop > div,
+.teamMemberActions,
+.teamMemberStats,
+.statCell {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.staffPanelRoot select,
+.staffPanelRoot input {
+  width: 100%;
+}
+
+.staffPanelRoot label {
+  overflow: hidden;
+}
+
+.staffPanelRoot select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 560px) {
@@ -1094,6 +1132,10 @@ select {
   .staffBaseBlock {
     grid-template-columns: 1fr;
     padding: 10px;
+  }
+
+  .staffBaseBlock .inlineStatus {
+    white-space: normal;
   }
 
   .teamMemberTop {
