@@ -52,6 +52,7 @@ type CommissionRequest = {
 };
 
 type ProductItem = { name: string; price: number };
+type AddSalePaymentType = 'CASH' | 'NON_CASH' | 'TRANSFER';
 
 type AdminSale = {
   id: string;
@@ -1067,7 +1068,7 @@ function AddSaleForm({
   ) => Promise<void>;
 }) {
   const [sellerId, setSellerId] = useState(sellers[0]?.id ?? 0);
-  const [paymentType, setPaymentType] = useState<'CASH' | 'NON_CASH'>('CASH');
+  const [paymentType, setPaymentType] = useState<AddSalePaymentType>('CASH');
   const [qty, setQty] = useState<Record<string, string>>({});
   const [totalAmount, setTotalAmount] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1111,7 +1112,8 @@ function AddSaleForm({
     setFormError('');
     setBusy(true);
     try {
-      await onAddSale(token, resolvedSeller.id, items, parsedTotal, paymentType);
+      const backendPaymentType = paymentType === 'TRANSFER' ? 'NON_CASH' : paymentType;
+      await onAddSale(token, resolvedSeller.id, items, parsedTotal, backendPaymentType);
       setQty({});
       setTotalAmount('');
     } catch (e) {
@@ -1160,10 +1162,11 @@ function AddSaleForm({
           Вид оплаты
           <select
             value={paymentType}
-            onChange={(event) => setPaymentType(event.target.value as 'CASH' | 'NON_CASH')}
+            onChange={(event) => setPaymentType(event.target.value as AddSalePaymentType)}
           >
             <option value="CASH">Наличные</option>
-            <option value="NON_CASH">Безнал (эквайринг, перевод)</option>
+            <option value="NON_CASH">Безнал</option>
+            <option value="TRANSFER">Перевод</option>
           </select>
         </label>
         <label>
