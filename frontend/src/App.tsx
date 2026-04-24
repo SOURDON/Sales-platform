@@ -1000,25 +1000,25 @@ function App() {
           </Routes>
         </div>
 
-        <nav
-          className="mobileDock"
-          aria-label="Навигация по разделам"
-          style={{ gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))` }}
-        >
-          {mobileNavItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={navTabClass}
-              end={item.end}
-              aria-label={item.label}
-              title={item.label}
-            >
-              {item.icon}
-            </NavLink>
-          ))}
-        </nav>
       </section>
+      <nav
+        className="mobileDock"
+        aria-label="Навигация по разделам"
+        style={{ gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))` }}
+      >
+        {mobileNavItems.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={navTabClass}
+            end={item.end}
+            aria-label={item.label}
+            title={item.label}
+          >
+            {item.icon}
+          </NavLink>
+        ))}
+      </nav>
     </main>
   );
 }

@@ -847,35 +847,37 @@ select {
 
 .mobileDock {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
   z-index: 1000;
   display: grid;
   align-items: center;
-  gap: 10px;
-  overflow: hidden;
-  padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, #0a3f67 0%, #0b4f82 100%);
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  gap: 8px;
+  overflow: visible;
+  padding: 8px;
+  border-radius: 20px;
+  background: rgba(11, 79, 130, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(12px) saturate(130%);
   box-shadow:
-    0 -10px 24px rgba(15, 23, 42, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    0 10px 28px rgba(15, 23, 42, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .mobileDock a.ghost {
-  min-height: 64px;
+  min-height: 54px;
   min-width: 0;
-  padding: 12px 6px;
+  padding: 10px 6px;
   text-align: center;
   line-height: 1;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.08) 100%);
-  color: #eaf2ff;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: #e9f2ff;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 2px 8px rgba(15, 23, 42, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.17),
+    0 2px 6px rgba(15, 23, 42, 0.18);
 }
 
 .mobileDock a.ghost:hover {
@@ -885,10 +887,10 @@ select {
 .mobileDock a.ghost.navActive {
   color: #ffffff;
   background: linear-gradient(135deg, #0f6ea3 0%, #11b7b0 100%);
-  border-color: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255, 255, 255, 0.58);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 5px 12px rgba(9, 75, 121, 0.4);
+    0 5px 12px rgba(9, 75, 121, 0.42);
 }
 
 .dockIcon {
@@ -899,8 +901,8 @@ select {
 }
 
 .dockSvg {
-  width: 31px;
-  height: 31px;
+  width: 27px;
+  height: 27px;
   stroke: currentColor;
   filter: drop-shadow(0 1px 1px rgba(9, 18, 35, 0.35));
 }
@@ -929,7 +931,7 @@ select {
   min-height: 100vh;
   border-radius: 0;
   margin: 0 auto;
-  padding: 16px 16px calc(148px + env(safe-area-inset-bottom));
+  padding: 16px 16px calc(120px + env(safe-area-inset-bottom));
 }
 
 .teamPage,
@@ -1090,16 +1092,16 @@ select {
   }
 
   .mobileDock a.ghost {
-    min-height: 66px;
+    min-height: 56px;
     min-width: 0;
-    padding: 12px 4px;
+    padding: 10px 4px;
     font-size: 14px;
     border-radius: 14px;
   }
 
   .dockSvg {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
   }
 
   .card button[type='button']:not(.ghost):not(.primaryAction) {
@@ -1169,7 +1171,7 @@ select {
     max-width: 960px;
     min-height: auto;
     border-radius: 20px;
-    padding: 28px 28px 140px;
+    padding: 28px 28px 120px;
   }
 }
 
