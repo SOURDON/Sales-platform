@@ -726,8 +726,8 @@ function App() {
       ];
 
   return (
-    <main className="app">
-      <section className="card">
+    <main className="app appWorkspace">
+      <section className="card cardWorkspace">
         <header className="brandHeader">
           <span className="badge">Геленджикская бухта</span>
           <h1>Фототографы</h1>
