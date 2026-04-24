@@ -853,28 +853,29 @@ select {
   z-index: 1000;
   display: grid;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   overflow: hidden;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  background: rgba(255, 255, 255, 0.99);
-  border-top: 1px solid var(--ui-border);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.1);
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, #0a3f67 0%, #0b4f82 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 -10px 24px rgba(15, 23, 42, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 .mobileDock a.ghost {
-  min-height: 58px;
+  min-height: 64px;
   min-width: 0;
-  padding: 10px 6px;
+  padding: 12px 6px;
   text-align: center;
   line-height: 1;
-  border-radius: 14px;
-  border: 1px solid var(--ui-border);
-  background: linear-gradient(180deg, #ffffff 0%, #f6f9fd 100%);
-  color: #5b6b83;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.08) 100%);
+  color: #eaf2ff;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 2px 6px rgba(15, 23, 42, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 2px 8px rgba(15, 23, 42, 0.16);
 }
 
 .mobileDock a.ghost:hover {
@@ -882,12 +883,12 @@ select {
 }
 
 .mobileDock a.ghost.navActive {
-  color: var(--ui-accent);
-  background: linear-gradient(180deg, #f2f8ff 0%, #e7f2ff 100%);
-  border-color: var(--ui-accent-border);
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f6ea3 0%, #11b7b0 100%);
+  border-color: rgba(255, 255, 255, 0.5);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 4px 10px rgba(15, 76, 129, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 5px 12px rgba(9, 75, 121, 0.4);
 }
 
 .dockIcon {
@@ -898,10 +899,10 @@ select {
 }
 
 .dockSvg {
-  width: 28px;
-  height: 28px;
+  width: 31px;
+  height: 31px;
   stroke: currentColor;
-  filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.18));
+  filter: drop-shadow(0 1px 1px rgba(9, 18, 35, 0.35));
 }
 
 .homeLogoutSection {
@@ -928,7 +929,7 @@ select {
   min-height: 100vh;
   border-radius: 0;
   margin: 0 auto;
-  padding: 16px 16px calc(130px + env(safe-area-inset-bottom));
+  padding: 16px 16px calc(148px + env(safe-area-inset-bottom));
 }
 
 .teamPage,
@@ -1089,16 +1090,16 @@ select {
   }
 
   .mobileDock a.ghost {
-    min-height: 60px;
+    min-height: 66px;
     min-width: 0;
-    padding: 10px 4px;
+    padding: 12px 4px;
     font-size: 14px;
     border-radius: 14px;
   }
 
   .dockSvg {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
   }
 
   .card button[type='button']:not(.ghost):not(.primaryAction) {
@@ -1168,7 +1169,7 @@ select {
     max-width: 960px;
     min-height: auto;
     border-radius: 20px;
-    padding: 28px 28px 120px;
+    padding: 28px 28px 140px;
   }
 }
 
