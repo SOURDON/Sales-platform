@@ -158,8 +158,13 @@ function HomeIcon() {
   return (
     <DockIcon>
       <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
-        <path d="M3.5 10.5L12 4l8.5 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M7.2 10.4V20h9.6v-9.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path
+          d="M4 10.5L12 4l8 6.5M7.5 9.8V20h9V9.8"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     </DockIcon>
   );
@@ -169,8 +174,14 @@ function ShiftIcon() {
   return (
     <DockIcon>
       <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
-        <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M12 7.8v4.6l3.1 1.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="8.2" stroke="currentColor" strokeWidth="1.8" />
+        <path
+          d="M12 7.9v4.4l3 1.9"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     </DockIcon>
   );
@@ -181,12 +192,13 @@ function SalesIcon() {
     <DockIcon>
       <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
         <path
-          d="M6 16.5c1 1.1 2.4 1.8 4 1.8 2.1 0 3.8-1.2 3.8-2.9 0-1.9-1.8-2.5-3.8-3.1-2-.6-3.8-1.2-3.8-3.1 0-1.7 1.7-2.9 3.8-2.9 1.6 0 2.9.6 3.8 1.6"
+          d="M8.1 15.8c.8 1 2 1.5 3.5 1.5 1.8 0 3.2-1 3.2-2.5 0-1.6-1.5-2.2-3.2-2.7-1.8-.5-3.2-1.1-3.2-2.8 0-1.4 1.3-2.4 3.2-2.4 1.3 0 2.4.5 3.1 1.3"
           stroke="currentColor"
-          strokeWidth="1.5"
+          strokeWidth="1.8"
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
-        <path d="M10 4.8v14.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M11.6 5.1v13.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     </DockIcon>
   );
@@ -196,10 +208,15 @@ function TeamIcon() {
   return (
     <DockIcon>
       <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
-        <circle cx="8" cy="9.2" r="2.4" stroke="currentColor" strokeWidth="1.5" />
-        <circle cx="16" cy="9.2" r="2.4" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M3.9 18.2c.7-2.1 2.5-3.5 4.7-3.5 2.1 0 3.9 1.4 4.6 3.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M10.9 18.1c.6-1.9 2.3-3.2 4.3-3.2 2 0 3.7 1.3 4.4 3.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="8.1" cy="9.1" r="2.3" stroke="currentColor" strokeWidth="1.8" />
+        <circle cx="15.9" cy="9.1" r="2.3" stroke="currentColor" strokeWidth="1.8" />
+        <path
+          d="M4.2 17.8c.6-1.9 2.3-3.2 4.4-3.2 2 0 3.7 1.2 4.4 3M11 17.6c.6-1.7 2.2-2.9 4.1-2.9 1.9 0 3.5 1.2 4.2 3"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     </DockIcon>
   );
@@ -210,12 +227,19 @@ function ControlIcon() {
     <DockIcon>
       <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
         <path
-          d="M12 4.5l6 2.2v4.9c0 3.3-2.2 6.4-6 7.9-3.8-1.5-6-4.6-6-7.9V6.7l6-2.2z"
+          d="M12 4.6l5.7 2.1v4.6c0 3.2-2.1 6.1-5.7 7.6-3.6-1.5-5.7-4.4-5.7-7.6V6.7L12 4.6z"
           stroke="currentColor"
-          strokeWidth="1.5"
+          strokeWidth="1.8"
+          strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <path d="M9.3 11.9l2 2 3.7-3.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path
+          d="M9.4 11.8l2 2 3.4-3.4"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     </DockIcon>
   );

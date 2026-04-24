@@ -847,37 +847,37 @@ select {
 
 .mobileDock {
   position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: calc(10px + env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 1000;
   display: grid;
   align-items: center;
   gap: 8px;
-  overflow: visible;
-  padding: 8px;
-  border-radius: 20px;
-  background: rgba(11, 79, 130, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  backdrop-filter: blur(12px) saturate(130%);
+  overflow: hidden;
+  padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+  border-radius: 0;
+  background: rgba(241, 247, 255, 0.96);
+  border-top: 1px solid rgba(164, 191, 220, 0.7);
+  backdrop-filter: blur(10px) saturate(120%);
   box-shadow:
-    0 10px 28px rgba(15, 23, 42, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    0 -6px 18px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 .mobileDock a.ghost {
-  min-height: 54px;
+  min-height: 52px;
   min-width: 0;
   padding: 10px 6px;
   text-align: center;
   line-height: 1;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.1);
-  color: #e9f2ff;
+  border-radius: 13px;
+  border: 1px solid rgba(165, 190, 217, 0.9);
+  background: linear-gradient(180deg, #ffffff 0%, #edf4fb 100%);
+  color: #2f5f8a;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.17),
-    0 2px 6px rgba(15, 23, 42, 0.18);
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .mobileDock a.ghost:hover {
@@ -887,10 +887,10 @@ select {
 .mobileDock a.ghost.navActive {
   color: #ffffff;
   background: linear-gradient(135deg, #0f6ea3 0%, #11b7b0 100%);
-  border-color: rgba(255, 255, 255, 0.58);
+  border-color: rgba(66, 147, 189, 0.85);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 5px 12px rgba(9, 75, 121, 0.42);
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 4px 9px rgba(10, 95, 147, 0.35);
 }
 
 .dockIcon {
@@ -901,10 +901,10 @@ select {
 }
 
 .dockSvg {
-  width: 27px;
-  height: 27px;
+  width: 25px;
+  height: 25px;
   stroke: currentColor;
-  filter: drop-shadow(0 1px 1px rgba(9, 18, 35, 0.35));
+  filter: none;
 }
 
 .homeLogoutSection {
