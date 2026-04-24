@@ -1,0 +1,83 @@
+:root {
+  --ui-bg-soft: #f8fafc;
+  --ui-bg-muted: #f1f5f9;
+  --ui-text-main: #0f172a;
+  --ui-text-secondary: #64748b;
+  --ui-border: #e2e8f0;
+  --ui-border-strong: #dbe4ee;
+  --ui-accent: #0f4c81;
+  --ui-accent-soft: #eef6ff;
+  --ui-accent-border: #bfdbfe;
+  --ui-radius-md: 10px;
+  --ui-radius-lg: 12px;
+  --ui-shadow-xs: 0 1px 6px rgba(15, 23, 42, 0.045);
+  --ui-shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.07);
+}
+
+button {
+  border: 0;
+  border-radius: var(--ui-radius-md);
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, #0f4c81, #0ea5a6);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+button.ghost,
+a.ghost {
+  background: var(--ui-bg-muted);
+  color: var(--ui-text-main);
+  border: 1px solid var(--ui-border-strong);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  box-shadow: none;
+}
+
+button.ghost:hover,
+a.ghost:hover {
+  background: #e8eef5;
+  transform: translateY(-1px);
+}
+
+button.ghost:active,
+a.ghost:active {
+  transform: translateY(0);
+  background: #e2e8f0;
+}
+
+button.ghost:disabled,
+a.ghost[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+button.primaryAction {
+  background: linear-gradient(135deg, #0f4c81, #0ea5a6);
+  color: #fff;
+  border: none;
+  font-weight: 700;
+}

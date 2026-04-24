@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import './App.css';
 
@@ -137,6 +137,88 @@ const API_CONFIG_ERROR =
 
 function navTabClass({ isActive }: { isActive: boolean }) {
   return isActive ? 'ghost navActive' : 'ghost';
+}
+
+type MobileNavItem = {
+  to: string;
+  label: string;
+  icon: ReactNode;
+  end?: boolean;
+};
+
+function DockIcon({ children }: { children: ReactNode }) {
+  return (
+    <span aria-hidden="true" className="dockIcon">
+      {children}
+    </span>
+  );
+}
+
+function HomeIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
+        <path d="M3.5 10.5L12 4l8.5 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M7.2 10.4V20h9.6v-9.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </DockIcon>
+  );
+}
+
+function ShiftIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
+        <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M12 7.8v4.6l3.1 1.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </DockIcon>
+  );
+}
+
+function SalesIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
+        <path
+          d="M6 16.5c1 1.1 2.4 1.8 4 1.8 2.1 0 3.8-1.2 3.8-2.9 0-1.9-1.8-2.5-3.8-3.1-2-.6-3.8-1.2-3.8-3.1 0-1.7 1.7-2.9 3.8-2.9 1.6 0 2.9.6 3.8 1.6"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <path d="M10 4.8v14.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </DockIcon>
+  );
+}
+
+function TeamIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
+        <circle cx="8" cy="9.2" r="2.4" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="16" cy="9.2" r="2.4" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M3.9 18.2c.7-2.1 2.5-3.5 4.7-3.5 2.1 0 3.9 1.4 4.6 3.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M10.9 18.1c.6-1.9 2.3-3.2 4.3-3.2 2 0 3.7 1.3 4.4 3.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </DockIcon>
+  );
+}
+
+function ControlIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
+        <path
+          d="M12 4.5l6 2.2v4.9c0 3.3-2.2 6.4-6 7.9-3.8-1.5-6-4.6-6-7.9V6.7l6-2.2z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+        <path d="M9.3 11.9l2 2 3.7-3.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </DockIcon>
+  );
 }
 
 function App() {
@@ -630,6 +712,18 @@ function App() {
 
   const role = session.user.role;
   const isSellerOnly = role === 'SELLER';
+  const mobileNavItems: MobileNavItem[] = isSellerOnly
+    ? [
+        { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
+        { to: '/shift', label: 'Смена', icon: <ShiftIcon /> },
+      ]
+    : [
+        { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
+        { to: '/shift', label: 'Смена', icon: <ShiftIcon /> },
+        { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
+        { to: '/team', label: 'Команда', icon: <TeamIcon /> },
+        { to: '/control', label: 'Контроль', icon: <ControlIcon /> },
+      ];
 
   return (
     <main className="app">
@@ -752,6 +846,11 @@ function App() {
                         </>
                       )
                     )}
+                  </section>
+                  <section className="sectionCard homeLogoutSection">
+                    <button type="button" className="ghost homeLogoutButton" onClick={handleLogout}>
+                      Выйти
+                    </button>
                   </section>
                 </div>
               }
@@ -901,29 +1000,23 @@ function App() {
           </Routes>
         </div>
 
-        <nav className="mobileDock" aria-label="Навигация по разделам">
-          <NavLink to="/home" className={navTabClass} end>
-            Главная
-          </NavLink>
-          <NavLink to="/shift" className={navTabClass}>
-            Смена
-          </NavLink>
-          {!isSellerOnly && (
-            <>
-              <NavLink to="/sales" className={navTabClass}>
-                Продажи
-              </NavLink>
-              <NavLink to="/team" className={navTabClass}>
-                Команда
-              </NavLink>
-              <NavLink to="/control" className={navTabClass}>
-                Контроль
-              </NavLink>
-            </>
-          )}
-          <button type="button" className="ghost dockLogout" onClick={handleLogout}>
-            Выход
-          </button>
+        <nav
+          className="mobileDock"
+          aria-label="Навигация по разделам"
+          style={{ gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))` }}
+        >
+          {mobileNavItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={navTabClass}
+              end={item.end}
+              aria-label={item.label}
+              title={item.label}
+            >
+              {item.icon}
+            </NavLink>
+          ))}
         </nav>
       </section>
     </main>
