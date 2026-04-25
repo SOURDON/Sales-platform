@@ -132,6 +132,18 @@ async function ensureProductStock(prisma: PrismaClient) {
   });
 }
 
+async function ensureProductProcurementCosts(prisma: PrismaClient) {
+  const catalog = await prisma.productCatalog.findMany();
+  await prisma.productProcurementCost.createMany({
+    data: catalog.map((item) => ({
+      name: item.name,
+      // Demo default: 60% of retail price, can be edited by accountant.
+      cost: Math.round(item.price * 0.6),
+    })),
+    skipDuplicates: true,
+  });
+}
+
 async function ensureDemoWriteOffsIfEmpty(prisma: PrismaClient) {
   const n = await prisma.writeOff.count();
   if (n > 0) {
@@ -187,6 +199,7 @@ export async function ensureDemoData(prisma: PrismaClient) {
   await ensureStaffMembers(prisma);
   await ensureProductCatalog(prisma);
   await ensureProductStock(prisma);
+  await ensureProductProcurementCosts(prisma);
   await ensureDemoWriteOffsIfEmpty(prisma);
   await ensureAppState(prisma);
 }

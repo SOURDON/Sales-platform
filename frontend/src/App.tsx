@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import './App.css';
 
 type LoginResponse = {
@@ -52,6 +53,8 @@ type CommissionRequest = {
 };
 
 type ProductItem = { name: string; price: number };
+type ProductProcurementCost = { name: string; cost: number };
+type StoreRevenuePlan = { dayKey: string; storeName: string; planRevenue: number };
 type AddSalePaymentType = 'CASH' | 'NON_CASH' | 'TRANSFER';
 
 type AdminSale = {
@@ -257,6 +260,7 @@ function App() {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [sellers, setSellers] = useState<SellerProfile[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
+  const [productProcurementCosts, setProductProcurementCosts] = useState<ProductProcurementCost[]>([]);
   const [sales, setSales] = useState<AdminSale[]>([]);
   const [commissionRequests, setCommissionRequests] = useState<CommissionRequest[]>([]);
   const [shifts, setShifts] = useState<ShiftInfo[]>([]);
@@ -319,6 +323,64 @@ function App() {
     }
     const data = (await response.json()) as ProductItem[];
     setProducts(data);
+  };
+
+  const loadProductProcurementCosts = async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error('procurement costs error');
+    }
+    setProductProcurementCosts((await response.json()) as ProductProcurementCost[]);
+  };
+
+  const saveProductProcurementCosts = async (
+    token: string,
+    items: Array<{ name: string; cost: number }>,
+  ) => {
+    const response = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ items }),
+    });
+    if (!response.ok) {
+      throw new Error('save procurement costs error');
+    }
+    await loadProductProcurementCosts(token);
+  };
+
+  const loadRevenuePlans = async (token: string, dayKey: string) => {
+    const response = await fetch(
+      `${API_BASE_URL}/admin/revenue-plans?dayKey=${encodeURIComponent(dayKey)}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!response.ok) {
+      throw new Error('load revenue plans error');
+    }
+    return (await response.json()) as StoreRevenuePlan[];
+  };
+
+  const saveRevenuePlans = async (
+    token: string,
+    dayKey: string,
+    items: Array<{ storeName: string; planRevenue: number }>,
+  ) => {
+    const response = await fetch(`${API_BASE_URL}/admin/revenue-plans`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ dayKey, items }),
+    });
+    if (!response.ok) {
+      throw new Error('save revenue plans error');
+    }
+    return (await response.json()) as StoreRevenuePlan[];
   };
 
   const loadSales = async (token: string) => {
@@ -604,6 +666,7 @@ function App() {
         try {
           await loadSellers(data.token);
           await loadProducts(data.token);
+          await loadProductProcurementCosts(data.token);
           await loadSales(data.token);
           await loadCommissionRequests(data.token);
           await loadShifts(data.token);
@@ -616,6 +679,7 @@ function App() {
           setSellers([]);
           setProducts([]);
           setSales([]);
+          setProductProcurementCosts([]);
           setCommissionRequests([]);
           setShifts([]);
           setCashEvents([]);
@@ -628,6 +692,7 @@ function App() {
         setSellers([]);
         setProducts([]);
         setSales([]);
+        setProductProcurementCosts([]);
         setCommissionRequests([]);
         setShifts([]);
         setCashEvents([]);
@@ -641,6 +706,7 @@ function App() {
       setSellers([]);
       setProducts([]);
       setSales([]);
+      setProductProcurementCosts([]);
       setCommissionRequests([]);
       setShifts([]);
       setCashEvents([]);
@@ -662,6 +728,7 @@ function App() {
     setSellers([]);
     setProducts([]);
     setSales([]);
+    setProductProcurementCosts([]);
     setCommissionRequests([]);
     setShifts([]);
     setCashEvents([]);
@@ -741,6 +808,8 @@ function App() {
   const role = session.user.role;
   const isSellerOnly = role === 'SELLER';
   const isReadOnlyObserver = role === 'ACCOUNTANT';
+  const isFinanceViewer = role === 'ACCOUNTANT' || role === 'DIRECTOR';
+  const controlLabel = isReadOnlyObserver ? 'Отчёт' : 'Контроль';
   const mobileNavItems: MobileNavItem[] = isSellerOnly
     ? [
         { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
@@ -751,7 +820,7 @@ function App() {
         { to: '/shift', label: 'Смена', icon: <ShiftIcon /> },
         { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
         { to: '/team', label: 'Команда', icon: <TeamIcon /> },
-        { to: '/control', label: 'Контроль', icon: <ControlIcon /> },
+        { to: '/control', label: controlLabel, icon: <ControlIcon /> },
       ];
 
   return (
@@ -779,7 +848,7 @@ function App() {
                 Команда
               </NavLink>
               <NavLink to="/control" className={navTabClass}>
-                Контроль
+                {controlLabel}
               </NavLink>
             </>
           )}
@@ -1018,20 +1087,66 @@ function App() {
                   <Navigate to="/home" replace />
                 ) : (
                   <div className="dashboard">
-                    <section className="sectionCard">
-                      <CashDisciplinePanel
-                        token={session.token}
-                        events={cashEvents}
-                        readOnly={isReadOnlyObserver}
-                        onAdd={addCashEvent}
-                      />
-                    </section>
-                    <section className="sectionCard">
-                      <ThresholdPanel notifications={thresholds} />
-                    </section>
-                    <section className="sectionCard">
-                      <AuditLogPanel items={auditLog} />
-                    </section>
+                    {isFinanceViewer ? (
+                      <>
+                        <section className="sectionCard">
+                          <FinanceReportPanel
+                            token={session.token}
+                            sales={sales}
+                            sellers={sellers}
+                            procurementCosts={productProcurementCosts}
+                            role={role}
+                            onLoadPlans={loadRevenuePlans}
+                            onSavePlans={saveRevenuePlans}
+                          />
+                        </section>
+                        {isFinanceViewer && (
+                          <section className="sectionCard">
+                            <AccountantProcurementPanel
+                              token={session.token}
+                              products={products}
+                              procurementCosts={productProcurementCosts}
+                              onSave={saveProductProcurementCosts}
+                            />
+                          </section>
+                        )}
+                        {role === 'DIRECTOR' && (
+                          <>
+                            <section className="sectionCard">
+                              <CashDisciplinePanel
+                                token={session.token}
+                                events={cashEvents}
+                                readOnly={false}
+                                onAdd={addCashEvent}
+                              />
+                            </section>
+                            <section className="sectionCard">
+                              <ThresholdPanel notifications={thresholds} />
+                            </section>
+                            <section className="sectionCard">
+                              <AuditLogPanel items={auditLog} />
+                            </section>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <section className="sectionCard">
+                          <CashDisciplinePanel
+                            token={session.token}
+                            events={cashEvents}
+                            readOnly={isReadOnlyObserver}
+                            onAdd={addCashEvent}
+                          />
+                        </section>
+                        <section className="sectionCard">
+                          <ThresholdPanel notifications={thresholds} />
+                        </section>
+                        <section className="sectionCard">
+                          <AuditLogPanel items={auditLog} />
+                        </section>
+                      </>
+                    )}
                   </div>
                 )
               }
@@ -1724,6 +1839,377 @@ function ThresholdPanel({ notifications }: { notifications: ThresholdNotificatio
             </p>
           ))
         )}
+      </div>
+    </div>
+  );
+}
+
+function AccountantProcurementPanel({
+  token,
+  products,
+  procurementCosts,
+  onSave,
+}: {
+  token: string;
+  products: ProductItem[];
+  procurementCosts: ProductProcurementCost[];
+  onSave: (token: string, items: Array<{ name: string; cost: number }>) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+
+  const byName = new Map(procurementCosts.map((item) => [item.name, item.cost]));
+  const rows = products.map((item) => ({
+    name: item.name,
+    retailPrice: item.price,
+    currentCost: byName.get(item.name) ?? Math.round(item.price * 0.6),
+  }));
+
+  const save = async () => {
+    setBusy(true);
+    setError('');
+    setStatus('');
+    try {
+      const payload = rows.map((row) => ({
+        name: row.name,
+        cost: Math.max(0, Number(draft[row.name] ?? row.currentCost) || 0),
+      }));
+      await onSave(token, payload);
+      setStatus('Закупочные цены сохранены.');
+      setDraft({});
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось сохранить закупочные цены');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="opsCard">
+      <h4>Закупочные цены товаров (директор и бухгалтер)</h4>
+      <p className="hint">Эти значения используются в расчёте затрат на товар и сохраняются на backend.</p>
+      <div className="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Товар</th>
+              <th>Розничная цена</th>
+              <th>Закупочная цена</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.name}>
+                <td>{row.name}</td>
+                <td>{row.retailPrice.toLocaleString('ru-RU')} ₽</td>
+                <td>
+                  <input
+                    value={draft[row.name] ?? String(row.currentCost)}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        [row.name]: event.target.value,
+                      }))
+                    }
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="inlineActions">
+        <button type="button" className="primaryAction" onClick={save} disabled={busy}>
+          {busy ? 'Сохраняем...' : 'Сохранить закупочные цены'}
+        </button>
+      </div>
+      {status && <p className="success">{status}</p>}
+      {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
+function FinanceReportPanel({
+  token,
+  sales,
+  sellers,
+  procurementCosts,
+  role,
+  onLoadPlans,
+  onSavePlans,
+}: {
+  token: string;
+  sales: AdminSale[];
+  sellers: SellerProfile[];
+  procurementCosts: ProductProcurementCost[];
+  role: 'DIRECTOR' | 'ACCOUNTANT' | 'ADMIN' | 'SELLER';
+  onLoadPlans: (token: string, dayKey: string) => Promise<StoreRevenuePlan[]>;
+  onSavePlans: (
+    token: string,
+    dayKey: string,
+    items: Array<{ storeName: string; planRevenue: number }>,
+  ) => Promise<StoreRevenuePlan[]>;
+}) {
+  const [acquiringPercent, setAcquiringPercent] = useState('1.8');
+  const [workDay, setWorkDay] = useState(new Date().toISOString().slice(0, 10));
+  const [plans, setPlans] = useState<StoreRevenuePlan[]>([]);
+  const [planDraft, setPlanDraft] = useState<Record<string, string>>({});
+  const [plansBusy, setPlansBusy] = useState(false);
+  const [plansStatus, setPlansStatus] = useState('');
+  const [plansError, setPlansError] = useState('');
+  const procurementByName = new Map(procurementCosts.map((item) => [item.name, item.cost]));
+  const salesForDay = sales.filter(
+    (sale) => new Date(sale.createdAt).toISOString().slice(0, 10) === workDay,
+  );
+  const planByStore = new Map(plans.map((item) => [item.storeName, item.planRevenue]));
+
+  useEffect(() => {
+    let disposed = false;
+    setPlansError('');
+    onLoadPlans(token, workDay)
+      .then((items) => {
+        if (disposed) {
+          return;
+        }
+        setPlans(items);
+      })
+      .catch(() => {
+        if (!disposed) {
+          setPlansError('Не удалось загрузить план выручки');
+        }
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [token, workDay]);
+
+  const storeNames = Array.from(
+    new Set([
+      ...sellers.map((seller) => seller.storeName),
+      ...sales
+        .map((sale) => sellers.find((s) => s.id === sale.sellerId)?.storeName)
+        .filter((name): name is string => Boolean(name)),
+    ]),
+  ).sort((a, b) => a.localeCompare(b, 'ru-RU'));
+
+  const acquiringRate = Math.max(0, Number(acquiringPercent) || 0);
+  const rows = storeNames.map((storeName) => {
+    const sellerIds = new Set(
+      sellers.filter((seller) => seller.storeName === storeName).map((seller) => seller.id),
+    );
+    const storeSales = salesForDay.filter((sale) => sellerIds.has(sale.sellerId));
+    const revenue = storeSales.reduce((sum, sale) => sum + sale.totalAmount, 0);
+    const nonCashRevenue = storeSales
+      .filter((sale) => sale.paymentType === 'NON_CASH')
+      .reduce((sum, sale) => sum + sale.totalAmount, 0);
+    const acquiringFee = (nonCashRevenue * acquiringRate) / 100;
+    const goodsSpent = storeSales.reduce(
+      (sum, sale) =>
+        sum +
+        sale.items.reduce(
+          (lineSum, line) => lineSum + (procurementByName.get(line.name) ?? 0) * line.qty,
+          0,
+        ),
+      0,
+    );
+    const rateBySellerId = new Map(sellers.map((seller) => [seller.id, seller.ratePercent]));
+    const salaries = storeSales.reduce(
+      (sum, sale) => sum + (sale.totalAmount * (rateBySellerId.get(sale.sellerId) ?? 0)) / 100,
+      0,
+    );
+    const profitWithoutGoods = revenue - salaries - acquiringFee;
+    const profitWithGoods = revenue - salaries - acquiringFee - goodsSpent;
+
+    return {
+      storeName,
+      revenue,
+      planRevenue: Math.max(0, Number(planDraft[storeName] ?? planByStore.get(storeName) ?? 0) || 0),
+      goodsSpent,
+      salaries,
+      profitWithoutGoods,
+      profitWithGoods,
+      acquiringFee,
+    };
+  });
+
+  const totals = rows.reduce(
+    (acc, row) => ({
+      revenue: acc.revenue + row.revenue,
+      planRevenue: acc.planRevenue + row.planRevenue,
+      goodsSpent: acc.goodsSpent + row.goodsSpent,
+      salaries: acc.salaries + row.salaries,
+      profitWithoutGoods: acc.profitWithoutGoods + row.profitWithoutGoods,
+      profitWithGoods: acc.profitWithGoods + row.profitWithGoods,
+      acquiringFee: acc.acquiringFee + row.acquiringFee,
+    }),
+    {
+      revenue: 0,
+      planRevenue: 0,
+      goodsSpent: 0,
+      salaries: 0,
+      profitWithoutGoods: 0,
+      profitWithGoods: 0,
+      acquiringFee: 0,
+    },
+  );
+
+  const exportRows = rows.map((row) => ({
+    Дата: workDay,
+    Магазин: row.storeName,
+    'План выручки': Math.round(row.planRevenue),
+    'Факт выручки': Math.round(row.revenue),
+    'Отклонение (факт-план)': Math.round(row.revenue - row.planRevenue),
+    'Затраты на товар': Math.round(row.goodsSpent),
+    'К выплате зарплаты': Math.round(row.salaries),
+    'Эквайринг': Math.round(row.acquiringFee),
+    'Прибыль без товара': Math.round(row.profitWithoutGoods),
+    'Прибыль с товаром': Math.round(row.profitWithGoods),
+  }));
+
+  const exportCsv = () => {
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const csv = XLSX.utils.sheet_to_csv(ws, { FS: ';' });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `finance-report-${workDay}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportXlsx = () => {
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Отчет');
+    XLSX.writeFile(wb, `finance-report-${workDay}.xlsx`);
+  };
+
+  const savePlans = async () => {
+    setPlansBusy(true);
+    setPlansStatus('');
+    setPlansError('');
+    try {
+      const payload = rows.map((row) => ({
+        storeName: row.storeName,
+        planRevenue: Math.max(0, Number(planDraft[row.storeName] ?? row.planRevenue) || 0),
+      }));
+      const updated = await onSavePlans(token, workDay, payload);
+      setPlans(updated);
+      setPlanDraft({});
+      setPlansStatus('План выручки сохранен.');
+    } catch {
+      setPlansError('Не удалось сохранить план выручки');
+    } finally {
+      setPlansBusy(false);
+    }
+  };
+
+  return (
+    <div className="opsCard">
+      <h4>{role === 'DIRECTOR' ? 'Финансовый отчёт директора' : 'Полный отчёт по магазинам'}</h4>
+      <p className="hint">
+        Списания не учитываются в формулах прибыли: (1) Выручка - ЗП - Эквайринг; (2) Выручка - ЗП - Эквайринг - Товар.
+      </p>
+      <div className="inlineGrid">
+        <label>
+          Рабочий день
+          <input type="date" value={workDay} onChange={(event) => setWorkDay(event.target.value)} />
+        </label>
+        <label>
+          Комиссия эквайринга, %
+          <input
+            value={acquiringPercent}
+            onChange={(event) => setAcquiringPercent(event.target.value)}
+            placeholder="Например 1.8"
+          />
+        </label>
+      </div>
+      <div className="inlineActions">
+        <button type="button" className="primaryAction" onClick={savePlans} disabled={plansBusy}>
+          {plansBusy ? 'Сохраняем план...' : 'Сохранить план выручки'}
+        </button>
+        <button type="button" className="ghost" onClick={exportCsv}>
+          Экспорт CSV
+        </button>
+        <button type="button" className="ghost" onClick={exportXlsx}>
+          Экспорт XLSX
+        </button>
+      </div>
+      {plansStatus && <p className="success">{plansStatus}</p>}
+      {plansError && <p className="error">{plansError}</p>}
+      <div className="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Магазин</th>
+              <th>План выручки</th>
+              <th>Выручка</th>
+              <th>Отклонение (факт-план)</th>
+              <th>Потрачено на товар</th>
+              <th>К выплате зарплаты</th>
+              <th>Комиссия эквайринга</th>
+              <th>Прибыль (выручка - ЗП - эквайринг)</th>
+              <th>Прибыль (выручка - ЗП - эквайринг - товар)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.storeName}>
+                <td>{row.storeName}</td>
+                <td>
+                  <input
+                    value={planDraft[row.storeName] ?? String(row.planRevenue)}
+                    onChange={(event) =>
+                      setPlanDraft((current) => ({
+                        ...current,
+                        [row.storeName]: event.target.value,
+                      }))
+                    }
+                  />
+                </td>
+                <td>{row.revenue.toLocaleString('ru-RU')} ₽</td>
+                <td>{(row.revenue - row.planRevenue).toLocaleString('ru-RU')} ₽</td>
+                <td>{row.goodsSpent.toLocaleString('ru-RU')} ₽</td>
+                <td>{row.salaries.toLocaleString('ru-RU')} ₽</td>
+                <td>{row.acquiringFee.toLocaleString('ru-RU')} ₽</td>
+                <td>{row.profitWithoutGoods.toLocaleString('ru-RU')} ₽</td>
+                <td>{row.profitWithGoods.toLocaleString('ru-RU')} ₽</td>
+              </tr>
+            ))}
+            <tr>
+              <td>
+                <strong>Итого</strong>
+              </td>
+              <td>
+                <strong>{totals.planRevenue.toLocaleString('ru-RU')} ₽</strong>
+              </td>
+              <td>
+                <strong>{totals.revenue.toLocaleString('ru-RU')} ₽</strong>
+              </td>
+              <td>
+                <strong>{(totals.revenue - totals.planRevenue).toLocaleString('ru-RU')} ₽</strong>
+              </td>
+              <td>
+                <strong>{totals.goodsSpent.toLocaleString('ru-RU')} ₽</strong>
+              </td>
+              <td>
+                <strong>{totals.salaries.toLocaleString('ru-RU')} ₽</strong>
+              </td>
+              <td>
+                <strong>{totals.acquiringFee.toLocaleString('ru-RU')} ₽</strong>
+              </td>
+              <td>
+                <strong>{totals.profitWithoutGoods.toLocaleString('ru-RU')} ₽</strong>
+              </td>
+              <td>
+                <strong>{totals.profitWithGoods.toLocaleString('ru-RU')} ₽</strong>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );

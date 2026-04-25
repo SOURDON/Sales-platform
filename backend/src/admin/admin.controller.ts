@@ -69,6 +69,15 @@ interface CommissionRequestBody {
   comment?: string;
 }
 
+interface ProcurementCostsBody {
+  items?: Array<{ name: string; cost: number }>;
+}
+
+interface RevenuePlanBody {
+  dayKey?: string;
+  items?: Array<{ storeName: string; planRevenue: number }>;
+}
+
 @Controller('admin')
 export class AdminController {
   constructor(private readonly authService: AuthService) {}
@@ -77,6 +86,47 @@ export class AdminController {
   getProducts(@Headers('authorization') authorization?: string) {
     this.requireFinanceRead(authorization);
     return this.authService.productCatalog;
+  }
+
+  @Get('products/procurement-costs')
+  getProductProcurementCosts(@Headers('authorization') authorization?: string) {
+    this.requireFinanceRead(authorization);
+    return this.authService.getProductProcurementCosts();
+  }
+
+  @Put('products/procurement-costs')
+  setProductProcurementCosts(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: ProcurementCostsBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    const items = body.items ?? [];
+    return this.authService.setProductProcurementCosts(items, session.nickname);
+  }
+
+  @Get('revenue-plans')
+  getRevenuePlans(
+    @Headers('authorization') authorization?: string,
+    @Query('dayKey') dayKey?: string,
+  ) {
+    this.requireFinanceRead(authorization);
+    const safeDayKey = dayKey && /^\d{4}-\d{2}-\d{2}$/.test(dayKey)
+      ? dayKey
+      : new Date().toISOString().slice(0, 10);
+    return this.authService.getStoreRevenuePlans(safeDayKey);
+  }
+
+  @Put('revenue-plans')
+  setRevenuePlans(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: RevenuePlanBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    const dayKey = body.dayKey && /^\d{4}-\d{2}-\d{2}$/.test(body.dayKey)
+      ? body.dayKey
+      : new Date().toISOString().slice(0, 10);
+    const items = body.items ?? [];
+    return this.authService.setStoreRevenuePlans(dayKey, items, session.nickname);
   }
 
   @Get('shifts')
@@ -435,6 +485,18 @@ export class AdminController {
       throw new UnauthorizedException('Only admin or director allowed');
     }
 
+    return session;
+  }
+
+  private requireFinancePlanningAccess(authorization?: string) {
+    const token = authorization?.replace('Bearer ', '').trim();
+    if (!token) {
+      throw new UnauthorizedException('Missing token');
+    }
+    const session = this.authService.parseToken(token);
+    if (!session || (session.role !== 'DIRECTOR' && session.role !== 'ACCOUNTANT')) {
+      throw new UnauthorizedException('Only director or accountant allowed');
+    }
     return session;
   }
 

@@ -144,6 +144,19 @@ model ProductStock {
   qty  Int
 }
 
+model ProductProcurementCost {
+  name String @id
+  cost Float
+}
+
+model StoreRevenuePlan {
+  dayKey     String
+  storeName  String
+  planRevenue Float
+
+  @@id([dayKey, storeName])
+}
+
 model CommissionChangeRequest {
   id                 String                  @id
   createdAt          DateTime

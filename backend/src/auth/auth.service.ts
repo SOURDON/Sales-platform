@@ -148,6 +148,8 @@ export class AuthService implements OnModuleInit {
   private cashDisciplineEvents: CashDisciplineEvent[] = [];
   private staff: StaffMember[] = [];
   private productStock: Record<string, number> = {};
+  private productProcurementCosts: Record<string, number> = {};
+  private storeRevenuePlans: Record<string, Record<string, number>> = {};
   private auditLog: AuditLogItem[] = [];
   private adminWriteOffs: WriteOffItem[] = [];
 
@@ -175,6 +177,66 @@ export class AuthService implements OnModuleInit {
       (item) => `${item.id};${item.createdAt};${item.name};${item.qty};${item.reason}`,
     );
     return [header, ...lines].join('\n');
+  }
+
+  getProductProcurementCosts() {
+    return this.productCatalog.map((item) => ({
+      name: item.name,
+      cost: this.productProcurementCosts[item.name] ?? Math.round(item.price * 0.6),
+    }));
+  }
+
+  getStoreRevenuePlans(dayKey: string) {
+    const plans = this.storeRevenuePlans[dayKey] ?? {};
+    return DEMO_STORE_NAMES.map((storeName) => ({
+      dayKey,
+      storeName,
+      planRevenue: plans[storeName] ?? 0,
+    }));
+  }
+
+  setStoreRevenuePlans(
+    dayKey: string,
+    items: Array<{ storeName: string; planRevenue: number }>,
+    actor = 'system',
+  ) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
+      return this.getStoreRevenuePlans(new Date().toISOString().slice(0, 10));
+    }
+    const validStores = new Set(DEMO_STORE_NAMES);
+    const current = this.storeRevenuePlans[dayKey] ?? {};
+    for (const item of items) {
+      if (!validStores.has(item.storeName as (typeof DEMO_STORE_NAMES)[number])) {
+        continue;
+      }
+      if (!Number.isFinite(item.planRevenue) || item.planRevenue < 0) {
+        continue;
+      }
+      current[item.storeName] = Math.round(item.planRevenue * 100) / 100;
+    }
+    this.storeRevenuePlans[dayKey] = current;
+    this.pushAudit(actor, 'STORE_REVENUE_PLAN_UPDATED', `day=${dayKey}, rows=${items.length}`);
+    this.queuePersist();
+    return this.getStoreRevenuePlans(dayKey);
+  }
+
+  setProductProcurementCosts(
+    updates: Array<{ name: string; cost: number }>,
+    actor = 'system',
+  ) {
+    const validNames = new Set(this.productCatalog.map((item) => item.name));
+    for (const row of updates) {
+      if (!validNames.has(row.name)) {
+        continue;
+      }
+      if (!Number.isFinite(row.cost) || row.cost < 0) {
+        continue;
+      }
+      this.productProcurementCosts[row.name] = Math.round(row.cost * 100) / 100;
+    }
+    this.pushAudit(actor, 'PRODUCT_COSTS_UPDATED', `rows=${updates.length}`);
+    this.queuePersist();
+    return this.getProductProcurementCosts();
   }
 
   private demoUsers: DemoUser[] = [];
@@ -539,6 +601,7 @@ export class AuthService implements OnModuleInit {
     actor = 'system',
     paymentType: SalePaymentType = 'CASH',
   ) {
+    this.ensureActiveShiftForToday();
     if (!this.currentShiftId) {
       return null;
     }
@@ -667,6 +730,7 @@ export class AuthService implements OnModuleInit {
   }
 
   openShift(openedBy: string, assignedSellerIds: number[]) {
+    this.ensureActiveShiftForToday();
     const opener = this.demoUsers.find((item) => item.nickname === openedBy);
     let allowedIds = [...new Set(assignedSellerIds)];
     if (opener?.role === 'ADMIN') {
@@ -718,6 +782,7 @@ export class AuthService implements OnModuleInit {
   }
 
   closeShift(closedBy: string) {
+    this.ensureActiveShiftForToday();
     if (!this.currentShiftId) {
       return null;
     }
@@ -738,6 +803,7 @@ export class AuthService implements OnModuleInit {
   }
 
   getShifts() {
+    this.ensureActiveShiftForToday();
     return [...this.shiftHistory].sort(
       (a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime(),
     );
@@ -1027,6 +1093,44 @@ export class AuthService implements OnModuleInit {
     });
   }
 
+  private getStoreBusinessDayKey(valueIso: string) {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Moscow',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(valueIso));
+  }
+
+  /**
+   * Auto-closes open shift after day rollover.
+   */
+  private ensureActiveShiftForToday() {
+    if (!this.currentShiftId) {
+      return;
+    }
+    const shift = this.shiftHistory.find((item) => item.id === this.currentShiftId);
+    if (!shift || shift.status !== 'OPEN') {
+      this.currentShiftId = null;
+      return;
+    }
+    const today = this.getStoreBusinessDayKey(new Date().toISOString());
+    if (this.getStoreBusinessDayKey(shift.openedAt) === today) {
+      return;
+    }
+    shift.status = 'CLOSED';
+    shift.closedAt = new Date().toISOString();
+    shift.closedBy = 'system@day-rollover';
+    this.currentShiftId = null;
+    for (const member of this.staff) {
+      if (member.assignedShiftId === shift.id) {
+        member.assignedShiftId = undefined;
+      }
+    }
+    this.pushAudit('system', 'SHIFT_AUTO_CLOSED_DAY_ROLLOVER', `shift=${shift.id}`);
+    this.queuePersist();
+  }
+
   private getNextNumericId() {
     const userIds = this.demoUsers.map((user) => user.id);
     const staffIds = this.staff.map((member) => member.id);
@@ -1062,6 +1166,10 @@ export class AuthService implements OnModuleInit {
       { name: 'электронный вариант и фото', price: 1500 },
       { name: 'Рамка А6', price: 300 },
     ];
+    this.productProcurementCosts = Object.fromEntries(
+      this.productCatalog.map((item) => [item.name, Math.round(item.price * 0.6)]),
+    );
+    this.storeRevenuePlans = {};
     this.demoUsers = buildDefaultDemoUserRows();
     this.sellerProfiles = buildDefaultSellerProfileRows().map((row) => ({
       id: row.id,
@@ -1127,6 +1235,8 @@ export class AuthService implements OnModuleInit {
       staff,
       products,
       stock,
+      procurementCosts,
+      storePlans,
       requests,
       audit,
       appState,
@@ -1142,6 +1252,8 @@ export class AuthService implements OnModuleInit {
       this.prisma.staffMember.findMany(),
       this.prisma.productCatalog.findMany(),
       this.prisma.productStock.findMany(),
+      this.prisma.productProcurementCost.findMany(),
+      this.prisma.storeRevenuePlan.findMany(),
       this.prisma.commissionChangeRequest.findMany(),
       this.prisma.auditLogItem.findMany(),
       this.prisma.appState.findUnique({ where: { id: 1 } }),
@@ -1234,6 +1346,18 @@ export class AuthService implements OnModuleInit {
     }));
     this.productCatalog = products.map((item) => ({ name: item.name, price: item.price }));
     this.productStock = Object.fromEntries(stock.map((item) => [item.name, item.qty]));
+    this.productProcurementCosts = Object.fromEntries(
+      products.map((item) => [item.name, Math.round(item.price * 0.6)]),
+    );
+    for (const item of procurementCosts) {
+      this.productProcurementCosts[item.name] = item.cost;
+    }
+    this.storeRevenuePlans = {};
+    for (const item of storePlans) {
+      const dayPlans = this.storeRevenuePlans[item.dayKey] ?? {};
+      dayPlans[item.storeName] = item.planRevenue;
+      this.storeRevenuePlans[item.dayKey] = dayPlans;
+    }
     this.commissionChangeRequests = requests.map((item) => ({
       id: item.id,
       createdAt: item.createdAt.toISOString(),
@@ -1411,6 +1535,25 @@ export class AuthService implements OnModuleInit {
       const stockRows = Object.entries(this.productStock).map(([name, qty]) => ({ name, qty }));
       if (stockRows.length > 0) {
         await tx.productStock.createMany({ data: stockRows });
+      }
+      await tx.productProcurementCost.deleteMany();
+      const procurementRows = Object.entries(this.productProcurementCosts).map(([name, cost]) => ({
+        name,
+        cost,
+      }));
+      if (procurementRows.length > 0) {
+        await tx.productProcurementCost.createMany({ data: procurementRows });
+      }
+      await tx.storeRevenuePlan.deleteMany();
+      const planRows = Object.entries(this.storeRevenuePlans).flatMap(([dayKey, plans]) =>
+        Object.entries(plans).map(([storeName, planRevenue]) => ({
+          dayKey,
+          storeName,
+          planRevenue,
+        })),
+      );
+      if (planRows.length > 0) {
+        await tx.storeRevenuePlan.createMany({ data: planRows });
       }
 
       await tx.auditLogItem.deleteMany();
