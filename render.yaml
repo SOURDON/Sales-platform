@@ -3,8 +3,9 @@ services:
     name: sales-platform-api-prod
     env: node
     rootDir: backend
-    buildCommand: npm ci && npm run build && npm run prisma:migrate:deploy && npm run prisma:seed
-    startCommand: npm run start:prod
+    buildCommand: npm ci && npm run build
+    # Миграции и сид при каждом старте (DATABASE_URL только в runtime на Render)
+    startCommand: npm run start:prod:db
     envVars:
       - key: NODE_ENV
         value: production
@@ -19,8 +20,9 @@ services:
     name: sales-platform-api-staging
     env: node
     rootDir: backend
-    buildCommand: npm ci && npm run build && npm run prisma:migrate:deploy && npm run prisma:seed
-    startCommand: npm run start:prod
+    buildCommand: npm ci && npm run build
+    # Миграции и сид при каждом старте (DATABASE_URL только в runtime на Render)
+    startCommand: npm run start:prod:db
     envVars:
       - key: NODE_ENV
         value: production
