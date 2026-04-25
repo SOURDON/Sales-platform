@@ -74,8 +74,9 @@ async function ensureSellerProfiles(prisma: PrismaClient) {
         ratePercent,
       },
       update: {
+        // Синхронизируем магазин с пользователем, но не трогаем ratePercent:
+        // иначе каждый seed / db:sync сбрасывал бы процент, выставленный директором.
         storeName: u.storeName,
-        ratePercent,
       },
     });
   }
@@ -137,8 +138,7 @@ async function ensureProductProcurementCosts(prisma: PrismaClient) {
   await prisma.productProcurementCost.createMany({
     data: catalog.map((item) => ({
       name: item.name,
-      // Demo default: 60% of retail price, can be edited by accountant.
-      cost: Math.round(item.price * 0.6),
+      cost: 0,
     })),
     skipDuplicates: true,
   });

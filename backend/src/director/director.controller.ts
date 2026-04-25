@@ -25,7 +25,7 @@ export class DirectorController {
   }
 
   @Post('commission-requests/:id/decision')
-  decide(
+  async decide(
     @Headers('authorization') authorization: string | undefined,
     @Body() body: DecisionBody,
     @Param('id') id: string,
@@ -34,7 +34,7 @@ export class DirectorController {
     if (!body.decision || (body.decision !== 'APPROVE' && body.decision !== 'REJECT')) {
       throw new BadRequestException('decision must be APPROVE or REJECT');
     }
-    const result = this.authService.decideCommissionRequest(id, body.decision);
+    const result = await this.authService.decideCommissionRequest(id, body.decision);
     if (!result) {
       throw new BadRequestException('Request not found or already decided');
     }

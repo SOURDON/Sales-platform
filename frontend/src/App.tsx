@@ -4,6 +4,25 @@ import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx';
 import './App.css';
 
+/** Календарный день в Europe/Moscow (как на backend для смен), YYYY-MM-DD */
+function calendarDayKeyMoscow(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(iso));
+}
+
+function todayKeyMoscow(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
 type LoginResponse = {
   token: string;
   user: {
@@ -20,7 +39,7 @@ type DashboardResponse = {
   sellerDataManagedByAdmin: boolean;
   title: string;
   metrics: Array<{ label: string; value: string }>;
-  stores: Array<{ name: string; revenue: string; netProfit: string }>;
+  stores: Array<{ name: string; revenue: string; salaries: string }>;
   writeOffs?: Array<{
     id: string;
     createdAt: string;
@@ -270,6 +289,7 @@ function App() {
   const [thresholds, setThresholds] = useState<ThresholdNotification[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([]);
   const [adminError, setAdminError] = useState('');
+  const [acquiringPercent, setAcquiringPercent] = useState('1.8');
 
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
@@ -381,6 +401,37 @@ function App() {
       throw new Error('save revenue plans error');
     }
     return (await response.json()) as StoreRevenuePlan[];
+  };
+
+  const loadAcquiringPercent = async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/acquiring-percent`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error('acquiring percent error');
+    }
+    const data = (await response.json()) as { percent: number };
+    setAcquiringPercent(String(data.percent));
+  };
+
+  const saveAcquiringPercent = async (token: string, value: string) => {
+    const num = Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0 || num > 100) {
+      return;
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/acquiring-percent`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ percent: num }),
+    });
+    if (!response.ok) {
+      throw new Error('save acquiring percent error');
+    }
+    const data = (await response.json()) as { percent: number };
+    setAcquiringPercent(String(data.percent));
   };
 
   const loadSales = async (token: string) => {
@@ -670,11 +721,26 @@ function App() {
           await loadSales(data.token);
           await loadCommissionRequests(data.token);
           await loadShifts(data.token);
-          await loadCashEvents(data.token);
+          if (data.user.role === 'ADMIN') {
+            await loadCashEvents(data.token);
+            await loadThresholds(data.token);
+            await loadAuditLog(data.token);
+          } else {
+            setCashEvents([]);
+            setThresholds([]);
+            setAuditLog([]);
+          }
+          if (data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
+            try {
+              await loadAcquiringPercent(data.token);
+            } catch {
+              setAcquiringPercent('1.8');
+            }
+          } else {
+            setAcquiringPercent('1.8');
+          }
           await loadStaff(data.token);
           await loadGlobalEmployees(data.token);
-          await loadThresholds(data.token);
-          await loadAuditLog(data.token);
         } catch {
           setSellers([]);
           setProducts([]);
@@ -686,6 +752,7 @@ function App() {
           setStaff([]);
           setThresholds([]);
           setAuditLog([]);
+          setAcquiringPercent('1.8');
           setAdminError('Не удалось загрузить панель администратора.');
         }
       } else {
@@ -699,6 +766,7 @@ function App() {
         setStaff([]);
         setThresholds([]);
         setAuditLog([]);
+        setAcquiringPercent('1.8');
       }
     } catch {
       setSession(null);
@@ -714,6 +782,7 @@ function App() {
       setGlobalEmployees([]);
       setThresholds([]);
       setAuditLog([]);
+      setAcquiringPercent('1.8');
       setError(
         'Не удалось войти. Проверьте логин/пароль, что backend запущен, в Vercel задан VITE_API_URL (https://…), в Render у backend в CORS_ORIGIN — адрес фронта.',
       );
@@ -735,6 +804,7 @@ function App() {
     setStaff([]);
     setThresholds([]);
     setAuditLog([]);
+    setAcquiringPercent('1.8');
     navigate('/', { replace: true });
   };
 
@@ -910,9 +980,7 @@ function App() {
                                 <tr>
                                   <th>Магазин</th>
                                   <th>Выручка</th>
-                                  {(dashboard.role === 'DIRECTOR' || dashboard.role === 'ACCOUNTANT') && (
-                                    <th>Чистая прибыль (оценка)</th>
-                                  )}
+                                  <th>Затраты на зарплату</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -920,9 +988,7 @@ function App() {
                                   <tr key={store.name}>
                                     <td>{store.name}</td>
                                     <td>{store.revenue}</td>
-                                    {(dashboard.role === 'DIRECTOR' || dashboard.role === 'ACCOUNTANT') && (
-                                      <td>{store.netProfit}</td>
-                                    )}
+                                    <td>{store.salaries}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -1096,6 +1162,9 @@ function App() {
                             sellers={sellers}
                             procurementCosts={productProcurementCosts}
                             role={role}
+                            acquiringPercent={acquiringPercent}
+                            onAcquiringPercentChange={setAcquiringPercent}
+                            onSaveAcquiringPercent={saveAcquiringPercent}
                             onLoadPlans={loadRevenuePlans}
                             onSavePlans={saveRevenuePlans}
                           />
@@ -1109,24 +1178,6 @@ function App() {
                               onSave={saveProductProcurementCosts}
                             />
                           </section>
-                        )}
-                        {role === 'DIRECTOR' && (
-                          <>
-                            <section className="sectionCard">
-                              <CashDisciplinePanel
-                                token={session.token}
-                                events={cashEvents}
-                                readOnly={false}
-                                onAdd={addCashEvent}
-                              />
-                            </section>
-                            <section className="sectionCard">
-                              <ThresholdPanel notifications={thresholds} />
-                            </section>
-                            <section className="sectionCard">
-                              <AuditLogPanel items={auditLog} />
-                            </section>
-                          </>
                         )}
                       </>
                     ) : (
@@ -1860,11 +1911,10 @@ function AccountantProcurementPanel({
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
 
-  const byName = new Map(procurementCosts.map((item) => [item.name, item.cost]));
+  const byName = new Map(procurementCosts.map((item) => [item.name.trim(), item.cost]));
   const rows = products.map((item) => ({
     name: item.name,
-    retailPrice: item.price,
-    currentCost: byName.get(item.name) ?? Math.round(item.price * 0.6),
+    currentCost: byName.get(item.name.trim()) ?? 0,
   }));
 
   const save = async () => {
@@ -1895,7 +1945,6 @@ function AccountantProcurementPanel({
           <thead>
             <tr>
               <th>Товар</th>
-              <th>Розничная цена</th>
               <th>Закупочная цена</th>
             </tr>
           </thead>
@@ -1903,7 +1952,6 @@ function AccountantProcurementPanel({
             {rows.map((row) => (
               <tr key={row.name}>
                 <td>{row.name}</td>
-                <td>{row.retailPrice.toLocaleString('ru-RU')} ₽</td>
                 <td>
                   <input
                     value={draft[row.name] ?? String(row.currentCost)}
@@ -1937,6 +1985,9 @@ function FinanceReportPanel({
   sellers,
   procurementCosts,
   role,
+  acquiringPercent,
+  onAcquiringPercentChange,
+  onSaveAcquiringPercent,
   onLoadPlans,
   onSavePlans,
 }: {
@@ -1945,6 +1996,9 @@ function FinanceReportPanel({
   sellers: SellerProfile[];
   procurementCosts: ProductProcurementCost[];
   role: 'DIRECTOR' | 'ACCOUNTANT' | 'ADMIN' | 'SELLER';
+  acquiringPercent: string;
+  onAcquiringPercentChange: (value: string) => void;
+  onSaveAcquiringPercent: (token: string, value: string) => Promise<void>;
   onLoadPlans: (token: string, dayKey: string) => Promise<StoreRevenuePlan[]>;
   onSavePlans: (
     token: string,
@@ -1952,17 +2006,17 @@ function FinanceReportPanel({
     items: Array<{ storeName: string; planRevenue: number }>,
   ) => Promise<StoreRevenuePlan[]>;
 }) {
-  const [acquiringPercent, setAcquiringPercent] = useState('1.8');
-  const [workDay, setWorkDay] = useState(new Date().toISOString().slice(0, 10));
+  const [acquiringSaveError, setAcquiringSaveError] = useState('');
+  const [workDay, setWorkDay] = useState(todayKeyMoscow);
   const [plans, setPlans] = useState<StoreRevenuePlan[]>([]);
   const [planDraft, setPlanDraft] = useState<Record<string, string>>({});
   const [plansBusy, setPlansBusy] = useState(false);
   const [plansStatus, setPlansStatus] = useState('');
   const [plansError, setPlansError] = useState('');
-  const procurementByName = new Map(procurementCosts.map((item) => [item.name, item.cost]));
-  const salesForDay = sales.filter(
-    (sale) => new Date(sale.createdAt).toISOString().slice(0, 10) === workDay,
+  const procurementByName = new Map(
+    procurementCosts.map((item) => [item.name.trim(), item.cost]),
   );
+  const salesForDay = sales.filter((sale) => calendarDayKeyMoscow(sale.createdAt) === workDay);
   const planByStore = new Map(plans.map((item) => [item.storeName, item.planRevenue]));
 
   useEffect(() => {
@@ -2009,7 +2063,8 @@ function FinanceReportPanel({
       (sum, sale) =>
         sum +
         sale.items.reduce(
-          (lineSum, line) => lineSum + (procurementByName.get(line.name) ?? 0) * line.qty,
+          (lineSum, line) =>
+            lineSum + (procurementByName.get(String(line.name).trim()) ?? 0) * line.qty,
           0,
         ),
       0,
@@ -2112,17 +2167,33 @@ function FinanceReportPanel({
       <h4>{role === 'DIRECTOR' ? 'Финансовый отчёт директора' : 'Полный отчёт по магазинам'}</h4>
       <p className="hint">
         Списания не учитываются в формулах прибыли: (1) Выручка - ЗП - Эквайринг; (2) Выручка - ЗП - Эквайринг - Товар.
+        Ставка эквайринга (%) сохраняется на сервере при уходе из поля. Рабочий день и продажи в отчёте считаются по
+        календарю Москвы. «Потрачено на товар» = сумма (закупочная цена × шт.) по строкам чека; закупки задаются в
+        блоке ниже, без авто-процента от розницы.
       </p>
       <div className="inlineGrid">
         <label>
-          Рабочий день
+          Рабочий день (МСК)
           <input type="date" value={workDay} onChange={(event) => setWorkDay(event.target.value)} />
         </label>
         <label>
           Комиссия эквайринга, %
           <input
             value={acquiringPercent}
-            onChange={(event) => setAcquiringPercent(event.target.value)}
+            onChange={(event) => {
+              setAcquiringSaveError('');
+              onAcquiringPercentChange(event.target.value);
+            }}
+            onBlur={(event) => {
+              const value = event.currentTarget.value;
+              void (async () => {
+                try {
+                  await onSaveAcquiringPercent(token, value);
+                } catch {
+                  setAcquiringSaveError('Не удалось сохранить ставку эквайринга');
+                }
+              })();
+            }}
             placeholder="Например 1.8"
           />
         </label>
@@ -2140,6 +2211,7 @@ function FinanceReportPanel({
       </div>
       {plansStatus && <p className="success">{plansStatus}</p>}
       {plansError && <p className="error">{plansError}</p>}
+      {acquiringSaveError && <p className="error">{acquiringSaveError}</p>}
       <div className="tableWrap">
         <table>
           <thead>

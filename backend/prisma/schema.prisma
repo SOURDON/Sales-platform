@@ -42,10 +42,11 @@ enum CashEventType {
 }
 
 model AppState {
-  id             Int       @id
-  currentShiftId String?
-  lastSaleAt     DateTime?
-  updatedAt      DateTime  @updatedAt
+  id               Int       @id
+  currentShiftId   String?
+  lastSaleAt       DateTime?
+  acquiringPercent Float     @default(1.8)
+  updatedAt        DateTime  @updatedAt
 }
 
 model User {

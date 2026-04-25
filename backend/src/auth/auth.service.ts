@@ -144,6 +144,7 @@ export class AuthService implements OnModuleInit {
   private commissionChangeRequests: CommissionChangeRequest[] = [];
   private currentShiftId: string | null = null;
   private lastSaleAt: string | null = null;
+  private acquiringPercent = 1.8;
   private shiftHistory: Shift[] = [];
   private cashDisciplineEvents: CashDisciplineEvent[] = [];
   private staff: StaffMember[] = [];
@@ -182,7 +183,7 @@ export class AuthService implements OnModuleInit {
   getProductProcurementCosts() {
     return this.productCatalog.map((item) => ({
       name: item.name,
-      cost: this.productProcurementCosts[item.name] ?? Math.round(item.price * 0.6),
+      cost: this.productProcurementCosts[item.name] ?? 0,
     }));
   }
 
@@ -220,19 +221,34 @@ export class AuthService implements OnModuleInit {
     return this.getStoreRevenuePlans(dayKey);
   }
 
+  getAcquiringPercent() {
+    return this.acquiringPercent;
+  }
+
+  setAcquiringPercent(percent: number, actor = 'system') {
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      return null;
+    }
+    this.acquiringPercent = Math.round(percent * 1000) / 1000;
+    this.pushAudit(actor, 'ACQUIRING_PERCENT_UPDATED', String(this.acquiringPercent));
+    this.queuePersist();
+    return { percent: this.acquiringPercent };
+  }
+
   setProductProcurementCosts(
     updates: Array<{ name: string; cost: number }>,
     actor = 'system',
   ) {
     const validNames = new Set(this.productCatalog.map((item) => item.name));
     for (const row of updates) {
-      if (!validNames.has(row.name)) {
+      const name = row.name?.trim();
+      if (!name || !validNames.has(name)) {
         continue;
       }
       if (!Number.isFinite(row.cost) || row.cost < 0) {
         continue;
       }
-      this.productProcurementCosts[row.name] = Math.round(row.cost * 100) / 100;
+      this.productProcurementCosts[name] = Math.round(row.cost * 100) / 100;
     }
     this.pushAudit(actor, 'PRODUCT_COSTS_UPDATED', `rows=${updates.length}`);
     this.queuePersist();
@@ -293,6 +309,7 @@ export class AuthService implements OnModuleInit {
     if (!user) {
       return null;
     }
+    this.ensureActiveShiftForToday();
 
     if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT') {
       let totalRevenue = 0;
@@ -307,17 +324,19 @@ export class AuthService implements OnModuleInit {
       const netCompany = Math.max(0, Math.round(totalRevenue - roughPurchases - totalCommission));
       const storeRows = DEMO_STORE_NAMES.map((name) => {
         let rev = 0;
+        let salaries = 0;
         for (const p of this.sellerProfiles) {
           if (p.storeName !== name) {
             continue;
           }
           this.recomputeSeller(p);
           rev += p.salesAmount;
+          salaries += p.commissionAmount;
         }
         return {
           name,
           revenue: this.formatCurrency(rev),
-          netProfit: this.formatCurrency(Math.round(rev * 0.32)),
+          salaries: this.formatCurrency(salaries),
         };
       });
       return {
@@ -341,12 +360,14 @@ export class AuthService implements OnModuleInit {
         0,
       );
       let storeRevenue = 0;
+      let storeSalaries = 0;
       for (const p of this.sellerProfiles) {
         if (p.storeName !== user.storeName) {
           continue;
         }
         this.recomputeSeller(p);
         storeRevenue += p.salesAmount;
+        storeSalaries += p.commissionAmount;
       }
       const openShifts = this.shiftHistory.filter((s) => s.status === 'OPEN').length;
       return {
@@ -360,7 +381,11 @@ export class AuthService implements OnModuleInit {
         ],
         writeOffs: this.adminWriteOffs,
         stores: [
-          { name: user.storeName, revenue: this.formatCurrency(Math.round(storeRevenue)), netProfit: '—' },
+          {
+            name: user.storeName,
+            revenue: this.formatCurrency(Math.round(storeRevenue)),
+            salaries: this.formatCurrency(storeSalaries),
+          },
         ],
       };
     }
@@ -396,13 +421,13 @@ export class AuthService implements OnModuleInit {
         );
         this.recomputeSeller(profile);
         if (!profile) {
-          return [{ name: user.storeName, revenue: '0 ₽', netProfit: '0 ₽' }];
+          return [{ name: user.storeName, revenue: '0 ₽', salaries: '0 ₽' }];
         }
         return [
           {
             name: user.storeName,
             revenue: this.formatCurrency(profile.salesAmount),
-            netProfit: this.formatCurrency(Math.round(profile.salesAmount * 0.32)),
+            salaries: this.formatCurrency(profile.commissionAmount),
           },
         ];
       })(),
@@ -520,7 +545,7 @@ export class AuthService implements OnModuleInit {
     return [];
   }
 
-  setSellerPercentDirect(sellerId: number, ratePercent: number) {
+  async setSellerPercentDirect(sellerId: number, ratePercent: number) {
     if (ratePercent < 0 || ratePercent > 100) {
       return null;
     }
@@ -531,6 +556,7 @@ export class AuthService implements OnModuleInit {
     seller.ratePercent = ratePercent;
     this.recomputeSeller(seller);
     this.queuePersist();
+    await this.persistChain;
     return this.getSellerProfiles().find((item) => item.id === sellerId) ?? null;
   }
 
@@ -575,7 +601,7 @@ export class AuthService implements OnModuleInit {
     );
   }
 
-  decideCommissionRequest(id: string, decision: 'APPROVE' | 'REJECT') {
+  async decideCommissionRequest(id: string, decision: 'APPROVE' | 'REJECT') {
     const request = this.commissionChangeRequests.find((item) => item.id === id);
     if (!request || request.status !== 'PENDING') {
       return null;
@@ -583,14 +609,16 @@ export class AuthService implements OnModuleInit {
     if (decision === 'REJECT') {
       request.status = 'REJECTED';
       this.queuePersist();
+      await this.persistChain;
       return request;
     }
-    const applied = this.setSellerPercentDirect(request.sellerId, request.requestedPercent);
+    const applied = await this.setSellerPercentDirect(request.sellerId, request.requestedPercent);
     if (!applied) {
       return null;
     }
     request.status = 'APPROVED';
     this.queuePersist();
+    await this.persistChain;
     return { request, seller: applied };
   }
 
@@ -1166,9 +1194,7 @@ export class AuthService implements OnModuleInit {
       { name: 'электронный вариант и фото', price: 1500 },
       { name: 'Рамка А6', price: 300 },
     ];
-    this.productProcurementCosts = Object.fromEntries(
-      this.productCatalog.map((item) => [item.name, Math.round(item.price * 0.6)]),
-    );
+    this.productProcurementCosts = Object.fromEntries(this.productCatalog.map((item) => [item.name, 0]));
     this.storeRevenuePlans = {};
     this.demoUsers = buildDefaultDemoUserRows();
     this.sellerProfiles = buildDefaultSellerProfileRows().map((row) => ({
@@ -1220,6 +1246,7 @@ export class AuthService implements OnModuleInit {
     this.auditLog = [];
     this.currentShiftId = null;
     this.lastSaleAt = null;
+    this.acquiringPercent = 1.8;
   }
 
   private async loadState() {
@@ -1346,9 +1373,7 @@ export class AuthService implements OnModuleInit {
     }));
     this.productCatalog = products.map((item) => ({ name: item.name, price: item.price }));
     this.productStock = Object.fromEntries(stock.map((item) => [item.name, item.qty]));
-    this.productProcurementCosts = Object.fromEntries(
-      products.map((item) => [item.name, Math.round(item.price * 0.6)]),
-    );
+    this.productProcurementCosts = {};
     for (const item of procurementCosts) {
       this.productProcurementCosts[item.name] = item.cost;
     }
@@ -1377,6 +1402,10 @@ export class AuthService implements OnModuleInit {
     }));
     this.currentShiftId = appState?.currentShiftId ?? null;
     this.lastSaleAt = appState?.lastSaleAt?.toISOString() ?? null;
+    this.acquiringPercent =
+      appState?.acquiringPercent !== undefined && appState.acquiringPercent !== null
+        ? appState.acquiringPercent
+        : 1.8;
   }
 
   private async persistState() {
@@ -1386,11 +1415,13 @@ export class AuthService implements OnModuleInit {
         update: {
           currentShiftId: this.currentShiftId,
           lastSaleAt: this.lastSaleAt ? new Date(this.lastSaleAt) : null,
+          acquiringPercent: this.acquiringPercent,
         },
         create: {
           id: 1,
           currentShiftId: this.currentShiftId,
           lastSaleAt: this.lastSaleAt ? new Date(this.lastSaleAt) : null,
+          acquiringPercent: this.acquiringPercent,
         },
       });
 

@@ -78,6 +78,10 @@ interface RevenuePlanBody {
   items?: Array<{ storeName: string; planRevenue: number }>;
 }
 
+interface AcquiringPercentBody {
+  percent?: number;
+}
+
 @Controller('admin')
 export class AdminController {
   constructor(private readonly authService: AuthService) {}
@@ -127,6 +131,28 @@ export class AdminController {
       : new Date().toISOString().slice(0, 10);
     const items = body.items ?? [];
     return this.authService.setStoreRevenuePlans(dayKey, items, session.nickname);
+  }
+
+  @Get('acquiring-percent')
+  getAcquiringPercent(@Headers('authorization') authorization?: string) {
+    this.requireFinanceRead(authorization);
+    return { percent: this.authService.getAcquiringPercent() };
+  }
+
+  @Put('acquiring-percent')
+  setAcquiringPercent(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: AcquiringPercentBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    if (body.percent === undefined || !Number.isFinite(body.percent)) {
+      throw new BadRequestException('percent is required');
+    }
+    const result = this.authService.setAcquiringPercent(body.percent, session.nickname);
+    if (!result) {
+      throw new BadRequestException('percent must be between 0 and 100');
+    }
+    return result;
   }
 
   @Get('shifts')
@@ -344,7 +370,7 @@ export class AdminController {
   }
 
   @Put('sellers/percent')
-  setSellerPercent(
+  async setSellerPercent(
     @Headers('authorization') authorization: string | undefined,
     @Body() body: SetPercentBody,
   ) {
@@ -356,7 +382,7 @@ export class AdminController {
       throw new BadRequestException('sellerId and ratePercent are required');
     }
 
-    const result = this.authService.setSellerPercentDirect(body.sellerId, body.ratePercent);
+    const result = await this.authService.setSellerPercentDirect(body.sellerId, body.ratePercent);
     if (!result) {
       throw new BadRequestException('Seller not found or invalid percent');
     }
