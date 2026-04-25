@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -347,7 +347,7 @@ function App() {
     setProducts(data);
   };
 
-  const loadProductProcurementCosts = async (token: string) => {
+  const loadProductProcurementCosts = useCallback(async (token: string) => {
     const response = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -355,7 +355,7 @@ function App() {
       throw new Error('procurement costs error');
     }
     setProductProcurementCosts((await response.json()) as ProductProcurementCost[]);
-  };
+  }, []);
 
   const saveProductProcurementCosts = async (
     token: string,
@@ -373,6 +373,7 @@ function App() {
       throw new Error('save procurement costs error');
     }
     await loadProductProcurementCosts(token);
+    await loadSales(token);
   };
 
   const loadRevenuePlans = async (token: string, dayKey: string) => {
@@ -436,7 +437,7 @@ function App() {
     setAcquiringPercent(String(data.percent));
   };
 
-  const loadSales = async (token: string) => {
+  const loadSales = useCallback(async (token: string) => {
     const response = await fetch(`${API_BASE_URL}/admin/sales`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -447,7 +448,14 @@ function App() {
     }
     const data = (await response.json()) as AdminSale[];
     setSales(data);
-  };
+  }, []);
+
+  const refreshFinanceInputs = useCallback(async () => {
+    if (!session?.token) {
+      return;
+    }
+    await Promise.all([loadSales(session.token), loadProductProcurementCosts(session.token)]);
+  }, [session?.token, loadSales, loadProductProcurementCosts]);
 
   const loadCommissionRequests = async (token: string) => {
     const response = await fetch(`${API_BASE_URL}/admin/commission-requests`, {
@@ -1167,6 +1175,7 @@ function App() {
                             acquiringPercent={acquiringPercent}
                             onAcquiringPercentChange={setAcquiringPercent}
                             onSaveAcquiringPercent={saveAcquiringPercent}
+                            onRefreshFinanceInputs={refreshFinanceInputs}
                             onLoadPlans={loadRevenuePlans}
                             onSavePlans={saveRevenuePlans}
                           />
@@ -1990,6 +1999,7 @@ function FinanceReportPanel({
   acquiringPercent,
   onAcquiringPercentChange,
   onSaveAcquiringPercent,
+  onRefreshFinanceInputs,
   onLoadPlans,
   onSavePlans,
 }: {
@@ -2001,6 +2011,7 @@ function FinanceReportPanel({
   acquiringPercent: string;
   onAcquiringPercentChange: (value: string) => void;
   onSaveAcquiringPercent: (token: string, value: string) => Promise<void>;
+  onRefreshFinanceInputs: () => Promise<void>;
   onLoadPlans: (token: string, dayKey: string) => Promise<StoreRevenuePlan[]>;
   onSavePlans: (
     token: string,
@@ -2010,6 +2021,14 @@ function FinanceReportPanel({
 }) {
   const [acquiringSaveError, setAcquiringSaveError] = useState('');
   const [workDay, setWorkDay] = useState(todayKeyMoscow);
+  const refreshFinanceRef = useRef(onRefreshFinanceInputs);
+  refreshFinanceRef.current = onRefreshFinanceInputs;
+
+  useEffect(() => {
+    void refreshFinanceRef.current().catch(() => {
+      /* ignore: родитель покажет ошибки при логине */
+    });
+  }, [token, workDay]);
   const [plans, setPlans] = useState<StoreRevenuePlan[]>([]);
   const [planDraft, setPlanDraft] = useState<Record<string, string>>({});
   const [plansBusy, setPlansBusy] = useState(false);

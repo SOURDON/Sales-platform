@@ -181,10 +181,13 @@ export class AuthService implements OnModuleInit {
   }
 
   getProductProcurementCosts() {
-    return this.productCatalog.map((item) => ({
-      name: item.name,
-      cost: this.productProcurementCosts[item.name] ?? 0,
-    }));
+    return this.productCatalog.map((item) => {
+      const k = item.name.trim();
+      return {
+        name: item.name,
+        cost: k in this.productProcurementCosts ? this.productProcurementCosts[k]! : 0,
+      };
+    });
   }
 
   getStoreRevenuePlans(dayKey: string) {
@@ -251,8 +254,22 @@ export class AuthService implements OnModuleInit {
       this.productProcurementCosts[name] = Math.round(row.cost * 100) / 100;
     }
     this.pushAudit(actor, 'PRODUCT_COSTS_UPDATED', `rows=${updates.length}`);
+    this.syncProcurementKeysWithCatalog();
     this.queuePersist();
     return this.getProductProcurementCosts();
+  }
+
+  /** У каждого товара из каталога есть ключ закупки (иначе persist мог очистить таблицу). */
+  private syncProcurementKeysWithCatalog() {
+    for (const p of this.productCatalog) {
+      const k = p.name.trim();
+      if (!k) {
+        continue;
+      }
+      if (!(k in this.productProcurementCosts)) {
+        this.productProcurementCosts[k] = 0;
+      }
+    }
   }
 
   private demoUsers: DemoUser[] = [];
@@ -1216,7 +1233,10 @@ export class AuthService implements OnModuleInit {
       { name: 'электронный вариант и фото', price: 1500 },
       { name: 'Рамка А6', price: 300 },
     ];
-    this.productProcurementCosts = Object.fromEntries(this.productCatalog.map((item) => [item.name, 0]));
+    this.productProcurementCosts = Object.fromEntries(
+      this.productCatalog.map((item) => [item.name.trim(), 0]),
+    );
+    this.syncProcurementKeysWithCatalog();
     this.storeRevenuePlans = {};
     this.demoUsers = buildDefaultDemoUserRows();
     this.sellerProfiles = buildDefaultSellerProfileRows().map((row) => ({
@@ -1276,7 +1296,6 @@ export class AuthService implements OnModuleInit {
       users,
       sellerProfiles,
       sales,
-      saleItems,
       writeOffs,
       shifts,
       shiftAssignments,
@@ -1292,8 +1311,10 @@ export class AuthService implements OnModuleInit {
     ] = await this.prisma.$transaction([
       this.prisma.user.findMany(),
       this.prisma.sellerProfile.findMany(),
-      this.prisma.sale.findMany(),
-      this.prisma.saleItem.findMany(),
+      this.prisma.sale.findMany({
+        include: { items: true },
+        orderBy: { createdAt: 'asc' },
+      }),
       this.prisma.writeOff.findMany(),
       this.prisma.shift.findMany(),
       this.prisma.shiftAssignment.findMany(),
@@ -1308,20 +1329,17 @@ export class AuthService implements OnModuleInit {
       this.prisma.appState.findUnique({ where: { id: 1 } }),
     ]);
 
-    const saleItemsBySaleId = new Map<string, SaleLine[]>();
-    for (const item of saleItems) {
-      const current = saleItemsBySaleId.get(item.saleId) ?? [];
-      current.push({ name: item.name.trim(), qty: item.qty });
-      saleItemsBySaleId.set(item.saleId, current);
-    }
-
     const salesBySellerId = new Map<number, SaleRecord[]>();
     for (const sale of sales) {
+      const lines: SaleLine[] = (sale.items ?? []).map((row) => ({
+        name: row.name.trim(),
+        qty: row.qty,
+      }));
       const current = salesBySellerId.get(sale.sellerId) ?? [];
       current.push({
         id: sale.id,
         createdAt: sale.createdAt.toISOString(),
-        items: saleItemsBySaleId.get(sale.id) ?? [],
+        items: lines,
         totalAmount: sale.totalAmount,
         units: sale.units,
         paymentType: sale.paymentType === PrismaPaymentType.NON_CASH ? 'NON_CASH' : 'CASH',
@@ -1402,6 +1420,7 @@ export class AuthService implements OnModuleInit {
         this.productProcurementCosts[key] = item.cost;
       }
     }
+    this.syncProcurementKeysWithCatalog();
     this.storeRevenuePlans = {};
     for (const item of storePlans) {
       const dayPlans = this.storeRevenuePlans[item.dayKey] ?? {};
