@@ -5,6 +5,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  Header,
   Headers,
   Param,
   Patch,
@@ -194,6 +195,7 @@ export class AdminController {
   }
 
   @Get('sales')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async getSales(@Headers('authorization') authorization?: string) {
     const session = this.requireFinanceRead(authorization);
     return this.authService.getSalesSnapshotForSessionEnriched(session.nickname) as unknown;

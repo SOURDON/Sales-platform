@@ -523,13 +523,15 @@ export class AuthService implements OnModuleInit {
     if (base.length === 0) {
       return base;
     }
+    const normKey = (s: string) => s.normalize('NFC').trim().replace(/\s+/g, ' ');
     try {
       const costRows = await this.prisma.productProcurementCost.findMany();
       const costMap = new Map<string, number>();
       for (const row of costRows) {
-        const k = row.name.trim();
-        if (k) {
-          costMap.set(k, Number(row.cost));
+        const k = normKey(row.name);
+        const v = Number(row.cost);
+        if (k && Number.isFinite(v)) {
+          costMap.set(k, v);
         }
       }
       const saleIds = base.map((s) => s.id);
@@ -545,10 +547,18 @@ export class AuthService implements OnModuleInit {
       return base.map((sale) => {
         const memLines = sale.items ?? [];
         const dbLines = itemsBySaleId.get(sale.id) ?? [];
-        const lines = memLines.length > 0 ? memLines : dbLines;
+        // Строки из БД надёжнее: в памяти иногда пустой items при живых SaleItem в PostgreSQL.
+        const lines = dbLines.length > 0 ? dbLines : memLines;
         let gc = 0;
         for (const line of lines) {
-          const unit = costMap.get(String(line.name).trim()) ?? 0;
+          const nk = normKey(String(line.name));
+          let unit = costMap.get(nk) ?? 0;
+          if (unit === 0) {
+            const cat = this.productCatalog.find((p) => normKey(p.name) === nk);
+            if (cat) {
+              unit = costMap.get(normKey(cat.name)) ?? 0;
+            }
+          }
           gc += unit * (Number(line.qty) || 0);
         }
         gc = Math.round(gc * 100) / 100;
@@ -559,7 +569,10 @@ export class AuthService implements OnModuleInit {
         };
       });
     } catch (error: unknown) {
-      this.logger.warn('getSalesSnapshotForSessionEnriched fallback to memory', error as Error);
+      this.logger.error(
+        'getSalesSnapshotForSessionEnriched failed, fallback to memory',
+        error instanceof Error ? error.stack : String(error),
+      );
       return this.getSalesSnapshotForSession(requesterNickname);
     }
   }

@@ -23,6 +23,17 @@ function todayKeyMoscow(): string {
   }).format(new Date());
 }
 
+function parseGoodsCost(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value.replace(',', '.').trim());
+    return Number.isFinite(n) ? n : Number.NaN;
+  }
+  return Number.NaN;
+}
+
 type LoginResponse = {
   token: string;
   user: {
@@ -438,10 +449,11 @@ function App() {
   };
 
   const loadSales = useCallback(async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/sales`, {
+    const response = await fetch(`${API_BASE_URL}/admin/sales?ts=${Date.now()}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      cache: 'no-store',
     });
     if (!response.ok) {
       throw new Error('sales error');
@@ -2081,8 +2093,8 @@ function FinanceReportPanel({
       .reduce((sum, sale) => sum + sale.totalAmount, 0);
     const acquiringFee = (nonCashRevenue * acquiringRate) / 100;
     const goodsSpent = storeSales.reduce((sum, sale) => {
-      const fromApi = sale.goodsCost;
-      if (typeof fromApi === 'number' && Number.isFinite(fromApi)) {
+      const fromApi = parseGoodsCost(sale.goodsCost);
+      if (Number.isFinite(fromApi)) {
         return sum + fromApi;
       }
       return (
