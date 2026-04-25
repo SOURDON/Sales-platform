@@ -194,9 +194,9 @@ export class AdminController {
   }
 
   @Get('sales')
-  getSales(@Headers('authorization') authorization?: string) {
+  async getSales(@Headers('authorization') authorization?: string) {
     const session = this.requireFinanceRead(authorization);
-    return this.authService.getSalesSnapshotForSession(session.nickname) as unknown;
+    return this.authService.getSalesSnapshotForSessionEnriched(session.nickname) as unknown;
   }
 
   @Get('write-offs')

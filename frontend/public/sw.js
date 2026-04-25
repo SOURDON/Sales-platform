@@ -1,5 +1,5 @@
 // Bump when shell caching logic changes; avoids stale SW breaking API calls.
-const CACHE_NAME = 'sales-platform-v6'
+const CACHE_NAME = 'sales-platform-v7'
 const APP_SHELL = [
   '/',
   '/index.html',

@@ -511,6 +511,59 @@ export class AuthService implements OnModuleInit {
     return [];
   }
 
+  /**
+   * Продажи для API: строки чека и goodsCost по актуальным данным из БД
+   * (закупки и SaleItem), чтобы «потрачено на товар» не зависело от рассинхрона памяти.
+   */
+  async getSalesSnapshotForSessionEnriched(requesterNickname: string) {
+    if (!this.persistenceEnabled) {
+      return this.getSalesSnapshotForSession(requesterNickname);
+    }
+    const base = this.getSalesSnapshotForSession(requesterNickname);
+    if (base.length === 0) {
+      return base;
+    }
+    try {
+      const costRows = await this.prisma.productProcurementCost.findMany();
+      const costMap = new Map<string, number>();
+      for (const row of costRows) {
+        const k = row.name.trim();
+        if (k) {
+          costMap.set(k, Number(row.cost));
+        }
+      }
+      const saleIds = base.map((s) => s.id);
+      const dbItems = await this.prisma.saleItem.findMany({
+        where: { saleId: { in: saleIds } },
+      });
+      const itemsBySaleId = new Map<string, SaleLine[]>();
+      for (const row of dbItems) {
+        const cur = itemsBySaleId.get(row.saleId) ?? [];
+        cur.push({ name: row.name.trim(), qty: row.qty });
+        itemsBySaleId.set(row.saleId, cur);
+      }
+      return base.map((sale) => {
+        const memLines = sale.items ?? [];
+        const dbLines = itemsBySaleId.get(sale.id) ?? [];
+        const lines = memLines.length > 0 ? memLines : dbLines;
+        let gc = 0;
+        for (const line of lines) {
+          const unit = costMap.get(String(line.name).trim()) ?? 0;
+          gc += unit * (Number(line.qty) || 0);
+        }
+        gc = Math.round(gc * 100) / 100;
+        return {
+          ...sale,
+          items: lines,
+          goodsCost: gc,
+        };
+      });
+    } catch (error: unknown) {
+      this.logger.warn('getSalesSnapshotForSessionEnriched fallback to memory', error as Error);
+      return this.getSalesSnapshotForSession(requesterNickname);
+    }
+  }
+
   getSellerProfilesForSession(requesterNickname: string) {
     const user = this.demoUsers.find((item) => item.nickname === requesterNickname);
     if (!user) {
