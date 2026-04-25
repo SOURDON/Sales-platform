@@ -7,9 +7,12 @@ import {
   UserRole as PrismaUserRole,
   WriteOffReason,
 } from '@prisma/client';
+import { ensureDemoData } from '../database/ensure-demo-data';
 import { PrismaService } from '../prisma/prisma.service';
+import { buildDefaultDemoUserRows, buildDefaultSellerProfileRows, buildDefaultStaffRows } from './build-demo-entities';
+import { DEMO_STORE_NAMES } from './demo-stores';
 
-export type UserRole = 'DIRECTOR' | 'ADMIN' | 'SELLER';
+export type UserRole = 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT';
 
 type CommissionRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -229,22 +232,44 @@ export class AuthService implements OnModuleInit {
       return null;
     }
 
-    if (user.role === 'DIRECTOR') {
+    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT') {
+      let totalRevenue = 0;
+      let totalCommission = 0;
+      for (const p of this.sellerProfiles) {
+        this.recomputeSeller(p);
+        totalRevenue += p.salesAmount;
+        totalCommission += p.commissionAmount;
+      }
+      const openShifts = this.shiftHistory.filter((s) => s.status === 'OPEN').length;
+      const roughPurchases = Math.round(totalRevenue * 0.43);
+      const netCompany = Math.max(0, Math.round(totalRevenue - roughPurchases - totalCommission));
+      const storeRows = DEMO_STORE_NAMES.map((name) => {
+        let rev = 0;
+        for (const p of this.sellerProfiles) {
+          if (p.storeName !== name) {
+            continue;
+          }
+          this.recomputeSeller(p);
+          rev += p.salesAmount;
+        }
+        return {
+          name,
+          revenue: this.formatCurrency(rev),
+          netProfit: this.formatCurrency(Math.round(rev * 0.32)),
+        };
+      });
       return {
         role: user.role,
         sellerDataManagedByAdmin: true,
-        title: 'Сводка директора',
+        title: user.role === 'DIRECTOR' ? 'Сводка директора' : 'Сводка бухгалтера',
         metrics: [
-          { label: 'Выручка сегодня', value: '486 200 ₽' },
-          { label: 'Чистая прибыль', value: '151 430 ₽' },
-          { label: 'Закупки', value: '207 000 ₽' },
-          { label: 'Выплаты продавцам', value: '24 310 ₽' },
+          { label: 'Выручка (все точки)', value: this.formatCurrency(Math.round(totalRevenue)) },
+          { label: 'Чистая прибыль (оценка)', value: this.formatCurrency(netCompany) },
+          { label: 'Закупки (оценка)', value: this.formatCurrency(roughPurchases) },
+          { label: 'Выплаты продавцам', value: this.formatCurrency(totalCommission) },
+          { label: 'Открытые смены', value: String(openShifts) },
         ],
-        stores: [
-          { name: 'Store #1', revenue: '188 400 ₽', netProfit: '58 200 ₽' },
-          { name: 'Store #2', revenue: '164 600 ₽', netProfit: '49 700 ₽' },
-          { name: 'Store #3', revenue: '133 200 ₽', netProfit: '43 530 ₽' },
-        ],
+        stores: storeRows,
       };
     }
 
@@ -253,17 +278,28 @@ export class AuthService implements OnModuleInit {
         (sum, item) => sum + item.qty,
         0,
       );
+      let storeRevenue = 0;
+      for (const p of this.sellerProfiles) {
+        if (p.storeName !== user.storeName) {
+          continue;
+        }
+        this.recomputeSeller(p);
+        storeRevenue += p.salesAmount;
+      }
+      const openShifts = this.shiftHistory.filter((s) => s.status === 'OPEN').length;
       return {
         role: user.role,
         sellerDataManagedByAdmin: true,
         title: `Панель администратора (${user.storeName})`,
         metrics: [
-          { label: 'Продажи смены', value: '78 420 ₽' },
-          { label: 'Открытые смены', value: '3' },
-          { label: 'Списания (товар)', value: `${totalWriteOffUnits} шт.` },
+          { label: 'Продажи (точка)', value: this.formatCurrency(Math.round(storeRevenue)) },
+          { label: 'Открытые смены (всего)', value: String(openShifts) },
+          { label: 'Списания (товар), все точки', value: `${totalWriteOffUnits} шт.` },
         ],
         writeOffs: this.adminWriteOffs,
-        stores: [{ name: user.storeName, revenue: '188 400 ₽' }],
+        stores: [
+          { name: user.storeName, revenue: this.formatCurrency(Math.round(storeRevenue)), netProfit: '—' },
+        ],
       };
     }
 
@@ -351,6 +387,75 @@ export class AuthService implements OnModuleInit {
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
+  }
+
+  getSalesSnapshotForSession(requesterNickname: string) {
+    const user = this.demoUsers.find((item) => item.nickname === requesterNickname);
+    if (!user) {
+      return [];
+    }
+    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT') {
+      return this.getSalesSnapshot();
+    }
+    if (user.role === 'ADMIN') {
+      return this.getSalesSnapshot().filter((sale) => {
+        const seller = this.sellerProfiles.find((p) => p.id === sale.sellerId);
+        return seller?.storeName === user.storeName;
+      });
+    }
+    return [];
+  }
+
+  getSellerProfilesForSession(requesterNickname: string) {
+    const user = this.demoUsers.find((item) => item.nickname === requesterNickname);
+    if (!user) {
+      return [];
+    }
+    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT') {
+      return this.getSellerProfiles();
+    }
+    if (user.role === 'ADMIN') {
+      return this.getSellerProfiles().filter((row) => row.storeName === user.storeName);
+    }
+    return [];
+  }
+
+  getCommissionChangeRequestsForSession(requesterNickname: string) {
+    const all = this.getCommissionChangeRequests();
+    const user = this.demoUsers.find((item) => item.nickname === requesterNickname);
+    if (!user) {
+      return [];
+    }
+    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT') {
+      return all;
+    }
+    if (user.role === 'ADMIN') {
+      const allowed = new Set(
+        this.sellerProfiles
+          .filter((p) => p.storeName === user.storeName)
+          .map((p) => p.id),
+      );
+      return all.filter((item) => allowed.has(item.sellerId));
+    }
+    return [];
+  }
+
+  getStaffForSession(requesterNickname: string) {
+    const all = this.getStaff();
+    const user = this.demoUsers.find((item) => item.nickname === requesterNickname);
+    if (!user) {
+      return [];
+    }
+    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT') {
+      return all;
+    }
+    if (user.role === 'ADMIN') {
+      return all.filter((member) => {
+        const u = this.demoUsers.find((d) => d.id === member.id);
+        return u?.storeName === user.storeName;
+      });
+    }
+    return [];
   }
 
   setSellerPercentDirect(sellerId: number, ratePercent: number) {
@@ -450,6 +555,10 @@ export class AuthService implements OnModuleInit {
 
     const seller = this.sellerProfiles.find((item) => item.id === sellerId);
     if (!seller) {
+      return null;
+    }
+    const actorUser = this.demoUsers.find((item) => item.nickname === actor);
+    if (actorUser?.role === 'ADMIN' && seller.storeName !== actorUser.storeName) {
       return null;
     }
 
@@ -558,10 +667,20 @@ export class AuthService implements OnModuleInit {
   }
 
   openShift(openedBy: string, assignedSellerIds: number[]) {
+    const opener = this.demoUsers.find((item) => item.nickname === openedBy);
+    let allowedIds = [...new Set(assignedSellerIds)];
+    if (opener?.role === 'ADMIN') {
+      const inStore = new Set(
+        this.sellerProfiles
+          .filter((p) => p.storeName === opener.storeName)
+          .map((p) => p.id),
+      );
+      allowedIds = allowedIds.filter((id) => inStore.has(id));
+    }
     const existingOpen = this.shiftHistory.find((item) => item.status === 'OPEN');
     if (existingOpen) {
       const merged = [
-        ...new Set([...existingOpen.assignedSellerIds, ...assignedSellerIds]),
+        ...new Set([...existingOpen.assignedSellerIds, ...allowedIds]),
       ];
       existingOpen.assignedSellerIds = merged;
       for (const member of this.staff) {
@@ -583,7 +702,7 @@ export class AuthService implements OnModuleInit {
       id: `shift-${Date.now()}`,
       openedAt: new Date().toISOString(),
       openedBy,
-      assignedSellerIds,
+      assignedSellerIds: allowedIds,
       checksCount: 0,
       itemsCount: 0,
       status: 'OPEN',
@@ -591,7 +710,7 @@ export class AuthService implements OnModuleInit {
     this.shiftHistory.push(shift);
     this.currentShiftId = shift.id;
     for (const member of this.staff) {
-      member.assignedShiftId = assignedSellerIds.includes(member.id) ? shift.id : undefined;
+      member.assignedShiftId = allowedIds.includes(member.id) ? shift.id : undefined;
     }
     this.pushAudit(openedBy, 'SHIFT_OPENED', `shift=${shift.id}`);
     this.queuePersist();
@@ -697,6 +816,8 @@ export class AuthService implements OnModuleInit {
       nickname: normalizedNickname,
       isActive: true,
     };
+    const storeForActor =
+      this.demoUsers.find((item) => item.nickname === actor)?.storeName ?? DEMO_STORE_NAMES[0];
     this.staff.push(member);
     this.demoUsers.push({
       id: member.id,
@@ -704,14 +825,14 @@ export class AuthService implements OnModuleInit {
       password: '123456',
       fullName: member.fullName,
       role: 'SELLER',
-      storeName: 'Store #1',
+      storeName: storeForActor,
       isActive: true,
     });
     this.sellerProfiles.push({
       id: member.id,
       fullName: member.fullName,
       nickname: member.nickname,
-      storeName: 'Store #1',
+      storeName: storeForActor,
       ratePercent: 3,
       salesAmount: 0,
       checksCount: 0,
@@ -929,113 +1050,7 @@ export class AuthService implements OnModuleInit {
     if (usersCount > 0) {
       return;
     }
-    const now = Date.now();
-    await this.prisma.$transaction(async (tx) => {
-      await tx.user.createMany({
-        data: [
-          {
-            id: 1,
-            nickname: 'director',
-            password: '123456',
-            fullName: 'Director User',
-            role: PrismaUserRole.DIRECTOR,
-            storeName: 'All Stores',
-            isActive: true,
-          },
-          {
-            id: 2,
-            nickname: 'admin1',
-            password: '123456',
-            fullName: 'Store Admin',
-            role: PrismaUserRole.ADMIN,
-            storeName: 'Store #1',
-            isActive: true,
-          },
-          {
-            id: 3,
-            nickname: 'seller1',
-            password: '123456',
-            fullName: 'Cashier Seller',
-            role: PrismaUserRole.SELLER,
-            storeName: 'Store #1',
-            isActive: true,
-          },
-          {
-            id: 4,
-            nickname: 'seller2',
-            password: '123456',
-            fullName: 'Anna Romanova',
-            role: PrismaUserRole.SELLER,
-            storeName: 'Store #1',
-            isActive: true,
-          },
-        ],
-      });
-      await tx.sellerProfile.createMany({
-        data: [
-          { id: 3, storeName: 'Store #1', ratePercent: 5 },
-          { id: 4, storeName: 'Store #1', ratePercent: 4 },
-        ],
-      });
-      await tx.staffMember.createMany({
-        data: [
-          { id: 3, fullName: 'Cashier Seller', nickname: 'seller1', isActive: true },
-          { id: 4, fullName: 'Anna Romanova', nickname: 'seller2', isActive: true },
-        ],
-      });
-      await tx.productCatalog.createMany({
-        data: [
-          { name: 'Магнит', price: 200 },
-          { name: 'Рамка А4', price: 500 },
-          { name: 'Декоративная рамка', price: 800 },
-          { name: 'Бамбуковая рамка', price: 900 },
-          { name: 'электронный вариант и фото', price: 1500 },
-          { name: 'Рамка А6', price: 300 },
-        ],
-      });
-      await tx.productStock.createMany({
-        data: [
-          { name: 'Магнит', qty: 35 },
-          { name: 'Рамка А4', qty: 18 },
-          { name: 'Декоративная рамка', qty: 12 },
-          { name: 'Бамбуковая рамка', qty: 9 },
-          { name: 'электронный вариант и фото', qty: 30 },
-          { name: 'Рамка А6', qty: 22 },
-        ],
-      });
-      await tx.writeOff.createMany({
-        data: [
-          {
-            id: 'wo-1',
-            createdAt: new Date(now - 1000 * 60 * 60 * 8),
-            name: 'Рамка А4',
-            qty: 2,
-            reason: WriteOffReason.BRAK,
-          },
-          {
-            id: 'wo-2',
-            createdAt: new Date(now - 1000 * 60 * 60 * 4),
-            name: 'Магнит',
-            qty: 5,
-            reason: WriteOffReason.POLOMKA,
-          },
-          {
-            id: 'wo-3',
-            createdAt: new Date(now - 1000 * 60 * 60 * 2),
-            name: 'Рамка А6',
-            qty: 1,
-            reason: WriteOffReason.BRAK,
-          },
-        ],
-      });
-      await tx.appState.create({
-        data: {
-          id: 1,
-          currentShiftId: null,
-          lastSaleAt: null,
-        },
-      });
-    });
+    await ensureDemoData(this.prisma);
   }
 
   private loadDefaultState() {
@@ -1047,72 +1062,19 @@ export class AuthService implements OnModuleInit {
       { name: 'электронный вариант и фото', price: 1500 },
       { name: 'Рамка А6', price: 300 },
     ];
-    this.demoUsers = [
-      {
-        id: 1,
-        nickname: 'director',
-        password: '123456',
-        fullName: 'Director User',
-        role: 'DIRECTOR',
-        storeName: 'All Stores',
-        isActive: true,
-      },
-      {
-        id: 2,
-        nickname: 'admin1',
-        password: '123456',
-        fullName: 'Store Admin',
-        role: 'ADMIN',
-        storeName: 'Store #1',
-        isActive: true,
-      },
-      {
-        id: 3,
-        nickname: 'seller1',
-        password: '123456',
-        fullName: 'Cashier Seller',
-        role: 'SELLER',
-        storeName: 'Store #1',
-        isActive: true,
-      },
-      {
-        id: 4,
-        nickname: 'seller2',
-        password: '123456',
-        fullName: 'Anna Romanova',
-        role: 'SELLER',
-        storeName: 'Store #1',
-        isActive: true,
-      },
-    ];
-    this.sellerProfiles = [
-      {
-        id: 3,
-        fullName: 'Cashier Seller',
-        nickname: 'seller1',
-        storeName: 'Store #1',
-        ratePercent: 5,
-        salesAmount: 0,
-        checksCount: 0,
-        sales: [],
-        commissionAmount: 0,
-      },
-      {
-        id: 4,
-        fullName: 'Anna Romanova',
-        nickname: 'seller2',
-        storeName: 'Store #1',
-        ratePercent: 4,
-        salesAmount: 0,
-        checksCount: 0,
-        sales: [],
-        commissionAmount: 0,
-      },
-    ];
-    this.staff = [
-      { id: 3, fullName: 'Cashier Seller', nickname: 'seller1', isActive: true },
-      { id: 4, fullName: 'Anna Romanova', nickname: 'seller2', isActive: true },
-    ];
+    this.demoUsers = buildDefaultDemoUserRows();
+    this.sellerProfiles = buildDefaultSellerProfileRows().map((row) => ({
+      id: row.id,
+      fullName: row.fullName,
+      nickname: row.nickname,
+      storeName: row.storeName,
+      ratePercent: row.ratePercent,
+      salesAmount: 0,
+      checksCount: 0,
+      sales: [],
+      commissionAmount: 0,
+    }));
+    this.staff = buildDefaultStaffRows();
     this.productStock = {
       Магнит: 35,
       'Рамка А4': 18,

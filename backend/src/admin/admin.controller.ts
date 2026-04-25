@@ -75,13 +75,13 @@ export class AdminController {
 
   @Get('products')
   getProducts(@Headers('authorization') authorization?: string) {
-    this.requireAdminOrDirector(authorization);
+    this.requireFinanceRead(authorization);
     return this.authService.productCatalog;
   }
 
   @Get('shifts')
   getShifts(@Headers('authorization') authorization?: string) {
-    this.requireShiftOperator(authorization);
+    this.requireFinanceRead(authorization);
     return this.authService.getShifts() as unknown;
   }
 
@@ -113,14 +113,14 @@ export class AdminController {
 
   @Get('sellers')
   getSellers(@Headers('authorization') authorization?: string) {
-    this.requireAdminOrDirector(authorization);
-    return this.authService.getSellerProfiles();
+    const session = this.requireFinanceRead(authorization);
+    return this.authService.getSellerProfilesForSession(session.nickname);
   }
 
   @Get('sales')
   getSales(@Headers('authorization') authorization?: string) {
-    this.requireAdminOrDirector(authorization);
-    return this.authService.getSalesSnapshot() as unknown;
+    const session = this.requireFinanceRead(authorization);
+    return this.authService.getSalesSnapshotForSession(session.nickname) as unknown;
   }
 
   @Get('write-offs')
@@ -128,13 +128,13 @@ export class AdminController {
     @Headers('authorization') authorization?: string,
     @Query() query?: WriteOffQuery,
   ) {
-    this.requireAdminOrDirector(authorization);
+    this.requireFinanceRead(authorization);
     return this.authService.getWriteOffs(query) as unknown;
   }
 
   @Get('cash-discipline')
   getCashDiscipline(@Headers('authorization') authorization?: string) {
-    this.requireAdminOrDirector(authorization);
+    this.requireFinanceRead(authorization);
     return this.authService.getCashDisciplineEvents() as unknown;
   }
 
@@ -143,7 +143,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: CashDisciplineBody,
   ) {
-    const session = this.requireAdminOrDirector(authorization);
+    const session = this.requireWriteAccess(authorization);
     if (!body.type || !body.comment) {
       throw new BadRequestException('type and comment are required');
     }
@@ -160,13 +160,13 @@ export class AdminController {
 
   @Get('staff')
   getStaff(@Headers('authorization') authorization?: string) {
-    this.requireAdminOrDirector(authorization);
-    return this.authService.getStaff() as unknown;
+    const session = this.requireFinanceRead(authorization);
+    return this.authService.getStaffForSession(session.nickname) as unknown;
   }
 
   @Get('employees/global')
   getGlobalEmployees(@Headers('authorization') authorization?: string) {
-    this.requireAdminOrDirector(authorization);
+    this.requireFinanceRead(authorization);
     return this.authService.getGlobalEmployees() as unknown;
   }
 
@@ -175,7 +175,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: StaffCreateBody,
   ) {
-    const session = this.requireAdminOrDirector(authorization);
+    const session = this.requireWriteAccess(authorization);
     if (!body.fullName || !body.nickname) {
       throw new BadRequestException('fullName and nickname are required');
     }
@@ -191,7 +191,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: StaffFromBaseBody,
   ) {
-    const session = this.requireAdminOrDirector(authorization);
+    const session = this.requireWriteAccess(authorization);
     if (!body.employeeId) {
       throw new BadRequestException('employeeId is required');
     }
@@ -207,7 +207,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Param('id') id: string,
   ) {
-    const session = this.requireAdminOrDirector(authorization);
+    const session = this.requireWriteAccess(authorization);
     const staff = this.authService.deactivateStaff(Number(id), session.nickname);
     if (!staff) {
       throw new BadRequestException('Staff not found');
@@ -220,7 +220,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Param('id') id: string,
   ) {
-    const session = this.requireAdminOrDirector(authorization);
+    const session = this.requireWriteAccess(authorization);
     const staff = this.authService.activateStaff(Number(id), session.nickname);
     if (!staff) {
       throw new BadRequestException('Staff not found');
@@ -234,7 +234,7 @@ export class AdminController {
     @Param('id') id: string,
     @Body() body: { shiftId?: string },
   ) {
-    const session = this.requireAdminOrDirector(authorization);
+    const session = this.requireWriteAccess(authorization);
     if (!body.shiftId) {
       throw new BadRequestException('shiftId is required');
     }
@@ -251,13 +251,13 @@ export class AdminController {
 
   @Get('notifications/thresholds')
   getThresholds(@Headers('authorization') authorization?: string) {
-    this.requireAdminOrDirector(authorization);
+    this.requireFinanceRead(authorization);
     return this.authService.getThresholdNotifications() as unknown;
   }
 
   @Get('audit-log')
   getAuditLog(@Headers('authorization') authorization?: string) {
-    this.requireAdminOrDirector(authorization);
+    this.requireFinanceRead(authorization);
     return this.authService.getAuditLog() as unknown;
   }
 
@@ -267,7 +267,7 @@ export class AdminController {
     @Query() query: WriteOffQuery,
     @Res() response: Response,
   ) {
-    this.requireAdminOrDirector(authorization);
+    this.requireFinanceRead(authorization);
     const csv = this.authService.getWriteOffsCsv(query);
     response.setHeader('Content-Type', 'text/csv; charset=utf-8');
     response.setHeader(
@@ -279,8 +279,8 @@ export class AdminController {
 
   @Get('commission-requests')
   listCommissionRequests(@Headers('authorization') authorization?: string) {
-    this.requireAdminOrDirector(authorization);
-    return this.authService.getCommissionChangeRequests() as unknown;
+    const session = this.requireFinanceRead(authorization);
+    return this.authService.getCommissionChangeRequestsForSession(session.nickname) as unknown;
   }
 
   @Post('commission-requests')
@@ -288,7 +288,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: CommissionRequestBody,
   ) {
-    this.requireAdminOrDirector(authorization);
+    this.requireWriteAccess(authorization);
     void body;
     throw new ForbiddenException('Процент может редактировать только директор');
   }
@@ -298,7 +298,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: SetPercentBody,
   ) {
-    const session = this.requireAdminOrDirector(authorization);
+    const session = this.requireWriteAccess(authorization);
     if (session.role !== 'DIRECTOR') {
       throw new ForbiddenException('Only director can change percent directly');
     }
@@ -318,7 +318,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: CreateSaleBody,
   ) {
-    const session = this.requireAdminOrDirector(authorization);
+    const session = this.requireWriteAccess(authorization);
     if (!body.sellerId || !body.items || body.totalAmount === undefined) {
       throw new BadRequestException('sellerId, items and totalAmount are required');
     }
@@ -347,7 +347,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: WriteOffBody,
   ) {
-    const session = this.requireAdminOrDirector(authorization);
+    const session = this.requireWriteAccess(authorization);
     if (!body.name || !body.qty || !body.reason) {
       throw new BadRequestException('name, qty and reason are required');
     }
@@ -373,7 +373,7 @@ export class AdminController {
     @Param('id') id: string,
     @Body() body: { qty?: number; reason?: 'Брак' | 'Поломка' },
   ) {
-    const session = this.requireAdminOrDirector(authorization);
+    const session = this.requireWriteAccess(authorization);
     if (!body.qty || !body.reason) {
       throw new BadRequestException('qty and reason are required');
     }
@@ -397,7 +397,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Param('id') id: string,
   ) {
-    const session = this.requireAdminOrDirector(authorization);
+    const session = this.requireWriteAccess(authorization);
     const ok = this.authService.deleteWriteOff(id, session.nickname);
     if (!ok) {
       throw new BadRequestException('Write-off not found');
@@ -405,7 +405,26 @@ export class AdminController {
     return { ok: true };
   }
 
-  private requireAdminOrDirector(authorization?: string) {
+  private requireFinanceRead(authorization?: string) {
+    const token = authorization?.replace('Bearer ', '').trim();
+    if (!token) {
+      throw new UnauthorizedException('Missing token');
+    }
+
+    const session = this.authService.parseToken(token);
+    if (
+      !session ||
+      (session.role !== 'DIRECTOR' &&
+        session.role !== 'ADMIN' &&
+        session.role !== 'ACCOUNTANT')
+    ) {
+      throw new UnauthorizedException('Only director, admin, or accountant allowed');
+    }
+
+    return session;
+  }
+
+  private requireWriteAccess(authorization?: string) {
     const token = authorization?.replace('Bearer ', '').trim();
     if (!token) {
       throw new UnauthorizedException('Missing token');

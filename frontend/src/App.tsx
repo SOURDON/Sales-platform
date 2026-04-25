@@ -9,13 +9,13 @@ type LoginResponse = {
     id: number;
     nickname: string;
     fullName: string;
-    role: 'DIRECTOR' | 'ADMIN' | 'SELLER';
+    role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT';
     storeName: string;
   };
 };
 
 type DashboardResponse = {
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER';
+  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT';
   sellerDataManagedByAdmin: boolean;
   title: string;
   metrics: Array<{ label: string; value: string }>;
@@ -599,7 +599,7 @@ function App() {
       setPassword('');
       navigate('/home', { replace: true });
       await loadDashboard(data.token);
-      if (data.user.role === 'ADMIN' || data.user.role === 'DIRECTOR') {
+      if (data.user.role === 'ADMIN' || data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
         setAdminError('');
         try {
           await loadSellers(data.token);
@@ -720,13 +720,16 @@ function App() {
             <p>Тестовые пользователи:</p>
             <ul>
               <li>
-                <code>director / 123456</code>
+                <code>director / 123456</code> — директор, все 8 точек
               </li>
               <li>
-                <code>admin1 / 123456</code>
+                <code>buh / 123456</code> — бухгалтер, просмотр по всем точкам
               </li>
               <li>
-                <code>seller1 / 123456</code>
+                <code>admin1</code>…<code>admin8 / 123456</code> — по одной точке каждый
+              </li>
+              <li>
+                <code>seller1</code>…<code>seller8 / 123456</code> — продавцы
               </li>
             </ul>
           </div>
@@ -737,6 +740,7 @@ function App() {
 
   const role = session.user.role;
   const isSellerOnly = role === 'SELLER';
+  const isReadOnlyObserver = role === 'ACCOUNTANT';
   const mobileNavItems: MobileNavItem[] = isSellerOnly
     ? [
         { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
@@ -837,7 +841,9 @@ function App() {
                                 <tr>
                                   <th>Магазин</th>
                                   <th>Выручка</th>
-                                  {dashboard.role === 'DIRECTOR' && <th>Чистая прибыль</th>}
+                                  {(dashboard.role === 'DIRECTOR' || dashboard.role === 'ACCOUNTANT') && (
+                                    <th>Чистая прибыль (оценка)</th>
+                                  )}
                                 </tr>
                               </thead>
                               <tbody>
@@ -845,7 +851,9 @@ function App() {
                                   <tr key={store.name}>
                                     <td>{store.name}</td>
                                     <td>{store.revenue}</td>
-                                    {dashboard.role === 'DIRECTOR' && <td>{store.netProfit}</td>}
+                                    {(dashboard.role === 'DIRECTOR' || dashboard.role === 'ACCOUNTANT') && (
+                                      <td>{store.netProfit}</td>
+                                    )}
                                   </tr>
                                 ))}
                               </tbody>
@@ -889,6 +897,7 @@ function App() {
                       token={session.token}
                       sellers={sellers}
                       shifts={shifts}
+                      readOnly={isReadOnlyObserver}
                       onOpen={openShift}
                       onClose={closeShift}
                     />
@@ -903,28 +912,32 @@ function App() {
                   <Navigate to="/home" replace />
                 ) : (
                   <div className="dashboard">
-                    <section className="sectionCard">
-                      <AddSaleForm
-                        sellers={(() => {
-                          const open = shifts.find((s) => s.status === 'OPEN');
-                          if (!open) {
-                            return [] as SellerProfile[];
-                          }
-                          return sellers.filter((x) => open.assignedSellerIds.includes(x.id));
-                        })()}
-                        hasOpenShift={shifts.some((s) => s.status === 'OPEN')}
-                        products={products}
-                        token={session.token}
-                        onAddSale={addSale}
-                      />
-                    </section>
-                    <section className="sectionCard">
-                      <WriteOffForm
-                        products={products}
-                        token={session.token}
-                        onAddWriteOff={addWriteOff}
-                      />
-                    </section>
+                    {!isReadOnlyObserver && (
+                      <>
+                        <section className="sectionCard">
+                          <AddSaleForm
+                            sellers={(() => {
+                              const open = shifts.find((s) => s.status === 'OPEN');
+                              if (!open) {
+                                return [] as SellerProfile[];
+                              }
+                              return sellers.filter((x) => open.assignedSellerIds.includes(x.id));
+                            })()}
+                            hasOpenShift={shifts.some((s) => s.status === 'OPEN')}
+                            products={products}
+                            token={session.token}
+                            onAddSale={addSale}
+                          />
+                        </section>
+                        <section className="sectionCard">
+                          <WriteOffForm
+                            products={products}
+                            token={session.token}
+                            onAddWriteOff={addWriteOff}
+                          />
+                        </section>
+                      </>
+                    )}
                     <section className="sectionCard">
                       <div className="salesLog">
                         <h3>Недавние продажи</h3>
@@ -976,6 +989,7 @@ function App() {
                         globalEmployees={globalEmployees}
                         shifts={shifts}
                         role={role}
+                        readOnly={isReadOnlyObserver}
                         onAdd={addStaffMember}
                         onAddFromBase={addStaffFromBase}
                         onDeactivate={deactivateStaff}
@@ -1008,6 +1022,7 @@ function App() {
                       <CashDisciplinePanel
                         token={session.token}
                         events={cashEvents}
+                        readOnly={isReadOnlyObserver}
                         onAdd={addCashEvent}
                       />
                     </section>
@@ -1293,12 +1308,14 @@ function ShiftPanel({
   token,
   sellers,
   shifts,
+  readOnly,
   onOpen,
   onClose,
 }: {
   token: string;
   sellers: SellerProfile[];
   shifts: ShiftInfo[];
+  readOnly?: boolean;
   onOpen: (token: string, assignedSellerIds: number[]) => Promise<void>;
   onClose: (token: string) => Promise<void>;
 }) {
@@ -1315,7 +1332,10 @@ function ShiftPanel({
   return (
     <div className="opsCard">
       <h4>Открытие/закрытие смены</h4>
-      {openShift && (
+      {readOnly && (
+        <p className="notice">Роль «Бухгалтер»: только просмотр, без открытия и закрытия смен.</p>
+      )}
+      {openShift && !readOnly && (
         <p className="notice shiftNotice">
           Смена уже идёт. Отметьте ещё продавцов и нажмите «Добавить в смену» — все выбранные
           останутся на одной смене.
@@ -1328,8 +1348,10 @@ function ShiftPanel({
               type="checkbox"
               checked={selectedSellerIds.includes(seller.id)}
               onChange={() => toggleSeller(seller.id)}
+              disabled={readOnly}
             />
             {seller.fullName}
+            <span className="muted"> ({seller.storeName})</span>
           </label>
         ))}
       </div>
@@ -1337,7 +1359,7 @@ function ShiftPanel({
         <button
           className="primaryAction"
           type="button"
-          disabled={busy}
+          disabled={busy || readOnly}
           onClick={async () => {
             setBusy(true);
             try {
@@ -1352,7 +1374,7 @@ function ShiftPanel({
         <button
           type="button"
           className="ghost"
-          disabled={busy || !openShift}
+          disabled={busy || !openShift || readOnly}
           onClick={async () => {
             setBusy(true);
             try {
@@ -1380,10 +1402,12 @@ function ShiftPanel({
 function CashDisciplinePanel({
   token,
   events,
+  readOnly,
   onAdd,
 }: {
   token: string;
   events: CashDisciplineEvent[];
+  readOnly?: boolean;
   onAdd: (
     token: string,
     type: 'RETURN' | 'CANCEL' | 'ADJUSTMENT',
@@ -1395,35 +1419,37 @@ function CashDisciplinePanel({
   return (
     <div className="opsCard">
       <h4>Кассовая дисциплина</h4>
-      <div className="inlineGrid">
-        <label>
-          Тип
-          <select
-            value={type}
-            onChange={(event) =>
-              setType(event.target.value as 'RETURN' | 'CANCEL' | 'ADJUSTMENT')
-            }
+      {!readOnly && (
+        <div className="inlineGrid">
+          <label>
+            Тип
+            <select
+              value={type}
+              onChange={(event) =>
+                setType(event.target.value as 'RETURN' | 'CANCEL' | 'ADJUSTMENT')
+              }
+            >
+              <option value="RETURN">Возврат</option>
+              <option value="CANCEL">Отмена</option>
+              <option value="ADJUSTMENT">Корректировка</option>
+            </select>
+          </label>
+          <label>
+            Комментарий (обязательно)
+            <input value={comment} onChange={(event) => setComment(event.target.value)} />
+          </label>
+          <button
+            className="primaryAction"
+            type="button"
+            onClick={async () => {
+              await onAdd(token, type, comment);
+              setComment('');
+            }}
           >
-            <option value="RETURN">Возврат</option>
-            <option value="CANCEL">Отмена</option>
-            <option value="ADJUSTMENT">Корректировка</option>
-          </select>
-        </label>
-        <label>
-          Комментарий (обязательно)
-          <input value={comment} onChange={(event) => setComment(event.target.value)} />
-        </label>
-        <button
-          className="primaryAction"
-          type="button"
-          onClick={async () => {
-            await onAdd(token, type, comment);
-            setComment('');
-          }}
-        >
-          Добавить
-        </button>
-      </div>
+            Добавить
+          </button>
+        </div>
+      )}
       <div className="opsList">
         {events.map((event) => (
           <p key={event.id}>
@@ -1441,6 +1467,7 @@ function TeamMemberCard({
   member,
   seller,
   role,
+  readOnly,
   openShiftId,
   onDeactivate,
   onActivate,
@@ -1450,7 +1477,8 @@ function TeamMemberCard({
   token: string;
   member: StaffMember;
   seller?: SellerProfile;
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER';
+  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT';
+  readOnly?: boolean;
   openShiftId?: string;
   onDeactivate: (token: string, id: number) => Promise<void>;
   onActivate: (token: string, id: number) => Promise<void>;
@@ -1491,27 +1519,29 @@ function TeamMemberCard({
         </span>
       </div>
 
-      <div className="inlineActions teamMemberActions">
-        <button
-          type="button"
-          className="ghost"
-          disabled={!openShiftId}
-          onClick={() => openShiftId && onAssignShift(token, member.id, openShiftId)}
-        >
-          <span className="btnTextFull">Назначить на открытую смену</span>
-          <span className="btnTextShort">К смене</span>
-        </button>
-        {member.isActive ? (
-          <button type="button" className="ghost" onClick={() => onDeactivate(token, member.id)}>
-            <span className="btnTextFull">Деактивировать</span>
-            <span className="btnTextShort">Откл.</span>
+      {!readOnly && (
+        <div className="inlineActions teamMemberActions">
+          <button
+            type="button"
+            className="ghost"
+            disabled={!openShiftId}
+            onClick={() => openShiftId && onAssignShift(token, member.id, openShiftId)}
+          >
+            <span className="btnTextFull">Назначить на открытую смену</span>
+            <span className="btnTextShort">К смене</span>
           </button>
-        ) : (
-          <button type="button" className="ghost" onClick={() => onActivate(token, member.id)}>
-            Активировать
-          </button>
-        )}
-      </div>
+          {member.isActive ? (
+            <button type="button" className="ghost" onClick={() => onDeactivate(token, member.id)}>
+              <span className="btnTextFull">Деактивировать</span>
+              <span className="btnTextShort">Откл.</span>
+            </button>
+          ) : (
+            <button type="button" className="ghost" onClick={() => onActivate(token, member.id)}>
+              Активировать
+            </button>
+          )}
+        </div>
+      )}
 
       {seller && (
         <div className="teamMemberStats">
@@ -1546,7 +1576,7 @@ function TeamMemberCard({
         </div>
       )}
 
-      {seller && role === 'ADMIN' && (
+      {seller && (role === 'ADMIN' || role === 'ACCOUNTANT') && (
         <p className="hint teamHint">Процент меняет только директор (по согласованию).</p>
       )}
 
@@ -1564,6 +1594,7 @@ function StaffPanel({
   globalEmployees,
   shifts,
   role,
+  readOnly,
   onAdd,
   onAddFromBase,
   onDeactivate,
@@ -1576,7 +1607,8 @@ function StaffPanel({
   sellers: SellerProfile[];
   globalEmployees: GlobalEmployee[];
   shifts: ShiftInfo[];
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER';
+  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT';
+  readOnly?: boolean;
   onAdd: (token: string, fullName: string, nickname: string) => Promise<void>;
   onAddFromBase: (token: string, employeeId: number) => Promise<void>;
   onDeactivate: (token: string, id: number) => Promise<void>;
@@ -1600,54 +1632,60 @@ function StaffPanel({
     <div className="opsCard staffPanelRoot">
       <h4 className="staffPanelTitle">Управление персоналом</h4>
       <p className="staffPanelIntro">
-        Добавьте сотрудника вручную или из общей базы. Ниже — карточки с действиями и показателями.
+        {readOnly
+          ? 'Просмотр персонала и показателей (роль «Бухгалтер»).'
+          : 'Добавьте сотрудника вручную или из общей базы. Ниже — карточки с действиями и показателями.'}
       </p>
-      <div className="inlineGrid staffPanelAddRow">
-        <label>
-          ФИО
-          <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
-        </label>
-        <label>
-          Ник
-          <input value={nickname} onChange={(event) => setNickname(event.target.value)} />
-        </label>
-        <button
-          className="primaryAction"
-          type="button"
-          onClick={async () => {
-            await onAdd(token, fullName, nickname);
-            setFullName('');
-            setNickname('');
-          }}
-        >
-          Добавить сотрудника
-        </button>
-      </div>
-      <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
-        <label>
-          Сотрудник из общей базы
-          <select
-            value={selectedEmployeeId}
-            onChange={(event) => setPickedEmployeeId(Number(event.target.value))}
-          >
-            {globalEmployees.map((employee) => (
-              <option key={employee.id} value={employee.id}>
-                {employee.fullName} ({employee.nickname}) - {employee.homeStore}
-                {staffIds.has(employee.id) ? ' [уже в этой точке]' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="primaryAction"
-          type="button"
-          disabled={!selectedEmployeeId || alreadyInStore}
-          onClick={() => selectedEmployeeId && onAddFromBase(token, selectedEmployeeId)}
-        >
-          Добавить из общей базы
-        </button>
-        <p className="inlineStatus">{alreadyInStore ? 'Уже добавлен в эту точку' : ''}</p>
-      </div>
+      {!readOnly && (
+        <>
+          <div className="inlineGrid staffPanelAddRow">
+            <label>
+              ФИО
+              <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
+            </label>
+            <label>
+              Ник
+              <input value={nickname} onChange={(event) => setNickname(event.target.value)} />
+            </label>
+            <button
+              className="primaryAction"
+              type="button"
+              onClick={async () => {
+                await onAdd(token, fullName, nickname);
+                setFullName('');
+                setNickname('');
+              }}
+            >
+              Добавить сотрудника
+            </button>
+          </div>
+          <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
+            <label>
+              Сотрудник из общей базы
+              <select
+                value={selectedEmployeeId}
+                onChange={(event) => setPickedEmployeeId(Number(event.target.value))}
+              >
+                {globalEmployees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.fullName} ({employee.nickname}) - {employee.homeStore}
+                    {staffIds.has(employee.id) ? ' [уже в этой точке]' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="primaryAction"
+              type="button"
+              disabled={!selectedEmployeeId || alreadyInStore}
+              onClick={() => selectedEmployeeId && onAddFromBase(token, selectedEmployeeId)}
+            >
+              Добавить из общей базы
+            </button>
+            <p className="inlineStatus">{alreadyInStore ? 'Уже добавлен в эту точку' : ''}</p>
+          </div>
+        </>
+      )}
       <div className="opsList teamRoster">
         {staff.map((member) => {
           const seller = sellers.find((item) => item.id === member.id);
@@ -1658,6 +1696,7 @@ function StaffPanel({
               member={member}
               seller={seller}
               role={role}
+              readOnly={readOnly}
               openShiftId={openShift?.id}
               onDeactivate={onDeactivate}
               onActivate={onActivate}
