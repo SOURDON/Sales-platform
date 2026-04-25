@@ -468,6 +468,7 @@ export class AuthService implements OnModuleInit {
           units: sale.units,
           items: sale.items,
           paymentType: sale.paymentType,
+          goodsCost: this.saleGoodsCost(sale),
         }));
       })
       .sort(
@@ -656,17 +657,18 @@ export class AuthService implements OnModuleInit {
     const validNames = new Set(this.productCatalog.map((item) => item.name));
     const lines: SaleLine[] = [];
     for (const line of items) {
-      if (!line.name) {
+      const nm = line.name?.trim();
+      if (!nm) {
         return null;
       }
-      if (!validNames.has(line.name)) {
+      if (!validNames.has(nm)) {
         return null;
       }
       if (!line.qty || line.qty <= 0) {
         continue;
       }
       lines.push({
-        name: line.name,
+        name: nm,
         qty: line.qty,
       });
     }
@@ -1107,6 +1109,26 @@ export class AuthService implements OnModuleInit {
     );
   }
 
+  /** Закупочная цена за единицу по справочнику (как в отчётах и БД). */
+  private procurementUnitCost(productName: string): number {
+    const key = productName?.trim();
+    if (!key) {
+      return 0;
+    }
+    const v = this.productProcurementCosts[key];
+    return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+  }
+
+  /** Себестоимость проданных позиций по чеку. */
+  private saleGoodsCost(sale: SaleRecord): number {
+    let sum = 0;
+    for (const line of sale.items ?? []) {
+      const qty = Number.isFinite(line.qty) ? line.qty : 0;
+      sum += this.procurementUnitCost(line.name) * qty;
+    }
+    return Math.round(sum * 100) / 100;
+  }
+
   private formatCurrency(value: number) {
     return `${value.toLocaleString('ru-RU')} ₽`;
   }
@@ -1289,7 +1311,7 @@ export class AuthService implements OnModuleInit {
     const saleItemsBySaleId = new Map<string, SaleLine[]>();
     for (const item of saleItems) {
       const current = saleItemsBySaleId.get(item.saleId) ?? [];
-      current.push({ name: item.name, qty: item.qty });
+      current.push({ name: item.name.trim(), qty: item.qty });
       saleItemsBySaleId.set(item.saleId, current);
     }
 
@@ -1375,7 +1397,10 @@ export class AuthService implements OnModuleInit {
     this.productStock = Object.fromEntries(stock.map((item) => [item.name, item.qty]));
     this.productProcurementCosts = {};
     for (const item of procurementCosts) {
-      this.productProcurementCosts[item.name] = item.cost;
+      const key = item.name.trim();
+      if (key) {
+        this.productProcurementCosts[key] = item.cost;
+      }
     }
     this.storeRevenuePlans = {};
     for (const item of storePlans) {
@@ -1481,7 +1506,7 @@ export class AuthService implements OnModuleInit {
           sale.items.map((item, index) => ({
             id: `${sale.id}-${index}`,
             saleId: sale.id,
-            name: item.name,
+            name: item.name.trim(),
             qty: item.qty,
           })),
         ),

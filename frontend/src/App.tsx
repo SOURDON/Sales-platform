@@ -85,6 +85,8 @@ type AdminSale = {
   units: number;
   items: Array<{ name: string; qty: number }>;
   paymentType?: 'CASH' | 'NON_CASH';
+  /** Себестоимость по закупкам, считает backend (₽). */
+  goodsCost?: number;
 };
 
 type ShiftInfo = {
@@ -2059,16 +2061,20 @@ function FinanceReportPanel({
       .filter((sale) => sale.paymentType === 'NON_CASH')
       .reduce((sum, sale) => sum + sale.totalAmount, 0);
     const acquiringFee = (nonCashRevenue * acquiringRate) / 100;
-    const goodsSpent = storeSales.reduce(
-      (sum, sale) =>
+    const goodsSpent = storeSales.reduce((sum, sale) => {
+      const fromApi = sale.goodsCost;
+      if (typeof fromApi === 'number' && Number.isFinite(fromApi)) {
+        return sum + fromApi;
+      }
+      return (
         sum +
-        sale.items.reduce(
+        (sale.items ?? []).reduce(
           (lineSum, line) =>
             lineSum + (procurementByName.get(String(line.name).trim()) ?? 0) * line.qty,
           0,
-        ),
-      0,
-    );
+        )
+      );
+    }, 0);
     const rateBySellerId = new Map(sellers.map((seller) => [seller.id, seller.ratePercent]));
     const salaries = storeSales.reduce(
       (sum, sale) => sum + (sale.totalAmount * (rateBySellerId.get(sale.sellerId) ?? 0)) / 100,
