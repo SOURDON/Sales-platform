@@ -23,6 +23,11 @@ function todayKeyMoscow(): string {
   }).format(new Date());
 }
 
+/** Согласовано с backend AuthService.normProcurementKey — для Σ(себестоимость × qty) в отчёте. */
+function normProcurementKey(raw: string): string {
+  return String(raw).normalize('NFC').trim().replace(/\s+/g, ' ');
+}
+
 function parseGoodsCost(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -2046,8 +2051,8 @@ function FinanceReportPanel({
   const [plansBusy, setPlansBusy] = useState(false);
   const [plansStatus, setPlansStatus] = useState('');
   const [plansError, setPlansError] = useState('');
-  const procurementByName = new Map(
-    procurementCosts.map((item) => [item.name.trim(), item.cost]),
+  const procurementByNormKey = new Map(
+    procurementCosts.map((item) => [normProcurementKey(item.name), item.cost]),
   );
   const salesForDay = sales.filter((sale) => calendarDayKeyMoscow(sale.createdAt) === workDay);
   const planByStore = new Map(plans.map((item) => [item.storeName, item.planRevenue]));
@@ -2101,7 +2106,7 @@ function FinanceReportPanel({
         sum +
         (sale.items ?? []).reduce(
           (lineSum, line) =>
-            lineSum + (procurementByName.get(String(line.name).trim()) ?? 0) * line.qty,
+            lineSum + (procurementByNormKey.get(normProcurementKey(String(line.name))) ?? 0) * line.qty,
           0,
         )
       );
@@ -2205,8 +2210,9 @@ function FinanceReportPanel({
       <p className="hint">
         Списания не учитываются в формулах прибыли: (1) Выручка - ЗП - Эквайринг; (2) Выручка - ЗП - Эквайринг - Товар.
         Ставка эквайринга (%) сохраняется на сервере при уходе из поля. Рабочий день и продажи в отчёте считаются по
-        календарю Москвы. «Потрачено на товар» = сумма (закупочная цена × шт.) по строкам чека; закупки задаются в
-        блоке ниже, без авто-процента от розницы.
+        календарю Москвы. «Потрачено на товар» = по каждому чеку сумма (кол-во × закупочная цена за шт.) по всем
+        позициям; если в чеке несколько товаров — складываются; по магазину за день — сумма по всем чекам. Закупки
+        задаются в блоке ниже, без авто-процента от розницы.
       </p>
       <div className="inlineGrid">
         <label>

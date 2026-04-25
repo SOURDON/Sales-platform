@@ -523,12 +523,11 @@ export class AuthService implements OnModuleInit {
     if (base.length === 0) {
       return base;
     }
-    const normKey = (s: string) => s.normalize('NFC').trim().replace(/\s+/g, ' ');
     try {
       const costRows = await this.prisma.productProcurementCost.findMany();
       const costMap = new Map<string, number>();
       for (const row of costRows) {
-        const k = normKey(row.name);
+        const k = this.normProcurementKey(row.name);
         const v = Number(row.cost);
         if (k && Number.isFinite(v)) {
           costMap.set(k, v);
@@ -551,12 +550,12 @@ export class AuthService implements OnModuleInit {
         const lines = dbLines.length > 0 ? dbLines : memLines;
         let gc = 0;
         for (const line of lines) {
-          const nk = normKey(String(line.name));
+          const nk = this.normProcurementKey(String(line.name));
           let unit = costMap.get(nk) ?? 0;
           if (unit === 0) {
-            const cat = this.productCatalog.find((p) => normKey(p.name) === nk);
+            const cat = this.productCatalog.find((p) => this.normProcurementKey(p.name) === nk);
             if (cat) {
-              unit = costMap.get(normKey(cat.name)) ?? 0;
+              unit = costMap.get(this.normProcurementKey(cat.name)) ?? 0;
             }
           }
           gc += unit * (Number(line.qty) || 0);
@@ -1192,14 +1191,23 @@ export class AuthService implements OnModuleInit {
     );
   }
 
-  /** Закупочная цена за единицу по справочнику (как в отчётах и БД). */
+  /** Ключ для сопоставления названия товара в чеке и в справочнике закупок (как в getSalesSnapshotForSessionEnriched). */
+  private normProcurementKey(raw: string): string {
+    return String(raw).normalize('NFC').trim().replace(/\s+/g, ' ');
+  }
+
+  /** Закупочная цена за единицу по справочнику в памяти (совпадает с логикой обогащённого снимка по БД). */
   private procurementUnitCost(productName: string): number {
-    const key = productName?.trim();
-    if (!key) {
+    const nk = this.normProcurementKey(productName);
+    if (!nk) {
       return 0;
     }
-    const v = this.productProcurementCosts[key];
-    return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+    for (const [storedName, cost] of Object.entries(this.productProcurementCosts)) {
+      if (this.normProcurementKey(storedName) === nk) {
+        return typeof cost === 'number' && Number.isFinite(cost) ? cost : 0;
+      }
+    }
+    return 0;
   }
 
   /** Себестоимость проданных позиций по чеку. */
