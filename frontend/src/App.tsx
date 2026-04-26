@@ -1325,20 +1325,21 @@ function App() {
                             <p className="notice">Данные продавца заполняет администратор точки.</p>
                           )}
                           <h3 className="homePanelTitle">{homeDashboard.title}</h3>
-                          <div className="metrics homeMetricsTight">
-                            {homeDashboard.metrics
-                              .filter(
-                                (metric) =>
-                                  homeDashboard.role !== 'ADMIN' ||
-                                  !metric.label.toLowerCase().includes('чистая прибыль'),
-                              )
-                              .map((metric) => (
-                                <article key={metric.label} className="metricCard">
-                                  <p>{metric.label}</p>
-                                  <strong>{metric.value}</strong>
-                                </article>
-                              ))}
-                          </div>
+                          {homeDashboard.role !== 'ADMIN' ? (
+                            <div className="metrics homeMetricsTight">
+                              {homeDashboard.metrics
+                                .filter(
+                                  (metric) =>
+                                    !metric.label.toLowerCase().includes('чистая прибыль'),
+                                )
+                                .map((metric) => (
+                                  <article key={metric.label} className="metricCard">
+                                    <p>{metric.label}</p>
+                                    <strong>{metric.value}</strong>
+                                  </article>
+                                ))}
+                            </div>
+                          ) : null}
 
                           <div className="homeStoresList">
                             {homeDashboard.stores.map((store) => (
