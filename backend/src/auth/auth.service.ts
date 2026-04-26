@@ -145,6 +145,7 @@ export class AuthService implements OnModuleInit {
   private currentShiftId: string | null = null;
   private lastSaleAt: string | null = null;
   private acquiringPercent = 1.8;
+  private acquiringPercentDetkov = 1.8;
   private shiftHistory: Shift[] = [];
   private cashDisciplineEvents: CashDisciplineEvent[] = [];
   private staff: StaffMember[] = [];
@@ -228,6 +229,10 @@ export class AuthService implements OnModuleInit {
     return this.acquiringPercent;
   }
 
+  getAcquiringPercentDetkov() {
+    return this.acquiringPercentDetkov;
+  }
+
   setAcquiringPercent(percent: number, actor = 'system') {
     if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
       return null;
@@ -236,6 +241,16 @@ export class AuthService implements OnModuleInit {
     this.pushAudit(actor, 'ACQUIRING_PERCENT_UPDATED', String(this.acquiringPercent));
     this.queuePersist();
     return { percent: this.acquiringPercent };
+  }
+
+  setAcquiringPercentDetkov(percent: number, actor = 'system') {
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      return null;
+    }
+    this.acquiringPercentDetkov = Math.round(percent * 1000) / 1000;
+    this.pushAudit(actor, 'ACQUIRING_PERCENT_DETKOV_UPDATED', String(this.acquiringPercentDetkov));
+    this.queuePersist();
+    return { percent: this.acquiringPercentDetkov };
   }
 
   setProductProcurementCosts(
@@ -477,16 +492,16 @@ export class AuthService implements OnModuleInit {
       .flatMap((seller) => {
         this.recomputeSeller(seller);
         return seller.sales.map((sale) => ({
-          id: sale.id,
-          createdAt: sale.createdAt,
-          sellerName: seller.fullName,
-          sellerId: seller.id,
-          totalAmount: sale.totalAmount,
-          units: sale.units,
-          items: sale.items,
-          paymentType: sale.paymentType,
-          goodsCost: this.saleGoodsCost(sale),
-        }));
+            id: sale.id,
+            createdAt: sale.createdAt,
+            sellerName: seller.fullName,
+            sellerId: seller.id,
+            totalAmount: sale.totalAmount,
+            units: sale.units,
+            items: sale.items,
+            paymentType: sale.paymentType,
+            goodsCost: this.saleGoodsCost(sale),
+          }));
       })
       .sort(
         (a, b) =>
@@ -1174,8 +1189,12 @@ export class AuthService implements OnModuleInit {
       return;
     }
 
+    const today = this.getStoreBusinessDayKey(new Date().toISOString());
     const totals = seller.sales.reduce(
       (acc, sale) => {
+        if (this.getStoreBusinessDayKey(sale.createdAt) !== today) {
+          return acc;
+        }
         return {
           sales: acc.sales + sale.totalAmount,
           checks: acc.checks + 1,
@@ -1363,6 +1382,7 @@ export class AuthService implements OnModuleInit {
     this.currentShiftId = null;
     this.lastSaleAt = null;
     this.acquiringPercent = 1.8;
+    this.acquiringPercentDetkov = 1.8;
   }
 
   private async loadState() {
@@ -1524,6 +1544,10 @@ export class AuthService implements OnModuleInit {
       appState?.acquiringPercent !== undefined && appState.acquiringPercent !== null
         ? appState.acquiringPercent
         : 1.8;
+    this.acquiringPercentDetkov =
+      appState?.acquiringPercentDetkov !== undefined && appState.acquiringPercentDetkov !== null
+        ? appState.acquiringPercentDetkov
+        : 1.8;
   }
 
   private async persistState() {
@@ -1534,12 +1558,14 @@ export class AuthService implements OnModuleInit {
           currentShiftId: this.currentShiftId,
           lastSaleAt: this.lastSaleAt ? new Date(this.lastSaleAt) : null,
           acquiringPercent: this.acquiringPercent,
+          acquiringPercentDetkov: this.acquiringPercentDetkov,
         },
         create: {
           id: 1,
           currentShiftId: this.currentShiftId,
           lastSaleAt: this.lastSaleAt ? new Date(this.lastSaleAt) : null,
           acquiringPercent: this.acquiringPercent,
+          acquiringPercentDetkov: this.acquiringPercentDetkov,
         },
       });
 

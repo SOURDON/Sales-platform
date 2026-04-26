@@ -46,6 +46,7 @@ model AppState {
   currentShiftId   String?
   lastSaleAt       DateTime?
   acquiringPercent Float     @default(1.8)
+  acquiringPercentDetkov Float @default(1.8)
   updatedAt        DateTime  @updatedAt
 }
 

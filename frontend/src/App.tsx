@@ -28,6 +28,16 @@ function normProcurementKey(raw: string): string {
   return String(raw).normalize('NFC').trim().replace(/\s+/g, ' ');
 }
 
+const DETKOV_ACQUIRING_STORES = new Set(
+  ['Центр тех. зона', 'Центр пляж', 'Дельфин Тех.зона'].map((name) =>
+    name.toLocaleLowerCase('ru-RU').trim(),
+  ),
+);
+
+function isDetkovAcquiringStore(storeName: string): boolean {
+  return DETKOV_ACQUIRING_STORES.has(String(storeName).toLocaleLowerCase('ru-RU').trim());
+}
+
 function parseGoodsCost(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -308,6 +318,7 @@ function App() {
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([]);
   const [adminError, setAdminError] = useState('');
   const [acquiringPercent, setAcquiringPercent] = useState('1.8');
+  const [acquiringPercentDetkov, setAcquiringPercentDetkov] = useState('1.8');
 
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
@@ -429,8 +440,11 @@ function App() {
     if (!response.ok) {
       throw new Error('acquiring percent error');
     }
-    const data = (await response.json()) as { percent: number };
+    const data = (await response.json()) as { percent: number; detkovPercent?: number };
     setAcquiringPercent(String(data.percent));
+    setAcquiringPercentDetkov(
+      String(Number.isFinite(data.detkovPercent) ? data.detkovPercent : data.percent),
+    );
   };
 
   const saveAcquiringPercent = async (token: string, value: string) => {
@@ -451,6 +465,26 @@ function App() {
     }
     const data = (await response.json()) as { percent: number };
     setAcquiringPercent(String(data.percent));
+  };
+
+  const saveAcquiringPercentDetkov = async (token: string, value: string) => {
+    const num = Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0 || num > 100) {
+      return;
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/acquiring-percent/detkov`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ percent: num }),
+    });
+    if (!response.ok) {
+      throw new Error('save detkov acquiring percent error');
+    }
+    const data = (await response.json()) as { percent: number };
+    setAcquiringPercentDetkov(String(data.percent));
   };
 
   const loadSales = useCallback(async (token: string) => {
@@ -762,9 +796,11 @@ function App() {
               await loadAcquiringPercent(data.token);
             } catch {
               setAcquiringPercent('1.8');
+              setAcquiringPercentDetkov('1.8');
             }
           } else {
             setAcquiringPercent('1.8');
+            setAcquiringPercentDetkov('1.8');
           }
           await loadStaff(data.token);
           await loadGlobalEmployees(data.token);
@@ -780,6 +816,7 @@ function App() {
           setThresholds([]);
           setAuditLog([]);
           setAcquiringPercent('1.8');
+          setAcquiringPercentDetkov('1.8');
           setAdminError('Не удалось загрузить панель администратора.');
         }
       } else {
@@ -794,6 +831,7 @@ function App() {
         setThresholds([]);
         setAuditLog([]);
         setAcquiringPercent('1.8');
+        setAcquiringPercentDetkov('1.8');
       }
     } catch {
       setSession(null);
@@ -1076,62 +1114,83 @@ function App() {
                   <div className="dashboard">
                     {!isReadOnlyObserver && (
                       <>
-                        <section className="sectionCard">
-                          <AddSaleForm
-                            sellers={(() => {
-                              const open = shifts.find((s) => s.status === 'OPEN');
-                              if (!open) {
-                                return [] as SellerProfile[];
-                              }
-                              return sellers.filter((x) => open.assignedSellerIds.includes(x.id));
-                            })()}
-                            hasOpenShift={shifts.some((s) => s.status === 'OPEN')}
-                            products={products}
-                            token={session.token}
-                            onAddSale={addSale}
-                          />
-                        </section>
-                        <section className="sectionCard">
-                          <WriteOffForm
-                            products={products}
-                            token={session.token}
-                            onAddWriteOff={addWriteOff}
-                          />
-                        </section>
+                        {!isFinanceViewer && (
+                          <>
+                            <section className="sectionCard">
+                              <AddSaleForm
+                                sellers={(() => {
+                                  const open = shifts.find((s) => s.status === 'OPEN');
+                                  if (!open) {
+                                    return [] as SellerProfile[];
+                                  }
+                                  return sellers.filter((x) => open.assignedSellerIds.includes(x.id));
+                                })()}
+                                hasOpenShift={shifts.some((s) => s.status === 'OPEN')}
+                                products={products}
+                                token={session.token}
+                                onAddSale={addSale}
+                              />
+                            </section>
+                            <section className="sectionCard">
+                              <WriteOffForm
+                                products={products}
+                                token={session.token}
+                                onAddWriteOff={addWriteOff}
+                              />
+                            </section>
+                          </>
+                        )}
                       </>
                     )}
-                    <section className="sectionCard">
-                      <div className="salesLog">
-                        <h3>Недавние продажи</h3>
-                        {sales.length === 0 ? (
-                          <p className="muted">Пока нет внесенных продаж</p>
-                        ) : (
-                          <div className="salesList">
-                            {sales.map((sale) => (
-                              <article key={sale.id} className="saleItem">
-                                <p className="saleHeader">
-                                  <strong>{new Date(sale.createdAt).toLocaleString('ru-RU')}</strong> –{' '}
-                                  {sale.sellerName}
-                                  <span className="salePay">
-                                    {sale.paymentType === 'NON_CASH' ? 'Безнал' : 'Наличные'}
-                                  </span>
-                                  <span className="saleTotal">
-                                    Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
-                                  </span>
-                                </p>
-                                <ul>
-                                  {sale.items.map((line) => (
-                                    <li key={line.name}>
-                                      {line.name} × {line.qty}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </article>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </section>
+                    {isFinanceViewer ? (
+                      <section className="sectionCard">
+                        <AccountantProcurementPanel
+                          token={session.token}
+                          products={products}
+                          procurementCosts={productProcurementCosts}
+                          acquiringPercent={acquiringPercent}
+                          acquiringPercentDetkov={acquiringPercentDetkov}
+                          onAcquiringPercentChange={setAcquiringPercent}
+                          onAcquiringPercentDetkovChange={setAcquiringPercentDetkov}
+                          onSaveAcquiringPercent={saveAcquiringPercent}
+                          onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
+                          onSave={saveProductProcurementCosts}
+                        />
+                      </section>
+                    ) : (
+                      <section className="sectionCard">
+                        <div className="salesLog">
+                          <h3>Недавние продажи</h3>
+                          {sales.length === 0 ? (
+                            <p className="muted">Пока нет внесенных продаж</p>
+                          ) : (
+                            <div className="salesList">
+                              {sales.map((sale) => (
+                                <article key={sale.id} className="saleItem">
+                                  <p className="saleHeader">
+                                    <strong>{new Date(sale.createdAt).toLocaleString('ru-RU')}</strong> –{' '}
+                                    {sale.sellerName}
+                                    <span className="salePay">
+                                      {sale.paymentType === 'NON_CASH' ? 'Безнал' : 'Наличные'}
+                                    </span>
+                                    <span className="saleTotal">
+                                      Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
+                                    </span>
+                                  </p>
+                                  <ul>
+                                    {sale.items.map((line) => (
+                                      <li key={line.name}>
+                                        {line.name} × {line.qty}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </article>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </section>
+                    )}
                   </div>
                 )
               }
@@ -1190,23 +1249,12 @@ function App() {
                             procurementCosts={productProcurementCosts}
                             role={role}
                             acquiringPercent={acquiringPercent}
-                            onAcquiringPercentChange={setAcquiringPercent}
-                            onSaveAcquiringPercent={saveAcquiringPercent}
+                            acquiringPercentDetkov={acquiringPercentDetkov}
                             onRefreshFinanceInputs={refreshFinanceInputs}
                             onLoadPlans={loadRevenuePlans}
                             onSavePlans={saveRevenuePlans}
                           />
                         </section>
-                        {isFinanceViewer && (
-                          <section className="sectionCard">
-                            <AccountantProcurementPanel
-                              token={session.token}
-                              products={products}
-                              procurementCosts={productProcurementCosts}
-                              onSave={saveProductProcurementCosts}
-                            />
-                          </section>
-                        )}
                       </>
                     ) : (
                       <>
@@ -1927,17 +1975,31 @@ function AccountantProcurementPanel({
   token,
   products,
   procurementCosts,
+  acquiringPercent,
+  acquiringPercentDetkov,
+  onAcquiringPercentChange,
+  onAcquiringPercentDetkovChange,
+  onSaveAcquiringPercent,
+  onSaveAcquiringPercentDetkov,
   onSave,
 }: {
   token: string;
   products: ProductItem[];
   procurementCosts: ProductProcurementCost[];
+  acquiringPercent: string;
+  acquiringPercentDetkov: string;
+  onAcquiringPercentChange: (value: string) => void;
+  onAcquiringPercentDetkovChange: (value: string) => void;
+  onSaveAcquiringPercent: (token: string, value: string) => Promise<void>;
+  onSaveAcquiringPercentDetkov: (token: string, value: string) => Promise<void>;
   onSave: (token: string, items: Array<{ name: string; cost: number }>) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [acquiringSaveError, setAcquiringSaveError] = useState('');
+  const [acquiringDetkovSaveError, setAcquiringDetkovSaveError] = useState('');
 
   const byName = new Map(procurementCosts.map((item) => [item.name.trim(), item.cost]));
   const rows = products.map((item) => ({
@@ -1968,6 +2030,52 @@ function AccountantProcurementPanel({
     <div className="opsCard">
       <h4>Закупочные цены товаров (директор и бухгалтер)</h4>
       <p className="hint">Эти значения используются в расчёте затрат на товар и сохраняются на backend.</p>
+      <div className="inlineGrid">
+        <label>
+          Эквайринг Путинцев, %
+          <input
+            value={acquiringPercent}
+            onChange={(event) => {
+              setAcquiringSaveError('');
+              onAcquiringPercentChange(event.target.value);
+            }}
+            onBlur={(event) => {
+              const value = event.currentTarget.value;
+              void (async () => {
+                try {
+                  await onSaveAcquiringPercent(token, value);
+                } catch {
+                  setAcquiringSaveError('Не удалось сохранить ставку Эквайринг Путинцев');
+                }
+              })();
+            }}
+            placeholder="Например 1.8"
+          />
+        </label>
+        <label>
+          Экварийнг Детков, %
+          <input
+            value={acquiringPercentDetkov}
+            onChange={(event) => {
+              setAcquiringDetkovSaveError('');
+              onAcquiringPercentDetkovChange(event.target.value);
+            }}
+            onBlur={(event) => {
+              const value = event.currentTarget.value;
+              void (async () => {
+                try {
+                  await onSaveAcquiringPercentDetkov(token, value);
+                } catch {
+                  setAcquiringDetkovSaveError('Не удалось сохранить ставку Экварийнг Детков');
+                }
+              })();
+            }}
+            placeholder="Например 1.8"
+          />
+        </label>
+      </div>
+      {acquiringSaveError && <p className="error">{acquiringSaveError}</p>}
+      {acquiringDetkovSaveError && <p className="error">{acquiringDetkovSaveError}</p>}
       <div className="tableWrap">
         <table>
           <thead>
@@ -2014,8 +2122,7 @@ function FinanceReportPanel({
   procurementCosts,
   role,
   acquiringPercent,
-  onAcquiringPercentChange,
-  onSaveAcquiringPercent,
+  acquiringPercentDetkov,
   onRefreshFinanceInputs,
   onLoadPlans,
   onSavePlans,
@@ -2026,8 +2133,7 @@ function FinanceReportPanel({
   procurementCosts: ProductProcurementCost[];
   role: 'DIRECTOR' | 'ACCOUNTANT' | 'ADMIN' | 'SELLER';
   acquiringPercent: string;
-  onAcquiringPercentChange: (value: string) => void;
-  onSaveAcquiringPercent: (token: string, value: string) => Promise<void>;
+  acquiringPercentDetkov: string;
   onRefreshFinanceInputs: () => Promise<void>;
   onLoadPlans: (token: string, dayKey: string) => Promise<StoreRevenuePlan[]>;
   onSavePlans: (
@@ -2036,8 +2142,10 @@ function FinanceReportPanel({
     items: Array<{ storeName: string; planRevenue: number }>,
   ) => Promise<StoreRevenuePlan[]>;
 }) {
-  const [acquiringSaveError, setAcquiringSaveError] = useState('');
-  const [workDay, setWorkDay] = useState(todayKeyMoscow);
+  const [rangeFrom, setRangeFrom] = useState(todayKeyMoscow);
+  const [rangeTo, setRangeTo] = useState(todayKeyMoscow);
+  const fromDay = rangeFrom <= rangeTo ? rangeFrom : rangeTo;
+  const toDay = rangeFrom <= rangeTo ? rangeTo : rangeFrom;
   const refreshFinanceRef = useRef(onRefreshFinanceInputs);
   refreshFinanceRef.current = onRefreshFinanceInputs;
 
@@ -2045,7 +2153,7 @@ function FinanceReportPanel({
     void refreshFinanceRef.current().catch(() => {
       /* ignore: родитель покажет ошибки при логине */
     });
-  }, [token, workDay]);
+  }, [token, rangeFrom, rangeTo]);
   const [plans, setPlans] = useState<StoreRevenuePlan[]>([]);
   const [planDraft, setPlanDraft] = useState<Record<string, string>>({});
   const [plansBusy, setPlansBusy] = useState(false);
@@ -2054,13 +2162,16 @@ function FinanceReportPanel({
   const procurementByNormKey = new Map(
     procurementCosts.map((item) => [normProcurementKey(item.name), item.cost]),
   );
-  const salesForDay = sales.filter((sale) => calendarDayKeyMoscow(sale.createdAt) === workDay);
+  const salesForDay = sales.filter((sale) => {
+    const day = calendarDayKeyMoscow(sale.createdAt);
+    return day >= fromDay && day <= toDay;
+  });
   const planByStore = new Map(plans.map((item) => [item.storeName, item.planRevenue]));
 
   useEffect(() => {
     let disposed = false;
     setPlansError('');
-    onLoadPlans(token, workDay)
+    onLoadPlans(token, toDay)
       .then((items) => {
         if (disposed) {
           return;
@@ -2075,7 +2186,7 @@ function FinanceReportPanel({
     return () => {
       disposed = true;
     };
-  }, [token, workDay]);
+  }, [token, toDay]);
 
   const storeNames = Array.from(
     new Set([
@@ -2086,7 +2197,8 @@ function FinanceReportPanel({
     ]),
   ).sort((a, b) => a.localeCompare(b, 'ru-RU'));
 
-  const acquiringRate = Math.max(0, Number(acquiringPercent) || 0);
+  const acquiringRateDefault = Math.max(0, Number(acquiringPercent) || 0);
+  const acquiringRateDetkov = Math.max(0, Number(acquiringPercentDetkov) || 0);
   const rows = storeNames.map((storeName) => {
     const sellerIds = new Set(
       sellers.filter((seller) => seller.storeName === storeName).map((seller) => seller.id),
@@ -2096,7 +2208,10 @@ function FinanceReportPanel({
     const nonCashRevenue = storeSales
       .filter((sale) => sale.paymentType === 'NON_CASH')
       .reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const acquiringFee = (nonCashRevenue * acquiringRate) / 100;
+    const acquiringRateForStore = isDetkovAcquiringStore(storeName)
+      ? acquiringRateDetkov
+      : acquiringRateDefault;
+    const acquiringFee = (nonCashRevenue * acquiringRateForStore) / 100;
     const goodsSpent = storeSales.reduce((sum, sale) => {
       const fromApi = parseGoodsCost(sale.goodsCost);
       if (Number.isFinite(fromApi)) {
@@ -2153,7 +2268,7 @@ function FinanceReportPanel({
   );
 
   const exportRows = rows.map((row) => ({
-    Дата: workDay,
+    Период: `${fromDay}..${toDay}`,
     Магазин: row.storeName,
     'План выручки': Math.round(row.planRevenue),
     'Факт выручки': Math.round(row.revenue),
@@ -2172,7 +2287,7 @@ function FinanceReportPanel({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `finance-report-${workDay}.csv`;
+    a.download = `finance-report-${fromDay}_${toDay}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -2181,7 +2296,7 @@ function FinanceReportPanel({
     const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Отчет');
-    XLSX.writeFile(wb, `finance-report-${workDay}.xlsx`);
+    XLSX.writeFile(wb, `finance-report-${fromDay}_${toDay}.xlsx`);
   };
 
   const savePlans = async () => {
@@ -2193,7 +2308,7 @@ function FinanceReportPanel({
         storeName: row.storeName,
         planRevenue: Math.max(0, Number(planDraft[row.storeName] ?? row.planRevenue) || 0),
       }));
-      const updated = await onSavePlans(token, workDay, payload);
+      const updated = await onSavePlans(token, toDay, payload);
       setPlans(updated);
       setPlanDraft({});
       setPlansStatus('План выручки сохранен.');
@@ -2209,36 +2324,19 @@ function FinanceReportPanel({
       <h4>{role === 'DIRECTOR' ? 'Финансовый отчёт директора' : 'Полный отчёт по магазинам'}</h4>
       <p className="hint">
         Списания не учитываются в формулах прибыли: (1) Выручка - ЗП - Эквайринг; (2) Выручка - ЗП - Эквайринг - Товар.
-        Ставка эквайринга (%) сохраняется на сервере при уходе из поля. Рабочий день и продажи в отчёте считаются по
-        календарю Москвы. «Потрачено на товар» = по каждому чеку сумма (кол-во × закупочная цена за шт.) по всем
+        Продажи в отчёте считаются по выбранному
+        диапазону дат (МСК). «Потрачено на товар» = по каждому чеку сумма (кол-во × закупочная цена за шт.) по всем
         позициям; если в чеке несколько товаров — складываются; по магазину за день — сумма по всем чекам. Закупки
-        задаются в блоке ниже, без авто-процента от розницы.
+        и эквайринг настраиваются на вкладке «Продажи».
       </p>
       <div className="inlineGrid">
         <label>
-          Рабочий день (МСК)
-          <input type="date" value={workDay} onChange={(event) => setWorkDay(event.target.value)} />
+          Период с (МСК)
+          <input type="date" value={rangeFrom} onChange={(event) => setRangeFrom(event.target.value)} />
         </label>
         <label>
-          Комиссия эквайринга, %
-          <input
-            value={acquiringPercent}
-            onChange={(event) => {
-              setAcquiringSaveError('');
-              onAcquiringPercentChange(event.target.value);
-            }}
-            onBlur={(event) => {
-              const value = event.currentTarget.value;
-              void (async () => {
-                try {
-                  await onSaveAcquiringPercent(token, value);
-                } catch {
-                  setAcquiringSaveError('Не удалось сохранить ставку эквайринга');
-                }
-              })();
-            }}
-            placeholder="Например 1.8"
-          />
+          Период по (МСК)
+          <input type="date" value={rangeTo} onChange={(event) => setRangeTo(event.target.value)} />
         </label>
       </div>
       <div className="inlineActions">
@@ -2254,7 +2352,6 @@ function FinanceReportPanel({
       </div>
       {plansStatus && <p className="success">{plansStatus}</p>}
       {plansError && <p className="error">{plansError}</p>}
-      {acquiringSaveError && <p className="error">{acquiringSaveError}</p>}
       <div className="tableWrap">
         <table>
           <thead>
@@ -2265,7 +2362,7 @@ function FinanceReportPanel({
               <th>Отклонение (факт-план)</th>
               <th>Потрачено на товар</th>
               <th>К выплате зарплаты</th>
-              <th>Комиссия эквайринга</th>
+              <th>Комиссия эквайринга (Путинцев)</th>
               <th>Прибыль (выручка - ЗП - эквайринг)</th>
               <th>Прибыль (выручка - ЗП - эквайринг - товар)</th>
             </tr>

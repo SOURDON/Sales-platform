@@ -137,7 +137,10 @@ export class AdminController {
   @Get('acquiring-percent')
   getAcquiringPercent(@Headers('authorization') authorization?: string) {
     this.requireFinanceRead(authorization);
-    return { percent: this.authService.getAcquiringPercent() };
+    return {
+      percent: this.authService.getAcquiringPercent(),
+      detkovPercent: this.authService.getAcquiringPercentDetkov(),
+    };
   }
 
   @Put('acquiring-percent')
@@ -150,6 +153,22 @@ export class AdminController {
       throw new BadRequestException('percent is required');
     }
     const result = this.authService.setAcquiringPercent(body.percent, session.nickname);
+    if (!result) {
+      throw new BadRequestException('percent must be between 0 and 100');
+    }
+    return result;
+  }
+
+  @Put('acquiring-percent/detkov')
+  setAcquiringPercentDetkov(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: AcquiringPercentBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    if (body.percent === undefined || !Number.isFinite(body.percent)) {
+      throw new BadRequestException('percent is required');
+    }
+    const result = this.authService.setAcquiringPercentDetkov(body.percent, session.nickname);
     if (!result) {
       throw new BadRequestException('percent must be between 0 and 100');
     }
