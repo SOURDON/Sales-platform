@@ -607,6 +607,13 @@ button.ghost.navActive:hover {
   font-size: 13px;
 }
 
+.retoucherBadge {
+  margin-left: 8px;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .teamMemberMeta {
   margin: 0;
   font-size: 12px;

@@ -12,6 +12,12 @@ enum UserRole {
   ADMIN
   SELLER
   ACCOUNTANT
+  RETOUCHER
+}
+
+enum StaffPosition {
+  SALES
+  RETOUCHER
 }
 
 enum CommissionRequestStatus {
@@ -168,12 +174,13 @@ model CashDisciplineEvent {
 }
 
 model StaffMember {
-  id              Int    @id
-  user            User   @relation(fields: [id], references: [id], onDelete: Cascade)
+  id              Int           @id
+  user            User          @relation(fields: [id], references: [id], onDelete: Cascade)
   fullName        String
-  nickname        String @unique
-  isActive        Boolean @default(true)
+  nickname        String        @unique
+  isActive        Boolean       @default(true)
   assignedShiftId String?
+  staffPosition   StaffPosition @default(SALES)
 }
 
 model ProductCatalog {

@@ -67,6 +67,41 @@ function formatRub(value: number): string {
   return `${Math.round(value).toLocaleString('ru-RU')} ₽`;
 }
 
+function userRoleLabel(
+  r: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER',
+): string {
+  if (r === 'RETOUCHER') {
+    return 'Ретушёр';
+  }
+  if (r === 'ACCOUNTANT') {
+    return 'Бухгалтер';
+  }
+  if (r === 'DIRECTOR') {
+    return 'Директор';
+  }
+  if (r === 'ADMIN') {
+    return 'Админ точки';
+  }
+  if (r === 'SELLER') {
+    return 'Продавец';
+  }
+  return r;
+}
+
+type StaffPositionKind = 'SALES' | 'RETOUCHER';
+
+type StaffMember = {
+  id: number;
+  fullName: string;
+  nickname: string;
+  isActive: boolean;
+  assignedShiftId?: string;
+  storeName: string;
+  staffPosition: StaffPositionKind;
+  /** Для ретушёра, ₽; с бэкенда. */
+  earningsAmount: number;
+};
+
 /**
  * Сводка для админа на «Главной» считается на клиенте (продавцы, продажи, смены),
  * чтобы UI совпадал с запросом даже при старом ответе /dashboard/overview на сервере.
@@ -77,6 +112,7 @@ function buildAdminHomeDashboard(
   sellers: SellerProfile[],
   sales: AdminSale[],
   shifts: ShiftInfo[],
+  staff: StaffMember[],
 ): DashboardResponse {
   const storeSellers = sellers.filter((s) => s.storeName === storeName);
   const sellerIds = new Set(storeSellers.map((s) => s.id));
@@ -87,6 +123,12 @@ function buildAdminHomeDashboard(
   for (const s of storeSellers) {
     storeRevenue += s.salesAmount;
     storeSalaries += s.commissionAmount;
+  }
+  const retoucherStaff = staff.filter(
+    (m) => m.staffPosition === 'RETOUCHER' && m.storeName === storeName,
+  );
+  for (const r of retoucherStaff) {
+    storeSalaries += Math.round(r.earningsAmount);
   }
 
   let payCash = 0;
@@ -134,6 +176,13 @@ function buildAdminHomeDashboard(
       fullName: s.fullName,
       salary: formatRub(s.commissionAmount),
     }));
+  for (const r of retoucherStaff) {
+    sellerRegister.push({
+      fullName: r.fullName,
+      salary: formatRub(Math.round(r.earningsAmount)),
+    });
+  }
+  sellerRegister.sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
 
   return {
     ...api,
@@ -151,13 +200,13 @@ type LoginResponse = {
     id: number;
     nickname: string;
     fullName: string;
-    role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT';
+    role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
     storeName: string;
   };
 };
 
 type DashboardResponse = {
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT';
+  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   sellerDataManagedByAdmin: boolean;
   title: string;
   metrics: Array<{ label: string; value: string }>;
@@ -237,14 +286,6 @@ type CashDisciplineEvent = {
   type: 'RETURN' | 'CANCEL' | 'ADJUSTMENT';
   comment: string;
   createdBy: string;
-};
-
-type StaffMember = {
-  id: number;
-  fullName: string;
-  nickname: string;
-  isActive: boolean;
-  assignedShiftId?: string;
 };
 
 type GlobalEmployee = {
@@ -483,10 +524,11 @@ function App() {
         sellers,
         sales,
         shifts,
+        staff,
       );
     }
     return dashboard;
-  }, [dashboard, session, sellers, sales, shifts]);
+  }, [dashboard, session, sellers, sales, shifts, staff]);
 
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
@@ -1227,6 +1269,9 @@ function App() {
               <li>
                 <code>seller1</code>…<code>seller8 / 123456</code> — продавцы
               </li>
+              <li>
+                <code>reto1</code>…<code>reto8 / 123456</code> — ретушёры (5% от выручки точки)
+              </li>
             </ul>
           </div>
         </section>
@@ -1235,23 +1280,26 @@ function App() {
   }
 
   const role = session.user.role;
+  const isRetoucher = role === 'RETOUCHER';
   const isSellerOnly = role === 'SELLER';
   const isReadOnlyObserver = role === 'ACCOUNTANT';
   const isFinanceViewer = role === 'ACCOUNTANT' || role === 'DIRECTOR';
   const shiftLabel = isFinanceViewer ? 'Оперативка' : 'Смена';
   const controlLabel = isReadOnlyObserver ? 'Отчёт' : 'Контроль';
-  const mobileNavItems: MobileNavItem[] = isSellerOnly
-    ? [
-        { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
-        { to: '/shift', label: 'Смена', icon: <ShiftIcon /> },
-      ]
-    : [
-        { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
-        { to: '/shift', label: shiftLabel, icon: <ShiftIcon /> },
-        { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
-        { to: '/team', label: 'Команда', icon: <TeamIcon /> },
-        { to: '/control', label: controlLabel, icon: <ControlIcon /> },
-      ];
+  const mobileNavItems: MobileNavItem[] = isRetoucher
+    ? [{ to: '/home', label: 'Главная', icon: <HomeIcon />, end: true }]
+    : isSellerOnly
+      ? [
+          { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
+          { to: '/shift', label: 'Смена', icon: <ShiftIcon /> },
+        ]
+      : [
+          { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
+          { to: '/shift', label: shiftLabel, icon: <ShiftIcon /> },
+          { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
+          { to: '/team', label: 'Команда', icon: <TeamIcon /> },
+          { to: '/control', label: controlLabel, icon: <ControlIcon /> },
+        ];
 
   return (
     <main className="app appWorkspace">
@@ -1266,10 +1314,12 @@ function App() {
           <NavLink to="/home" className={navTabClass} end>
             Главная
           </NavLink>
-          <NavLink to="/shift" className={navTabClass}>
-            {shiftLabel}
-          </NavLink>
-          {!isSellerOnly && (
+          {!isRetoucher && (
+            <NavLink to="/shift" className={navTabClass}>
+              {shiftLabel}
+            </NavLink>
+          )}
+          {!isRetoucher && !isSellerOnly && (
             <>
               <NavLink to="/sales" className={navTabClass}>
                 Продажи
@@ -1306,7 +1356,7 @@ function App() {
                       </div>
                       <div className="homeProfileRow">
                         <span className="homeProfileKey">Роль</span>
-                        <span className="homeProfileVal">{session.user.role}</span>
+                        <span className="homeProfileVal">{userRoleLabel(session.user.role)}</span>
                       </div>
                       <div className="homeProfileRow">
                         <span className="homeProfileKey">Точка</span>
@@ -1321,7 +1371,7 @@ function App() {
                     ) : (
                       homeDashboard && (
                         <>
-                          {homeDashboard.sellerDataManagedByAdmin && homeDashboard.role !== 'ADMIN' && (
+                          {homeDashboard.sellerDataManagedByAdmin && homeDashboard.role === 'SELLER' && (
                             <p className="notice">Данные продавца заполняет администратор точки.</p>
                           )}
                           <h3 className="homePanelTitle">{homeDashboard.title}</h3>
@@ -2556,7 +2606,7 @@ function TeamMemberCard({
   token: string;
   member: StaffMember;
   seller?: SellerProfile;
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT';
+  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   readOnly?: boolean;
   openShiftId?: string;
   onDeactivate: (token: string, id: number) => Promise<void>;
@@ -2564,6 +2614,7 @@ function TeamMemberCard({
   onAssignShift: (token: string, id: number, shiftId: string) => Promise<void>;
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
 }) {
+  const isRetoucher = member.staffPosition === 'RETOUCHER';
   const [newPercent, setNewPercent] = useState(String(seller?.ratePercent ?? 0));
   const [busy, setBusy] = useState(false);
 
@@ -2586,6 +2637,9 @@ function TeamMemberCard({
           <p className="teamMemberName">
             <strong>{member.fullName}</strong>{' '}
             <span className="teamMemberNick">({member.nickname})</span>
+            {isRetoucher ? (
+              <span className="statusPill statusPillOn retoucherBadge">Ретушёр</span>
+            ) : null}
           </p>
           <p className="teamMemberMeta">
             Смена: {member.assignedShiftId ?? '—'}
@@ -2622,7 +2676,22 @@ function TeamMemberCard({
         </div>
       )}
 
-      {seller && (
+      {isRetoucher && (
+        <div className="teamMemberStats">
+          <div className="statCell">
+            <span className="statLabel">Выручка точки (сегодня)</span>
+            <span className="statValue">
+              {Math.round(member.earningsAmount / 0.05).toLocaleString('ru-RU')} ₽
+            </span>
+          </div>
+          <div className="statCell">
+            <span className="statLabel">Начислено (5%)</span>
+            <span className="statValue">{Math.round(member.earningsAmount).toLocaleString('ru-RU')} ₽</span>
+          </div>
+        </div>
+      )}
+
+      {!isRetoucher && seller && (
         <div className="teamMemberStats">
           <div className="statCell">
             <span className="statLabel">Продажи</span>
@@ -2643,7 +2712,7 @@ function TeamMemberCard({
         </div>
       )}
 
-      {seller && role === 'DIRECTOR' && (
+      {!isRetoucher && seller && role === 'DIRECTOR' && (
         <div className="directorPercent teamPercentEdit">
           <label>
             Новый % (директор)
@@ -2655,11 +2724,11 @@ function TeamMemberCard({
         </div>
       )}
 
-      {seller && (role === 'ADMIN' || role === 'ACCOUNTANT') && (
+      {!isRetoucher && seller && (role === 'ADMIN' || role === 'ACCOUNTANT') && (
         <p className="hint teamHint">Процент меняет только директор (по согласованию).</p>
       )}
 
-      {!seller && (
+      {!isRetoucher && !seller && (
         <p className="hint teamHint">Нет профиля продавца — показатели появятся после синхронизации.</p>
       )}
     </article>
@@ -2686,7 +2755,7 @@ function StaffPanel({
   sellers: SellerProfile[];
   globalEmployees: GlobalEmployee[];
   shifts: ShiftInfo[];
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT';
+  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   readOnly?: boolean;
   onAdd: (token: string, fullName: string, nickname: string) => Promise<void>;
   onAddFromBase: (token: string, employeeId: number) => Promise<void>;
@@ -2770,7 +2839,13 @@ function StaffPanel({
           const seller = sellers.find((item) => item.id === member.id);
           return (
             <TeamMemberCard
-              key={seller ? `${member.id}-${seller.ratePercent}` : String(member.id)}
+              key={
+                member.staffPosition === 'RETOUCHER'
+                  ? `reto-${member.id}`
+                  : seller
+                    ? `${member.id}-${seller.ratePercent}`
+                    : String(member.id)
+              }
               token={token}
               member={member}
               seller={seller}

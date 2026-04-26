@@ -1,10 +1,11 @@
 import type { PrismaClient } from '@prisma/client';
-import { UserRole, WriteOffReason } from '@prisma/client';
+import { StaffPosition, UserRole, WriteOffReason } from '@prisma/client';
 import {
   buildDefaultDemoUserRows,
   buildDefaultSellerProfileRows,
   buildDefaultStaffRows,
 } from '../auth/build-demo-entities';
+import { DEMO_STORE_NAMES } from '../auth/demo-stores';
 
 function toPrismaUserRole(role: ReturnType<typeof buildDefaultDemoUserRows>[0]['role']): UserRole {
   switch (role) {
@@ -16,6 +17,8 @@ function toPrismaUserRole(role: ReturnType<typeof buildDefaultDemoUserRows>[0]['
       return UserRole.SELLER;
     case 'ACCOUNTANT':
       return UserRole.ACCOUNTANT;
+    case 'RETOUCHER':
+      return UserRole.RETOUCHER;
     default: {
       const _x: never = role;
       return _x;
@@ -88,6 +91,7 @@ async function ensureStaffMembers(prisma: PrismaClient) {
     if (!u) {
       continue;
     }
+    const position = row.staffPosition === 'RETOUCHER' ? StaffPosition.RETOUCHER : StaffPosition.SALES;
     await prisma.staffMember.upsert({
       where: { id: u.id },
       create: {
@@ -95,11 +99,13 @@ async function ensureStaffMembers(prisma: PrismaClient) {
         fullName: row.fullName,
         nickname: row.nickname,
         isActive: row.isActive,
+        staffPosition: position,
       },
       update: {
         fullName: row.fullName,
         nickname: row.nickname,
         isActive: row.isActive,
+        staffPosition: position,
       },
     });
   }
@@ -187,6 +193,52 @@ async function ensureAppState(prisma: PrismaClient) {
     },
     update: {},
   });
+}
+
+/**
+ * Добавляет учётки ретушёров по одной на точку, если их ещё нет (обновление БД с прежним сидом).
+ */
+export async function ensureRetoucherUsersIfMissing(prisma: PrismaClient) {
+  for (let i = 0; i < DEMO_STORE_NAMES.length; i += 1) {
+    const storeName = DEMO_STORE_NAMES[i];
+    const nickname = `reto${i + 1}`;
+    const existing = await prisma.user.findUnique({ where: { nickname } });
+    if (existing) {
+      continue;
+    }
+    let id = 19 + i;
+    const idTaken = await prisma.user.findUnique({ where: { id } });
+    if (idTaken) {
+      const m = await prisma.user.aggregate({ _max: { id: true } });
+      id = (m._max.id ?? 0) + 1;
+    }
+    const fullName = `Ретушёр — ${storeName}`;
+    await prisma.user.create({
+      data: {
+        id,
+        nickname,
+        password: '123456',
+        fullName,
+        role: UserRole.RETOUCHER,
+        storeName,
+        isActive: true,
+      },
+    });
+    await prisma.staffMember.upsert({
+      where: { id },
+      create: {
+        id,
+        fullName,
+        nickname,
+        isActive: true,
+        staffPosition: StaffPosition.RETOUCHER,
+      },
+      update: {
+        fullName,
+        staffPosition: StaffPosition.RETOUCHER,
+      },
+    });
+  }
 }
 
 /**

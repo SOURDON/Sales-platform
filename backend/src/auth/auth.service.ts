@@ -4,16 +4,17 @@ import {
   CommissionRequestStatus as PrismaCommissionRequestStatus,
   FinanceAccountKind as PrismaFinanceAccountKind,
   PaymentType as PrismaPaymentType,
+  StaffPosition,
   ShiftStatus,
   UserRole as PrismaUserRole,
   WriteOffReason,
 } from '@prisma/client';
-import { ensureDemoData } from '../database/ensure-demo-data';
+import { ensureDemoData, ensureRetoucherUsersIfMissing } from '../database/ensure-demo-data';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildDefaultDemoUserRows, buildDefaultSellerProfileRows, buildDefaultStaffRows } from './build-demo-entities';
 import { DEMO_STORE_NAMES } from './demo-stores';
 
-export type UserRole = 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT';
+export type UserRole = 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
 
 type CommissionRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -131,12 +132,17 @@ interface CashDisciplineEvent {
   createdBy: string;
 }
 
+type StaffPositionKind = 'SALES' | 'RETOUCHER';
+
 interface StaffMember {
   id: number;
   fullName: string;
   nickname: string;
   isActive: boolean;
   assignedShiftId?: string;
+  staffPosition: StaffPositionKind;
+  /** Для ретушёра: 5% от дневной выручки точки. */
+  earningsAmount: number;
 }
 
 interface ThresholdNotification {
@@ -521,12 +527,24 @@ export class AuthService implements OnModuleInit {
 
     if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT') {
       let totalRevenue = 0;
-      let totalCommission = 0;
+      let totalSellerCommission = 0;
       for (const p of this.sellerProfiles) {
         this.recomputeSeller(p);
         totalRevenue += p.salesAmount;
-        totalCommission += p.commissionAmount;
+        totalSellerCommission += p.commissionAmount;
       }
+      this.syncRetoucherEarnings();
+      let retoucherTotal = 0;
+      for (const m of this.staff) {
+        if (m.staffPosition !== 'RETOUCHER' || !m.isActive) {
+          continue;
+        }
+        const u = this.demoUsers.find((d) => d.id === m.id);
+        if (u?.isActive) {
+          retoucherTotal += m.earningsAmount;
+        }
+      }
+      const totalCommission = totalSellerCommission + retoucherTotal;
       const openShifts = this.shiftHistory.filter((s) => s.status === 'OPEN').length;
       const roughPurchases = Math.round(totalRevenue * 0.43);
       const netCompany = Math.max(0, Math.round(totalRevenue - roughPurchases - totalCommission));
@@ -540,6 +558,15 @@ export class AuthService implements OnModuleInit {
           this.recomputeSeller(p);
           rev += p.salesAmount;
           salaries += p.commissionAmount;
+        }
+        for (const m of this.staff) {
+          if (m.staffPosition !== 'RETOUCHER' || !m.isActive) {
+            continue;
+          }
+          const u = this.demoUsers.find((d) => d.id === m.id);
+          if (u?.storeName === name && u.isActive) {
+            salaries += m.earningsAmount;
+          }
         }
         return {
           name,
@@ -555,7 +582,7 @@ export class AuthService implements OnModuleInit {
           { label: 'Выручка (все точки)', value: this.formatCurrency(Math.round(totalRevenue)) },
           { label: 'Чистая прибыль (оценка)', value: this.formatCurrency(netCompany) },
           { label: 'Закупки (оценка)', value: this.formatCurrency(roughPurchases) },
-          { label: 'Выплаты продавцам', value: this.formatCurrency(totalCommission) },
+          { label: 'Выплаты персоналу', value: this.formatCurrency(Math.round(totalCommission)) },
           { label: 'Открытые смены', value: String(openShifts) },
         ],
         stores: storeRows,
@@ -606,7 +633,18 @@ export class AuthService implements OnModuleInit {
         }
       }
 
-      const sellerRegister = this.sellerProfiles
+      this.syncRetoucherEarnings();
+      for (const m of this.staff) {
+        if (m.staffPosition !== 'RETOUCHER' || !m.isActive) {
+          continue;
+        }
+        const u = this.demoUsers.find((d) => d.id === m.id);
+        if (u?.storeName === user.storeName && u.isActive) {
+          storeSalaries += m.earningsAmount;
+        }
+      }
+
+      const sellerRegister: Array<{ fullName: string; salary: string }> = this.sellerProfiles
         .filter((p) => p.storeName === user.storeName)
         .map((p) => {
           this.recomputeSeller(p);
@@ -614,8 +652,20 @@ export class AuthService implements OnModuleInit {
             fullName: p.fullName,
             salary: this.formatCurrency(Math.round(p.commissionAmount)),
           };
-        })
-        .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
+        });
+      for (const m of this.staff) {
+        if (m.staffPosition !== 'RETOUCHER' || !m.isActive) {
+          continue;
+        }
+        const u = this.demoUsers.find((d) => d.id === m.id);
+        if (u?.storeName === user.storeName && u.isActive) {
+          sellerRegister.push({
+            fullName: m.fullName,
+            salary: this.formatCurrency(Math.round(m.earningsAmount)),
+          });
+        }
+      }
+      sellerRegister.sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
 
       return {
         role: user.role,
@@ -637,6 +687,40 @@ export class AuthService implements OnModuleInit {
         ],
         sellerRegister,
       };
+    }
+
+    if (user.role === 'RETOUCHER') {
+      this.syncRetoucherEarnings();
+      const member = this.staff.find((m) => m.id === user.id);
+      let storeRevenue = 0;
+      for (const p of this.sellerProfiles) {
+        if (p.storeName !== user.storeName) {
+          continue;
+        }
+        this.recomputeSeller(p);
+        storeRevenue += p.salesAmount;
+      }
+      const myEarn = member?.earningsAmount ?? 0;
+      return {
+        role: user.role,
+        sellerDataManagedByAdmin: true,
+        title: `Ретушёр — ${user.storeName}`,
+        metrics: [
+          { label: 'Выручка точки (сегодня)', value: this.formatCurrency(Math.round(storeRevenue)) },
+          { label: 'Начислено (5% от выручки)', value: this.formatCurrency(Math.round(myEarn)) },
+        ],
+        stores: [
+          {
+            name: user.storeName,
+            revenue: this.formatCurrency(Math.round(storeRevenue)),
+            salaries: this.formatCurrency(Math.round(myEarn)),
+          },
+        ],
+      };
+    }
+
+    if (user.role !== 'SELLER') {
+      return null;
     }
 
     return {
@@ -1003,6 +1087,7 @@ export class AuthService implements OnModuleInit {
 
     seller.sales.push(sale);
     this.recomputeSeller(seller);
+    this.syncRetoucherEarnings();
     this.lastSaleAt = sale.createdAt;
     if (this.currentShiftId) {
       const shift = this.shiftHistory.find((item) => item.id === this.currentShiftId);
@@ -1177,7 +1262,20 @@ export class AuthService implements OnModuleInit {
   }
 
   getStaff() {
-    return [...this.staff];
+    this.syncRetoucherEarnings();
+    return this.staff.map((member) => {
+      const u = this.demoUsers.find((d) => d.id === member.id);
+      return {
+        id: member.id,
+        fullName: member.fullName,
+        nickname: member.nickname,
+        isActive: member.isActive,
+        assignedShiftId: member.assignedShiftId,
+        staffPosition: member.staffPosition,
+        storeName: u?.storeName ?? '',
+        earningsAmount: member.staffPosition === 'RETOUCHER' ? member.earningsAmount : 0,
+      };
+    });
   }
 
   getGlobalEmployees() {
@@ -1191,7 +1289,19 @@ export class AuthService implements OnModuleInit {
         isActive: user?.isActive ?? true,
       } satisfies GlobalEmployee;
     });
-    return sellers.sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
+    const retouchers = this.demoUsers
+      .filter((u) => u.role === 'RETOUCHER')
+      .map(
+        (u) =>
+          ({
+            id: u.id,
+            fullName: u.fullName,
+            nickname: u.nickname,
+            homeStore: u.storeName,
+            isActive: u.isActive,
+          }) satisfies GlobalEmployee,
+      );
+    return [...sellers, ...retouchers].sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
   }
 
   addStaff(fullName: string, nickname: string, actor: string) {
@@ -1225,6 +1335,8 @@ export class AuthService implements OnModuleInit {
       fullName: normalizedFullName,
       nickname: normalizedNickname,
       isActive: true,
+      staffPosition: 'SALES',
+      earningsAmount: 0,
     };
     const storeForActor =
       this.demoUsers.find((item) => item.nickname === actor)?.storeName ?? DEMO_STORE_NAMES[0];
@@ -1305,6 +1417,8 @@ export class AuthService implements OnModuleInit {
       fullName: seller.fullName,
       nickname: seller.nickname,
       isActive: true,
+      staffPosition: 'SALES',
+      earningsAmount: 0,
     };
     this.staff.push(member);
     const demoUser = this.demoUsers.find((item) => item.id === seller.id);
@@ -1427,6 +1541,30 @@ export class AuthService implements OnModuleInit {
     );
   }
 
+  private syncRetoucherEarnings() {
+    for (const member of this.staff) {
+      if (member.staffPosition !== 'RETOUCHER') {
+        member.earningsAmount = 0;
+        continue;
+      }
+      const u = this.demoUsers.find((d) => d.id === member.id);
+      if (!u || u.role !== 'RETOUCHER' || !u.isActive || !member.isActive) {
+        member.earningsAmount = 0;
+        continue;
+      }
+      const store = u.storeName;
+      let storeDayRevenue = 0;
+      for (const p of this.sellerProfiles) {
+        if (p.storeName !== store) {
+          continue;
+        }
+        this.recomputeSeller(p);
+        storeDayRevenue += p.salesAmount;
+      }
+      member.earningsAmount = Math.round((storeDayRevenue * 5) / 100);
+    }
+  }
+
   /** Ключ для сопоставления названия товара в чеке и в справочнике закупок (как в getSalesSnapshotForSessionEnriched). */
   private normProcurementKey(raw: string): string {
     return String(raw).normalize('NFC').trim().replace(/\s+/g, ' ');
@@ -1529,6 +1667,7 @@ export class AuthService implements OnModuleInit {
   private async seedIfNeeded() {
     const usersCount = await this.prisma.user.count();
     if (usersCount > 0) {
+      await ensureRetoucherUsersIfMissing(this.prisma);
       return;
     }
     await ensureDemoData(this.prisma);
@@ -1560,7 +1699,14 @@ export class AuthService implements OnModuleInit {
       sales: [],
       commissionAmount: 0,
     }));
-    this.staff = buildDefaultStaffRows();
+    this.staff = buildDefaultStaffRows().map((row) => ({
+      id: row.id,
+      fullName: row.fullName,
+      nickname: row.nickname,
+      isActive: row.isActive,
+      staffPosition: row.staffPosition,
+      earningsAmount: 0,
+    }));
     this.productStock = {
       Магнит: 35,
       'Рамка А4': 18,
@@ -1730,6 +1876,8 @@ export class AuthService implements OnModuleInit {
       nickname: member.nickname,
       isActive: member.isActive,
       assignedShiftId: member.assignedShiftId ?? undefined,
+      staffPosition: member.staffPosition === StaffPosition.RETOUCHER ? 'RETOUCHER' : 'SALES',
+      earningsAmount: 0,
     }));
     this.productCatalog = products.map((item) => ({ name: item.name, price: item.price }));
     this.productStock = Object.fromEntries(stock.map((item) => [item.name, item.qty]));
@@ -1897,6 +2045,7 @@ export class AuthService implements OnModuleInit {
             nickname: member.nickname,
             isActive: member.isActive,
             assignedShiftId: member.assignedShiftId ?? null,
+            staffPosition: member.staffPosition === 'RETOUCHER' ? StaffPosition.RETOUCHER : StaffPosition.SALES,
           })),
         });
       }

@@ -6,7 +6,7 @@ export function buildDefaultDemoUserRows() {
     nickname: string;
     password: string;
     fullName: string;
-    role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT';
+    role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
     storeName: string;
     isActive: boolean;
   }> = [
@@ -53,6 +53,18 @@ export function buildDefaultDemoUserRows() {
       isActive: true,
     });
   }
+  for (let i = 0; i < DEMO_STORE_NAMES.length; i += 1) {
+    const store = DEMO_STORE_NAMES[i];
+    users.push({
+      id: 19 + i,
+      nickname: `reto${i + 1}`,
+      password: '123456',
+      fullName: `Ретушёр — ${store}`,
+      role: 'RETOUCHER',
+      storeName: store,
+      isActive: true,
+    });
+  }
   return users;
 }
 
@@ -67,10 +79,19 @@ export function buildDefaultSellerProfileRows() {
 }
 
 export function buildDefaultStaffRows() {
-  return buildDefaultSellerProfileRows().map((row) => ({
+  const sales = buildDefaultSellerProfileRows().map((row) => ({
     id: row.id,
     fullName: row.fullName,
     nickname: row.nickname,
     isActive: true,
+    staffPosition: 'SALES' as const,
   }));
+  const retouchers = DEMO_STORE_NAMES.map((storeName, i) => ({
+    id: 19 + i,
+    fullName: `Ретушёр — ${storeName}`,
+    nickname: `reto${i + 1}`,
+    isActive: true,
+    staffPosition: 'RETOUCHER' as const,
+  }));
+  return [...sales, ...retouchers];
 }
