@@ -805,6 +805,12 @@ select {
   justify-content: flex-start;
 }
 
+.financeSubheading {
+  margin: 12px 0 6px;
+  font-size: 14px;
+  color: #0b4f82;
+}
+
 .inlineGridStaffBase {
   grid-template-columns: minmax(0, 2fr) auto minmax(180px, 1fr);
   align-items: center;

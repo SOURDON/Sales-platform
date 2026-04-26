@@ -94,6 +94,13 @@ interface FinanceExpenseBody {
   comment?: string;
 }
 
+interface FinanceIncomeBody {
+  accountId?: string;
+  amount?: number;
+  workDay?: string;
+  comment?: string;
+}
+
 @Controller('admin')
 export class AdminController {
   constructor(private readonly authService: AuthService) {}
@@ -231,6 +238,32 @@ export class AdminController {
       throw new BadRequestException('Invalid finance expense payload');
     }
     return expense as unknown;
+  }
+
+  @Post('finance/incomes')
+  addFinanceIncome(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: FinanceIncomeBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    const workDay =
+      body.workDay && /^\d{4}-\d{2}-\d{2}$/.test(body.workDay) ? body.workDay : undefined;
+    if (!body.accountId || body.amount === undefined || !Number.isFinite(body.amount) || !workDay) {
+      throw new BadRequestException('accountId, amount and workDay (YYYY-MM-DD) are required');
+    }
+    const income = this.authService.addFinanceIncome(
+      {
+        accountId: body.accountId,
+        amount: body.amount,
+        workDay,
+        comment: body.comment,
+      },
+      session.nickname,
+    );
+    if (!income) {
+      throw new BadRequestException('Invalid finance income payload');
+    }
+    return income as unknown;
   }
 
   @Get('shifts')

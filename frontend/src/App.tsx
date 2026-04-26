@@ -198,14 +198,27 @@ type FinanceExpense = {
   accountName: string;
 };
 
+type FinanceIncome = {
+  id: string;
+  createdAt: string;
+  workDay: string;
+  amount: number;
+  comment?: string;
+  createdBy: string;
+  accountId: string;
+  accountName: string;
+};
+
 type FinanceOpsSnapshot = {
   accounts: FinanceAccount[];
   expenses: FinanceExpense[];
+  incomes: FinanceIncome[];
   totals: {
     cash: number;
     bank: number;
     balance: number;
     expenses: number;
+    incomes: number;
   };
 };
 
@@ -365,7 +378,8 @@ function App() {
   const [financeOps, setFinanceOps] = useState<FinanceOpsSnapshot>({
     accounts: [],
     expenses: [],
-    totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+    incomes: [],
+    totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
   });
 
   const loadDashboard = async (token: string) => {
@@ -542,24 +556,44 @@ function App() {
     if (!response.ok) {
       throw new Error('finance ops error');
     }
-    setFinanceOps((await response.json()) as FinanceOpsSnapshot);
+    const raw = (await response.json()) as Partial<FinanceOpsSnapshot>;
+    setFinanceOps({
+      accounts: raw.accounts ?? [],
+      expenses: raw.expenses ?? [],
+      incomes: raw.incomes ?? [],
+      totals: {
+        cash: raw.totals?.cash ?? 0,
+        bank: raw.totals?.bank ?? 0,
+        balance: raw.totals?.balance ?? 0,
+        expenses: raw.totals?.expenses ?? 0,
+        incomes: raw.totals?.incomes ?? 0,
+      },
+    });
   };
 
-  const saveFinanceAccountBalance = async (token: string, accountId: string, value: string) => {
-    const num = Number(String(value).replace(',', '.'));
-    if (!Number.isFinite(num) || num < 0) {
+  const addFinanceIncome = async (
+    token: string,
+    payload: { accountId: string; amount: string; workDay: string; comment?: string },
+  ) => {
+    const num = Number(String(payload.amount).replace(',', '.'));
+    if (!Number.isFinite(num) || num <= 0) {
       return;
     }
-    const response = await fetch(`${API_BASE_URL}/admin/finance/accounts/${encodeURIComponent(accountId)}/balance`, {
-      method: 'PUT',
+    const response = await fetch(`${API_BASE_URL}/admin/finance/incomes`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ balance: num }),
+      body: JSON.stringify({
+        accountId: payload.accountId,
+        amount: num,
+        workDay: payload.workDay,
+        comment: payload.comment,
+      }),
     });
     if (!response.ok) {
-      throw new Error('save finance balance error');
+      throw new Error('add finance income error');
     }
     await loadFinanceOps(token);
   };
@@ -904,7 +938,8 @@ function App() {
               setFinanceOps({
                 accounts: [],
                 expenses: [],
-                totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+                incomes: [],
+                totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
               });
             }
           } else {
@@ -913,7 +948,8 @@ function App() {
             setFinanceOps({
               accounts: [],
               expenses: [],
-              totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+              incomes: [],
+              totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
             });
           }
           await loadStaff(data.token);
@@ -934,7 +970,8 @@ function App() {
           setFinanceOps({
             accounts: [],
             expenses: [],
-            totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+            incomes: [],
+            totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
           });
           setAdminError('Не удалось загрузить панель администратора.');
         }
@@ -954,7 +991,8 @@ function App() {
         setFinanceOps({
           accounts: [],
           expenses: [],
-          totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+          incomes: [],
+          totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
         });
       }
     } catch {
@@ -998,7 +1036,8 @@ function App() {
     setFinanceOps({
       accounts: [],
       expenses: [],
-      totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+      incomes: [],
+      totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
     });
     navigate('/', { replace: true });
   };
@@ -1228,7 +1267,7 @@ function App() {
                       <FinanceOpsPanel
                         token={session.token}
                         snapshot={financeOps}
-                        onSaveBalance={saveFinanceAccountBalance}
+                        onAddIncome={addFinanceIncome}
                         onAddExpense={addFinanceExpense}
                       />
                     ) : (
@@ -1689,18 +1728,27 @@ function WriteOffForm({
 function FinanceOpsPanel({
   token,
   snapshot,
-  onSaveBalance,
+  onAddIncome,
   onAddExpense,
 }: {
   token: string;
   snapshot: FinanceOpsSnapshot;
-  onSaveBalance: (token: string, accountId: string, value: string) => Promise<void>;
+  onAddIncome: (
+    token: string,
+    payload: { accountId: string; amount: string; workDay: string; comment?: string },
+  ) => Promise<void>;
   onAddExpense: (
     token: string,
     payload: { accountId: string; title: string; amount: string; comment?: string },
   ) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState<Record<string, string>>({});
+  const cashAccount = snapshot.accounts.find((a) => a.kind === 'CASH');
+  const bankAccounts = snapshot.accounts.filter((a) => a.kind === 'BANK');
+  const [incomeWorkDay, setIncomeWorkDay] = useState(todayKeyMoscow());
+  const [incomeChannel, setIncomeChannel] = useState<'CASH' | 'BANK'>('CASH');
+  const [incomeBankId, setIncomeBankId] = useState(bankAccounts[0]?.id ?? '');
+  const [incomeAmount, setIncomeAmount] = useState('');
+  const [incomeComment, setIncomeComment] = useState('');
   const [expenseAccountId, setExpenseAccountId] = useState(snapshot.accounts[0]?.id ?? '');
   const [expenseTitle, setExpenseTitle] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
@@ -1715,13 +1763,25 @@ function FinanceOpsPanel({
     }
   }, [expenseAccountId, snapshot.accounts]);
 
+  useEffect(() => {
+    if (incomeChannel === 'BANK' && bankAccounts.length > 0) {
+      if (!bankAccounts.some((a) => a.id === incomeBankId)) {
+        setIncomeBankId(bankAccounts[0].id);
+      }
+    }
+  }, [incomeChannel, incomeBankId, bankAccounts]);
+
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
+  const incomeTotal = snapshot.totals.incomes ?? 0;
 
   return (
     <div className="opsCard">
       <h4>Оперативные финансы</h4>
-      <p className="hint">Управляйте остатками по кассе и расчётным счетам, фиксируйте расходы по статьям.</p>
-      <div className="metrics">
+      <p className="hint">
+        Баланс по кассе и счетам накапливается: каждый рабочий день заносите приход (наличные или безнал на выбранный
+        Р/с). Расходы уменьшают остаток на выбранном счёте.
+      </p>
+      <div className="metrics financeMetrics5">
         <article className="metricCard">
           <p>Наличка</p>
           <strong>{fmt(snapshot.totals.cash)}</strong>
@@ -1735,9 +1795,89 @@ function FinanceOpsPanel({
           <strong>{fmt(snapshot.totals.balance)}</strong>
         </article>
         <article className="metricCard">
+          <p>Учтено приходов</p>
+          <strong>{fmt(incomeTotal)}</strong>
+        </article>
+        <article className="metricCard">
           <p>Всего расходов</p>
           <strong>{fmt(snapshot.totals.expenses)}</strong>
         </article>
+      </div>
+
+      <div className="addSaleForm">
+        <h4>Записать приход за день</h4>
+        <div className="inlineGrid">
+          <label>
+            Рабочий день (МСК)
+            <input type="date" value={incomeWorkDay} onChange={(event) => setIncomeWorkDay(event.target.value)} />
+          </label>
+          <label>
+            Тип прихода
+            <select
+              value={incomeChannel}
+              onChange={(event) => setIncomeChannel(event.target.value as 'CASH' | 'BANK')}
+            >
+              <option value="CASH">Наличные</option>
+              <option value="BANK" disabled={bankAccounts.length === 0}>
+                Безнал (на расчётный счёт)
+              </option>
+            </select>
+          </label>
+          {incomeChannel === 'BANK' && bankAccounts.length > 0 ? (
+            <label>
+              Расчётный счёт
+              <select value={incomeBankId} onChange={(event) => setIncomeBankId(event.target.value)}>
+                {bankAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <label>
+            Сумма прихода
+            <input value={incomeAmount} onChange={(event) => setIncomeAmount(event.target.value)} inputMode="decimal" />
+          </label>
+          <label>
+            Комментарий
+            <input value={incomeComment} onChange={(event) => setIncomeComment(event.target.value)} />
+          </label>
+        </div>
+        <div className="inlineActions">
+          <button
+            type="button"
+            className="primaryAction"
+            disabled={busyId === 'income' || (incomeChannel === 'CASH' && !cashAccount)}
+            onClick={async () => {
+              const accountId = incomeChannel === 'CASH' ? cashAccount?.id : incomeBankId;
+              if (!accountId) {
+                setError('Нет счёта для прихода');
+                return;
+              }
+              setBusyId('income');
+              setError('');
+              setStatus('');
+              try {
+                await onAddIncome(token, {
+                  accountId,
+                  amount: incomeAmount,
+                  workDay: incomeWorkDay,
+                  comment: incomeComment,
+                });
+                setIncomeAmount('');
+                setIncomeComment('');
+                setStatus('Приход записан, баланс обновлён.');
+              } catch {
+                setError('Не удалось записать приход');
+              } finally {
+                setBusyId('');
+              }
+            }}
+          >
+            Добавить приход
+          </button>
+        </div>
       </div>
 
       <div className="tableWrap">
@@ -1746,8 +1886,7 @@ function FinanceOpsPanel({
             <tr>
               <th>Счёт</th>
               <th>Тип</th>
-              <th>Остаток</th>
-              <th>Обновить</th>
+              <th>Остаток (по приходам и расходам)</th>
             </tr>
           </thead>
           <tbody>
@@ -1756,37 +1895,7 @@ function FinanceOpsPanel({
                 <td>{account.name}</td>
                 <td>{account.kind === 'CASH' ? 'Наличка' : 'Расчётный счёт'}</td>
                 <td>
-                  <input
-                    value={draft[account.id] ?? String(account.balance)}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        [account.id]: event.target.value,
-                      }))
-                    }
-                  />
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    className="ghost"
-                    disabled={busyId === account.id}
-                    onClick={async () => {
-                      setBusyId(account.id);
-                      setError('');
-                      setStatus('');
-                      try {
-                        await onSaveBalance(token, account.id, draft[account.id] ?? String(account.balance));
-                        setStatus(`Остаток «${account.name}» сохранён.`);
-                      } catch {
-                        setError('Не удалось сохранить остаток счёта');
-                      } finally {
-                        setBusyId('');
-                      }
-                    }}
-                  >
-                    Сохранить
-                  </button>
+                  <strong>{fmt(account.balance)}</strong>
                 </td>
               </tr>
             ))}
@@ -1855,6 +1964,21 @@ function FinanceOpsPanel({
       {status && <p className="success">{status}</p>}
       {error && <p className="error">{error}</p>}
 
+      <h4 className="financeSubheading">Последние приходы</h4>
+      <div className="opsList">
+        {(snapshot.incomes ?? []).length === 0 ? (
+          <p className="muted">Приходов пока нет.</p>
+        ) : (
+          (snapshot.incomes ?? []).slice(0, 20).map((item) => (
+            <p key={item.id}>
+              День {item.workDay} | {fmt(item.amount)} | {item.accountName}
+              {item.comment ? ` | ${item.comment}` : ''}
+            </p>
+          ))
+        )}
+      </div>
+
+      <h4 className="financeSubheading">Последние расходы</h4>
       <div className="opsList">
         {snapshot.expenses.length === 0 ? (
           <p className="muted">Расходов пока нет.</p>

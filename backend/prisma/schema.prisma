@@ -62,6 +62,19 @@ model FinanceAccount {
   balance   Float
   updatedAt DateTime          @updatedAt
   expenses  FinanceExpense[]
+  incomes   FinanceIncome[]
+}
+
+model FinanceIncome {
+  id          String         @id
+  createdAt   DateTime
+  workDay     String
+  accountId   String
+  accountName String
+  amount      Float
+  comment     String?
+  createdBy   String
+  account     FinanceAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 }
 
 model FinanceExpense {

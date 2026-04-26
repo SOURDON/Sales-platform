@@ -154,6 +154,17 @@ interface FinanceExpense {
   accountName: string;
 }
 
+interface FinanceIncome {
+  id: string;
+  createdAt: string;
+  workDay: string;
+  amount: number;
+  comment?: string;
+  createdBy: string;
+  accountId: string;
+  accountName: string;
+}
+
 @Injectable()
 export class AuthService implements OnModuleInit {
   public productCatalog: Array<{ name: string; price: number }> = [];
@@ -177,6 +188,7 @@ export class AuthService implements OnModuleInit {
   private adminWriteOffs: WriteOffItem[] = [];
   private financeAccounts: FinanceAccount[] = [];
   private financeExpenses: FinanceExpense[] = [];
+  private financeIncomes: FinanceIncome[] = [];
 
   getWriteOffs(filters?: { reason?: 'Брак' | 'Поломка'; dateFrom?: string; dateTo?: string }) {
     return this.adminWriteOffs
@@ -263,6 +275,9 @@ export class AuthService implements OnModuleInit {
     const expenses = [...this.financeExpenses].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
+    const incomes = [...this.financeIncomes].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
     const cashTotal = accounts
       .filter((item) => item.kind === 'CASH')
       .reduce((sum, item) => sum + item.balance, 0);
@@ -271,14 +286,17 @@ export class AuthService implements OnModuleInit {
       .reduce((sum, item) => sum + item.balance, 0);
     const totalBalance = cashTotal + bankTotal;
     const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
+    const incomeTotal = incomes.reduce((sum, item) => sum + item.amount, 0);
     return {
       accounts,
       expenses,
+      incomes,
       totals: {
         cash: Math.round(cashTotal * 100) / 100,
         bank: Math.round(bankTotal * 100) / 100,
         balance: Math.round(totalBalance * 100) / 100,
         expenses: Math.round(expenseTotal * 100) / 100,
+        incomes: Math.round(incomeTotal * 100) / 100,
       },
     };
   }
@@ -315,6 +333,42 @@ export class AuthService implements OnModuleInit {
     this.pushAudit(actor, 'FINANCE_ACCOUNT_BALANCE_UPDATED', `${account.name}=${account.balance}`);
     this.queuePersist();
     return account;
+  }
+
+  addFinanceIncome(
+    payload: { accountId: string; amount: number; workDay: string; comment?: string },
+    actor = 'system',
+  ) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.workDay)) {
+      return null;
+    }
+    if (!payload.accountId || !Number.isFinite(payload.amount) || payload.amount <= 0) {
+      return null;
+    }
+    const account = this.financeAccounts.find((item) => item.id === payload.accountId);
+    if (!account) {
+      return null;
+    }
+    const amount = Math.round(payload.amount * 100) / 100;
+    account.balance = Math.round((account.balance + amount) * 100) / 100;
+    const income: FinanceIncome = {
+      id: `finc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+      workDay: payload.workDay,
+      amount,
+      comment: payload.comment?.trim() || undefined,
+      createdBy: actor,
+      accountId: account.id,
+      accountName: account.name,
+    };
+    this.financeIncomes.push(income);
+    this.pushAudit(
+      actor,
+      'FINANCE_INCOME_ADDED',
+      `day=${payload.workDay} ${account.name} +${amount}`,
+    );
+    this.queuePersist();
+    return income;
   }
 
   addFinanceExpense(
@@ -1483,6 +1537,7 @@ export class AuthService implements OnModuleInit {
     this.auditLog = [];
     this.financeAccounts = this.defaultFinanceAccounts();
     this.financeExpenses = [];
+    this.financeIncomes = [];
     this.currentShiftId = null;
     this.lastSaleAt = null;
     this.acquiringPercent = 1.8;
@@ -1507,6 +1562,7 @@ export class AuthService implements OnModuleInit {
       audit,
       financeAccounts,
       financeExpenses,
+      financeIncomes,
       appState,
     ] = await this.prisma.$transaction([
       this.prisma.user.findMany(),
@@ -1528,6 +1584,7 @@ export class AuthService implements OnModuleInit {
       this.prisma.auditLogItem.findMany(),
       this.prisma.financeAccount.findMany(),
       this.prisma.financeExpense.findMany(),
+      this.prisma.financeIncome.findMany(),
       this.prisma.appState.findUnique({ where: { id: 1 } }),
     ]);
 
@@ -1665,6 +1722,16 @@ export class AuthService implements OnModuleInit {
       accountId: item.accountId,
       accountName: item.accountName,
     }));
+    this.financeIncomes = financeIncomes.map((item) => ({
+      id: item.id,
+      createdAt: item.createdAt.toISOString(),
+      workDay: item.workDay,
+      amount: item.amount,
+      comment: item.comment ?? undefined,
+      createdBy: item.createdBy,
+      accountId: item.accountId,
+      accountName: item.accountName,
+    }));
     this.currentShiftId = appState?.currentShiftId ?? null;
     this.lastSaleAt = appState?.lastSaleAt?.toISOString() ?? null;
     this.acquiringPercent =
@@ -1697,6 +1764,7 @@ export class AuthService implements OnModuleInit {
       });
 
       await tx.financeExpense.deleteMany();
+      await tx.financeIncome.deleteMany();
       await tx.financeAccount.deleteMany();
       if (this.financeAccounts.length > 0) {
         await tx.financeAccount.createMany({
@@ -1719,6 +1787,20 @@ export class AuthService implements OnModuleInit {
             createdBy: item.createdBy,
             accountId: item.accountId,
             accountName: item.accountName,
+          })),
+        });
+      }
+      if (this.financeIncomes.length > 0) {
+        await tx.financeIncome.createMany({
+          data: this.financeIncomes.map((item) => ({
+            id: item.id,
+            createdAt: new Date(item.createdAt),
+            workDay: item.workDay,
+            accountId: item.accountId,
+            accountName: item.accountName,
+            amount: item.amount,
+            comment: item.comment ?? null,
+            createdBy: item.createdBy,
           })),
         });
       }
