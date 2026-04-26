@@ -41,6 +41,11 @@ enum CashEventType {
   ADJUSTMENT
 }
 
+enum FinanceAccountKind {
+  CASH
+  BANK
+}
+
 model AppState {
   id               Int       @id
   currentShiftId   String?
@@ -48,6 +53,27 @@ model AppState {
   acquiringPercent Float     @default(1.8)
   acquiringPercentDetkov Float @default(1.8)
   updatedAt        DateTime  @updatedAt
+}
+
+model FinanceAccount {
+  id        String            @id
+  name      String
+  kind      FinanceAccountKind
+  balance   Float
+  updatedAt DateTime          @updatedAt
+  expenses  FinanceExpense[]
+}
+
+model FinanceExpense {
+  id          String        @id
+  createdAt   DateTime
+  title       String
+  amount      Float
+  comment     String?
+  createdBy   String
+  accountId   String
+  accountName String
+  account     FinanceAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 }
 
 model User {

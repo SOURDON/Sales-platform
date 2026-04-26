@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import {
   CashEventType as PrismaCashEventType,
   CommissionRequestStatus as PrismaCommissionRequestStatus,
+  FinanceAccountKind as PrismaFinanceAccountKind,
   PaymentType as PrismaPaymentType,
   ShiftStatus,
   UserRole as PrismaUserRole,
@@ -133,6 +134,26 @@ interface AuditLogItem {
   details: string;
 }
 
+type FinanceAccountKind = 'CASH' | 'BANK';
+
+interface FinanceAccount {
+  id: string;
+  name: string;
+  kind: FinanceAccountKind;
+  balance: number;
+}
+
+interface FinanceExpense {
+  id: string;
+  createdAt: string;
+  title: string;
+  amount: number;
+  comment?: string;
+  createdBy: string;
+  accountId: string;
+  accountName: string;
+}
+
 @Injectable()
 export class AuthService implements OnModuleInit {
   public productCatalog: Array<{ name: string; price: number }> = [];
@@ -154,6 +175,8 @@ export class AuthService implements OnModuleInit {
   private storeRevenuePlans: Record<string, Record<string, number>> = {};
   private auditLog: AuditLogItem[] = [];
   private adminWriteOffs: WriteOffItem[] = [];
+  private financeAccounts: FinanceAccount[] = [];
+  private financeExpenses: FinanceExpense[] = [];
 
   getWriteOffs(filters?: { reason?: 'Брак' | 'Поломка'; dateFrom?: string; dateTo?: string }) {
     return this.adminWriteOffs
@@ -233,6 +256,33 @@ export class AuthService implements OnModuleInit {
     return this.acquiringPercentDetkov;
   }
 
+  getFinanceOpsSnapshot() {
+    const accounts = this.financeAccounts
+      .map((item) => ({ ...item }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ru-RU'));
+    const expenses = [...this.financeExpenses].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    const cashTotal = accounts
+      .filter((item) => item.kind === 'CASH')
+      .reduce((sum, item) => sum + item.balance, 0);
+    const bankTotal = accounts
+      .filter((item) => item.kind === 'BANK')
+      .reduce((sum, item) => sum + item.balance, 0);
+    const totalBalance = cashTotal + bankTotal;
+    const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
+    return {
+      accounts,
+      expenses,
+      totals: {
+        cash: Math.round(cashTotal * 100) / 100,
+        bank: Math.round(bankTotal * 100) / 100,
+        balance: Math.round(totalBalance * 100) / 100,
+        expenses: Math.round(expenseTotal * 100) / 100,
+      },
+    };
+  }
+
   setAcquiringPercent(percent: number, actor = 'system') {
     if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
       return null;
@@ -251,6 +301,50 @@ export class AuthService implements OnModuleInit {
     this.pushAudit(actor, 'ACQUIRING_PERCENT_DETKOV_UPDATED', String(this.acquiringPercentDetkov));
     this.queuePersist();
     return { percent: this.acquiringPercentDetkov };
+  }
+
+  setFinanceAccountBalance(id: string, balance: number, actor = 'system') {
+    if (!id || !Number.isFinite(balance) || balance < 0) {
+      return null;
+    }
+    const account = this.financeAccounts.find((item) => item.id === id);
+    if (!account) {
+      return null;
+    }
+    account.balance = Math.round(balance * 100) / 100;
+    this.pushAudit(actor, 'FINANCE_ACCOUNT_BALANCE_UPDATED', `${account.name}=${account.balance}`);
+    this.queuePersist();
+    return account;
+  }
+
+  addFinanceExpense(
+    payload: { accountId: string; title: string; amount: number; comment?: string },
+    actor = 'system',
+  ) {
+    const title = payload.title?.trim();
+    if (!payload.accountId || !title || !Number.isFinite(payload.amount) || payload.amount <= 0) {
+      return null;
+    }
+    const account = this.financeAccounts.find((item) => item.id === payload.accountId);
+    if (!account) {
+      return null;
+    }
+    const amount = Math.round(payload.amount * 100) / 100;
+    account.balance = Math.max(0, Math.round((account.balance - amount) * 100) / 100);
+    const expense: FinanceExpense = {
+      id: `fexp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+      title,
+      amount,
+      comment: payload.comment?.trim() || undefined,
+      createdBy: actor,
+      accountId: account.id,
+      accountName: account.name,
+    };
+    this.financeExpenses.push(expense);
+    this.pushAudit(actor, 'FINANCE_EXPENSE_ADDED', `${title}: ${amount} from ${account.name}`);
+    this.queuePersist();
+    return expense;
   }
 
   setProductProcurementCosts(
@@ -285,6 +379,14 @@ export class AuthService implements OnModuleInit {
         this.productProcurementCosts[k] = 0;
       }
     }
+  }
+
+  private defaultFinanceAccounts(): FinanceAccount[] {
+    return [
+      { id: 'fa-cash-main', name: 'Наличка', kind: 'CASH', balance: 0 },
+      { id: 'fa-bank-main', name: 'Р/с основной', kind: 'BANK', balance: 0 },
+      { id: 'fa-bank-extra', name: 'Р/с дополнительный', kind: 'BANK', balance: 0 },
+    ];
   }
 
   private demoUsers: DemoUser[] = [];
@@ -1379,6 +1481,8 @@ export class AuthService implements OnModuleInit {
     this.shiftHistory = [];
     this.cashDisciplineEvents = [];
     this.auditLog = [];
+    this.financeAccounts = this.defaultFinanceAccounts();
+    this.financeExpenses = [];
     this.currentShiftId = null;
     this.lastSaleAt = null;
     this.acquiringPercent = 1.8;
@@ -1401,6 +1505,8 @@ export class AuthService implements OnModuleInit {
       storePlans,
       requests,
       audit,
+      financeAccounts,
+      financeExpenses,
       appState,
     ] = await this.prisma.$transaction([
       this.prisma.user.findMany(),
@@ -1420,6 +1526,8 @@ export class AuthService implements OnModuleInit {
       this.prisma.storeRevenuePlan.findMany(),
       this.prisma.commissionChangeRequest.findMany(),
       this.prisma.auditLogItem.findMany(),
+      this.prisma.financeAccount.findMany(),
+      this.prisma.financeExpense.findMany(),
       this.prisma.appState.findUnique({ where: { id: 1 } }),
     ]);
 
@@ -1538,6 +1646,25 @@ export class AuthService implements OnModuleInit {
       action: item.action,
       details: item.details,
     }));
+    this.financeAccounts = financeAccounts.map((item) => ({
+      id: item.id,
+      name: item.name,
+      kind: item.kind === PrismaFinanceAccountKind.CASH ? 'CASH' : 'BANK',
+      balance: item.balance,
+    }));
+    if (this.financeAccounts.length === 0) {
+      this.financeAccounts = this.defaultFinanceAccounts();
+    }
+    this.financeExpenses = financeExpenses.map((item) => ({
+      id: item.id,
+      createdAt: item.createdAt.toISOString(),
+      title: item.title,
+      amount: item.amount,
+      comment: item.comment ?? undefined,
+      createdBy: item.createdBy,
+      accountId: item.accountId,
+      accountName: item.accountName,
+    }));
     this.currentShiftId = appState?.currentShiftId ?? null;
     this.lastSaleAt = appState?.lastSaleAt?.toISOString() ?? null;
     this.acquiringPercent =
@@ -1568,6 +1695,33 @@ export class AuthService implements OnModuleInit {
           acquiringPercentDetkov: this.acquiringPercentDetkov,
         },
       });
+
+      await tx.financeExpense.deleteMany();
+      await tx.financeAccount.deleteMany();
+      if (this.financeAccounts.length > 0) {
+        await tx.financeAccount.createMany({
+          data: this.financeAccounts.map((item) => ({
+            id: item.id,
+            name: item.name,
+            kind: item.kind === 'CASH' ? PrismaFinanceAccountKind.CASH : PrismaFinanceAccountKind.BANK,
+            balance: item.balance,
+          })),
+        });
+      }
+      if (this.financeExpenses.length > 0) {
+        await tx.financeExpense.createMany({
+          data: this.financeExpenses.map((item) => ({
+            id: item.id,
+            createdAt: new Date(item.createdAt),
+            title: item.title,
+            amount: item.amount,
+            comment: item.comment ?? null,
+            createdBy: item.createdBy,
+            accountId: item.accountId,
+            accountName: item.accountName,
+          })),
+        });
+      }
 
       await tx.user.deleteMany();
       await tx.user.createMany({

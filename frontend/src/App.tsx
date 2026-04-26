@@ -180,6 +180,35 @@ type AuditLogItem = {
   details: string;
 };
 
+type FinanceAccount = {
+  id: string;
+  name: string;
+  kind: 'CASH' | 'BANK';
+  balance: number;
+};
+
+type FinanceExpense = {
+  id: string;
+  createdAt: string;
+  title: string;
+  amount: number;
+  comment?: string;
+  createdBy: string;
+  accountId: string;
+  accountName: string;
+};
+
+type FinanceOpsSnapshot = {
+  accounts: FinanceAccount[];
+  expenses: FinanceExpense[];
+  totals: {
+    cash: number;
+    bank: number;
+    balance: number;
+    expenses: number;
+  };
+};
+
 /** Backend base URL. In production builds, only VITE_API_URL (set at build time in Vercel) is used. */
 const API_BASE_URL = (() => {
   const fromEnv = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
@@ -333,6 +362,11 @@ function App() {
   const [adminError, setAdminError] = useState('');
   const [acquiringPercent, setAcquiringPercent] = useState('1.8');
   const [acquiringPercentDetkov, setAcquiringPercentDetkov] = useState('1.8');
+  const [financeOps, setFinanceOps] = useState<FinanceOpsSnapshot>({
+    accounts: [],
+    expenses: [],
+    totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+  });
 
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
@@ -499,6 +533,62 @@ function App() {
     }
     const data = (await response.json()) as { percent: number };
     setAcquiringPercentDetkov(String(data.percent));
+  };
+
+  const loadFinanceOps = async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/finance/ops`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error('finance ops error');
+    }
+    setFinanceOps((await response.json()) as FinanceOpsSnapshot);
+  };
+
+  const saveFinanceAccountBalance = async (token: string, accountId: string, value: string) => {
+    const num = Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0) {
+      return;
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/finance/accounts/${encodeURIComponent(accountId)}/balance`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ balance: num }),
+    });
+    if (!response.ok) {
+      throw new Error('save finance balance error');
+    }
+    await loadFinanceOps(token);
+  };
+
+  const addFinanceExpense = async (
+    token: string,
+    payload: { accountId: string; title: string; amount: string; comment?: string },
+  ) => {
+    const amount = Number(String(payload.amount).replace(',', '.'));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return;
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/finance/expenses`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        accountId: payload.accountId,
+        title: payload.title,
+        amount,
+        comment: payload.comment,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error('add finance expense error');
+    }
+    await loadFinanceOps(token);
   };
 
   const loadSales = useCallback(async (token: string) => {
@@ -807,14 +897,24 @@ function App() {
           }
           if (data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
             try {
-              await loadAcquiringPercent(data.token);
+              await Promise.all([loadAcquiringPercent(data.token), loadFinanceOps(data.token)]);
             } catch {
               setAcquiringPercent('1.8');
               setAcquiringPercentDetkov('1.8');
+              setFinanceOps({
+                accounts: [],
+                expenses: [],
+                totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+              });
             }
           } else {
             setAcquiringPercent('1.8');
             setAcquiringPercentDetkov('1.8');
+            setFinanceOps({
+              accounts: [],
+              expenses: [],
+              totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+            });
           }
           await loadStaff(data.token);
           await loadGlobalEmployees(data.token);
@@ -831,6 +931,11 @@ function App() {
           setAuditLog([]);
           setAcquiringPercent('1.8');
           setAcquiringPercentDetkov('1.8');
+          setFinanceOps({
+            accounts: [],
+            expenses: [],
+            totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+          });
           setAdminError('Не удалось загрузить панель администратора.');
         }
       } else {
@@ -846,6 +951,11 @@ function App() {
         setAuditLog([]);
         setAcquiringPercent('1.8');
         setAcquiringPercentDetkov('1.8');
+        setFinanceOps({
+          accounts: [],
+          expenses: [],
+          totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+        });
       }
     } catch {
       setSession(null);
@@ -884,6 +994,12 @@ function App() {
     setThresholds([]);
     setAuditLog([]);
     setAcquiringPercent('1.8');
+    setAcquiringPercentDetkov('1.8');
+    setFinanceOps({
+      accounts: [],
+      expenses: [],
+      totals: { cash: 0, bank: 0, balance: 0, expenses: 0 },
+    });
     navigate('/', { replace: true });
   };
 
@@ -958,6 +1074,7 @@ function App() {
   const isSellerOnly = role === 'SELLER';
   const isReadOnlyObserver = role === 'ACCOUNTANT';
   const isFinanceViewer = role === 'ACCOUNTANT' || role === 'DIRECTOR';
+  const shiftLabel = isFinanceViewer ? 'Оперативка' : 'Смена';
   const controlLabel = isReadOnlyObserver ? 'Отчёт' : 'Контроль';
   const mobileNavItems: MobileNavItem[] = isSellerOnly
     ? [
@@ -966,7 +1083,7 @@ function App() {
       ]
     : [
         { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
-        { to: '/shift', label: 'Смена', icon: <ShiftIcon /> },
+        { to: '/shift', label: shiftLabel, icon: <ShiftIcon /> },
         { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
         { to: '/team', label: 'Команда', icon: <TeamIcon /> },
         { to: '/control', label: controlLabel, icon: <ControlIcon /> },
@@ -986,7 +1103,7 @@ function App() {
             Главная
           </NavLink>
           <NavLink to="/shift" className={navTabClass}>
-            Смена
+            {shiftLabel}
           </NavLink>
           {!isSellerOnly && (
             <>
@@ -1107,14 +1224,23 @@ function App() {
               element={
                 <div className="dashboard">
                   <section className="sectionCard">
-                    <ShiftPanel
-                      token={session.token}
-                      sellers={sellers}
-                      shifts={shifts}
-                      readOnly={isReadOnlyObserver}
-                      onOpen={openShift}
-                      onClose={closeShift}
-                    />
+                    {isFinanceViewer ? (
+                      <FinanceOpsPanel
+                        token={session.token}
+                        snapshot={financeOps}
+                        onSaveBalance={saveFinanceAccountBalance}
+                        onAddExpense={addFinanceExpense}
+                      />
+                    ) : (
+                      <ShiftPanel
+                        token={session.token}
+                        sellers={sellers}
+                        shifts={shifts}
+                        readOnly={isReadOnlyObserver}
+                        onOpen={openShift}
+                        onClose={closeShift}
+                      />
+                    )}
                   </section>
                 </div>
               }
@@ -1556,6 +1682,191 @@ function WriteOffForm({
         </button>
       </div>
       {formError && <p className="error">{formError}</p>}
+    </div>
+  );
+}
+
+function FinanceOpsPanel({
+  token,
+  snapshot,
+  onSaveBalance,
+  onAddExpense,
+}: {
+  token: string;
+  snapshot: FinanceOpsSnapshot;
+  onSaveBalance: (token: string, accountId: string, value: string) => Promise<void>;
+  onAddExpense: (
+    token: string,
+    payload: { accountId: string; title: string; amount: string; comment?: string },
+  ) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [expenseAccountId, setExpenseAccountId] = useState(snapshot.accounts[0]?.id ?? '');
+  const [expenseTitle, setExpenseTitle] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [expenseComment, setExpenseComment] = useState('');
+  const [busyId, setBusyId] = useState('');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!expenseAccountId && snapshot.accounts.length > 0) {
+      setExpenseAccountId(snapshot.accounts[0].id);
+    }
+  }, [expenseAccountId, snapshot.accounts]);
+
+  const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
+
+  return (
+    <div className="opsCard">
+      <h4>Оперативные финансы</h4>
+      <p className="hint">Управляйте остатками по кассе и расчётным счетам, фиксируйте расходы по статьям.</p>
+      <div className="metrics">
+        <article className="metricCard">
+          <p>Наличка</p>
+          <strong>{fmt(snapshot.totals.cash)}</strong>
+        </article>
+        <article className="metricCard">
+          <p>Счета</p>
+          <strong>{fmt(snapshot.totals.bank)}</strong>
+        </article>
+        <article className="metricCard">
+          <p>Общий остаток</p>
+          <strong>{fmt(snapshot.totals.balance)}</strong>
+        </article>
+        <article className="metricCard">
+          <p>Всего расходов</p>
+          <strong>{fmt(snapshot.totals.expenses)}</strong>
+        </article>
+      </div>
+
+      <div className="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Счёт</th>
+              <th>Тип</th>
+              <th>Остаток</th>
+              <th>Обновить</th>
+            </tr>
+          </thead>
+          <tbody>
+            {snapshot.accounts.map((account) => (
+              <tr key={account.id}>
+                <td>{account.name}</td>
+                <td>{account.kind === 'CASH' ? 'Наличка' : 'Расчётный счёт'}</td>
+                <td>
+                  <input
+                    value={draft[account.id] ?? String(account.balance)}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        [account.id]: event.target.value,
+                      }))
+                    }
+                  />
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={busyId === account.id}
+                    onClick={async () => {
+                      setBusyId(account.id);
+                      setError('');
+                      setStatus('');
+                      try {
+                        await onSaveBalance(token, account.id, draft[account.id] ?? String(account.balance));
+                        setStatus(`Остаток «${account.name}» сохранён.`);
+                      } catch {
+                        setError('Не удалось сохранить остаток счёта');
+                      } finally {
+                        setBusyId('');
+                      }
+                    }}
+                  >
+                    Сохранить
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="addSaleForm">
+        <h4>Добавить расход</h4>
+        <div className="inlineGrid">
+          <label>
+            Счёт списания
+            <select value={expenseAccountId} onChange={(event) => setExpenseAccountId(event.target.value)}>
+              {snapshot.accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Статья расхода
+            <input value={expenseTitle} onChange={(event) => setExpenseTitle(event.target.value)} />
+          </label>
+          <label>
+            Сумма
+            <input value={expenseAmount} onChange={(event) => setExpenseAmount(event.target.value)} />
+          </label>
+          <label>
+            Комментарий
+            <input value={expenseComment} onChange={(event) => setExpenseComment(event.target.value)} />
+          </label>
+        </div>
+        <div className="inlineActions">
+          <button
+            type="button"
+            className="primaryAction"
+            disabled={busyId === 'expense'}
+            onClick={async () => {
+              setBusyId('expense');
+              setError('');
+              setStatus('');
+              try {
+                await onAddExpense(token, {
+                  accountId: expenseAccountId,
+                  title: expenseTitle,
+                  amount: expenseAmount,
+                  comment: expenseComment,
+                });
+                setExpenseTitle('');
+                setExpenseAmount('');
+                setExpenseComment('');
+                setStatus('Расход добавлен.');
+              } catch {
+                setError('Не удалось добавить расход');
+              } finally {
+                setBusyId('');
+              }
+            }}
+          >
+            Добавить расход
+          </button>
+        </div>
+      </div>
+
+      {status && <p className="success">{status}</p>}
+      {error && <p className="error">{error}</p>}
+
+      <div className="opsList">
+        {snapshot.expenses.length === 0 ? (
+          <p className="muted">Расходов пока нет.</p>
+        ) : (
+          snapshot.expenses.slice(0, 20).map((item) => (
+            <p key={item.id}>
+              {new Date(item.createdAt).toLocaleString('ru-RU')} | {item.title} | {fmt(item.amount)} |{' '}
+              {item.accountName}
+            </p>
+          ))
+        )}
+      </div>
     </div>
   );
 }

@@ -83,6 +83,17 @@ interface AcquiringPercentBody {
   percent?: number;
 }
 
+interface FinanceAccountBalanceBody {
+  balance?: number;
+}
+
+interface FinanceExpenseBody {
+  accountId?: string;
+  title?: string;
+  amount?: number;
+  comment?: string;
+}
+
 @Controller('admin')
 export class AdminController {
   constructor(private readonly authService: AuthService) {}
@@ -173,6 +184,53 @@ export class AdminController {
       throw new BadRequestException('percent must be between 0 and 100');
     }
     return result;
+  }
+
+  @Get('finance/ops')
+  getFinanceOps(@Headers('authorization') authorization?: string) {
+    this.requireFinanceRead(authorization);
+    return this.authService.getFinanceOpsSnapshot() as unknown;
+  }
+
+  @Put('finance/accounts/:id/balance')
+  setFinanceAccountBalance(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: FinanceAccountBalanceBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    if (body.balance === undefined || !Number.isFinite(body.balance)) {
+      throw new BadRequestException('balance is required');
+    }
+    const account = this.authService.setFinanceAccountBalance(id, body.balance, session.nickname);
+    if (!account) {
+      throw new BadRequestException('Invalid finance account or balance');
+    }
+    return account as unknown;
+  }
+
+  @Post('finance/expenses')
+  addFinanceExpense(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: FinanceExpenseBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    if (!body.accountId || !body.title || body.amount === undefined || !Number.isFinite(body.amount)) {
+      throw new BadRequestException('accountId, title and amount are required');
+    }
+    const expense = this.authService.addFinanceExpense(
+      {
+        accountId: body.accountId,
+        title: body.title,
+        amount: body.amount,
+        comment: body.comment,
+      },
+      session.nickname,
+    );
+    if (!expense) {
+      throw new BadRequestException('Invalid finance expense payload');
+    }
+    return expense as unknown;
   }
 
   @Get('shifts')
