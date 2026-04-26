@@ -33,6 +33,7 @@ enum ShiftStatus {
 enum PaymentType {
   CASH
   NON_CASH
+  TRANSFER
 }
 
 enum CashEventType {

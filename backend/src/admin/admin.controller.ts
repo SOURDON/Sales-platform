@@ -25,8 +25,8 @@ interface CreateSaleBody {
     qty: number;
   }>;
   totalAmount?: number;
-  /** CASH = наличные, NON_CASH = безнал / эквайринг */
-  paymentType?: 'CASH' | 'NON_CASH';
+  /** CASH = наличные, NON_CASH = безнал / эквайринг, TRANSFER = перевод */
+  paymentType?: 'CASH' | 'NON_CASH' | 'TRANSFER';
 }
 
 interface SetPercentBody {
@@ -205,7 +205,10 @@ export class AdminController {
     @Param('id') id: string,
     @Body() body: FinanceAccountBalanceBody,
   ) {
-    const session = this.requireFinancePlanningAccess(authorization);
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'DIRECTOR') {
+      throw new ForbiddenException('Корректировку остатка может выполнить только директор');
+    }
     if (body.balance === undefined || !Number.isFinite(body.balance)) {
       throw new BadRequestException('balance is required');
     }
@@ -514,7 +517,12 @@ export class AdminController {
       throw new BadRequestException('totalAmount must be greater than zero');
     }
 
-    const paymentType = body.paymentType === 'NON_CASH' ? 'NON_CASH' : 'CASH';
+    const paymentType =
+      body.paymentType === 'NON_CASH'
+        ? 'NON_CASH'
+        : body.paymentType === 'TRANSFER'
+          ? 'TRANSFER'
+          : 'CASH';
     const result = this.authService.addAdminSale(
       body.sellerId,
       body.items,

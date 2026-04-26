@@ -58,7 +58,27 @@ interface SaleLine {
   qty: number;
 }
 
-type SalePaymentType = 'CASH' | 'NON_CASH';
+type SalePaymentType = 'CASH' | 'NON_CASH' | 'TRANSFER';
+
+function prismaPaymentTypeToInternal(pt: PrismaPaymentType): SalePaymentType {
+  if (pt === PrismaPaymentType.NON_CASH) {
+    return 'NON_CASH';
+  }
+  if (pt === PrismaPaymentType.TRANSFER) {
+    return 'TRANSFER';
+  }
+  return 'CASH';
+}
+
+function internalPaymentTypeToPrisma(pt: SalePaymentType): PrismaPaymentType {
+  if (pt === 'NON_CASH') {
+    return PrismaPaymentType.NON_CASH;
+  }
+  if (pt === 'TRANSFER') {
+    return PrismaPaymentType.TRANSFER;
+  }
+  return PrismaPaymentType.CASH;
+}
 
 interface SaleRecord {
   id: string;
@@ -438,8 +458,8 @@ export class AuthService implements OnModuleInit {
   private defaultFinanceAccounts(): FinanceAccount[] {
     return [
       { id: 'fa-cash-main', name: 'Наличка', kind: 'CASH', balance: 0 },
-      { id: 'fa-bank-main', name: 'Р/с основной', kind: 'BANK', balance: 0 },
-      { id: 'fa-bank-extra', name: 'Р/с дополнительный', kind: 'BANK', balance: 0 },
+      { id: 'fa-bank-main', name: 'Р/с Путинцев', kind: 'BANK', balance: 0 },
+      { id: 'fa-bank-extra', name: 'Р/с (Детков)', kind: 'BANK', balance: 0 },
     ];
   }
 
@@ -543,10 +563,16 @@ export class AuthService implements OnModuleInit {
     }
 
     if (user.role === 'ADMIN') {
-      const totalWriteOffUnits = this.adminWriteOffs.reduce(
-        (sum, item) => sum + item.qty,
-        0,
-      );
+      const openShiftsForStore = this.shiftHistory.filter((shift) => {
+        if (shift.status !== 'OPEN') {
+          return false;
+        }
+        return shift.assignedSellerIds.some((sellerId) => {
+          const profile = this.sellerProfiles.find((p) => p.id === sellerId);
+          return profile?.storeName === user.storeName;
+        });
+      }).length;
+
       let storeRevenue = 0;
       let storeSalaries = 0;
       for (const p of this.sellerProfiles) {
@@ -557,24 +583,59 @@ export class AuthService implements OnModuleInit {
         storeRevenue += p.salesAmount;
         storeSalaries += p.commissionAmount;
       }
-      const openShifts = this.shiftHistory.filter((s) => s.status === 'OPEN').length;
+
+      const today = this.getStoreBusinessDayKey(new Date().toISOString());
+      let payCash = 0;
+      let payAcquiring = 0;
+      let payTransfer = 0;
+      for (const p of this.sellerProfiles) {
+        if (p.storeName !== user.storeName) {
+          continue;
+        }
+        for (const sale of p.sales) {
+          if (this.getStoreBusinessDayKey(sale.createdAt) !== today) {
+            continue;
+          }
+          if (sale.paymentType === 'TRANSFER') {
+            payTransfer += sale.totalAmount;
+          } else if (sale.paymentType === 'NON_CASH') {
+            payAcquiring += sale.totalAmount;
+          } else {
+            payCash += sale.totalAmount;
+          }
+        }
+      }
+
+      const sellerRegister = this.sellerProfiles
+        .filter((p) => p.storeName === user.storeName)
+        .map((p) => {
+          this.recomputeSeller(p);
+          return {
+            fullName: p.fullName,
+            salary: this.formatCurrency(Math.round(p.commissionAmount)),
+          };
+        })
+        .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
+
       return {
         role: user.role,
         sellerDataManagedByAdmin: true,
-        title: `Панель администратора (${user.storeName})`,
+        title: user.storeName,
         metrics: [
           { label: 'Продажи (точка)', value: this.formatCurrency(Math.round(storeRevenue)) },
-          { label: 'Открытые смены (всего)', value: String(openShifts) },
-          { label: 'Списания (товар), все точки', value: `${totalWriteOffUnits} шт.` },
+          { label: 'Открытые смены (точка)', value: String(openShiftsForStore) },
         ],
-        writeOffs: this.adminWriteOffs,
         stores: [
           {
             name: user.storeName,
             revenue: this.formatCurrency(Math.round(storeRevenue)),
-            salaries: this.formatCurrency(storeSalaries),
+            salaries: this.formatCurrency(Math.round(storeSalaries)),
+            cash: this.formatCurrency(Math.round(payCash)),
+            acquiring: this.formatCurrency(Math.round(payAcquiring)),
+            transfer: this.formatCurrency(Math.round(payTransfer)),
           },
         ],
+        sellerRegister,
       };
     }
 
@@ -1601,7 +1662,7 @@ export class AuthService implements OnModuleInit {
         items: lines,
         totalAmount: sale.totalAmount,
         units: sale.units,
-        paymentType: sale.paymentType === PrismaPaymentType.NON_CASH ? 'NON_CASH' : 'CASH',
+        paymentType: prismaPaymentTypeToInternal(sale.paymentType),
       });
       salesBySellerId.set(sale.sellerId, current);
     }
@@ -1849,8 +1910,7 @@ export class AuthService implements OnModuleInit {
           totalAmount: sale.totalAmount,
           units: sale.units,
           sellerId: seller.id,
-          paymentType:
-            sale.paymentType === 'NON_CASH' ? PrismaPaymentType.NON_CASH : PrismaPaymentType.CASH,
+          paymentType: internalPaymentTypeToPrisma(sale.paymentType),
         })),
       );
       if (salesFlat.length > 0) {
