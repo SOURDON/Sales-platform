@@ -1173,7 +1173,7 @@ function App() {
         <section className="card">
           <header className="brandHeader">
             <span className="badge">Геленджикская бухта</span>
-            <h1>Фототографы</h1>
+            <h1>Фотографы</h1>
             <p className="subtitle">Авторизация в системе</p>
           </header>
 
@@ -1258,7 +1258,7 @@ function App() {
       <section className="card cardWorkspace">
         <header className="brandHeader">
           <span className="badge">Геленджикская бухта</span>
-          <h1>Фототографы</h1>
+          <h1>Фотографы</h1>
           <p className="subtitle">Рабочий стол</p>
         </header>
 
@@ -1292,24 +1292,30 @@ function App() {
             <Route
               path="/home"
               element={
-                <div className="dashboard">
-                  <div className="success">
+                <div className="dashboard homeDashboard">
+                  <div className="success homeProfileCard">
                     <h2>Профиль</h2>
-                    <p>
-                      <strong>Пользователь:</strong> {session.user.fullName}
-                    </p>
-                    <p>
-                      <strong>Ник:</strong> {session.user.nickname}
-                    </p>
-                    <p>
-                      <strong>Роль:</strong> {session.user.role}
-                    </p>
-                    <p>
-                      <strong>Точка:</strong> {session.user.storeName}
-                    </p>
+                    <div className="homeProfileGrid">
+                      <div className="homeProfileRow">
+                        <span className="homeProfileKey">Пользователь</span>
+                        <span className="homeProfileVal">{session.user.fullName}</span>
+                      </div>
+                      <div className="homeProfileRow">
+                        <span className="homeProfileKey">Ник</span>
+                        <span className="homeProfileVal">{session.user.nickname}</span>
+                      </div>
+                      <div className="homeProfileRow">
+                        <span className="homeProfileKey">Роль</span>
+                        <span className="homeProfileVal">{session.user.role}</span>
+                      </div>
+                      <div className="homeProfileRow">
+                        <span className="homeProfileKey">Точка</span>
+                        <span className="homeProfileVal">{session.user.storeName}</span>
+                      </div>
+                    </div>
                   </div>
 
-                  <section className="sectionCard">
+                  <section className="sectionCard homePanelSection">
                     {dashboardLoading ? (
                       <p className="muted">Загружаем сводку...</p>
                     ) : (
@@ -1318,8 +1324,8 @@ function App() {
                           {homeDashboard.sellerDataManagedByAdmin && homeDashboard.role !== 'ADMIN' && (
                             <p className="notice">Данные продавца заполняет администратор точки.</p>
                           )}
-                          <h3>{homeDashboard.title}</h3>
-                          <div className="metrics">
+                          <h3 className="homePanelTitle">{homeDashboard.title}</h3>
+                          <div className="metrics homeMetricsTight">
                             {homeDashboard.metrics
                               .filter(
                                 (metric) =>
@@ -1334,44 +1340,44 @@ function App() {
                               ))}
                           </div>
 
-                          <div className="tableWrap">
-                            <table>
-                              <thead>
-                                <tr>
-                                  <th>Магазин</th>
-                                  <th>Выручка</th>
+                          <div className="homeStoresList">
+                            {homeDashboard.stores.map((store) => (
+                              <article key={store.name} className="homeStoreCard">
+                                <h4 className="homeStoreCardTitle">{store.name}</h4>
+                                <dl className="homeStoreDl">
+                                  <div className="homeStoreRow">
+                                    <dt>Выручка</dt>
+                                    <dd>{store.revenue}</dd>
+                                  </div>
                                   {homeDashboard.role === 'ADMIN' ? (
                                     <>
-                                      <th>Наличные</th>
-                                      <th>Эквайринг</th>
-                                      <th>Переводы</th>
+                                      <div className="homeStoreRow">
+                                        <dt>Наличные</dt>
+                                        <dd>{store.cash ?? '—'}</dd>
+                                      </div>
+                                      <div className="homeStoreRow">
+                                        <dt>Эквайринг</dt>
+                                        <dd>{store.acquiring ?? '—'}</dd>
+                                      </div>
+                                      <div className="homeStoreRow">
+                                        <dt>Переводы</dt>
+                                        <dd>{store.transfer ?? '—'}</dd>
+                                      </div>
                                     </>
                                   ) : null}
-                                  <th>Затраты на зарплату</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {homeDashboard.stores.map((store) => (
-                                  <tr key={store.name}>
-                                    <td>{store.name}</td>
-                                    <td>{store.revenue}</td>
-                                    {homeDashboard.role === 'ADMIN' ? (
-                                      <>
-                                        <td>{store.cash ?? '—'}</td>
-                                        <td>{store.acquiring ?? '—'}</td>
-                                        <td>{store.transfer ?? '—'}</td>
-                                      </>
-                                    ) : null}
-                                    <td>{store.salaries}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                  <div className="homeStoreRow homeStoreRowAccent">
+                                    <dt>Затраты на зарплату</dt>
+                                    <dd>{store.salaries}</dd>
+                                  </div>
+                                </dl>
+                              </article>
+                            ))}
                           </div>
 
                           {homeDashboard.role === 'ADMIN' ? (
                             <div className="adminSellerRegister">
-                              <h4>Кассы сотрудников (начислено за сегодня)</h4>
+                              <h4>Кассы сотрудников</h4>
+                              <p className="adminSellerRegisterHint">Начислено за сегодня (к выплате)</p>
                               {homeDashboard.sellerRegister && homeDashboard.sellerRegister.length > 0 ? (
                                 <ul>
                                   {homeDashboard.sellerRegister.map((row) => (
