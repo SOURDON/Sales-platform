@@ -23,6 +23,20 @@ function todayKeyMoscow(): string {
   }).format(new Date());
 }
 
+function shiftDayKey(dayKey: string, deltaDays: number): string {
+  const base = new Date(`${dayKey}T12:00:00`);
+  if (Number.isNaN(base.getTime())) {
+    return dayKey;
+  }
+  base.setDate(base.getDate() + deltaDays);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(base);
+}
+
 /** Согласовано с backend AuthService.normProcurementKey — для Σ(себестоимость × qty) в отчёте. */
 function normProcurementKey(raw: string): string {
   return String(raw).normalize('NFC').trim().replace(/\s+/g, ' ');
@@ -2032,7 +2046,7 @@ function AccountantProcurementPanel({
       <p className="hint">Эти значения используются в расчёте затрат на товар и сохраняются на backend.</p>
       <div className="inlineGrid">
         <label>
-          Эквайринг Путинцев, %
+          Эквайринг, %
           <input
             value={acquiringPercent}
             onChange={(event) => {
@@ -2045,7 +2059,7 @@ function AccountantProcurementPanel({
                 try {
                   await onSaveAcquiringPercent(token, value);
                 } catch {
-                  setAcquiringSaveError('Не удалось сохранить ставку Эквайринг Путинцев');
+                  setAcquiringSaveError('Не удалось сохранить ставку эквайринга');
                 }
               })();
             }}
@@ -2319,6 +2333,13 @@ function FinanceReportPanel({
     }
   };
 
+  const applyRangePreset = (days: number) => {
+    const to = todayKeyMoscow();
+    const from = shiftDayKey(to, -(days - 1));
+    setRangeFrom(from);
+    setRangeTo(to);
+  };
+
   return (
     <div className="opsCard">
       <h4>{role === 'DIRECTOR' ? 'Финансовый отчёт директора' : 'Полный отчёт по магазинам'}</h4>
@@ -2329,7 +2350,7 @@ function FinanceReportPanel({
         позициям; если в чеке несколько товаров — складываются; по магазину за день — сумма по всем чекам. Закупки
         и эквайринг настраиваются на вкладке «Продажи».
       </p>
-      <div className="inlineGrid">
+      <div className="inlineGrid financeRangeGrid">
         <label>
           Период с (МСК)
           <input type="date" value={rangeFrom} onChange={(event) => setRangeFrom(event.target.value)} />
@@ -2338,6 +2359,18 @@ function FinanceReportPanel({
           Период по (МСК)
           <input type="date" value={rangeTo} onChange={(event) => setRangeTo(event.target.value)} />
         </label>
+      </div>
+      <div className="inlineActions financeRangeActions">
+        <button type="button" className="ghost" onClick={() => applyRangePreset(1)}>
+          Сегодня
+        </button>
+        <button type="button" className="ghost" onClick={() => applyRangePreset(7)}>
+          7 дней
+        </button>
+        <button type="button" className="ghost" onClick={() => applyRangePreset(30)}>
+          30 дней
+        </button>
+        <p className="inlineStatus">Период отчёта: {fromDay} - {toDay}</p>
       </div>
       <div className="inlineActions">
         <button type="button" className="primaryAction" onClick={savePlans} disabled={plansBusy}>
@@ -2362,7 +2395,7 @@ function FinanceReportPanel({
               <th>Отклонение (факт-план)</th>
               <th>Потрачено на товар</th>
               <th>К выплате зарплаты</th>
-              <th>Комиссия эквайринга (Путинцев)</th>
+              <th>Эквайринг</th>
               <th>Прибыль (выручка - ЗП - эквайринг)</th>
               <th>Прибыль (выручка - ЗП - эквайринг - товар)</th>
             </tr>
