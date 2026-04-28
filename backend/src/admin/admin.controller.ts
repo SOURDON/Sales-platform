@@ -44,6 +44,10 @@ interface OpenShiftBody {
   assignedSellerIds?: number[];
 }
 
+interface CloseShiftBody {
+  assignedSellerIds?: number[];
+}
+
 interface CashDisciplineBody {
   type?: 'RETURN' | 'CANCEL' | 'ADJUSTMENT';
   comment?: string;
@@ -296,9 +300,12 @@ export class AdminController {
   }
 
   @Post('shifts/close')
-  closeShift(@Headers('authorization') authorization: string | undefined) {
+  closeShift(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: CloseShiftBody,
+  ) {
     const session = this.requireShiftOperator(authorization);
-    const shift = this.authService.closeShift(session.nickname);
+    const shift = this.authService.closeShift(session.nickname, body.assignedSellerIds ?? []);
     if (!shift) {
       throw new BadRequestException('No open shift');
     }

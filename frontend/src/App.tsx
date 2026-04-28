@@ -67,27 +67,6 @@ function formatRub(value: number): string {
   return `${Math.round(value).toLocaleString('ru-RU')} ₽`;
 }
 
-function userRoleLabel(
-  r: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER',
-): string {
-  if (r === 'RETOUCHER') {
-    return 'Ретушёр';
-  }
-  if (r === 'ACCOUNTANT') {
-    return 'Бухгалтер';
-  }
-  if (r === 'DIRECTOR') {
-    return 'Директор';
-  }
-  if (r === 'ADMIN') {
-    return 'Админ точки';
-  }
-  if (r === 'SELLER') {
-    return 'Продавец';
-  }
-  return r;
-}
-
 type StaffPositionKind = 'SALES' | 'RETOUCHER';
 
 type StaffMember = {
@@ -542,6 +521,7 @@ function App() {
   const [adminError, setAdminError] = useState('');
   const [acquiringPercent, setAcquiringPercent] = useState('1.8');
   const [acquiringPercentDetkov, setAcquiringPercentDetkov] = useState('1.8');
+  const [salesExpanded, setSalesExpanded] = useState(false);
   const [financeOps, setFinanceOps] = useState<FinanceOpsSnapshot>({
     accounts: [],
     expenses: [],
@@ -565,6 +545,19 @@ function App() {
     }
     return dashboard;
   }, [dashboard, session, sellers, sales, shifts, staff]);
+
+  const todayStoreSales = useMemo(() => {
+    if (!session) {
+      return [] as AdminSale[];
+    }
+    const todayKey = todayKeyMoscow();
+    const currentStoreName = session.user.storeName;
+    const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
+    return sales.filter((sale) => {
+      const saleStore = sellerStoreById.get(sale.sellerId);
+      return saleStore === currentStoreName && calendarDayKeyMoscow(sale.createdAt) === todayKey;
+    });
+  }, [sales, sellers, session]);
 
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
@@ -1008,10 +1001,11 @@ function App() {
     await Promise.all([loadShifts(token), loadStaff(token)]);
   };
 
-  const closeShift = async (token: string) => {
+  const closeShift = async (token: string, assignedSellerIds: number[] = []) => {
     const response = await fetch(`${API_BASE_URL}/admin/shifts/close`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ assignedSellerIds }),
     });
     if (!response.ok) throw new Error('close shift error');
     await Promise.all([loadShifts(token), loadStaff(token)]);
@@ -1381,7 +1375,6 @@ function App() {
       <section className="card cardWorkspace">
         <header className="brandHeader">
           <h1>Фотографы</h1>
-          <p className="subtitle">Рабочий стол</p>
         </header>
 
         <div className="quickNav desktopNav" role="tablist" aria-label="Разделы">
@@ -1417,28 +1410,6 @@ function App() {
               path="/home"
               element={
                 <div className="dashboard homeDashboard">
-                  <div className="success homeProfileCard">
-                    <h2>Профиль</h2>
-                    <div className="homeProfileGrid">
-                      <div className="homeProfileRow">
-                        <span className="homeProfileKey">Пользователь</span>
-                        <span className="homeProfileVal">{session.user.fullName}</span>
-                      </div>
-                      <div className="homeProfileRow">
-                        <span className="homeProfileKey">Ник</span>
-                        <span className="homeProfileVal">{session.user.nickname}</span>
-                      </div>
-                      <div className="homeProfileRow">
-                        <span className="homeProfileKey">Роль</span>
-                        <span className="homeProfileVal">{userRoleLabel(session.user.role)}</span>
-                      </div>
-                      <div className="homeProfileRow">
-                        <span className="homeProfileKey">Точка</span>
-                        <span className="homeProfileVal">{session.user.storeName}</span>
-                      </div>
-                    </div>
-                  </div>
-
                   <section className="sectionCard homePanelSection">
                     {dashboardLoading ? (
                       <p className="muted">Загружаем сводку...</p>
@@ -1629,38 +1600,50 @@ function App() {
                     ) : (
                       <section className="sectionCard">
                         <div className="salesLog">
-                          <h3>Недавние продажи</h3>
-                          {sales.length === 0 ? (
-                            <p className="muted">Пока нет внесенных продаж</p>
-                          ) : (
-                            <div className="salesList">
-                              {sales.map((sale) => (
-                                <article key={sale.id} className="saleItem">
-                                  <p className="saleHeader">
-                                    <strong>{new Date(sale.createdAt).toLocaleString('ru-RU')}</strong> –{' '}
-                                    {sale.sellerName}
-                                    <span className="salePay">
-                                      {sale.paymentType === 'NON_CASH'
-                                        ? 'Безнал'
-                                        : sale.paymentType === 'TRANSFER'
-                                          ? 'Перевод'
-                                          : 'Наличные'}
-                                    </span>
-                                    <span className="saleTotal">
-                                      Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
-                                    </span>
-                                  </p>
-                                  <ul>
-                                    {sale.items.map((line) => (
-                                      <li key={line.name}>
-                                        {line.name} × {line.qty}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </article>
-                              ))}
-                            </div>
-                          )}
+                          <button
+                            type="button"
+                            className={`salesToggle ${salesExpanded ? 'salesToggleOpen' : ''}`}
+                            onClick={() => setSalesExpanded((current) => !current)}
+                            aria-expanded={salesExpanded}
+                          >
+                            <span>Продажи за сегодня · {session.user.storeName}</span>
+                            <span className="salesToggleIcon" aria-hidden>
+                              ▾
+                            </span>
+                          </button>
+                          <div className={`salesAccordion ${salesExpanded ? 'salesAccordionOpen' : ''}`}>
+                            {todayStoreSales.length === 0 ? (
+                              <p className="muted">За сегодня по этой точке продаж нет</p>
+                            ) : (
+                              <div className="salesList">
+                                {todayStoreSales.map((sale) => (
+                                  <article key={sale.id} className="saleItem">
+                                    <p className="saleHeader">
+                                      <strong>{new Date(sale.createdAt).toLocaleTimeString('ru-RU')}</strong> –{' '}
+                                      {sale.sellerName}
+                                      <span className="salePay">
+                                        {sale.paymentType === 'NON_CASH'
+                                          ? 'Безнал'
+                                          : sale.paymentType === 'TRANSFER'
+                                            ? 'Перевод'
+                                            : 'Наличные'}
+                                      </span>
+                                      <span className="saleTotal">
+                                        Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
+                                      </span>
+                                    </p>
+                                    <ul>
+                                      {sale.items.map((line) => (
+                                        <li key={line.name}>
+                                          {line.name} × {line.qty}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </article>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </section>
                     )}
@@ -2542,7 +2525,7 @@ function ShiftPanel({
   role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   readOnly?: boolean;
   onOpen: (token: string, assignedSellerIds: number[]) => Promise<void>;
-  onClose: (token: string) => Promise<void>;
+  onClose: (token: string, assignedSellerIds: number[]) => Promise<void>;
 }) {
   const [selectedStaffIds, setSelectedStaffIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
@@ -2612,11 +2595,12 @@ function ShiftPanel({
         <button
           type="button"
           className="ghost"
-          disabled={busy || !openShift || readOnly}
+          disabled={busy || !openShift || readOnly || selectedStaffIds.length === 0}
           onClick={async () => {
             setBusy(true);
             try {
-              await onClose(token);
+              await onClose(token, selectedStaffIds);
+              setSelectedStaffIds([]);
             } finally {
               setBusy(false);
             }

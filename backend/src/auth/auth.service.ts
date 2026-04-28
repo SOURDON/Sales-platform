@@ -1213,7 +1213,7 @@ export class AuthService implements OnModuleInit {
     return shift;
   }
 
-  closeShift(closedBy: string) {
+  closeShift(closedBy: string, assignedSellerIds: number[] = []) {
     this.ensureActiveShiftForToday();
     if (!this.currentShiftId) {
       return null;
@@ -1222,12 +1222,28 @@ export class AuthService implements OnModuleInit {
     if (!shift || shift.status !== 'OPEN') {
       return null;
     }
+    const selectedIds = [...new Set(assignedSellerIds)];
+    if (selectedIds.length > 0) {
+      shift.assignedSellerIds = shift.assignedSellerIds.filter((id) => !selectedIds.includes(id));
+      for (const member of this.staff) {
+        if (selectedIds.includes(member.id) && member.assignedShiftId === shift.id) {
+          member.assignedShiftId = undefined;
+        }
+      }
+      this.pushAudit(closedBy, 'SHIFT_PARTIAL_CLOSED', `shift=${shift.id} sellers=${selectedIds.join(',')}`);
+      if (shift.assignedSellerIds.length > 0) {
+        this.queuePersist();
+        return shift;
+      }
+    }
     shift.status = 'CLOSED';
     shift.closedAt = new Date().toISOString();
     shift.closedBy = closedBy;
     this.currentShiftId = null;
     for (const member of this.staff) {
-      member.assignedShiftId = undefined;
+      if (member.assignedShiftId === shift.id) {
+        member.assignedShiftId = undefined;
+      }
     }
     this.pushAudit(closedBy, 'SHIFT_CLOSED', `shift=${shift.id}`);
     this.queuePersist();

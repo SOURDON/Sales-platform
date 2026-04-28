@@ -906,6 +906,42 @@ select {
   margin: 6px 0 4px;
 }
 
+.salesToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 12px;
+}
+
+.salesToggleIcon {
+  display: inline-flex;
+  transition: transform 220ms ease;
+}
+
+.salesToggleOpen .salesToggleIcon {
+  transform: rotate(180deg);
+}
+
+.salesAccordion {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    max-height 280ms ease,
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.salesAccordionOpen {
+  max-height: 1200px;
+  opacity: 1;
+  transform: translateY(0);
+  margin-top: 8px;
+}
+
 .saleItem {
   border: 1px solid #dbe4ee;
   border-radius: 12px;
@@ -1678,6 +1714,13 @@ h1 {
 .writeOffManager h4 {
   color: #6e552f;
   font-weight: 600;
+}
+
+.homePanelTitle {
+  color: #d4b67b !important;
+  font-size: 1.38rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em;
 }
 
 .metricCard,
