@@ -1546,11 +1546,12 @@ body,
 
 /* === Visual Refresh: App-like UI (strong override) === */
 body {
+  font-family: 'Segoe UI', Inter, 'Helvetica Neue', Arial, sans-serif;
   background:
-    radial-gradient(1200px 560px at 0% -10%, rgba(84, 106, 171, 0.26), transparent 60%),
-    radial-gradient(900px 460px at 100% 0%, rgba(56, 189, 248, 0.15), transparent 58%),
-    linear-gradient(180deg, #0b1020 0%, #0f172a 42%, #111827 100%);
-  color: #e5e7eb;
+    radial-gradient(1200px 560px at 0% -12%, rgba(44, 96, 79, 0.36), transparent 58%),
+    radial-gradient(900px 460px at 100% 0%, rgba(15, 45, 37, 0.45), transparent 62%),
+    linear-gradient(180deg, #081611 0%, #0d211a 45%, #11281f 100%);
+  color: #c4a56d;
 }
 
 .app,
@@ -1579,21 +1580,21 @@ body {
 
 .brandHeader .badge {
   margin-bottom: 6px;
-  background: #eef1fb;
-  color: #4a5672;
+  background: #e9ede6;
+  color: #4e5f55;
 }
 
 h1 {
   font-size: 22px;
-  font-weight: 600;
-  letter-spacing: 0;
-  color: #f8fafc;
-  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.45);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #d4b67b;
+  text-shadow: 0 1px 1px rgba(2, 8, 6, 0.55);
 }
 
 .subtitle {
   margin-top: 4px;
-  color: #94a3b8;
+  color: #a88f63;
   font-size: 13px;
   font-weight: 400;
 }
@@ -1601,12 +1602,12 @@ h1 {
 .quickNav {
   top: 8px;
   z-index: 8;
-  background: rgba(15, 23, 42, 0.62);
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(13, 33, 26, 0.72);
+  border: 1px solid rgba(194, 165, 109, 0.28);
   border-radius: 16px;
   padding: 6px;
   backdrop-filter: blur(8px);
-  box-shadow: 0 12px 26px rgba(2, 6, 23, 0.4);
+  box-shadow: 0 12px 26px rgba(2, 8, 6, 0.42);
 }
 
 .quickNav a.ghost,
@@ -1614,16 +1615,16 @@ h1 {
   border-radius: 10px;
   border: 0;
   background: transparent;
-  color: #cbd5e1;
+  color: #c4a56d;
   min-height: 40px;
   font-weight: 500;
 }
 
 .quickNav a.ghost.navActive,
 .quickNav button.ghost.navActive {
-  background: linear-gradient(160deg, #334155 0%, #475569 100%);
-  color: #fff;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.45);
+  background: linear-gradient(160deg, #c4a56d 0%, #b48f53 100%);
+  color: #10231c;
+  box-shadow: 0 6px 14px rgba(8, 22, 17, 0.45);
 }
 
 .dashboard {
@@ -1642,12 +1643,12 @@ h1 {
 .addSaleForm,
 .writeOffForm,
 .writeOffManager {
-  background: rgba(15, 23, 42, 0.62) !important;
-  border: 1px solid rgba(148, 163, 184, 0.26) !important;
+  background: rgba(230, 236, 226, 0.95) !important;
+  border: 1px solid rgba(138, 110, 63, 0.24) !important;
   border-radius: 18px !important;
   box-shadow:
-    0 14px 30px rgba(2, 6, 23, 0.42),
-    0 1px 0 rgba(148, 163, 184, 0.16) inset !important;
+    0 14px 30px rgba(4, 16, 12, 0.22),
+    0 1px 0 rgba(255, 255, 255, 0.76) inset !important;
 }
 
 .homeProfileCard,
@@ -1667,7 +1668,7 @@ h1 {
 .addSaleForm h4,
 .writeOffForm h4,
 .writeOffManager h4 {
-  color: #e2e8f0;
+  color: #6e552f;
   font-weight: 600;
 }
 
@@ -1676,26 +1677,57 @@ h1 {
 .productCell,
 .saleItem,
 .writeOffItem {
-  background: rgba(15, 23, 42, 0.48) !important;
-  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  background: rgba(244, 247, 240, 0.95) !important;
+  border: 1px solid rgba(141, 117, 75, 0.18) !important;
   border-radius: 12px !important;
 }
 
 .mobileDock {
-  background: rgba(2, 6, 23, 0.74) !important;
-  border-top: 1px solid rgba(148, 163, 184, 0.25) !important;
+  background: rgba(8, 24, 18, 0.8) !important;
+  border-top: 1px solid rgba(194, 165, 109, 0.24) !important;
   backdrop-filter: blur(12px);
-  box-shadow: 0 -10px 24px rgba(2, 6, 23, 0.45) !important;
+  box-shadow: 0 -10px 24px rgba(2, 8, 6, 0.5) !important;
 }
 
 .mobileDock a.ghost {
-  background: rgba(30, 41, 59, 0.68) !important;
-  border: 1px solid rgba(148, 163, 184, 0.24) !important;
-  color: #cbd5e1 !important;
+  background: rgba(16, 42, 33, 0.72) !important;
+  border: 1px solid rgba(194, 165, 109, 0.2) !important;
+  color: #d3b377 !important;
 }
 
 .mobileDock a.ghost.navActive {
-  background: linear-gradient(160deg, #334155 0%, #475569 100%) !important;
-  color: #fff !important;
-  border-color: rgba(148, 163, 184, 0.45) !important;
+  background: linear-gradient(160deg, #c4a56d 0%, #b48f53 100%) !important;
+  color: #0f221b !important;
+  border-color: rgba(194, 165, 109, 0.5) !important;
+}
+
+.homeProfileVal,
+.homeStoreRow dd,
+.statValue,
+.saleHeader,
+.productName,
+.productPrice,
+.teamMemberName,
+.teamMemberMeta,
+.muted,
+.notice,
+.hint,
+label,
+input,
+select,
+textarea {
+  color: #253e34 !important;
+}
+
+input,
+select,
+textarea {
+  background: #f7f9f4 !important;
+  border: 1px solid #c9d5c7 !important;
+}
+
+.error {
+  background: #fff0ec !important;
+  color: #8a3124 !important;
+  border: 1px solid #e5b6ac;
 }

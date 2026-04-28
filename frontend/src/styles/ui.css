@@ -17,12 +17,12 @@
 button {
   border: 0;
   border-radius: var(--ui-radius-md);
-  padding: 11px 14px;
+  padding: 10px 14px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  color: #fff;
-  background: linear-gradient(165deg, #475569 0%, #64748b 100%);
+  color: #14271f;
+  background: linear-gradient(165deg, #c4a56d 0%, #b48f53 100%);
   transition:
     transform 0.15s ease,
     box-shadow 0.15s ease,
@@ -34,7 +34,7 @@ button {
 
 button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.35);
+  box-shadow: 0 8px 16px rgba(8, 22, 17, 0.34);
 }
 
 button:disabled {
@@ -45,9 +45,9 @@ button:disabled {
 
 button.ghost,
 a.ghost {
-  background: rgba(15, 23, 42, 0.45);
-  color: #e2e8f0;
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(246, 249, 242, 0.9);
+  color: #21392f;
+  border: 1px solid #c9d5c7;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -58,14 +58,14 @@ a.ghost {
 
 button.ghost:hover,
 a.ghost:hover {
-  background: rgba(30, 41, 59, 0.68);
+  background: #eef3ea;
   transform: translateY(-1px);
 }
 
 button.ghost:active,
 a.ghost:active {
   transform: translateY(0);
-  background: rgba(30, 41, 59, 0.82);
+  background: #e6ece2;
 }
 
 button.ghost:disabled,
@@ -76,8 +76,8 @@ a.ghost[aria-disabled='true'] {
 }
 
 button.primaryAction {
-  background: linear-gradient(165deg, #475569 0%, #64748b 100%);
-  color: #fff;
+  background: linear-gradient(165deg, #c4a56d 0%, #b48f53 100%);
+  color: #12241d;
   border: none;
-  font-weight: 600;
+  font-weight: 500;
 }
