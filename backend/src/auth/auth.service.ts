@@ -145,6 +145,11 @@ interface StaffMember {
   earningsAmount: number;
 }
 
+interface StoreStaffAssignment {
+  storeName: string;
+  staffId: number;
+}
+
 interface ThresholdNotification {
   id: string;
   type: 'LOW_STOCK' | 'HIGH_DAMAGE_WRITE_OFF' | 'NO_SALES';
@@ -207,6 +212,7 @@ export class AuthService implements OnModuleInit {
   private shiftHistory: Shift[] = [];
   private cashDisciplineEvents: CashDisciplineEvent[] = [];
   private staff: StaffMember[] = [];
+  private storeStaffAssignments: StoreStaffAssignment[] = [];
   private productStock: Record<string, number> = {};
   private productProcurementCosts: Record<string, number> = {};
   private storeRevenuePlans: Record<string, Record<string, number>> = {};
@@ -901,7 +907,10 @@ export class AuthService implements OnModuleInit {
       return this.getSellerProfiles();
     }
     if (user.role === 'ADMIN') {
-      return this.getSellerProfiles().filter((row) => row.storeName === user.storeName);
+      const assignedIds = new Set(this.getStoreAssignedStaffIds(user.storeName));
+      return this.getSellerProfiles().filter(
+        (row) => row.storeName === user.storeName || assignedIds.has(row.id),
+      );
     }
     return [];
   }
@@ -936,10 +945,8 @@ export class AuthService implements OnModuleInit {
       return all;
     }
     if (user.role === 'ADMIN') {
-      return all.filter((member) => {
-        const u = this.demoUsers.find((d) => d.id === member.id);
-        return u?.storeName === user.storeName;
-      });
+      const assignedIds = new Set(this.getStoreAssignedStaffIds(user.storeName));
+      return all.filter((member) => assignedIds.has(member.id));
     }
     return [];
   }
@@ -1163,11 +1170,7 @@ export class AuthService implements OnModuleInit {
     const opener = this.demoUsers.find((item) => item.nickname === openedBy);
     let allowedIds = [...new Set(assignedSellerIds)];
     if (opener?.role === 'ADMIN') {
-      const inStore = new Set(
-        this.sellerProfiles
-          .filter((p) => p.storeName === opener.storeName)
-          .map((p) => p.id),
-      );
+      const inStore = new Set(this.getStoreAssignedStaffIds(opener.storeName));
       allowedIds = allowedIds.filter((id) => inStore.has(id));
     }
     const existingOpen = this.shiftHistory.find((item) => item.status === 'OPEN');
@@ -1361,6 +1364,7 @@ export class AuthService implements OnModuleInit {
       sales: [],
       commissionAmount: 0,
     });
+    this.attachStaffToStore(member.id, storeForActor);
     this.pushAudit(actor, 'STAFF_ADDED', `${member.fullName} (${member.nickname})`);
     this.queuePersist();
     return member;
@@ -1402,9 +1406,12 @@ export class AuthService implements OnModuleInit {
     if (!seller) {
       return null;
     }
+    const actorStoreName =
+      this.demoUsers.find((item) => item.nickname === actor)?.storeName ?? DEMO_STORE_NAMES[0];
     const existing = this.staff.find((item) => item.id === employeeId);
     if (existing) {
       existing.isActive = true;
+      this.attachStaffToStore(existing.id, actorStoreName);
       this.pushAudit(
         actor,
         'STAFF_ATTACHED_FROM_BASE',
@@ -1435,6 +1442,7 @@ export class AuthService implements OnModuleInit {
     } else {
       demoUser.isActive = true;
     }
+    this.attachStaffToStore(member.id, actorStoreName);
     this.pushAudit(
       actor,
       'STAFF_ATTACHED_FROM_BASE',
@@ -1653,6 +1661,21 @@ export class AuthService implements OnModuleInit {
     return maxId + 1;
   }
 
+  private getStoreAssignedStaffIds(storeName: string) {
+    return this.storeStaffAssignments
+      .filter((item) => item.storeName === storeName)
+      .map((item) => item.staffId);
+  }
+
+  private attachStaffToStore(staffId: number, storeName: string) {
+    const exists = this.storeStaffAssignments.some(
+      (item) => item.staffId === staffId && item.storeName === storeName,
+    );
+    if (!exists) {
+      this.storeStaffAssignments.push({ staffId, storeName });
+    }
+  }
+
   private queuePersist() {
     if (!this.persistenceEnabled) {
       return;
@@ -1706,6 +1729,11 @@ export class AuthService implements OnModuleInit {
       isActive: row.isActive,
       staffPosition: row.staffPosition,
       earningsAmount: 0,
+    }));
+    this.storeStaffAssignments = this.staff.map((member) => ({
+      staffId: member.id,
+      storeName:
+        this.demoUsers.find((user) => user.id === member.id)?.storeName ?? DEMO_STORE_NAMES[0],
     }));
     this.productStock = {
       Магнит: 35,
@@ -1761,6 +1789,7 @@ export class AuthService implements OnModuleInit {
       shiftAssignments,
       cashEvents,
       staff,
+      storeStaffAssignments,
       products,
       stock,
       procurementCosts,
@@ -1783,6 +1812,7 @@ export class AuthService implements OnModuleInit {
       this.prisma.shiftAssignment.findMany(),
       this.prisma.cashDisciplineEvent.findMany(),
       this.prisma.staffMember.findMany(),
+      this.prisma.storeStaffAssignment.findMany(),
       this.prisma.productCatalog.findMany(),
       this.prisma.productStock.findMany(),
       this.prisma.productProcurementCost.findMany(),
@@ -1879,6 +1909,17 @@ export class AuthService implements OnModuleInit {
       staffPosition: member.staffPosition === StaffPosition.RETOUCHER ? 'RETOUCHER' : 'SALES',
       earningsAmount: 0,
     }));
+    this.storeStaffAssignments = storeStaffAssignments.map((item) => ({
+      storeName: item.storeName,
+      staffId: item.staffId,
+    }));
+    if (this.storeStaffAssignments.length === 0) {
+      this.storeStaffAssignments = this.staff.map((member) => ({
+        staffId: member.id,
+        storeName:
+          this.demoUsers.find((user) => user.id === member.id)?.storeName ?? DEMO_STORE_NAMES[0],
+      }));
+    }
     this.productCatalog = products.map((item) => ({ name: item.name, price: item.price }));
     this.productStock = Object.fromEntries(stock.map((item) => [item.name, item.qty]));
     this.productProcurementCosts = {};
@@ -2037,6 +2078,7 @@ export class AuthService implements OnModuleInit {
       });
 
       await tx.staffMember.deleteMany();
+      await tx.storeStaffAssignment.deleteMany();
       if (this.staff.length > 0) {
         await tx.staffMember.createMany({
           data: this.staff.map((member) => ({
@@ -2047,6 +2089,15 @@ export class AuthService implements OnModuleInit {
             assignedShiftId: member.assignedShiftId ?? null,
             staffPosition: member.staffPosition === 'RETOUCHER' ? StaffPosition.RETOUCHER : StaffPosition.SALES,
           })),
+        });
+      }
+      if (this.storeStaffAssignments.length > 0) {
+        await tx.storeStaffAssignment.createMany({
+          data: this.storeStaffAssignments.map((item) => ({
+            storeName: item.storeName,
+            staffId: item.staffId,
+          })),
+          skipDuplicates: true,
         });
       }
 

@@ -384,6 +384,39 @@ type MobileNavItem = {
   end?: boolean;
 };
 
+const SESSION_STORAGE_KEY = 'sales-platform-session-v1';
+const SESSION_PERSISTENCE_KEY = 'sales-platform-session-persistence-v1';
+
+type SessionPersistence = 'local' | 'session';
+
+function readStoredSession(): LoginResponse | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const raw =
+      window.localStorage.getItem(SESSION_STORAGE_KEY) ??
+      window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as LoginResponse;
+    if (!parsed?.token || !parsed?.user?.nickname) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function readSessionPersistence(): SessionPersistence {
+  if (typeof window === 'undefined') {
+    return 'session';
+  }
+  return window.localStorage.getItem(SESSION_PERSISTENCE_KEY) === 'local' ? 'local' : 'session';
+}
+
 function DockIcon({ children }: { children: ReactNode }) {
   return (
     <span aria-hidden="true" className="dockIcon">
@@ -485,12 +518,15 @@ function ControlIcon() {
 
 function App() {
   const navigate = useNavigate();
+  const restoredSession = useMemo(() => readStoredSession(), []);
+  const restoredPersistence = useMemo(() => readSessionPersistence(), []);
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(restoredPersistence === 'local');
   const [loading, setLoading] = useState(false);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [error, setError] = useState('');
-  const [session, setSession] = useState<LoginResponse | null>(null);
+  const [session, setSession] = useState<LoginResponse | null>(restoredSession);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [sellers, setSellers] = useState<SellerProfile[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
@@ -1061,13 +1097,30 @@ function App() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ nickname, password }),
-      });
+      const loginRequest = async () => {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+        try {
+          return await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ nickname, password }),
+            signal: controller.signal,
+          });
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
+      };
+
+      let response: Response;
+      try {
+        response = await loginRequest();
+      } catch {
+        // Однократный повтор помогает при кратковременной сетевой просадке.
+        response = await loginRequest();
+      }
 
       if (!response.ok) {
         throw new Error('Неверный логин или пароль');
@@ -1080,36 +1133,36 @@ function App() {
       await loadDashboard(data.token);
       if (data.user.role === 'ADMIN' || data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
         setAdminError('');
-        try {
-          await loadSellers(data.token);
-          await loadProducts(data.token);
-          await loadProductProcurementCosts(data.token);
-          await loadSales(data.token);
-          await loadCommissionRequests(data.token);
-          await loadShifts(data.token);
-          if (data.user.role === 'ADMIN') {
-            await loadCashEvents(data.token);
-            await loadThresholds(data.token);
-            await loadAuditLog(data.token);
-          } else {
-            setCashEvents([]);
-            setThresholds([]);
-            setAuditLog([]);
-          }
-          if (data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
-            try {
-              await Promise.all([loadAcquiringPercent(data.token), loadFinanceOps(data.token)]);
-            } catch {
-              setAcquiringPercent('1.8');
-              setAcquiringPercentDetkov('1.8');
-              setFinanceOps({
-                accounts: [],
-                expenses: [],
-                incomes: [],
-                totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
-              });
-            }
-          } else {
+        const baseLoads = await Promise.allSettled([
+          loadSellers(data.token),
+          loadProducts(data.token),
+          loadProductProcurementCosts(data.token),
+          loadSales(data.token),
+          loadCommissionRequests(data.token),
+          loadShifts(data.token),
+          loadStaff(data.token),
+          loadGlobalEmployees(data.token),
+        ]);
+
+        if (data.user.role === 'ADMIN') {
+          await Promise.allSettled([
+            loadCashEvents(data.token),
+            loadThresholds(data.token),
+            loadAuditLog(data.token),
+          ]);
+        } else {
+          setCashEvents([]);
+          setThresholds([]);
+          setAuditLog([]);
+        }
+
+        if (data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
+          const financeLoads = await Promise.allSettled([
+            loadAcquiringPercent(data.token),
+            loadFinanceOps(data.token),
+          ]);
+          const hasFinanceFailure = financeLoads.some((item) => item.status === 'rejected');
+          if (hasFinanceFailure) {
             setAcquiringPercent('1.8');
             setAcquiringPercentDetkov('1.8');
             setFinanceOps({
@@ -1119,19 +1172,7 @@ function App() {
               totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
             });
           }
-          await loadStaff(data.token);
-          await loadGlobalEmployees(data.token);
-        } catch {
-          setSellers([]);
-          setProducts([]);
-          setSales([]);
-          setProductProcurementCosts([]);
-          setCommissionRequests([]);
-          setShifts([]);
-          setCashEvents([]);
-          setStaff([]);
-          setThresholds([]);
-          setAuditLog([]);
+        } else {
           setAcquiringPercent('1.8');
           setAcquiringPercentDetkov('1.8');
           setFinanceOps({
@@ -1140,7 +1181,11 @@ function App() {
             incomes: [],
             totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
           });
-          setAdminError('Не удалось загрузить панель администратора.');
+        }
+
+        const hasBaseFailure = baseLoads.some((item) => item.status === 'rejected');
+        if (hasBaseFailure) {
+          setAdminError('Часть данных загрузилась с задержкой. Обновите страницу, если что-то не появилось.');
         }
       } else {
         setSellers([]);
@@ -1180,6 +1225,9 @@ function App() {
       setError(
         'Не удалось войти. Проверьте логин/пароль, что backend запущен, в Vercel задан VITE_API_URL (https://…), в Render у backend в CORS_ORIGIN — адрес фронта.',
       );
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      window.localStorage.removeItem(SESSION_PERSISTENCE_KEY);
     } finally {
       setLoading(false);
     }
@@ -1206,8 +1254,50 @@ function App() {
       incomes: [],
       totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
     });
+    window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    window.localStorage.removeItem(SESSION_PERSISTENCE_KEY);
     navigate('/', { replace: true });
   };
+
+  useEffect(() => {
+    if (session) {
+      const serialized = JSON.stringify(session);
+      if (rememberMe) {
+        window.localStorage.setItem(SESSION_STORAGE_KEY, serialized);
+        window.localStorage.setItem(SESSION_PERSISTENCE_KEY, 'local');
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      } else {
+        window.sessionStorage.setItem(SESSION_STORAGE_KEY, serialized);
+        window.localStorage.setItem(SESSION_PERSISTENCE_KEY, 'session');
+        window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+      return;
+    }
+    window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  }, [rememberMe, session]);
+
+  useEffect(() => {
+    if (!restoredSession || !session || restoredSession.token !== session.token) {
+      return;
+    }
+    void (async () => {
+      await loadDashboard(session.token);
+      if (session.user.role === 'ADMIN' || session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT') {
+        await Promise.allSettled([
+          loadSellers(session.token),
+          loadProducts(session.token),
+          loadProductProcurementCosts(session.token),
+          loadSales(session.token),
+          loadCommissionRequests(session.token),
+          loadShifts(session.token),
+          loadStaff(session.token),
+          loadGlobalEmployees(session.token),
+        ]);
+      }
+    })();
+  }, [loadProductProcurementCosts, restoredSession, session]);
 
   if (!session) {
     return (
@@ -1245,6 +1335,15 @@ function App() {
                 placeholder="Введите пароль"
                 required
               />
+            </label>
+
+            <label>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(event) => setRememberMe(event.target.checked)}
+              />
+              Запомнить меня
             </label>
 
             {error && <p className="error">{error}</p>}

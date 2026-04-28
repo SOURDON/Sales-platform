@@ -181,6 +181,15 @@ model StaffMember {
   isActive        Boolean       @default(true)
   assignedShiftId String?
   staffPosition   StaffPosition @default(SALES)
+  assignments     StoreStaffAssignment[]
+}
+
+model StoreStaffAssignment {
+  storeName String
+  staffId   Int
+  staff     StaffMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@id([storeName, staffId])
 }
 
 model ProductCatalog {

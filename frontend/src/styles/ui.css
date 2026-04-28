@@ -17,12 +17,12 @@
 button {
   border: 0;
   border-radius: var(--ui-radius-md);
-  padding: 12px 14px;
-  font-size: 15px;
-  font-weight: 700;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   color: #fff;
-  background: linear-gradient(135deg, #0f4c81, #0ea5a6);
+  background: linear-gradient(180deg, #0f4c81 0%, #0d4474 100%);
   transition:
     transform 0.15s ease,
     box-shadow 0.15s ease,
@@ -34,7 +34,7 @@ button {
 
 button:hover {
   transform: translateY(-1px);
-  box-shadow: var(--ui-shadow-sm);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
 }
 
 button:disabled {
@@ -45,9 +45,9 @@ button:disabled {
 
 button.ghost,
 a.ghost {
-  background: var(--ui-bg-muted);
+  background: #fff;
   color: var(--ui-text-main);
-  border: 1px solid var(--ui-border-strong);
+  border: 1px solid #d2dce8;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -58,7 +58,7 @@ a.ghost {
 
 button.ghost:hover,
 a.ghost:hover {
-  background: #e8eef5;
+  background: #f8fafc;
   transform: translateY(-1px);
 }
 
@@ -76,7 +76,7 @@ a.ghost[aria-disabled='true'] {
 }
 
 button.primaryAction {
-  background: linear-gradient(135deg, #0f4c81, #0ea5a6);
+  background: linear-gradient(180deg, #0f4c81 0%, #0d4474 100%);
   color: #fff;
   border: none;
   font-weight: 700;
