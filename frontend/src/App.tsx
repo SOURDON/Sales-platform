@@ -1525,21 +1525,17 @@ function App() {
                               </div>
                               <div className="soldProductsBlock homeSoldProductsBlock">
                                 <h4>Проданные товары</h4>
-                                <p className="adminSellerRegisterHint">
-                                  Список за текущий рабочий день · {session.user.storeName}
-                                </p>
-                                {todaySoldProducts.length === 0 ? (
-                                  <p className="muted">За сегодня по этой точке продаж товаров нет</p>
-                                ) : (
-                                  <ul>
-                                    {todaySoldProducts.map((item) => (
-                                      <li key={item.name}>
-                                        <span>{item.name}</span>
-                                        <strong>{item.qty} шт.</strong>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
+                                <ul>
+                                  {(todaySoldProducts.length === 0
+                                    ? [{ name: 'Продаж по товарам нет', qty: 0 }]
+                                    : todaySoldProducts
+                                  ).map((item) => (
+                                    <li key={item.name}>
+                                      <span>{item.name}</span>
+                                      <strong>{item.qty} шт.</strong>
+                                    </li>
+                                  ))}
+                                </ul>
                               </div>
                             </>
                           ) : null}

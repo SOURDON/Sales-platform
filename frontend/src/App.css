@@ -1282,14 +1282,16 @@ select {
 }
 
 .soldProductsBlock {
-  border: 1px solid #dbe4ee;
-  border-radius: 12px;
-  background: #fff;
-  padding: 12px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid #0d9488;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f0fdfa 0%, #e6fffa 100%);
+  box-shadow: 0 2px 12px rgba(13, 148, 136, 0.12);
 }
 
 .homeSoldProductsBlock {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .soldProductsBlock h3 {
@@ -1297,9 +1299,11 @@ select {
 }
 
 .soldProductsBlock h4 {
-  margin: 0 0 6px;
-  font-size: 18px;
-  color: #0b4f82;
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: #0f766e;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .soldProductsBlock ul {
@@ -1311,16 +1315,24 @@ select {
 }
 
 .soldProductsBlock li {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
+  column-gap: 10px;
   gap: 10px;
-  border: 1px solid #dbe4ee;
+  border: 1px solid #99f6e4;
   border-radius: 10px;
   padding: 8px 10px;
-  background: #fff;
-  color: #0f4c81;
+  background: rgba(255, 255, 255, 0.7);
+  color: #134e4a;
   font-size: 13px;
+}
+
+.soldProductsBlock li strong {
+  justify-self: end;
+  white-space: nowrap;
+  color: #0b4f82;
+  font-weight: 700;
 }
 
 .staffRow {
