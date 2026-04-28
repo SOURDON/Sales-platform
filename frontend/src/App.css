@@ -1701,6 +1701,22 @@ h1 {
   border-color: rgba(194, 165, 109, 0.5) !important;
 }
 
+/* Login screen should keep a visible premium background too */
+.app:not(.appWorkspace) {
+  background:
+    radial-gradient(900px 500px at 15% -10%, rgba(48, 120, 95, 0.35), transparent 62%),
+    radial-gradient(800px 460px at 100% 0%, rgba(24, 76, 58, 0.45), transparent 64%),
+    linear-gradient(180deg, #0a1c15 0%, #112a21 100%) !important;
+}
+
+.app:not(.appWorkspace) .card {
+  background: rgba(234, 238, 229, 0.92) !important;
+  border: 1px solid rgba(126, 104, 65, 0.24) !important;
+  box-shadow:
+    0 16px 36px rgba(4, 16, 12, 0.32),
+    0 1px 0 rgba(255, 255, 255, 0.7) inset !important;
+}
+
 .homeProfileVal,
 .homeStoreRow dd,
 .statValue,
