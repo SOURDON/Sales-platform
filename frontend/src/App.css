@@ -1838,6 +1838,8 @@ textarea {
   border: 1px solid rgba(141, 117, 75, 0.18);
   border-radius: 12px;
   background: rgba(244, 247, 240, 0.75);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .shiftSellerRow input[type='checkbox'] {
@@ -1849,6 +1851,7 @@ textarea {
 
 .shiftSellerText {
   min-width: 0;
+  flex: 1 1 auto;
   display: block;
   white-space: nowrap;
   overflow: hidden;
