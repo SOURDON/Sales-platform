@@ -1571,6 +1571,7 @@ function App() {
                         token={session.token}
                         sellers={sellers}
                         shifts={shifts}
+                        role={role}
                         readOnly={isReadOnlyObserver}
                         onOpen={openShift}
                         onClose={closeShift}
@@ -1745,12 +1746,16 @@ function App() {
                             onAdd={addCashEvent}
                           />
                         </section>
-                        <section className="sectionCard">
-                          <ThresholdPanel notifications={thresholds} />
-                        </section>
-                        <section className="sectionCard">
-                          <AuditLogPanel items={auditLog} />
-                        </section>
+                        {role !== 'ADMIN' && (
+                          <section className="sectionCard">
+                            <ThresholdPanel notifications={thresholds} />
+                          </section>
+                        )}
+                        {role !== 'ADMIN' && (
+                          <section className="sectionCard">
+                            <AuditLogPanel items={auditLog} />
+                          </section>
+                        )}
                       </>
                     )}
                   </div>
@@ -2534,6 +2539,7 @@ function ShiftPanel({
   token,
   sellers,
   shifts,
+  role,
   readOnly,
   onOpen,
   onClose,
@@ -2541,6 +2547,7 @@ function ShiftPanel({
   token: string;
   sellers: SellerProfile[];
   shifts: ShiftInfo[];
+  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   readOnly?: boolean;
   onOpen: (token: string, assignedSellerIds: number[]) => Promise<void>;
   onClose: (token: string) => Promise<void>;
@@ -2613,14 +2620,16 @@ function ShiftPanel({
           Закрыть смену
         </button>
       </div>
-      <div className="opsList">
-        {shifts.map((shift) => (
-          <p key={shift.id}>
-            {shift.status} | Открыл: {shift.openedBy} | Закрыл: {shift.closedBy ?? '-'} | Чеки:{' '}
-            {shift.checksCount} | Товары: {shift.itemsCount}
-          </p>
-        ))}
-      </div>
+      {role !== 'ADMIN' && (
+        <div className="opsList">
+          {shifts.map((shift) => (
+            <p key={shift.id}>
+              {shift.status} | Открыл: {shift.openedBy} | Закрыл: {shift.closedBy ?? '-'} | Чеки:{' '}
+              {shift.checksCount} | Товары: {shift.itemsCount}
+            </p>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
