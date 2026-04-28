@@ -1304,7 +1304,6 @@ function App() {
       <main className="app">
         <section className="card">
           <header className="brandHeader">
-            <span className="badge">Геленджикская бухта</span>
             <h1>Фотографы</h1>
             <p className="subtitle">Авторизация в системе</p>
           </header>
@@ -1404,7 +1403,6 @@ function App() {
     <main className="app appWorkspace">
       <section className="card cardWorkspace">
         <header className="brandHeader">
-          <span className="badge">Геленджикская бухта</span>
           <h1>Фотографы</h1>
           <p className="subtitle">Рабочий стол</p>
         </header>
