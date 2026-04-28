@@ -1452,6 +1452,40 @@ export class AuthService implements OnModuleInit {
     return member;
   }
 
+  removeStaffFromStore(id: number, actor: string, requestedStoreName?: string) {
+    const member = this.staff.find((item) => item.id === id);
+    if (!member) {
+      return null;
+    }
+    const actorUser = this.demoUsers.find((item) => item.nickname === actor);
+    const targetStoreName =
+      actorUser?.role === 'ADMIN' ? actorUser.storeName : (requestedStoreName ?? actorUser?.storeName);
+    if (!targetStoreName) {
+      return null;
+    }
+    const beforeCount = this.storeStaffAssignments.length;
+    this.storeStaffAssignments = this.storeStaffAssignments.filter(
+      (item) => !(item.staffId === id && item.storeName === targetStoreName),
+    );
+    if (this.storeStaffAssignments.length === beforeCount) {
+      return null;
+    }
+    for (const shift of this.shiftHistory) {
+      if (shift.status !== 'OPEN') {
+        continue;
+      }
+      shift.assignedSellerIds = shift.assignedSellerIds.filter((staffId) => staffId !== id);
+    }
+    member.assignedShiftId = undefined;
+    this.pushAudit(
+      actor,
+      'STAFF_REMOVED_FROM_STORE',
+      `${member.fullName} (${member.nickname}) -> ${targetStoreName}`,
+    );
+    this.queuePersist();
+    return member;
+  }
+
   assignStaffToShift(id: number, shiftId: string, actor: string) {
     const member = this.staff.find((item) => item.id === id);
     const shift = this.shiftHistory.find((item) => item.id === shiftId && item.status === 'OPEN');

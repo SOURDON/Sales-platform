@@ -58,6 +58,10 @@ interface StaffFromBaseBody {
   employeeId?: number;
 }
 
+interface RemoveStaffFromStoreBody {
+  storeName?: string;
+}
+
 interface WriteOffQuery {
   reason?: 'Брак' | 'Поломка';
   dateFrom?: string;
@@ -436,6 +440,20 @@ export class AdminController {
     );
     if (!staff) {
       throw new BadRequestException('Staff or open shift not found');
+    }
+    return staff as unknown;
+  }
+
+  @Post('staff/:id/remove-from-store')
+  removeStaffFromStore(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: RemoveStaffFromStoreBody,
+  ) {
+    const session = this.requireWriteAccess(authorization);
+    const staff = this.authService.removeStaffFromStore(Number(id), session.nickname, body.storeName);
+    if (!staff) {
+      throw new BadRequestException('Staff not found in selected store');
     }
     return staff as unknown;
   }

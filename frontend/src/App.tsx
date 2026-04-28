@@ -1054,37 +1054,14 @@ function App() {
     await loadSellers(token);
   };
 
-  const deactivateStaff = async (token: string, id: number) => {
-    const response = await fetch(`${API_BASE_URL}/admin/staff/${id}/deactivate`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error('deactivate staff error');
-    await loadStaff(token);
-    await loadSellers(token);
-    await loadGlobalEmployees(token);
-  };
-
-  const activateStaff = async (token: string, id: number) => {
-    const response = await fetch(`${API_BASE_URL}/admin/staff/${id}/activate`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error('activate staff error');
-    await loadStaff(token);
-    await loadSellers(token);
-    await loadGlobalEmployees(token);
-  };
-
-  const assignStaffToShift = async (token: string, id: number, shiftId: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/staff/${id}/assign-shift`, {
-      method: 'PATCH',
+  const removeStaffFromStore = async (token: string, id: number, storeName?: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/staff/${id}/remove-from-store`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ shiftId }),
+      body: JSON.stringify({ storeName }),
     });
-    if (!response.ok) throw new Error('assign shift error');
-    await loadStaff(token);
-    await loadShifts(token);
+    if (!response.ok) throw new Error('remove staff from store error');
+    await Promise.all([loadStaff(token), loadSellers(token), loadShifts(token), loadGlobalEmployees(token)]);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1587,9 +1564,7 @@ function App() {
                           readOnly={isReadOnlyObserver}
                           onAdd={addStaffMember}
                           onAddFromBase={addStaffFromBase}
-                          onDeactivate={deactivateStaff}
-                          onActivate={activateStaff}
-                          onAssignShift={assignStaffToShift}
+                          onRemoveFromStore={removeStaffFromStore}
                           onDirectorSetPercent={setDirectorPercent}
                           showOnlyCards
                         />
@@ -1711,9 +1686,7 @@ function App() {
                         readOnly={isReadOnlyObserver}
                         onAdd={addStaffMember}
                         onAddFromBase={addStaffFromBase}
-                        onDeactivate={deactivateStaff}
-                        onActivate={activateStaff}
-                        onAssignShift={assignStaffToShift}
+                        onRemoveFromStore={removeStaffFromStore}
                         onDirectorSetPercent={setDirectorPercent}
                         hideCards
                       />
@@ -2734,22 +2707,14 @@ function TeamMemberCard({
   member,
   seller,
   role,
-  readOnly,
   openShiftId,
-  onDeactivate,
-  onActivate,
-  onAssignShift,
   onDirectorSetPercent,
 }: {
   token: string;
   member: StaffMember;
   seller?: SellerProfile;
   role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
-  readOnly?: boolean;
   openShiftId?: string;
-  onDeactivate: (token: string, id: number) => Promise<void>;
-  onActivate: (token: string, id: number) => Promise<void>;
-  onAssignShift: (token: string, id: number, shiftId: string) => Promise<void>;
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
 }) {
   const isRetoucher = member.staffPosition === 'RETOUCHER';
@@ -2796,30 +2761,6 @@ function TeamMemberCard({
           {member.isActive ? 'Активен' : 'Отключён'}
         </span>
       </div>
-
-      {!readOnly && (
-        <div className="inlineActions teamMemberActions">
-          <button
-            type="button"
-            className="ghost"
-            disabled={!openShiftId}
-            onClick={() => openShiftId && onAssignShift(token, member.id, openShiftId)}
-          >
-            <span className="btnTextFull">Назначить на открытую смену</span>
-            <span className="btnTextShort">К смене</span>
-          </button>
-          {member.isActive ? (
-            <button type="button" className="ghost" onClick={() => onDeactivate(token, member.id)}>
-              <span className="btnTextFull">Деактивировать</span>
-              <span className="btnTextShort">Откл.</span>
-            </button>
-          ) : (
-            <button type="button" className="ghost" onClick={() => onActivate(token, member.id)}>
-              Активировать
-            </button>
-          )}
-        </div>
-      )}
 
       {isRetoucher && (
         <div className="teamMemberStats">
@@ -2888,9 +2829,7 @@ function StaffPanel({
   hideCards,
   onAdd,
   onAddFromBase,
-  onDeactivate,
-  onActivate,
-  onAssignShift,
+  onRemoveFromStore,
   onDirectorSetPercent,
 }: {
   token: string;
@@ -2904,9 +2843,7 @@ function StaffPanel({
   hideCards?: boolean;
   onAdd: (token: string, fullName: string, nickname: string) => Promise<void>;
   onAddFromBase: (token: string, employeeId: number) => Promise<void>;
-  onDeactivate: (token: string, id: number) => Promise<void>;
-  onActivate: (token: string, id: number) => Promise<void>;
-  onAssignShift: (token: string, id: number, shiftId: string) => Promise<void>;
+  onRemoveFromStore: (token: string, id: number, storeName?: string) => Promise<void>;
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
 }) {
   const [fullName, setFullName] = useState('');
@@ -2921,6 +2858,14 @@ function StaffPanel({
   const selectedEmployee = globalEmployees.find((employee) => employee.id === selectedEmployeeId);
   const alreadyInStore = selectedEmployee ? staffIds.has(selectedEmployee.id) : false;
   const openShift = shifts.find((item) => item.status === 'OPEN');
+  const removableSalesStaff = staff.filter((member) => member.staffPosition === 'SALES');
+  const [pickedRemovalStaffId, setPickedRemovalStaffId] = useState<number | null>(null);
+  const firstRemovableStaffId = removableSalesStaff[0]?.id ?? 0;
+  const selectedRemovalStaffId =
+    pickedRemovalStaffId !== null && removableSalesStaff.some((member) => member.id === pickedRemovalStaffId)
+      ? pickedRemovalStaffId
+      : firstRemovableStaffId;
+  const selectedRemovalStaff = removableSalesStaff.find((member) => member.id === selectedRemovalStaffId);
   const shouldRenderCards = !hideCards || showOnlyCards;
 
   if (showOnlyCards) {
@@ -2943,11 +2888,7 @@ function StaffPanel({
                 member={member}
                 seller={seller}
                 role={role}
-                readOnly={readOnly}
                 openShiftId={openShift?.id}
-                onDeactivate={onDeactivate}
-                onActivate={onActivate}
-                onAssignShift={onAssignShift}
                 onDirectorSetPercent={onDirectorSetPercent}
               />
             );
@@ -3013,6 +2954,38 @@ function StaffPanel({
             </button>
             <p className="inlineStatus">{alreadyInStore ? 'Уже добавлен в эту точку' : ''}</p>
           </div>
+          <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
+            <label>
+              Убрать продавца из магазина
+              <select
+                value={selectedRemovalStaffId}
+                onChange={(event) => setPickedRemovalStaffId(Number(event.target.value))}
+              >
+                {removableSalesStaff.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.fullName} ({member.nickname}) - {member.storeName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="ghost"
+              type="button"
+              disabled={!selectedRemovalStaffId}
+              onClick={async () => {
+                if (!selectedRemovalStaff) {
+                  return;
+                }
+                await onRemoveFromStore(token, selectedRemovalStaff.id, selectedRemovalStaff.storeName);
+                setPickedRemovalStaffId(null);
+              }}
+            >
+              Убрать из магазина
+            </button>
+            <p className="inlineStatus">
+              {removableSalesStaff.length === 0 ? 'Нет продавцов для удаления из точки' : ''}
+            </p>
+          </div>
         </>
       )}
       {shouldRenderCards && (
@@ -3032,11 +3005,7 @@ function StaffPanel({
                 member={member}
                 seller={seller}
                 role={role}
-                readOnly={readOnly}
                 openShiftId={openShift?.id}
-                onDeactivate={onDeactivate}
-                onActivate={onActivate}
-                onAssignShift={onAssignShift}
                 onDirectorSetPercent={onDirectorSetPercent}
               />
             );
