@@ -2723,6 +2723,8 @@ function TeamMemberCard({
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
 }) {
   const isRetoucher = member.staffPosition === 'RETOUCHER';
+  const isShiftOpen = Boolean(openShiftId && member.assignedShiftId === openShiftId);
+  const shiftStatusLabel = isShiftOpen ? 'Смена открыта' : 'Смена закрыта';
   const [newPercent, setNewPercent] = useState(String(seller?.ratePercent ?? 0));
   const [busy, setBusy] = useState(false);
 
@@ -2739,7 +2741,9 @@ function TeamMemberCard({
   };
 
   return (
-    <article className="teamMemberCard">
+    <article
+      className={`teamMemberCard ${isShiftOpen ? 'teamMemberCardShiftOpen' : 'teamMemberCardShiftClosed'}`}
+    >
       <div className="teamMemberTop">
         <div>
           <p className="teamMemberName">
@@ -2751,6 +2755,9 @@ function TeamMemberCard({
           </p>
           <p className="teamMemberMeta">
             Смена: {member.assignedShiftId ?? '—'}
+          </p>
+          <p className={`teamMemberShiftState ${isShiftOpen ? 'shiftOpen' : 'shiftClosed'}`}>
+            {shiftStatusLabel}
           </p>
         </div>
         <span

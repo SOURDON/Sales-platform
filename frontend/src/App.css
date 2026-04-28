@@ -1806,6 +1806,31 @@ textarea {
   font-size: 11px !important;
 }
 
+.teamMemberShiftState {
+  margin: 1px 0 0 !important;
+  font-size: 10px !important;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.teamMemberShiftState.shiftOpen {
+  color: #1f7a42 !important;
+}
+
+.teamMemberShiftState.shiftClosed {
+  color: #9f2b2b !important;
+}
+
+.teamMemberCardShiftOpen {
+  border-color: rgba(39, 142, 79, 0.42) !important;
+  background: linear-gradient(180deg, rgba(239, 249, 242, 0.95), rgba(233, 246, 238, 0.95)) !important;
+}
+
+.teamMemberCardShiftClosed {
+  border-color: rgba(178, 74, 74, 0.35) !important;
+  background: linear-gradient(180deg, rgba(251, 240, 240, 0.94), rgba(248, 233, 233, 0.94)) !important;
+}
+
 .teamMemberActions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1849,6 +1874,10 @@ textarea {
 
   .teamMemberMeta {
     font-size: 10px !important;
+  }
+
+  .teamMemberShiftState {
+    font-size: 9px !important;
   }
 
   .teamMemberActions .ghost {
