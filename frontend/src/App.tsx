@@ -1567,15 +1567,33 @@ function App() {
                         onSetAccountBalance={setFinanceAccountBalance}
                       />
                     ) : (
-                      <ShiftPanel
-                        token={session.token}
-                        sellers={sellers}
-                        shifts={shifts}
-                        role={role}
-                        readOnly={isReadOnlyObserver}
-                        onOpen={openShift}
-                        onClose={closeShift}
-                      />
+                      <>
+                        <ShiftPanel
+                          token={session.token}
+                          sellers={sellers}
+                          shifts={shifts}
+                          role={role}
+                          readOnly={isReadOnlyObserver}
+                          onOpen={openShift}
+                          onClose={closeShift}
+                        />
+                        <StaffPanel
+                          token={session.token}
+                          staff={staff}
+                          sellers={sellers}
+                          globalEmployees={globalEmployees}
+                          shifts={shifts}
+                          role={role}
+                          readOnly={isReadOnlyObserver}
+                          onAdd={addStaffMember}
+                          onAddFromBase={addStaffFromBase}
+                          onDeactivate={deactivateStaff}
+                          onActivate={activateStaff}
+                          onAssignShift={assignStaffToShift}
+                          onDirectorSetPercent={setDirectorPercent}
+                          showOnlyCards
+                        />
+                      </>
                     )}
                   </section>
                 </div>
@@ -1697,6 +1715,7 @@ function App() {
                         onActivate={activateStaff}
                         onAssignShift={assignStaffToShift}
                         onDirectorSetPercent={setDirectorPercent}
+                        hideCards
                       />
                     </section>
                     {role === 'DIRECTOR' && (
@@ -2854,6 +2873,8 @@ function StaffPanel({
   shifts,
   role,
   readOnly,
+  showOnlyCards,
+  hideCards,
   onAdd,
   onAddFromBase,
   onDeactivate,
@@ -2868,6 +2889,8 @@ function StaffPanel({
   shifts: ShiftInfo[];
   role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   readOnly?: boolean;
+  showOnlyCards?: boolean;
+  hideCards?: boolean;
   onAdd: (token: string, fullName: string, nickname: string) => Promise<void>;
   onAddFromBase: (token: string, employeeId: number) => Promise<void>;
   onDeactivate: (token: string, id: number) => Promise<void>;
@@ -2887,6 +2910,42 @@ function StaffPanel({
   const selectedEmployee = globalEmployees.find((employee) => employee.id === selectedEmployeeId);
   const alreadyInStore = selectedEmployee ? staffIds.has(selectedEmployee.id) : false;
   const openShift = shifts.find((item) => item.status === 'OPEN');
+  const shouldRenderCards = !hideCards || showOnlyCards;
+
+  if (showOnlyCards) {
+    return (
+      <div className="opsCard staffPanelRoot">
+        <h4 className="staffPanelTitle">Карточки сотрудников</h4>
+        <div className="opsList teamRoster">
+          {staff.map((member) => {
+            const seller = sellers.find((item) => item.id === member.id);
+            return (
+              <TeamMemberCard
+                key={
+                  member.staffPosition === 'RETOUCHER'
+                    ? `reto-${member.id}`
+                    : seller
+                      ? `${member.id}-${seller.ratePercent}`
+                      : String(member.id)
+                }
+                token={token}
+                member={member}
+                seller={seller}
+                role={role}
+                readOnly={readOnly}
+                openShiftId={openShift?.id}
+                onDeactivate={onDeactivate}
+                onActivate={onActivate}
+                onAssignShift={onAssignShift}
+                onDirectorSetPercent={onDirectorSetPercent}
+              />
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="opsCard staffPanelRoot">
       <h4 className="staffPanelTitle">Управление персоналом</h4>
@@ -2945,32 +3004,34 @@ function StaffPanel({
           </div>
         </>
       )}
-      <div className="opsList teamRoster">
-        {staff.map((member) => {
-          const seller = sellers.find((item) => item.id === member.id);
-          return (
-            <TeamMemberCard
-              key={
-                member.staffPosition === 'RETOUCHER'
-                  ? `reto-${member.id}`
-                  : seller
-                    ? `${member.id}-${seller.ratePercent}`
-                    : String(member.id)
-              }
-              token={token}
-              member={member}
-              seller={seller}
-              role={role}
-              readOnly={readOnly}
-              openShiftId={openShift?.id}
-              onDeactivate={onDeactivate}
-              onActivate={onActivate}
-              onAssignShift={onAssignShift}
-              onDirectorSetPercent={onDirectorSetPercent}
-            />
-          );
-        })}
-      </div>
+      {shouldRenderCards && (
+        <div className="opsList teamRoster">
+          {staff.map((member) => {
+            const seller = sellers.find((item) => item.id === member.id);
+            return (
+              <TeamMemberCard
+                key={
+                  member.staffPosition === 'RETOUCHER'
+                    ? `reto-${member.id}`
+                    : seller
+                      ? `${member.id}-${seller.ratePercent}`
+                      : String(member.id)
+                }
+                token={token}
+                member={member}
+                seller={seller}
+                role={role}
+                readOnly={readOnly}
+                openShiftId={openShift?.id}
+                onDeactivate={onDeactivate}
+                onActivate={onActivate}
+                onAssignShift={onAssignShift}
+                onDirectorSetPercent={onDirectorSetPercent}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
