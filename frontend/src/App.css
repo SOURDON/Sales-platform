@@ -1744,3 +1744,19 @@ textarea {
   color: #8a3124 !important;
   border: 1px solid #e5b6ac;
 }
+
+.rememberMeRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #2d4b3f !important;
+}
+
+.rememberMeRow input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  flex: 0 0 auto;
+}

@@ -1336,13 +1336,13 @@ function App() {
               />
             </label>
 
-            <label>
+            <label className="rememberMeRow">
               <input
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(event) => setRememberMe(event.target.checked)}
               />
-              Запомнить меня
+              <span>Запомнить меня</span>
             </label>
 
             {error && <p className="error">{error}</p>}
