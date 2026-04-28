@@ -2563,7 +2563,7 @@ function ShiftPanel({
   };
 
   return (
-    <div className="opsCard">
+    <div className="opsCard shiftPanelCard">
       <h4>Открытие/закрытие смены</h4>
       {readOnly && (
         <p className="notice">Роль «Бухгалтер»: только просмотр, без открытия и закрытия смен.</p>
@@ -2574,21 +2574,23 @@ function ShiftPanel({
           останутся на одной смене.
         </p>
       )}
-      <div className="inlineGrid">
+      <div className="shiftSellerList">
         {sellers.map((seller) => (
-          <label key={seller.id}>
+          <label key={seller.id} className="shiftSellerRow" title={`${seller.fullName} (${seller.storeName})`}>
             <input
               type="checkbox"
               checked={selectedSellerIds.includes(seller.id)}
               onChange={() => toggleSeller(seller.id)}
               disabled={readOnly}
             />
-            {seller.fullName}
-            <span className="muted"> ({seller.storeName})</span>
+            <span className="shiftSellerText">
+              <span className="shiftSellerName">{seller.fullName}</span>
+              <span className="shiftSellerStore"> — {seller.storeName}</span>
+            </span>
           </label>
         ))}
       </div>
-      <div className="inlineActions">
+      <div className="inlineActions shiftActionsRow">
         <button
           className="primaryAction"
           type="button"

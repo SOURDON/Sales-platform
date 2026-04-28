@@ -1760,3 +1760,56 @@ textarea {
   margin: 0;
   flex: 0 0 auto;
 }
+
+.shiftPanelCard {
+  gap: 12px;
+}
+
+.shiftSellerList {
+  display: grid;
+  gap: 8px;
+}
+
+.shiftSellerRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(141, 117, 75, 0.18);
+  border-radius: 12px;
+  background: rgba(244, 247, 240, 0.75);
+}
+
+.shiftSellerRow input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.shiftSellerText {
+  min-width: 0;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shiftSellerName {
+  font-weight: 600;
+  color: #29443a;
+}
+
+.shiftSellerStore {
+  color: #5e6f67;
+}
+
+.shiftActionsRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shiftActionsRow button {
+  width: 100%;
+}
