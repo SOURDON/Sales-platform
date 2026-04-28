@@ -1005,7 +1005,7 @@ function App() {
       body: JSON.stringify({ assignedSellerIds }),
     });
     if (!response.ok) throw new Error('open shift error');
-    await loadShifts(token);
+    await Promise.all([loadShifts(token), loadStaff(token)]);
   };
 
   const closeShift = async (token: string) => {
@@ -1014,7 +1014,7 @@ function App() {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) throw new Error('close shift error');
-    await loadShifts(token);
+    await Promise.all([loadShifts(token), loadStaff(token)]);
   };
 
   const addCashEvent = async (
