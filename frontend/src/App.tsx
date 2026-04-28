@@ -1302,7 +1302,7 @@ function App() {
   if (!session) {
     return (
       <main className="app">
-        <section className="card">
+        <section className="card loginCard">
           <header className="brandHeader">
             <h1>Фотографы</h1>
             <p className="subtitle">Авторизация в системе</p>

@@ -1326,6 +1326,13 @@ select {
     box-shadow: none;
   }
 
+  .app:not(.appWorkspace) .loginCard {
+    min-height: auto !important;
+    border-radius: 16px !important;
+    margin: 10px auto 18px !important;
+    padding: 16px 14px 20px !important;
+  }
+
   .brandHeader {
     max-width: 100%;
     margin-bottom: 16px;
@@ -1704,7 +1711,16 @@ h1 {
 
 /* Login background matches the app background */
 .app:not(.appWorkspace) {
+  background:
+    radial-gradient(1200px 560px at 0% -12%, rgba(44, 96, 79, 0.36), transparent 58%),
+    radial-gradient(900px 460px at 100% 0%, rgba(15, 45, 37, 0.45), transparent 62%),
+    linear-gradient(180deg, #081611 0%, #0d211a 45%, #11281f 100%) !important;
+}
+
+.app:not(.appWorkspace) .card {
   background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 .app:not(.appWorkspace) .card {
@@ -1713,6 +1729,11 @@ h1 {
   box-shadow:
     0 16px 36px rgba(4, 16, 12, 0.32),
     0 1px 0 rgba(255, 255, 255, 0.7) inset !important;
+}
+
+.app:not(.appWorkspace) .loginCard {
+  min-height: auto !important;
+  border-radius: 16px !important;
 }
 
 .homeProfileVal,
