@@ -921,13 +921,27 @@ select {
   background: #fff;
   border: 1px solid #dbe4ee;
   border-radius: 12px;
-  padding: 10px;
+  padding: 10px 10px 8px;
+}
+
+.productRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  align-items: center;
+  gap: 10px;
 }
 
 .productName {
-  font-weight: 800;
+  font-weight: 700;
   color: #0b4f82;
   font-size: 13px;
+  line-height: 1.2;
+}
+
+.productRow input {
+  min-height: 34px;
+  padding: 6px 8px;
+  text-align: right;
 }
 
 .productPrice {
@@ -1041,6 +1055,38 @@ select {
   font-size: 13px;
   display: grid;
   gap: 4px;
+}
+
+.soldProductsBlock {
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.soldProductsBlock h3 {
+  margin: 0 0 8px;
+}
+
+.soldProductsBlock ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.soldProductsBlock li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #0f4c81;
+  font-size: 13px;
 }
 
 .opsCard {
@@ -1655,7 +1701,7 @@ body {
 }
 
 .brandHeader {
-  text-align: left;
+  text-align: center;
   max-width: none;
   margin-bottom: 10px;
   padding: 4px 2px;
