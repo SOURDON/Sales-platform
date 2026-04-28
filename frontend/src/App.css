@@ -748,6 +748,23 @@ button.ghost.navActive:hover {
   background: var(--ui-bg-soft);
 }
 
+.staffPanelAddField {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.staffPanelAddField span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #253e34;
+}
+
+.staffPanelAddField input {
+  width: 100%;
+}
+
 .staffBaseBlock {
   grid-template-columns: minmax(0, 1.8fr) auto minmax(160px, 1fr);
   gap: 10px;
@@ -1264,6 +1281,38 @@ select {
   color: #075985;
 }
 
+.soldProductsBlock {
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.soldProductsBlock h3 {
+  margin: 0 0 8px;
+}
+
+.soldProductsBlock ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.soldProductsBlock li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #0f4c81;
+  font-size: 13px;
+}
+
 .staffRow {
   border: 1px solid #dbeafe;
   border-radius: 10px;
@@ -1595,6 +1644,11 @@ select {
   .staffBaseBlock {
     grid-template-columns: 1fr;
     padding: 10px;
+  }
+
+  .staffPanelAddField {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 6px;
   }
 
   .staffBaseBlock .inlineStatus {

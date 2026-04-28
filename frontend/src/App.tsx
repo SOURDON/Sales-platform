@@ -559,6 +559,28 @@ function App() {
     });
   }, [sales, sellers, session]);
 
+  const todaySoldProducts = useMemo(() => {
+    if (!session) {
+      return [] as Array<{ name: string; qty: number }>;
+    }
+    const todayKey = todayKeyMoscow();
+    const currentStoreName = session.user.storeName;
+    const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
+    const qtyByProduct = new Map<string, number>();
+    for (const sale of sales) {
+      const saleStore = sellerStoreById.get(sale.sellerId);
+      if (saleStore !== currentStoreName || calendarDayKeyMoscow(sale.createdAt) !== todayKey) {
+        continue;
+      }
+      for (const line of sale.items) {
+        qtyByProduct.set(line.name, (qtyByProduct.get(line.name) ?? 0) + line.qty);
+      }
+    }
+    return Array.from(qtyByProduct.entries())
+      .map(([name, qty]) => ({ name, qty }))
+      .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ru-RU'));
+  }, [sales, sellers, session]);
+
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
     try {
@@ -1590,54 +1612,73 @@ function App() {
                         />
                       </section>
                     ) : (
-                      <section className="sectionCard">
-                        <div className="salesLog">
-                          <button
-                            type="button"
-                            className={`salesToggle ${salesExpanded ? 'salesToggleOpen' : ''}`}
-                            onClick={() => setSalesExpanded((current) => !current)}
-                            aria-expanded={salesExpanded}
-                          >
-                            <span>Продажи за сегодня · {session.user.storeName}</span>
-                            <span className="salesToggleIcon" aria-hidden>
-                              ▾
-                            </span>
-                          </button>
-                          <div className={`salesAccordion ${salesExpanded ? 'salesAccordionOpen' : ''}`}>
-                            {todayStoreSales.length === 0 ? (
-                              <p className="muted">За сегодня по этой точке продаж нет</p>
+                      <>
+                        <section className="sectionCard">
+                          <div className="salesLog">
+                            <button
+                              type="button"
+                              className={`salesToggle ${salesExpanded ? 'salesToggleOpen' : ''}`}
+                              onClick={() => setSalesExpanded((current) => !current)}
+                              aria-expanded={salesExpanded}
+                            >
+                              <span>Продажи за сегодня · {session.user.storeName}</span>
+                              <span className="salesToggleIcon" aria-hidden>
+                                ▾
+                              </span>
+                            </button>
+                            <div className={`salesAccordion ${salesExpanded ? 'salesAccordionOpen' : ''}`}>
+                              {todayStoreSales.length === 0 ? (
+                                <p className="muted">За сегодня по этой точке продаж нет</p>
+                              ) : (
+                                <div className="salesList">
+                                  {todayStoreSales.map((sale) => (
+                                    <article key={sale.id} className="saleItem">
+                                      <p className="saleHeader">
+                                        <strong>{new Date(sale.createdAt).toLocaleTimeString('ru-RU')}</strong> –{' '}
+                                        {sale.sellerName}
+                                        <span className="salePay">
+                                          {sale.paymentType === 'NON_CASH'
+                                            ? 'Безнал'
+                                            : sale.paymentType === 'TRANSFER'
+                                              ? 'Перевод'
+                                              : 'Наличные'}
+                                        </span>
+                                        <span className="saleTotal">
+                                          Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
+                                        </span>
+                                      </p>
+                                      <ul>
+                                        {sale.items.map((line) => (
+                                          <li key={line.name}>
+                                            {line.name} × {line.qty}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </article>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </section>
+                        <section className="sectionCard">
+                          <div className="soldProductsBlock">
+                            <h3>Проданные товары</h3>
+                            {todaySoldProducts.length === 0 ? (
+                              <p className="muted">За сегодня по этой точке продаж товаров нет</p>
                             ) : (
-                              <div className="salesList">
-                                {todayStoreSales.map((sale) => (
-                                  <article key={sale.id} className="saleItem">
-                                    <p className="saleHeader">
-                                      <strong>{new Date(sale.createdAt).toLocaleTimeString('ru-RU')}</strong> –{' '}
-                                      {sale.sellerName}
-                                      <span className="salePay">
-                                        {sale.paymentType === 'NON_CASH'
-                                          ? 'Безнал'
-                                          : sale.paymentType === 'TRANSFER'
-                                            ? 'Перевод'
-                                            : 'Наличные'}
-                                      </span>
-                                      <span className="saleTotal">
-                                        Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
-                                      </span>
-                                    </p>
-                                    <ul>
-                                      {sale.items.map((line) => (
-                                        <li key={line.name}>
-                                          {line.name} × {line.qty}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </article>
+                              <ul>
+                                {todaySoldProducts.map((item) => (
+                                  <li key={item.name}>
+                                    <span>{item.name}</span>
+                                    <strong>{item.qty} шт.</strong>
+                                  </li>
                                 ))}
-                              </div>
+                              </ul>
                             )}
                           </div>
-                        </div>
-                      </section>
+                        </section>
+                      </>
                     )}
                   </div>
                 )
@@ -2910,12 +2951,12 @@ function StaffPanel({
       {!readOnly && (
         <>
           <div className="inlineGrid staffPanelAddRow">
-            <label>
-              ФИО
+            <label className="staffPanelAddField">
+              <span>ФИО</span>
               <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
             </label>
-            <label>
-              Ник
+            <label className="staffPanelAddField">
+              <span>Ник</span>
               <input value={nickname} onChange={(event) => setNickname(event.target.value)} />
             </label>
             <button

@@ -22,11 +22,12 @@
   <rect width="512" height="512" rx="108" fill="url(#bgCore)" />
   <!-- Centered elegant abstract mark -->
   <g fill="none" stroke="url(#goldLine)" stroke-linecap="round" stroke-linejoin="round" filter="url(#goldGlow)">
-    <circle cx="256" cy="256" r="100" stroke-width="12" opacity=".95" />
-    <circle cx="256" cy="256" r="56" stroke-width="9" opacity=".9" />
-    <path d="M256 162v188" stroke-width="10" opacity=".9" />
-    <path d="M162 256h188" stroke-width="10" opacity=".9" />
-    <path d="M197 197l118 118" stroke-width="8" opacity=".8" />
-    <path d="M315 197l-118 118" stroke-width="8" opacity=".8" />
+    <circle cx="256" cy="256" r="106" stroke-width="18" opacity=".95" />
+    <circle cx="256" cy="256" r="62" stroke-width="14" opacity=".92" />
+    <path d="M256 148v216" stroke-width="14" opacity=".94" />
+    <path d="M148 256h216" stroke-width="14" opacity=".94" />
+    <path d="M190 190l132 132" stroke-width="11" opacity=".86" />
+    <path d="M322 190L190 322" stroke-width="11" opacity=".86" />
+    <path d="M256 186c-38 0-70 31-70 70s32 70 70 70" stroke-width="10" opacity=".74" />
   </g>
 </svg>
