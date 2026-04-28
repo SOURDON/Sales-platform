@@ -1,17 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <radialGradient id="bgCore" cx="50%" cy="44%" r="72%">
-      <stop offset="0%" stop-color="#113529" />
-      <stop offset="62%" stop-color="#0b221a" />
-      <stop offset="100%" stop-color="#06140f" />
+    <radialGradient id="bgCore" cx="50%" cy="40%" r="76%">
+      <stop offset="0%" stop-color="#154132" />
+      <stop offset="58%" stop-color="#0b251c" />
+      <stop offset="100%" stop-color="#05120d" />
     </radialGradient>
     <linearGradient id="goldLine" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#a18552" />
-      <stop offset="48%" stop-color="#7f663b" />
-      <stop offset="100%" stop-color="#b1945f" />
+      <stop offset="0%" stop-color="#c8ad74" />
+      <stop offset="45%" stop-color="#a68752" />
+      <stop offset="100%" stop-color="#d1b882" />
     </linearGradient>
-    <filter id="goldGlow" x="-25%" y="-25%" width="150%" height="150%">
-      <feGaussianBlur stdDeviation="2" result="b" />
+    <linearGradient id="silverLine" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eef3f7" />
+      <stop offset="50%" stop-color="#b8c4cd" />
+      <stop offset="100%" stop-color="#f4f7fa" />
+    </linearGradient>
+    <filter id="markGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.4" result="b" />
       <feMerge>
         <feMergeNode in="b" />
         <feMergeNode in="SourceGraphic" />
@@ -20,14 +25,15 @@
   </defs>
 
   <rect width="512" height="512" rx="108" fill="url(#bgCore)" />
-  <!-- Centered elegant abstract mark -->
-  <g fill="none" stroke="url(#goldLine)" stroke-linecap="round" stroke-linejoin="round" filter="url(#goldGlow)">
-    <circle cx="256" cy="256" r="106" stroke-width="18" opacity=".95" />
-    <circle cx="256" cy="256" r="62" stroke-width="14" opacity=".92" />
-    <path d="M256 148v216" stroke-width="14" opacity=".94" />
-    <path d="M148 256h216" stroke-width="14" opacity=".94" />
-    <path d="M190 190l132 132" stroke-width="11" opacity=".86" />
-    <path d="M322 190L190 322" stroke-width="11" opacity=".86" />
-    <path d="M256 186c-38 0-70 31-70 70s32 70 70 70" stroke-width="10" opacity=".74" />
+
+  <!-- Bold central mark with gold base and silver accents -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#markGlow)">
+    <circle cx="256" cy="256" r="116" stroke="url(#goldLine)" stroke-width="24" opacity=".96" />
+    <circle cx="256" cy="256" r="70" stroke="url(#goldLine)" stroke-width="18" opacity=".94" />
+    <path d="M256 138v236" stroke="url(#goldLine)" stroke-width="18" opacity=".95" />
+    <path d="M138 256h236" stroke="url(#goldLine)" stroke-width="18" opacity=".95" />
+    <path d="M182 182l148 148" stroke="url(#silverLine)" stroke-width="14" opacity=".92" />
+    <path d="M330 182L182 330" stroke="url(#silverLine)" stroke-width="14" opacity=".92" />
+    <circle cx="256" cy="256" r="22" stroke="url(#silverLine)" stroke-width="10" opacity=".98" />
   </g>
 </svg>

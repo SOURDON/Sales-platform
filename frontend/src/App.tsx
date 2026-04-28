@@ -1496,10 +1496,6 @@ function App() {
                                       </div>
                                     </>
                                   ) : null}
-                                  <div className="homeStoreRow homeStoreRowAccent">
-                                    <dt>Затраты на зарплату</dt>
-                                    <dd>{store.salaries}</dd>
-                                  </div>
                                 </dl>
                               </article>
                             ))}
@@ -1509,7 +1505,6 @@ function App() {
                             <>
                               <div className="adminSellerRegister">
                                 <h4>Кассы сотрудников</h4>
-                                <p className="adminSellerRegisterHint">Начислено за сегодня (к выплате)</p>
                                 {homeDashboard.sellerRegister && homeDashboard.sellerRegister.length > 0 ? (
                                   <ul>
                                     {homeDashboard.sellerRegister.map((row) => (
