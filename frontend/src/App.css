@@ -179,6 +179,7 @@ input:focus {
   max-width: 100%;
   min-width: 0;
   overflow-x: visible;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom));
 }
 
 .homeProfileCard {
@@ -867,14 +868,47 @@ select {
 
 .addSaleRow {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 10px;
   align-items: end;
+}
+
+.addSaleRow label {
+  gap: 4px;
+  font-size: 12px;
+}
+
+.addSaleRow select,
+.addSaleRow input {
+  min-height: 40px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.paymentTypeRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.paymentTypeBtn {
+  min-height: 36px !important;
+  padding: 6px 8px !important;
+  font-size: 12px !important;
+  border-radius: 10px !important;
+}
+
+.paymentTypeBtnActive {
+  background: linear-gradient(160deg, #c4a56d 0%, #b48f53 100%) !important;
+  color: #10231c !important;
+  border-color: rgba(194, 165, 109, 0.5) !important;
+  box-shadow: 0 4px 10px rgba(8, 22, 17, 0.28) !important;
 }
 
 .addSaleRow .primaryAction {
   grid-column: 1 / -1;
   justify-self: stretch;
+  min-height: 42px;
 }
 
 .productGrid {
@@ -1347,6 +1381,11 @@ select {
 }
 
 @media (max-width: 560px) {
+  .addSaleRow {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
   .app {
     align-items: stretch;
     padding: 0;

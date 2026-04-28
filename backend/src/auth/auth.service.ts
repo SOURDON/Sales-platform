@@ -1374,7 +1374,7 @@ export class AuthService implements OnModuleInit {
       fullName: member.fullName,
       nickname: member.nickname,
       storeName: storeForActor,
-      ratePercent: 3,
+      ratePercent: 30,
       salesAmount: 0,
       checksCount: 0,
       sales: [],

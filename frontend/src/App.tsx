@@ -1841,9 +1841,6 @@ function AddSaleForm({
   return (
     <div className="addSaleForm">
       <h4>Добавить продажу</h4>
-      <p className="hint">
-        Продажа только для продавцов, назначенных на текущую смену. Укажите товары, сумму и вид оплаты.
-      </p>
       {!hasOpenShift && (
         <p className="error" role="alert">
           Нет открытой смены — откройте её в разделе «Смена».
@@ -1875,14 +1872,29 @@ function AddSaleForm({
         </label>
         <label>
           Вид оплаты
-          <select
-            value={paymentType}
-            onChange={(event) => setPaymentType(event.target.value as AddSalePaymentType)}
-          >
-            <option value="CASH">Наличные</option>
-            <option value="NON_CASH">Безнал</option>
-            <option value="TRANSFER">Перевод</option>
-          </select>
+          <div className="paymentTypeRow" role="group" aria-label="Вид оплаты">
+            <button
+              type="button"
+              className={`ghost paymentTypeBtn ${paymentType === 'CASH' ? 'paymentTypeBtnActive' : ''}`}
+              onClick={() => setPaymentType('CASH')}
+            >
+              Нал
+            </button>
+            <button
+              type="button"
+              className={`ghost paymentTypeBtn ${paymentType === 'NON_CASH' ? 'paymentTypeBtnActive' : ''}`}
+              onClick={() => setPaymentType('NON_CASH')}
+            >
+              Безнал
+            </button>
+            <button
+              type="button"
+              className={`ghost paymentTypeBtn ${paymentType === 'TRANSFER' ? 'paymentTypeBtnActive' : ''}`}
+              onClick={() => setPaymentType('TRANSFER')}
+            >
+              Перевод
+            </button>
+          </div>
         </label>
         <label>
           Итоговая сумма продажи (₽)
@@ -2833,13 +2845,17 @@ function StaffPanel({
   const [fullName, setFullName] = useState('');
   const [nickname, setNickname] = useState('');
   const [pickedEmployeeId, setPickedEmployeeId] = useState<number | null>(null);
-  const firstGlobalId = globalEmployees[0]?.id ?? 0;
+  const baseCandidates = globalEmployees.filter((employee) => {
+    const existing = staff.find((member) => member.id === employee.id);
+    return existing?.staffPosition !== 'RETOUCHER';
+  });
+  const firstGlobalId = baseCandidates[0]?.id ?? 0;
   const selectedEmployeeId =
-    pickedEmployeeId !== null && globalEmployees.some((employee) => employee.id === pickedEmployeeId)
+    pickedEmployeeId !== null && baseCandidates.some((employee) => employee.id === pickedEmployeeId)
       ? pickedEmployeeId
       : firstGlobalId;
   const staffIds = new Set(staff.map((member) => member.id));
-  const selectedEmployee = globalEmployees.find((employee) => employee.id === selectedEmployeeId);
+  const selectedEmployee = baseCandidates.find((employee) => employee.id === selectedEmployeeId);
   const alreadyInStore = selectedEmployee ? staffIds.has(selectedEmployee.id) : false;
   const openShift = shifts.find((item) => item.status === 'OPEN');
   const removableSalesStaff = staff.filter((member) => member.staffPosition === 'SALES');
@@ -2920,7 +2936,7 @@ function StaffPanel({
                 value={selectedEmployeeId}
                 onChange={(event) => setPickedEmployeeId(Number(event.target.value))}
               >
-                {globalEmployees.map((employee) => (
+                {baseCandidates.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.fullName} ({employee.nickname}) - {employee.homeStore}
                     {staffIds.has(employee.id) ? ' [уже в этой точке]' : ''}
@@ -2936,7 +2952,13 @@ function StaffPanel({
             >
               Добавить из общей базы
             </button>
-            <p className="inlineStatus">{alreadyInStore ? 'Уже добавлен в эту точку' : ''}</p>
+            <p className="inlineStatus">
+              {baseCandidates.length === 0
+                ? 'Доступных продавцов в общей базе нет'
+                : alreadyInStore
+                  ? 'Уже добавлен в эту точку'
+                  : ''}
+            </p>
           </div>
           <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
             <label>
