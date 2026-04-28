@@ -13,10 +13,11 @@
   </defs>
   <rect width="512" height="512" rx="108" fill="url(#bgCore)" />
   <g fill="none" stroke="url(#goldLine)" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M192 156v200" stroke-width="18" />
-    <path d="M192 156h142" stroke-width="16" />
-    <path d="M192 246h112" stroke-width="14" />
-    <path d="M216 356c44 0 74-10 94-30" stroke-width="11" opacity=".88" />
-    <path d="M338 168v20M328 178h20" stroke-width="8" opacity=".9" />
+    <circle cx="256" cy="256" r="100" stroke-width="12" opacity=".95" />
+    <circle cx="256" cy="256" r="56" stroke-width="9" opacity=".9" />
+    <path d="M256 162v188" stroke-width="10" opacity=".9" />
+    <path d="M162 256h188" stroke-width="10" opacity=".9" />
+    <path d="M197 197l118 118" stroke-width="8" opacity=".8" />
+    <path d="M315 197l-118 118" stroke-width="8" opacity=".8" />
   </g>
 </svg>

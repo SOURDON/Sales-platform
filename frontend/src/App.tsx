@@ -559,31 +559,6 @@ function App() {
     });
   }, [sales, sellers, session]);
 
-  const todaySoldProducts = useMemo(() => {
-    if (!session) {
-      return [] as Array<{ name: string; qty: number }>;
-    }
-    const todayKey = todayKeyMoscow();
-    const currentStoreName = session.user.storeName;
-    const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
-    const qtyByProduct = new Map<string, number>();
-    for (const sale of sales) {
-      const saleStore = sellerStoreById.get(sale.sellerId);
-      if (saleStore !== currentStoreName) {
-        continue;
-      }
-      if (calendarDayKeyMoscow(sale.createdAt) !== todayKey) {
-        continue;
-      }
-      for (const line of sale.items) {
-        qtyByProduct.set(line.name, (qtyByProduct.get(line.name) ?? 0) + line.qty);
-      }
-    }
-    return Array.from(qtyByProduct.entries())
-      .map(([name, qty]) => ({ name, qty }))
-      .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ru-RU'));
-  }, [sales, sellers, session]);
-
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
     try {
@@ -1615,8 +1590,7 @@ function App() {
                         />
                       </section>
                     ) : (
-                      <>
-                        <section className="sectionCard">
+                      <section className="sectionCard">
                         <div className="salesLog">
                           <button
                             type="button"
@@ -1663,25 +1637,7 @@ function App() {
                             )}
                           </div>
                         </div>
-                        </section>
-                        <section className="sectionCard">
-                        <div className="soldProductsBlock">
-                          <h3>Проданные товары</h3>
-                          {todaySoldProducts.length === 0 ? (
-                            <p className="muted">За сегодня по этой точке продаж товаров нет</p>
-                          ) : (
-                            <ul>
-                              {todaySoldProducts.map((item) => (
-                                <li key={item.name}>
-                                  <span>{item.name}</span>
-                                  <strong>{item.qty} шт.</strong>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                        </section>
-                      </>
+                      </section>
                     )}
                   </div>
                 )
@@ -1948,14 +1904,6 @@ function AddSaleForm({
             placeholder="Например, 4250"
           />
         </label>
-        <button
-          className="primaryAction"
-          type="button"
-          onClick={submit}
-          disabled={busy || !hasOpenShift || sellers.length === 0}
-        >
-          Сохранить продажу
-        </button>
       </div>
       {formError && <p className="error">{formError}</p>}
       <div className="productGrid">
@@ -1973,6 +1921,14 @@ function AddSaleForm({
           </label>
         ))}
       </div>
+      <button
+        className="primaryAction addSaleSubmitBottom"
+        type="button"
+        onClick={submit}
+        disabled={busy || !hasOpenShift || sellers.length === 0}
+      >
+        Сохранить продажу
+      </button>
     </div>
   );
 }

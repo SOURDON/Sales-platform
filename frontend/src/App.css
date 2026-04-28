@@ -789,10 +789,10 @@ select {
 .addSaleForm {
   border: 1px solid #dbe4ee;
   border-radius: 14px;
-  padding: 14px;
+  padding: 12px;
   background: #fff;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .writeOffForm {
@@ -869,20 +869,20 @@ select {
 .addSaleRow {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px 10px;
+  gap: 6px 8px;
   align-items: end;
 }
 
 .addSaleRow label {
   gap: 4px;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .addSaleRow select,
 .addSaleRow input {
-  min-height: 40px;
-  padding: 8px 10px;
-  font-size: 14px;
+  min-height: 36px;
+  padding: 6px 9px;
+  font-size: 13px;
 }
 
 .paymentTypeRow {
@@ -911,6 +911,11 @@ select {
   min-height: 42px;
 }
 
+.addSaleSubmitBottom {
+  min-height: 40px !important;
+  margin-top: 2px;
+}
+
 .productGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -920,28 +925,29 @@ select {
 .productCell {
   background: #fff;
   border: 1px solid #dbe4ee;
-  border-radius: 12px;
-  padding: 10px 10px 8px;
+  border-radius: 10px;
+  padding: 8px 9px 7px;
 }
 
 .productRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 92px;
+  grid-template-columns: minmax(0, 1fr) 84px;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .productName {
   font-weight: 700;
   color: #0b4f82;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.2;
 }
 
 .productRow input {
-  min-height: 34px;
-  padding: 6px 8px;
+  min-height: 30px;
+  padding: 5px 7px;
   text-align: right;
+  font-size: 12px;
 }
 
 .productPrice {
@@ -1055,38 +1061,6 @@ select {
   font-size: 13px;
   display: grid;
   gap: 4px;
-}
-
-.soldProductsBlock {
-  border: 1px solid #dbe4ee;
-  border-radius: 12px;
-  background: #fff;
-  padding: 12px;
-}
-
-.soldProductsBlock h3 {
-  margin: 0 0 8px;
-}
-
-.soldProductsBlock ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 6px;
-}
-
-.soldProductsBlock li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border: 1px solid #dbe4ee;
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: #fff;
-  color: #0f4c81;
-  font-size: 13px;
 }
 
 .opsCard {
