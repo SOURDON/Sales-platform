@@ -1090,11 +1090,11 @@ function App() {
     setLoading(true);
 
     try {
-      const loginRequest = async () => {
+      const loginRequest = async (path = '/auth/login') => {
         const controller = new AbortController();
         const timeoutId = window.setTimeout(() => controller.abort(), 15000);
         try {
-          return await fetch(`${API_BASE_URL}/auth/login`, {
+          return await fetch(`${API_BASE_URL}${path}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1116,7 +1116,21 @@ function App() {
       }
 
       if (!response.ok) {
-        throw new Error('Неверный логин или пароль');
+        if (response.status === 404) {
+          response = await loginRequest('/api/auth/login');
+        }
+      }
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Неверный логин или пароль');
+        }
+        if (response.status === 404) {
+          throw new Error(
+            'Сервер авторизации недоступен (404). Проверьте VITE_API_URL и что backend запущен.',
+          );
+        }
+        throw new Error(`Ошибка входа: ${response.status}`);
       }
 
       const data = (await response.json()) as LoginResponse;
