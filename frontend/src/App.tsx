@@ -1506,22 +1506,42 @@ function App() {
                           </div>
 
                           {homeDashboard.role === 'ADMIN' ? (
-                            <div className="adminSellerRegister">
-                              <h4>Кассы сотрудников</h4>
-                              <p className="adminSellerRegisterHint">Начислено за сегодня (к выплате)</p>
-                              {homeDashboard.sellerRegister && homeDashboard.sellerRegister.length > 0 ? (
-                                <ul>
-                                  {homeDashboard.sellerRegister.map((row) => (
-                                    <li key={row.fullName}>
-                                      <span className="adminSellerRegisterName">{row.fullName}</span>
-                                      <span className="adminSellerRegisterAmount">{row.salary}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : (
-                                <p className="muted">Продавцы по точке ещё не привязаны — после добавления появятся зарплаты за сегодня.</p>
-                              )}
-                            </div>
+                            <>
+                              <div className="adminSellerRegister">
+                                <h4>Кассы сотрудников</h4>
+                                <p className="adminSellerRegisterHint">Начислено за сегодня (к выплате)</p>
+                                {homeDashboard.sellerRegister && homeDashboard.sellerRegister.length > 0 ? (
+                                  <ul>
+                                    {homeDashboard.sellerRegister.map((row) => (
+                                      <li key={row.fullName}>
+                                        <span className="adminSellerRegisterName">{row.fullName}</span>
+                                        <span className="adminSellerRegisterAmount">{row.salary}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="muted">Продавцы по точке ещё не привязаны — после добавления появятся зарплаты за сегодня.</p>
+                                )}
+                              </div>
+                              <div className="soldProductsBlock homeSoldProductsBlock">
+                                <h4>Проданные товары</h4>
+                                <p className="adminSellerRegisterHint">
+                                  Список за текущий рабочий день · {session.user.storeName}
+                                </p>
+                                {todaySoldProducts.length === 0 ? (
+                                  <p className="muted">За сегодня по этой точке продаж товаров нет</p>
+                                ) : (
+                                  <ul>
+                                    {todaySoldProducts.map((item) => (
+                                      <li key={item.name}>
+                                        <span>{item.name}</span>
+                                        <strong>{item.qty} шт.</strong>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            </>
                           ) : null}
                         </>
                       )
@@ -1673,23 +1693,6 @@ function App() {
                                 </div>
                               )}
                             </div>
-                          </div>
-                        </section>
-                        <section className="sectionCard">
-                          <div className="soldProductsBlock">
-                            <h3>Проданные товары</h3>
-                            {todaySoldProducts.length === 0 ? (
-                              <p className="muted">За сегодня по этой точке продаж товаров нет</p>
-                            ) : (
-                              <ul>
-                                {todaySoldProducts.map((item) => (
-                                  <li key={item.name}>
-                                    <span>{item.name}</span>
-                                    <strong>{item.qty} шт.</strong>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
                           </div>
                         </section>
                       </>

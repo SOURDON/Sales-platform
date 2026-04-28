@@ -19,18 +19,24 @@ Copy connection strings to:
 
 ## 2) Render backend services
 
-Use `render.yaml` in this repository. For each service set:
+Use Render Web Service settings. For each service set:
 
 - `DATABASE_URL` (staging/prod value)
 - `CORS_ORIGIN` (exact frontend URL for this environment)
 
+Root Directory:
+
+`(empty)`
+
 Build command in both services:
 
-`npm ci && npm run build && npm run prisma:migrate:deploy && npm run prisma:seed`
+`cd backend && npm install && npx prisma generate && npm run build`
 
 Start command:
 
-`npm run start:prod`
+`cd backend && npx prisma migrate deploy && npm run start:prod`
+
+If you see `Root directory "backend" does not exist`, keep Root Directory empty and run `Manual Deploy -> Clear build cache & deploy`.
 
 ## 3) Vercel frontend environments
 

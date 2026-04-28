@@ -72,9 +72,9 @@ Recommended stack:
 
 1. Push this repository to GitHub.
 2. In Render create a new **Web Service** from the repo:
-   - Root Directory: `backend`
-   - Build Command: `npm ci && npm run build && npm run prisma:migrate:deploy && npm run prisma:seed`
-   - Start Command: `npm run start:prod` (запускает собранный `dist/src/main.js`)
+   - Root Directory: leave empty
+   - Build Command: `cd backend && npm install && npx prisma generate && npm run build`
+   - Start Command: `cd backend && npx prisma migrate deploy && npm run start:prod`
 3. Add environment variables:
    - `PORT=3000`
    - `DATABASE_URL=<DATABASE_URL_PRODUCTION>`
@@ -95,9 +95,9 @@ Recommended stack:
 ### 3) Deploy staging backend + staging frontend
 
 - Render staging backend:
-  - Root Directory: `backend`
-  - Build Command: `npm ci && npm run build && npm run prisma:migrate:deploy && npm run prisma:seed`
-  - Start Command: `npm run start:prod` (тот же entrypoint: `dist/src/main.js`)
+  - Root Directory: leave empty
+  - Build Command: `cd backend && npm install && npx prisma generate && npm run build`
+  - Start Command: `cd backend && npx prisma migrate deploy && npm run start:prod`
   - Env:
     - `PORT=3000`
     - `DATABASE_URL=<DATABASE_URL_STAGING>`
@@ -109,6 +109,15 @@ Recommended stack:
 ### 4) Allow frontend origin in backend
 
 Set `CORS_ORIGIN` on Render to your real frontend URL from Vercel.
+
+### 4.1) Anti-break checklist for Render path issues
+
+If Render shows `Root directory "backend" does not exist`:
+
+1. Set Root Directory to empty.
+2. Use build/start commands with explicit `cd backend` as shown above.
+3. Run `Manual Deploy -> Clear build cache & deploy`.
+4. Verify in logs that Nest maps `/auth/login` and service becomes `Live`.
 
 ### 5) Install on phone as PWA
 

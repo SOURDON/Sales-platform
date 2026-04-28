@@ -1288,8 +1288,18 @@ select {
   padding: 12px;
 }
 
+.homeSoldProductsBlock {
+  margin-top: 12px;
+}
+
 .soldProductsBlock h3 {
   margin: 0 0 8px;
+}
+
+.soldProductsBlock h4 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  color: #0b4f82;
 }
 
 .soldProductsBlock ul {
