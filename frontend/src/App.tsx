@@ -1570,7 +1570,7 @@ function App() {
                       <>
                         <ShiftPanel
                           token={session.token}
-                          sellers={sellers}
+                          staff={staff}
                           shifts={shifts}
                           role={role}
                           readOnly={isReadOnlyObserver}
@@ -2556,7 +2556,7 @@ function FinanceOpsPanel({
 
 function ShiftPanel({
   token,
-  sellers,
+  staff,
   shifts,
   role,
   readOnly,
@@ -2564,19 +2564,23 @@ function ShiftPanel({
   onClose,
 }: {
   token: string;
-  sellers: SellerProfile[];
+  staff: StaffMember[];
   shifts: ShiftInfo[];
   role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   readOnly?: boolean;
   onOpen: (token: string, assignedSellerIds: number[]) => Promise<void>;
   onClose: (token: string) => Promise<void>;
 }) {
-  const [selectedSellerIds, setSelectedSellerIds] = useState<number[]>([]);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const openShift = shifts.find((item) => item.status === 'OPEN');
+  const shiftAssignableStaff = useMemo(
+    () => staff.filter((member) => member.isActive),
+    [staff],
+  );
 
-  const toggleSeller = (id: number) => {
-    setSelectedSellerIds((current) =>
+  const toggleStaff = (id: number) => {
+    setSelectedStaffIds((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
     );
   };
@@ -2589,22 +2593,29 @@ function ShiftPanel({
       )}
       {openShift && !readOnly && (
         <p className="notice shiftNotice">
-          Смена уже идёт. Отметьте ещё продавцов и нажмите «Добавить в смену» — все выбранные
+          Смена уже идёт. Отметьте ещё сотрудников и нажмите «Добавить в смену» — все выбранные
           останутся на одной смене.
         </p>
       )}
       <div className="shiftSellerList">
-        {sellers.map((seller) => (
-          <label key={seller.id} className="shiftSellerRow" title={`${seller.fullName} (${seller.storeName})`}>
+        {shiftAssignableStaff.map((member) => (
+          <label
+            key={member.id}
+            className="shiftSellerRow"
+            title={`${member.fullName} (${member.storeName})`}
+          >
             <input
               type="checkbox"
-              checked={selectedSellerIds.includes(seller.id)}
-              onChange={() => toggleSeller(seller.id)}
+              checked={selectedStaffIds.includes(member.id)}
+              onChange={() => toggleStaff(member.id)}
               disabled={readOnly}
             />
             <span className="shiftSellerText">
-              <span className="shiftSellerName">{seller.fullName}</span>
-              <span className="shiftSellerStore"> — {seller.storeName}</span>
+              <span className="shiftSellerName">{member.fullName}</span>
+              <span className="shiftSellerStore">
+                {' '}
+                — {member.storeName} {member.staffPosition === 'RETOUCHER' ? '(ретушёр)' : '(продавец)'}
+              </span>
             </span>
           </label>
         ))}
@@ -2617,7 +2628,7 @@ function ShiftPanel({
           onClick={async () => {
             setBusy(true);
             try {
-              await onOpen(token, selectedSellerIds);
+              await onOpen(token, selectedStaffIds);
             } finally {
               setBusy(false);
             }
