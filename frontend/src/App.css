@@ -1701,12 +1701,9 @@ h1 {
   border-color: rgba(194, 165, 109, 0.5) !important;
 }
 
-/* Login screen should keep a visible premium background too */
+/* Login background matches the app background */
 .app:not(.appWorkspace) {
-  background:
-    radial-gradient(900px 500px at 15% -10%, rgba(48, 120, 95, 0.35), transparent 62%),
-    radial-gradient(800px 460px at 100% 0%, rgba(24, 76, 58, 0.45), transparent 64%),
-    linear-gradient(180deg, #0a1c15 0%, #112a21 100%) !important;
+  background: transparent !important;
 }
 
 .app:not(.appWorkspace) .card {
