@@ -1775,30 +1775,42 @@ textarea {
 }
 
 .teamMemberTop {
-  align-items: center;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 8px !important;
 }
 
 .teamMemberTop > div {
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .teamMemberName {
   margin: 0 !important;
   font-size: 13px !important;
   line-height: 1.15 !important;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
 }
 
 .teamMemberNick {
   font-size: 12px !important;
+  white-space: nowrap;
 }
 
 .statusPill {
   font-size: 9px !important;
   padding: 3px 8px !important;
+}
+
+.retoucherBadge {
+  margin-left: 0 !important;
+  white-space: nowrap;
 }
 
 .teamMemberMeta {
@@ -1870,6 +1882,11 @@ textarea {
 
   .teamMemberName {
     font-size: 12px !important;
+  }
+
+  .teamMemberTop {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px !important;
   }
 
   .teamMemberMeta {
