@@ -2,7 +2,7 @@ services:
   - type: web
     name: sales-platform-api-prod
     env: node
-    rootDir: backend
+    rootDir: sales-platform/backend
     buildCommand: npm ci && npm run build
     # Миграции и сид при каждом старте (DATABASE_URL только в runtime на Render)
     startCommand: npm run start:prod:db
@@ -19,7 +19,7 @@ services:
   - type: web
     name: sales-platform-api-staging
     env: node
-    rootDir: backend
+    rootDir: sales-platform/backend
     buildCommand: npm ci && npm run build
     # Миграции и сид при каждом старте (DATABASE_URL только в runtime на Render)
     startCommand: npm run start:prod:db
