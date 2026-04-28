@@ -1745,6 +1745,65 @@ textarea {
   border: 1px solid #e5b6ac;
 }
 
+/* Compact and linear staff cards */
+.teamMemberCard {
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+  gap: 8px !important;
+}
+
+.teamMemberTop {
+  align-items: center;
+}
+
+.teamMemberName {
+  margin: 0 !important;
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+}
+
+.teamMemberMeta {
+  margin: 2px 0 0 !important;
+  font-size: 13px !important;
+}
+
+.teamMemberActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.teamMemberActions .ghost {
+  min-height: 38px !important;
+  padding: 8px 10px !important;
+  font-size: 13px !important;
+}
+
+.teamMemberStats {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  padding-top: 6px !important;
+}
+
+.statCell {
+  min-height: 58px !important;
+  padding: 6px 8px !important;
+}
+
+.statLabel {
+  font-size: 10px !important;
+}
+
+.statValue {
+  font-size: 13px !important;
+}
+
+@media (max-width: 560px) {
+  .teamMemberStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
 .rememberMeRow {
   display: flex;
   align-items: center;

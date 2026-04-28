@@ -2832,10 +2832,6 @@ function TeamMemberCard({
         </div>
       )}
 
-      {!isRetoucher && seller && (role === 'ADMIN' || role === 'ACCOUNTANT') && (
-        <p className="hint teamHint">Процент меняет только директор (по согласованию).</p>
-      )}
-
       {!isRetoucher && !seller && (
         <p className="hint teamHint">Нет профиля продавца — показатели появятся после синхронизации.</p>
       )}
