@@ -825,52 +825,82 @@ button.ghost.navActive:hover {
   font-size: 12px !important;
 }
 
-.teamMemberFoot {
-  display: flex;
-  flex-wrap: wrap;
+.teamMemberDeletePill {
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding-top: 4px;
-  border-top: 1px dashed rgba(148, 163, 184, 0.5);
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 4px 10px;
+  min-width: 52px;
+  min-height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(127, 63, 63, 0.42);
+  background: linear-gradient(180deg, #c57b7b 0%, #9f5c5c 100%);
+  box-shadow: 0 1px 3px rgba(127, 63, 63, 0.22);
+  cursor: pointer;
+  color: #f8f7f5;
 }
 
-.teamPercentFootLabel {
-  flex: 1 1 118px;
-  min-width: 0;
-  font-size: 11px;
-  color: var(--ui-text-secondary);
-  line-height: 1.2;
+.teamMemberDeletePill:hover:not(:disabled) {
+  filter: brightness(1.05);
 }
 
-.teamPercentFootInput {
-  width: 52px;
-  min-width: 48px;
-  min-height: 28px;
-  padding: 3px 5px;
-  font-size: 13px;
+.teamMemberDeletePill:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
-.teamPercentFootOk {
-  min-height: 28px !important;
-  padding: 3px 9px !important;
-  font-size: 11px !important;
+.statPercentToggleBtn {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--ui-bg-soft);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  padding: 4px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: stretch;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: inherit;
 }
 
-.teamMemberRemoveBtnFoot {
-  margin-left: auto;
+.statPercentToggleBtn:focus-visible {
+  outline: 2px solid rgba(15, 76, 129, 0.35);
+  outline-offset: 1px;
 }
 
-.teamMemberFoot .teamMemberRemoveBtn {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+.statPercentToggleBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.statCellPercentEdit {
+  cursor: default;
+}
+
+.statPercentInlineInput {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  min-height: 18px;
+}
+
+.statPercentInlineInput:focus {
+  outline: none;
 }
 
 @media (max-width: 560px) {
-  .teamPercentFootLabel {
-    flex-basis: 100%;
-  }
-
   .storeTeamMemberCard .teamMemberStats {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 3px !important;

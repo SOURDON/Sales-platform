@@ -2907,6 +2907,8 @@ function TeamStoresOverview({
   const [draftPercent, setDraftPercent] = useState<Record<number, string>>({});
   const [busySellerId, setBusySellerId] = useState<number | null>(null);
   const [removingMemberId, setRemovingMemberId] = useState<number | null>(null);
+  const [percentEditingId, setPercentEditingId] = useState<number | null>(null);
+  const skipPercentBlurSave = useRef(false);
 
   for (const seller of sellers) {
     allSalesByStore.set(seller.storeName, (allSalesByStore.get(seller.storeName) ?? 0) + seller.salesAmount);
@@ -2953,7 +2955,6 @@ function TeamStoresOverview({
                     ? allSalesByStore.get(member.storeName) ?? 0
                     : seller?.salesAmount ?? 0;
                   const currentPercent = isRetoucher ? 5 : seller?.ratePercent ?? 0;
-                  const currentInput = draftPercent[member.id] ?? String(currentPercent);
 
                   return (
                     <article
@@ -2974,9 +2975,38 @@ function TeamStoresOverview({
                           </p>
                         </div>
                         <div className="teamMemberTopActions">
-                          <span className={member.isActive ? 'statusPill statusPillOn' : 'statusPill statusPillOff'}>
-                            {member.isActive ? 'Активен' : 'Отключён'}
-                          </span>
+                          <button
+                            type="button"
+                            className="teamMemberDeletePill"
+                            aria-label="Убрать из магазина"
+                            disabled={removingMemberId === member.id}
+                            title="Убрать сотрудника из этого магазина"
+                            onClick={async () => {
+                              const ok = window.confirm(
+                                `Убрать «${member.fullName}» из точки «${member.storeName}»?`,
+                              );
+                              if (!ok) {
+                                return;
+                              }
+                              setRemovingMemberId(member.id);
+                              try {
+                                await onRemoveFromStore(token, member.id, member.storeName);
+                              } finally {
+                                setRemovingMemberId(null);
+                              }
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
+                              <path
+                                d="M4 7h16M9 3h6M10 11v6M14 11v6M6.5 7l1 13h9l1-13"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
                         </div>
                       </div>
 
@@ -2989,75 +3019,91 @@ function TeamStoresOverview({
                           <span className="statLabel">Продажи за всё время</span>
                           <span className="statValue">{allSales.toLocaleString('ru-RU')} ₽</span>
                         </div>
-                        <div className="statCell">
-                          <span className="statLabel">Текущий %</span>
-                          <span className="statValue strong">{currentPercent}%</span>
-                        </div>
-                      </div>
-
-                      <div className="teamMemberFoot">
                         {!isRetoucher && seller && canEditPercent ? (
-                          <>
-                            <span className="teamPercentFootLabel">Настройка процента</span>
-                            <input
-                              className="teamPercentFootInput"
-                              value={currentInput}
-                              onChange={(event) =>
+                          percentEditingId === member.id ? (
+                            <div className="statCell statCellPercentEdit">
+                              <span className="statLabel">Текущий %</span>
+                              <input
+                                className="statPercentInlineInput"
+                                value={draftPercent[member.id] ?? String(currentPercent)}
+                                disabled={busySellerId === seller.id}
+                                autoFocus
+                                inputMode="decimal"
+                                onChange={(event) =>
+                                  setDraftPercent((prev) => ({
+                                    ...prev,
+                                    [member.id]: event.target.value,
+                                  }))
+                                }
+                                onBlur={async () => {
+                                  if (skipPercentBlurSave.current) {
+                                    skipPercentBlurSave.current = false;
+                                    return;
+                                  }
+                                  if (!seller || percentEditingId !== member.id) {
+                                    return;
+                                  }
+                                  const raw = (draftPercent[member.id] ?? '').trim().replace(',', '.');
+                                  setPercentEditingId(null);
+                                  if (!raw) {
+                                    setDraftPercent((prev) => {
+                                      const next = { ...prev };
+                                      delete next[member.id];
+                                      return next;
+                                    });
+                                    return;
+                                  }
+                                  const next = Number(raw);
+                                  const safe = Number.isFinite(next) ? next : seller.ratePercent;
+                                  if (safe !== seller.ratePercent) {
+                                    setBusySellerId(seller.id);
+                                    try {
+                                      await onDirectorSetPercent(token, seller.id, safe);
+                                    } finally {
+                                      setBusySellerId(null);
+                                    }
+                                  }
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Escape') {
+                                    event.preventDefault();
+                                    skipPercentBlurSave.current = true;
+                                    setPercentEditingId(null);
+                                    setDraftPercent((prev) => {
+                                      const next = { ...prev };
+                                      delete next[member.id];
+                                      return next;
+                                    });
+                                  }
+                                  if (event.key === 'Enter') {
+                                    (event.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="statCell statPercentToggleBtn"
+                              disabled={busySellerId === seller.id}
+                              onClick={() => {
+                                setPercentEditingId(member.id);
                                 setDraftPercent((prev) => ({
                                   ...prev,
-                                  [member.id]: event.target.value,
-                                }))
-                              }
-                            />
-                            <button
-                              className="primaryAction teamPercentFootOk"
-                              type="button"
-                              disabled={busySellerId === seller.id}
-                              onClick={async () => {
-                                setBusySellerId(seller.id);
-                                try {
-                                  await onDirectorSetPercent(token, seller.id, Number(currentInput) || 0);
-                                } finally {
-                                  setBusySellerId(null);
-                                }
+                                  [member.id]: String(seller.ratePercent),
+                                }));
                               }}
                             >
-                              OK
+                              <span className="statLabel">Текущий %</span>
+                              <span className="statValue strong">{currentPercent}%</span>
                             </button>
-                          </>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="teamMemberRemoveBtn teamMemberRemoveBtnFoot"
-                          aria-label="Убрать из магазина"
-                          disabled={removingMemberId === member.id}
-                          title="Убрать сотрудника из этого магазина"
-                          onClick={async () => {
-                            const ok = window.confirm(
-                              `Убрать «${member.fullName}» из точки «${member.storeName}»?`,
-                            );
-                            if (!ok) {
-                              return;
-                            }
-                            setRemovingMemberId(member.id);
-                            try {
-                              await onRemoveFromStore(token, member.id, member.storeName);
-                            } finally {
-                              setRemovingMemberId(null);
-                            }
-                          }}
-                        >
-                          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden>
-                            <path
-                              d="M4 7h16M9 3h6M10 11v6M14 11v6M6.5 7l1 13h9l1-13"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
+                          )
+                        ) : (
+                          <div className="statCell">
+                            <span className="statLabel">Текущий %</span>
+                            <span className="statValue strong">{currentPercent}%</span>
+                          </div>
+                        )}
                       </div>
                     </article>
                   );
