@@ -711,6 +711,33 @@ button.ghost.navActive:hover {
   gap: 12px;
 }
 
+.teamStoresBoard {
+  display: grid;
+  gap: 12px;
+}
+
+.teamStoreSection {
+  border: 1px solid #c8d7cb;
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.teamStoreTitle {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #0f4c81;
+}
+
+.teamStoreGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.storeTeamMemberCard {
+  padding: 10px;
+}
+
 /* Страница «Команда» */
 .teamPage {
   gap: 16px;

@@ -515,8 +515,8 @@ export class AdminController {
     @Body() body: SetPercentBody,
   ) {
     const session = this.requireWriteAccess(authorization);
-    if (session.role !== 'DIRECTOR') {
-      throw new ForbiddenException('Only director can change percent directly');
+    if (session.role !== 'DIRECTOR' && session.role !== 'ACCOUNTANT') {
+      throw new ForbiddenException('Only director or accountant can change percent directly');
     }
     if (!body.sellerId || body.ratePercent === undefined) {
       throw new BadRequestException('sellerId and ratePercent are required');

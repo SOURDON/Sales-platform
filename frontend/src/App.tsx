@@ -1700,20 +1700,32 @@ function App() {
                 ) : (
                   <div className="dashboard teamPage">
                     <section className="sectionCard teamPanelCard">
-                      <StaffPanel
-                        token={session.token}
-                        staff={staff}
-                        sellers={sellers}
-                        globalEmployees={globalEmployees}
-                        shifts={shifts}
-                        role={role}
-                        readOnly={isReadOnlyObserver}
-                        onAdd={addStaffMember}
-                        onAddFromBase={addStaffFromBase}
-                        onRemoveFromStore={removeStaffFromStore}
-                        onDirectorSetPercent={setDirectorPercent}
-                        hideCards
-                      />
+                      {isFinanceViewer ? (
+                        <TeamStoresOverview
+                          token={session.token}
+                          staff={staff}
+                          sellers={sellers}
+                          sales={sales}
+                          shifts={shifts}
+                          role={role}
+                          onDirectorSetPercent={setDirectorPercent}
+                        />
+                      ) : (
+                        <StaffPanel
+                          token={session.token}
+                          staff={staff}
+                          sellers={sellers}
+                          globalEmployees={globalEmployees}
+                          shifts={shifts}
+                          role={role}
+                          readOnly={isReadOnlyObserver}
+                          onAdd={addStaffMember}
+                          onAddFromBase={addStaffFromBase}
+                          onRemoveFromStore={removeStaffFromStore}
+                          onDirectorSetPercent={setDirectorPercent}
+                          hideCards
+                        />
+                      )}
                     </section>
                     {role === 'DIRECTOR' && (
                       <section className="sectionCard">
@@ -2860,6 +2872,162 @@ function TeamMemberCard({
         <p className="hint teamHint">Нет профиля продавца — показатели появятся после синхронизации.</p>
       )}
     </article>
+  );
+}
+
+function TeamStoresOverview({
+  token,
+  staff,
+  sellers,
+  sales,
+  shifts,
+  role,
+  onDirectorSetPercent,
+}: {
+  token: string;
+  staff: StaffMember[];
+  sellers: SellerProfile[];
+  sales: AdminSale[];
+  shifts: ShiftInfo[];
+  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+  onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
+}) {
+  const openShift = shifts.find((item) => item.status === 'OPEN');
+  const openShiftId = openShift?.id;
+  const canEditPercent = role === 'DIRECTOR' || role === 'ACCOUNTANT';
+  const sellerById = new Map(sellers.map((item) => [item.id, item]));
+  const sellerStoreById = new Map(sellers.map((item) => [item.id, item.storeName]));
+  const todayKey = todayKeyMoscow();
+  const todaySalesBySellerId = new Map<number, number>();
+  const allSalesByStore = new Map<string, number>();
+  const todaySalesByStore = new Map<string, number>();
+  const [draftPercent, setDraftPercent] = useState<Record<number, string>>({});
+  const [busySellerId, setBusySellerId] = useState<number | null>(null);
+
+  for (const seller of sellers) {
+    allSalesByStore.set(seller.storeName, (allSalesByStore.get(seller.storeName) ?? 0) + seller.salesAmount);
+  }
+  for (const sale of sales) {
+    if (calendarDayKeyMoscow(sale.createdAt) !== todayKey) {
+      continue;
+    }
+    todaySalesBySellerId.set(sale.sellerId, (todaySalesBySellerId.get(sale.sellerId) ?? 0) + sale.totalAmount);
+    const storeName = sellerStoreById.get(sale.sellerId);
+    if (storeName) {
+      todaySalesByStore.set(storeName, (todaySalesByStore.get(storeName) ?? 0) + sale.totalAmount);
+    }
+  }
+
+  const membersByStore = new Map<string, StaffMember[]>();
+  for (const member of staff) {
+    const list = membersByStore.get(member.storeName) ?? [];
+    list.push(member);
+    membersByStore.set(member.storeName, list);
+  }
+
+  const stores = Array.from(membersByStore.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ru-RU'));
+
+  return (
+    <div className="opsCard staffPanelRoot">
+      <h4 className="staffPanelTitle">Команда по магазинам</h4>
+      <div className="teamStoresBoard">
+        {stores.map(([storeName, members]) => (
+          <section key={storeName} className="teamStoreSection">
+            <h5 className="teamStoreTitle">{storeName}</h5>
+            <div className="teamStoreGrid">
+              {members
+                .slice()
+                .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'))
+                .map((member) => {
+                  const seller = sellerById.get(member.id);
+                  const isRetoucher = member.staffPosition === 'RETOUCHER';
+                  const isShiftOpen = Boolean(openShiftId && member.assignedShiftId === openShiftId);
+                  const todaySales = isRetoucher
+                    ? todaySalesByStore.get(member.storeName) ?? 0
+                    : todaySalesBySellerId.get(member.id) ?? 0;
+                  const allSales = isRetoucher
+                    ? allSalesByStore.get(member.storeName) ?? 0
+                    : seller?.salesAmount ?? 0;
+                  const currentPercent = isRetoucher ? 5 : seller?.ratePercent ?? 0;
+                  const currentInput = draftPercent[member.id] ?? String(currentPercent);
+
+                  return (
+                    <article
+                      key={`${storeName}-${member.id}`}
+                      className={`teamMemberCard storeTeamMemberCard ${isShiftOpen ? 'teamMemberCardShiftOpen' : 'teamMemberCardShiftClosed'}`}
+                    >
+                      <div className="teamMemberTop">
+                        <div>
+                          <p className="teamMemberName">
+                            <strong>{member.fullName}</strong>{' '}
+                            <span className="teamMemberNick">({member.nickname})</span>
+                            {isRetoucher ? (
+                              <span className="statusPill statusPillOn retoucherBadge">Ретушёр</span>
+                            ) : null}
+                          </p>
+                          <p className={`teamMemberShiftState ${isShiftOpen ? 'shiftOpen' : 'shiftClosed'}`}>
+                            {isShiftOpen ? 'Смена открыта' : 'Смена закрыта'}
+                          </p>
+                        </div>
+                        <span className={member.isActive ? 'statusPill statusPillOn' : 'statusPill statusPillOff'}>
+                          {member.isActive ? 'Активен' : 'Отключён'}
+                        </span>
+                      </div>
+
+                      <div className="teamMemberStats">
+                        <div className="statCell">
+                          <span className="statLabel">Продажи за сегодня</span>
+                          <span className="statValue">{todaySales.toLocaleString('ru-RU')} ₽</span>
+                        </div>
+                        <div className="statCell">
+                          <span className="statLabel">Продажи за всё время</span>
+                          <span className="statValue">{allSales.toLocaleString('ru-RU')} ₽</span>
+                        </div>
+                        <div className="statCell">
+                          <span className="statLabel">Текущий %</span>
+                          <span className="statValue strong">{currentPercent}%</span>
+                        </div>
+                      </div>
+
+                      {!isRetoucher && seller && canEditPercent && (
+                        <div className="directorPercent teamPercentEdit">
+                          <label>
+                            Настройка процента
+                            <input
+                              value={currentInput}
+                              onChange={(event) =>
+                                setDraftPercent((prev) => ({
+                                  ...prev,
+                                  [member.id]: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <button
+                            className="primaryAction"
+                            type="button"
+                            disabled={busySellerId === seller.id}
+                            onClick={async () => {
+                              setBusySellerId(seller.id);
+                              try {
+                                await onDirectorSetPercent(token, seller.id, Number(currentInput) || 0);
+                              } finally {
+                                setBusySellerId(null);
+                              }
+                            }}
+                          >
+                            OK
+                          </button>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
   );
 }
 
