@@ -1080,6 +1080,15 @@ function App() {
     await Promise.all([loadStaff(token), loadSellers(token), loadShifts(token), loadGlobalEmployees(token)]);
   };
 
+  const deactivateStaffMember = async (token: string, id: number) => {
+    const response = await fetch(`${API_BASE_URL}/admin/staff/${id}/deactivate`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error('deactivate staff error');
+    await Promise.all([loadStaff(token), loadSellers(token), loadShifts(token), loadGlobalEmployees(token)]);
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
@@ -1709,6 +1718,8 @@ function App() {
                           shifts={shifts}
                           role={role}
                           onDirectorSetPercent={setDirectorPercent}
+                          onRemoveFromStore={removeStaffFromStore}
+                          onDeactivate={deactivateStaffMember}
                         />
                       ) : (
                         <StaffPanel
@@ -2883,6 +2894,8 @@ function TeamStoresOverview({
   shifts,
   role,
   onDirectorSetPercent,
+  onRemoveFromStore,
+  onDeactivate,
 }: {
   token: string;
   staff: StaffMember[];
@@ -2891,6 +2904,8 @@ function TeamStoresOverview({
   shifts: ShiftInfo[];
   role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
+  onRemoveFromStore: (token: string, id: number, storeName?: string) => Promise<void>;
+  onDeactivate: (token: string, id: number) => Promise<void>;
 }) {
   const openShift = shifts.find((item) => item.status === 'OPEN');
   const openShiftId = openShift?.id;
@@ -2903,6 +2918,8 @@ function TeamStoresOverview({
   const todaySalesByStore = new Map<string, number>();
   const [draftPercent, setDraftPercent] = useState<Record<number, string>>({});
   const [busySellerId, setBusySellerId] = useState<number | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<number | null>(null);
+  const [deletingMemberId, setDeletingMemberId] = useState<number | null>(null);
 
   for (const seller of sellers) {
     allSalesByStore.set(seller.storeName, (allSalesByStore.get(seller.storeName) ?? 0) + seller.salesAmount);
@@ -2969,9 +2986,39 @@ function TeamStoresOverview({
                             {isShiftOpen ? 'Смена открыта' : 'Смена закрыта'}
                           </p>
                         </div>
-                        <span className={member.isActive ? 'statusPill statusPillOn' : 'statusPill statusPillOff'}>
-                          {member.isActive ? 'Активен' : 'Отключён'}
-                        </span>
+                        <div className="teamMemberTopActions">
+                          <button
+                            type="button"
+                            className="teamMemberRemoveBtn"
+                            aria-label="Убрать из магазина"
+                            disabled={removingMemberId === member.id}
+                            title="Убрать сотрудника из этого магазина"
+                            onClick={async () => {
+                              const ok = window.confirm(
+                                `Убрать «${member.fullName}» из точки «${member.storeName}»?`,
+                              );
+                              if (!ok) {
+                                return;
+                              }
+                              setRemovingMemberId(member.id);
+                              try {
+                                await onRemoveFromStore(token, member.id, member.storeName);
+                              } finally {
+                                setRemovingMemberId(null);
+                              }
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+                              <path
+                                fill="#e8c76c"
+                                d="M9 3h6l1 2h5v2H3V5h5l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zm-8 2h2v7H6v-7zm12 0h2v7h-2v-7zM7 21h10v2H7v-2z"
+                              />
+                            </svg>
+                          </button>
+                          <span className={member.isActive ? 'statusPill statusPillOn' : 'statusPill statusPillOff'}>
+                            {member.isActive ? 'Активен' : 'Отключён'}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="teamMemberStats">
@@ -2990,19 +3037,17 @@ function TeamStoresOverview({
                       </div>
 
                       {!isRetoucher && seller && canEditPercent && (
-                        <div className="directorPercent teamPercentEdit">
-                          <label>
-                            Настройка процента
-                            <input
-                              value={currentInput}
-                              onChange={(event) =>
-                                setDraftPercent((prev) => ({
-                                  ...prev,
-                                  [member.id]: event.target.value,
-                                }))
-                              }
-                            />
-                          </label>
+                        <div className="directorPercent teamPercentEdit teamPercentInline">
+                          <label>Настройка процента</label>
+                          <input
+                            value={currentInput}
+                            onChange={(event) =>
+                              setDraftPercent((prev) => ({
+                                ...prev,
+                                [member.id]: event.target.value,
+                              }))
+                            }
+                          />
                           <button
                             className="primaryAction"
                             type="button"
@@ -3020,6 +3065,25 @@ function TeamStoresOverview({
                           </button>
                         </div>
                       )}
+                      <button
+                        type="button"
+                        className="teamDeleteFullBtn"
+                        disabled={deletingMemberId === member.id}
+                        onClick={async () => {
+                          const ok = window.confirm(`Полностью удалить сотрудника «${member.fullName}»?`);
+                          if (!ok) {
+                            return;
+                          }
+                          setDeletingMemberId(member.id);
+                          try {
+                            await onDeactivate(token, member.id);
+                          } finally {
+                            setDeletingMemberId(null);
+                          }
+                        }}
+                      >
+                        Удалить сотрудника полностью
+                      </button>
                     </article>
                   );
                 })}

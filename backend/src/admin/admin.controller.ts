@@ -409,7 +409,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Param('id') id: string,
   ) {
-    const session = this.requireWriteAccess(authorization);
+    const session = this.requireFinanceRead(authorization);
     const staff = this.authService.deactivateStaff(Number(id), session.nickname);
     if (!staff) {
       throw new BadRequestException('Staff not found');
@@ -457,7 +457,7 @@ export class AdminController {
     @Param('id') id: string,
     @Body() body: RemoveStaffFromStoreBody,
   ) {
-    const session = this.requireWriteAccess(authorization);
+    const session = this.requireRemoveFromStoreAccess(authorization);
     const staff = this.authService.removeStaffFromStore(Number(id), session.nickname, body.storeName);
     if (!staff) {
       throw new BadRequestException('Staff not found in selected store');
@@ -514,10 +514,7 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: SetPercentBody,
   ) {
-    const session = this.requireWriteAccess(authorization);
-    if (session.role !== 'DIRECTOR' && session.role !== 'ACCOUNTANT') {
-      throw new ForbiddenException('Only director or accountant can change percent directly');
-    }
+    const session = this.requireDirectorOrAccountantAccess(authorization);
     if (!body.sellerId || body.ratePercent === undefined) {
       throw new BadRequestException('sellerId and ratePercent are required');
     }
@@ -656,6 +653,36 @@ export class AdminController {
       throw new UnauthorizedException('Only admin or director allowed');
     }
 
+    return session;
+  }
+
+  /** Снятие сотрудника с точки: админ своей точки, директор и бухгалтер (с указанием storeName в теле). */
+  private requireRemoveFromStoreAccess(authorization?: string) {
+    const token = authorization?.replace('Bearer ', '').trim();
+    if (!token) {
+      throw new UnauthorizedException('Missing token');
+    }
+    const session = this.authService.parseToken(token);
+    if (
+      !session ||
+      (session.role !== 'ADMIN' &&
+        session.role !== 'DIRECTOR' &&
+        session.role !== 'ACCOUNTANT')
+    ) {
+      throw new UnauthorizedException('Only admin, director, or accountant allowed');
+    }
+    return session;
+  }
+
+  private requireDirectorOrAccountantAccess(authorization?: string) {
+    const token = authorization?.replace('Bearer ', '').trim();
+    if (!token) {
+      throw new UnauthorizedException('Missing token');
+    }
+    const session = this.authService.parseToken(token);
+    if (!session || (session.role !== 'DIRECTOR' && session.role !== 'ACCOUNTANT')) {
+      throw new UnauthorizedException('Only director or accountant allowed');
+    }
     return session;
   }
 
