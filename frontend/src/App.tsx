@@ -3042,7 +3042,7 @@ function TeamStoresOverview({
   removedStaffRows.sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
 
   return (
-    <div className="opsCard staffPanelRoot">
+    <div className="staffPanelRoot staffPanelStoresOverview">
       <h4 className="staffPanelTitle">Команда по магазинам</h4>
       <div className="teamStoresBoard">
         {storesSorted.map((storeName) => {
