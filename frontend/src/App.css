@@ -830,10 +830,10 @@ button.ghost.navActive:hover {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  padding: 4px 10px;
-  min-width: 52px;
-  min-height: 26px;
-  border-radius: 999px;
+  padding: 2px 14px;
+  min-width: 64px;
+  min-height: 20px;
+  border-radius: 6px;
   border: 1px solid rgba(127, 63, 63, 0.42);
   background: linear-gradient(180deg, #c57b7b 0%, #9f5c5c 100%);
   box-shadow: 0 1px 3px rgba(127, 63, 63, 0.22);
@@ -848,6 +848,12 @@ button.ghost.navActive:hover {
 .teamMemberDeletePill:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.teamMemberDeletePill svg {
+  display: block;
+  width: 13px;
+  height: 13px;
 }
 
 .statPercentToggleBtn {
