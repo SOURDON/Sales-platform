@@ -3002,13 +3002,14 @@ function TeamStoresOverview({
 
   const [storeAccordionOpen, setStoreAccordionOpen] = useState<Record<string, boolean>>({});
 
-  const isStoreAccordionOpen = (name: string) => storeAccordionOpen[name] !== false;
+  /** По умолчанию секции свёрнуты; открыто только при явном `true`. */
+  const isStoreAccordionOpen = (name: string) => storeAccordionOpen[name] === true;
 
   const toggleStoreAccordion = (name: string) => {
-    setStoreAccordionOpen((prev) => {
-      const currentlyOpen = prev[name] !== false;
-      return { ...prev, [name]: !currentlyOpen };
-    });
+    setStoreAccordionOpen((prev) => ({
+      ...prev,
+      [name]: !(prev[name] === true),
+    }));
   };
 
   for (const sale of sales) {
