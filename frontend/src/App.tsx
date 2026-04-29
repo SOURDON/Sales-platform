@@ -225,9 +225,12 @@ type SellerProfile = {
   nickname: string;
   storeName: string;
   ratePercent: number;
+  /** Продажи за текущий «сегодня» по бизнес-логике recomputeSeller. */
   salesAmount: number;
   checksCount: number;
   commissionAmount: number;
+  /** Сумма всех продаж по чекам продавца (за всё время). */
+  lifetimeSalesAmount?: number;
 };
 
 type CommissionRequest = {
@@ -283,6 +286,23 @@ function retoucherEarnRubSnapshot(
   const todayRev = revByDay.get(todayKey) ?? 0;
   const todayRub = Math.round((todayRev * ratePercent) / 100);
   return { todayRub, lifetimeRub };
+}
+
+/** Σ продаж продавца по всем чекам (из API `lifetimeSalesAmount` или сумма snapshot). */
+function sellerLifetimeSalesRub(seller: SellerProfile | undefined, sales: AdminSale[]): number {
+  if (!seller) {
+    return 0;
+  }
+  if (
+    typeof seller.lifetimeSalesAmount === 'number' &&
+    Number.isFinite(seller.lifetimeSalesAmount)
+  ) {
+    return seller.lifetimeSalesAmount;
+  }
+  const raw = sales
+    .filter((sale) => sale.sellerId === seller.id)
+    .reduce((acc, sale) => acc + sale.totalAmount, 0);
+  return Math.round(raw * 100) / 100;
 }
 
 type ShiftInfo = {
@@ -3005,11 +3025,11 @@ function TeamStoresOverview({
                     ? retoucherEarnRubSnapshot(storeName, sellers, sales, ratePctRetoucher, todayKey)
                     : null;
                   const todaySales = todaySalesBySellerId.get(member.id) ?? 0;
-                  const allSalesSeller = seller?.salesAmount ?? 0;
+                  const lifetimeSalesSeller = sellerLifetimeSalesRub(seller, sales);
                   const statPrimaryLabel = isRetoucher ? 'Заработок за сегодня' : 'Продажи за сегодня';
                   const statPrimaryRub = isRetoucher ? retoucherEarn!.todayRub : todaySales;
                   const statSecondaryLabel = isRetoucher ? 'Заработок за всё время' : 'Продажи за всё время';
-                  const statSecondaryRub = isRetoucher ? retoucherEarn!.lifetimeRub : allSalesSeller;
+                  const statSecondaryRub = isRetoucher ? retoucherEarn!.lifetimeRub : lifetimeSalesSeller;
                   const baselinePercent = seller?.ratePercent ?? member.retoucherRatePercent ?? 5;
                   const currentPercent = baselinePercent;
                   const percentEditable = canEditPercent && Boolean(seller || isRetoucher);

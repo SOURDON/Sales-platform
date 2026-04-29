@@ -783,6 +783,9 @@ export class AuthService implements OnModuleInit {
       })
       .map((item) => {
         this.recomputeSeller(item);
+        const lifetimeSalesAmount = Math.round(
+          item.sales.reduce((sum, sale) => sum + sale.totalAmount, 0) * 100,
+        ) / 100;
         return {
           id: item.id,
           fullName: item.fullName,
@@ -792,6 +795,7 @@ export class AuthService implements OnModuleInit {
           salesAmount: item.salesAmount,
           checksCount: item.checksCount,
           commissionAmount: item.commissionAmount,
+          lifetimeSalesAmount,
         };
       });
   }
