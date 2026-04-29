@@ -2995,10 +2995,40 @@ function TeamStoresOverview({
                         </div>
                       </div>
 
-                      <div className="teamMemberInlineActions">
+                      <div className="teamMemberFoot">
+                        {!isRetoucher && seller && canEditPercent ? (
+                          <>
+                            <span className="teamPercentFootLabel">Настройка процента</span>
+                            <input
+                              className="teamPercentFootInput"
+                              value={currentInput}
+                              onChange={(event) =>
+                                setDraftPercent((prev) => ({
+                                  ...prev,
+                                  [member.id]: event.target.value,
+                                }))
+                              }
+                            />
+                            <button
+                              className="primaryAction teamPercentFootOk"
+                              type="button"
+                              disabled={busySellerId === seller.id}
+                              onClick={async () => {
+                                setBusySellerId(seller.id);
+                                try {
+                                  await onDirectorSetPercent(token, seller.id, Number(currentInput) || 0);
+                                } finally {
+                                  setBusySellerId(null);
+                                }
+                              }}
+                            >
+                              OK
+                            </button>
+                          </>
+                        ) : null}
                         <button
                           type="button"
-                          className="teamMemberRemoveBtn"
+                          className="teamMemberRemoveBtn teamMemberRemoveBtnFoot"
                           aria-label="Убрать из магазина"
                           disabled={removingMemberId === member.id}
                           title="Убрать сотрудника из этого магазина"
@@ -3017,7 +3047,7 @@ function TeamStoresOverview({
                             }
                           }}
                         >
-                          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+                          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden>
                             <path
                               d="M4 7h16M9 3h6M10 11v6M14 11v6M6.5 7l1 13h9l1-13"
                               fill="none"
@@ -3029,38 +3059,6 @@ function TeamStoresOverview({
                           </svg>
                         </button>
                       </div>
-
-                      {!isRetoucher && seller && canEditPercent && (
-                        <div className="directorPercent teamPercentEdit teamPercentInline">
-                          <div className="teamPercentRow">
-                            <label>Настройка процента</label>
-                            <input
-                              value={currentInput}
-                              onChange={(event) =>
-                                setDraftPercent((prev) => ({
-                                  ...prev,
-                                  [member.id]: event.target.value,
-                                }))
-                              }
-                            />
-                          </div>
-                          <button
-                            className="primaryAction"
-                            type="button"
-                            disabled={busySellerId === seller.id}
-                            onClick={async () => {
-                              setBusySellerId(seller.id);
-                              try {
-                                await onDirectorSetPercent(token, seller.id, Number(currentInput) || 0);
-                              } finally {
-                                setBusySellerId(null);
-                              }
-                            }}
-                          >
-                            OK
-                          </button>
-                        </div>
-                      )}
                     </article>
                   );
                 })}
