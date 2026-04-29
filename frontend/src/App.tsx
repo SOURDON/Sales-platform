@@ -76,12 +76,22 @@ type StaffMember = {
   isActive: boolean;
   assignedShiftId?: string;
   storeName: string;
+  /** Привязки к торговым точкам (из StoreStaffAssignment); если нет — fallback ниже. */
+  assignedStores?: string[];
   staffPosition: StaffPositionKind;
   /** Доля от выручки точки за день (ретушёр); с бэкенда. */
   retoucherRatePercent?: number;
   /** Для ретушёра, ₽; с бэкенда. */
   earningsAmount: number;
 };
+
+/** Точки сотрудника; до выката API со старыми клиентами — по домашней точке из профиля. */
+function staffAssignedStores(member: StaffMember): string[] {
+  if (Array.isArray(member.assignedStores)) {
+    return member.assignedStores;
+  }
+  return member.storeName ? [member.storeName] : [];
+}
 
 /**
  * Сводка для админа на «Главной» считается на клиенте (продавцы, продажи, смены),
@@ -2948,20 +2958,38 @@ function TeamStoresOverview({
     todaySalesBySellerId.set(sale.sellerId, (todaySalesBySellerId.get(sale.sellerId) ?? 0) + sale.totalAmount);
   }
 
-  const membersByStore = new Map<string, StaffMember[]>();
+  const storeNamesFromAssignments = new Set<string>();
   for (const member of staff) {
-    const list = membersByStore.get(member.storeName) ?? [];
-    list.push(member);
-    membersByStore.set(member.storeName, list);
+    if (!member.isActive) {
+      continue;
+    }
+    for (const sn of staffAssignedStores(member)) {
+      storeNamesFromAssignments.add(sn);
+    }
   }
+  const storesSorted = Array.from(storeNamesFromAssignments).sort((a, b) =>
+    a.localeCompare(b, 'ru-RU'),
+  );
 
-  const stores = Array.from(membersByStore.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ru-RU'));
+  const removedStaffRows = staff.filter((member) => {
+    const assigns = staffAssignedStores(member);
+    return !member.isActive || assigns.length === 0;
+  });
+  removedStaffRows.sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
 
   return (
     <div className="opsCard staffPanelRoot">
       <h4 className="staffPanelTitle">Команда по магазинам</h4>
       <div className="teamStoresBoard">
-        {stores.map(([storeName, members]) => (
+        {storesSorted.map((storeName) => {
+          const members = staff.filter(
+            (member) =>
+              member.isActive && staffAssignedStores(member).includes(storeName),
+          );
+          if (members.length === 0) {
+            return null;
+          }
+          return (
           <section key={storeName} className="teamStoreSection">
             <h5 className="teamStoreTitle">{storeName}</h5>
             <div className="teamStoreGrid">
@@ -2974,7 +3002,7 @@ function TeamStoresOverview({
                   const isShiftOpen = Boolean(openShiftId && member.assignedShiftId === openShiftId);
                   const ratePctRetoucher = member.retoucherRatePercent ?? 5;
                   const retoucherEarn = isRetoucher
-                    ? retoucherEarnRubSnapshot(member.storeName, sellers, sales, ratePctRetoucher, todayKey)
+                    ? retoucherEarnRubSnapshot(storeName, sellers, sales, ratePctRetoucher, todayKey)
                     : null;
                   const todaySales = todaySalesBySellerId.get(member.id) ?? 0;
                   const allSalesSeller = seller?.salesAmount ?? 0;
@@ -3013,14 +3041,14 @@ function TeamStoresOverview({
                             title="Убрать сотрудника из этого магазина"
                             onClick={async () => {
                               const ok = window.confirm(
-                                `Убрать «${member.fullName}» из точки «${member.storeName}»?`,
+                                `Убрать «${member.fullName}» из точки «${storeName}»?`,
                               );
                               if (!ok) {
                                 return;
                               }
                               setRemovingMemberId(member.id);
                               try {
-                                await onRemoveFromStore(token, member.id, member.storeName);
+                                await onRemoveFromStore(token, member.id, storeName);
                               } finally {
                                 setRemovingMemberId(null);
                               }
@@ -3140,8 +3168,45 @@ function TeamStoresOverview({
                 })}
             </div>
           </section>
-        ))}
+          );
+        })}
       </div>
+
+      <section className="teamStoresRemovedWrap" aria-labelledby="team-stores-removed-heading">
+        <h4 id="team-stores-removed-heading" className="staffPanelTitle teamStoresRemovedHeading">
+          Удалённые сотрудники
+        </h4>
+        <p className="teamStoresRemovedIntro">
+          Отключённые учётные записи и те, у кого не осталось привязки ни к одной точке после исключения из
+          состава.
+        </p>
+        {removedStaffRows.length === 0 ? (
+          <p className="teamStoresRemovedEmpty">Записей пока нет.</p>
+        ) : (
+          <ul className="teamStoresRemovedList">
+            {removedStaffRows.map((member) => {
+              const isRetoucher = member.staffPosition === 'RETOUCHER';
+              const reasonLabel = !member.isActive ? 'Отключён' : 'Не привязан к точкам';
+              return (
+                <li key={`removed-${member.id}`} className="teamStoresRemovedRow">
+                  <span className="teamStoresRemovedName">
+                    <strong>{member.fullName}</strong>{' '}
+                    <span className="teamMemberNick">({member.nickname})</span>
+                  </span>
+                  <span className="teamStoresRemovedBadges">
+                    {isRetoucher ? (
+                      <span className="statusPill statusPillOn retoucherBadge">Ретушёр</span>
+                    ) : (
+                      <span className="teamStoresRemovedRoleSeller">Продавец</span>
+                    )}
+                  </span>
+                  <span className="teamStoresRemovedReason">{reasonLabel}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

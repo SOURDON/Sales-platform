@@ -1304,6 +1304,10 @@ export class AuthService implements OnModuleInit {
     this.syncRetoucherEarnings();
     return this.staff.map((member) => {
       const u = this.demoUsers.find((d) => d.id === member.id);
+      const assignedStores = this.storeStaffAssignments
+        .filter((item) => item.staffId === member.id)
+        .map((item) => item.storeName)
+        .sort((a, b) => a.localeCompare(b, 'ru-RU'));
       return {
         id: member.id,
         fullName: member.fullName,
@@ -1312,6 +1316,7 @@ export class AuthService implements OnModuleInit {
         assignedShiftId: member.assignedShiftId,
         staffPosition: member.staffPosition,
         storeName: u?.storeName ?? '',
+        assignedStores,
         earningsAmount: member.staffPosition === 'RETOUCHER' ? member.earningsAmount : 0,
         retoucherRatePercent:
           member.staffPosition === 'RETOUCHER' ? member.retoucherRatePercent : undefined,
