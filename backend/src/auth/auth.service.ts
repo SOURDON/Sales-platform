@@ -954,13 +954,26 @@ export class AuthService implements OnModuleInit {
   }
 
   async setSellerPercentDirect(sellerId: number, ratePercent: number) {
-    if (ratePercent < 0 || ratePercent > 100) {
+    const pct = typeof ratePercent === 'number' ? ratePercent : Number(ratePercent);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
       return null;
     }
     const seller = this.sellerProfiles.find((item) => item.id === sellerId);
     if (seller) {
-      seller.ratePercent = ratePercent;
+      seller.ratePercent = pct;
       this.recomputeSeller(seller);
+      if (this.persistenceEnabled) {
+        try {
+          await this.prisma.sellerProfile.update({
+            where: { id: sellerId },
+            data: { ratePercent: pct },
+          });
+        } catch (error: unknown) {
+          this.logger.warn(
+            `sellerProfile.update(ratePercent) failed id=${sellerId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
       this.queuePersist();
       await this.persistChain;
       return this.getSellerProfiles().find((item) => item.id === sellerId) ?? null;
@@ -969,8 +982,20 @@ export class AuthService implements OnModuleInit {
     if (!staffMember) {
       return null;
     }
-    staffMember.retoucherRatePercent = ratePercent;
+    staffMember.retoucherRatePercent = pct;
     this.syncRetoucherEarnings();
+    if (this.persistenceEnabled) {
+      try {
+        await this.prisma.staffMember.update({
+          where: { id: sellerId },
+          data: { retoucherRatePercent: pct },
+        });
+      } catch (error: unknown) {
+        this.logger.warn(
+          `staffMember.update(retoucherRatePercent) failed id=${sellerId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
     this.queuePersist();
     await this.persistChain;
     const u = this.demoUsers.find((item) => item.id === staffMember.id);
@@ -1940,12 +1965,13 @@ export class AuthService implements OnModuleInit {
     }));
     this.sellerProfiles = sellerProfiles.map((profile) => {
       const user = userById.get(profile.id);
+      const rp = Number(profile.ratePercent);
       return {
         id: profile.id,
         fullName: user?.fullName ?? '',
         nickname: user?.nickname ?? '',
         storeName: profile.storeName,
-        ratePercent: profile.ratePercent,
+        ratePercent: Number.isFinite(rp) ? rp : 0,
         salesAmount: 0,
         checksCount: 0,
         sales: (salesBySellerId.get(profile.id) ?? []).sort(
