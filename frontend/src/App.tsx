@@ -3012,6 +3012,9 @@ function TeamStoresOverview({
     }));
   };
 
+  /** Блок «Удалённые сотрудники»: по умолчанию свёрнут. */
+  const [removedStaffAccordionOpen, setRemovedStaffAccordionOpen] = useState(false);
+
   for (const sale of sales) {
     if (calendarDayKeyMoscow(sale.createdAt) !== todayKey) {
       continue;
@@ -3253,91 +3256,114 @@ function TeamStoresOverview({
         })}
       </div>
 
-      <section className="teamStoresRemovedWrap" aria-labelledby="team-stores-removed-heading">
-        <h4 id="team-stores-removed-heading" className="staffPanelTitle teamStoresRemovedHeading">
-          Удалённые сотрудники
-        </h4>
-        <p className="teamStoresRemovedIntro">
-          Отключённые учётные записи и те, у кого не осталось привязки ни к одной точке после исключения из
-          состава.
-        </p>
-        {removedStaffRows.length === 0 ? (
-          <p className="teamStoresRemovedEmpty">Записей пока нет.</p>
-        ) : (
-          <ul className="teamStoresRemovedList">
-            {removedStaffRows.map((member) => {
-              const isRetoucher = member.staffPosition === 'RETOUCHER';
-              const reasonLabel = !member.isActive ? 'Отключён' : 'Не привязан к точкам';
-              const chosenStore =
-                restorePickStore[member.id] ?? restoreStoreChoices[0] ?? '';
-              return (
-                <li key={`removed-${member.id}`} className="teamStoresRemovedRow">
-                  <span className="teamStoresRemovedName">
-                    <strong>{member.fullName}</strong>{' '}
-                    <span className="teamMemberNick">({member.nickname})</span>
-                  </span>
-                  <span className="teamStoresRemovedBadges">
-                    {isRetoucher ? (
-                      <span className="statusPill statusPillOn retoucherBadge">Ретушёр</span>
-                    ) : (
-                      <span className="teamStoresRemovedRoleSeller">Продавец</span>
-                    )}
-                  </span>
-                  <span className="teamStoresRemovedReason">{reasonLabel}</span>
-                  <span className="teamStoresRemovedRestore">
-                    <select
-                      className="teamStoresRestoreSelect"
-                      aria-label={`Точка для восстановления ${member.fullName}`}
-                      value={chosenStore}
-                      onChange={(event) =>
-                        setRestorePickStore((prev) => ({
-                          ...prev,
-                          [member.id]: event.target.value,
-                        }))
-                      }
-                      disabled={restoreStoreChoices.length === 0 || restoreBusyId === member.id}
-                    >
-                      {restoreStoreChoices.length === 0 ? (
-                        <option value="">Нет точек в списке</option>
-                      ) : (
-                        restoreStoreChoices.map((sn) => (
-                          <option key={sn} value={sn}>
-                            {sn}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                    <button
-                      type="button"
-                      className="teamStoresRestoreBtn"
-                      disabled={
-                        restoreStoreChoices.length === 0 ||
-                        !chosenStore ||
-                        restoreBusyId === member.id
-                      }
-                      onClick={async () => {
-                        const ok = window.confirm(
-                          `Вернуть «${member.fullName}» в точку «${chosenStore}»? Учётная запись будет активна.`,
-                        );
-                        if (!ok) {
-                          return;
-                        }
-                        setRestoreBusyId(member.id);
-                        try {
-                          await onRestoreStaffToStore(token, member.id, chosenStore);
-                        } finally {
-                          setRestoreBusyId(null);
-                        }
-                      }}
-                    >
-                      {restoreBusyId === member.id ? '…' : 'Вернуть'}
-                    </button>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+      <section
+        className={`teamStoresRemovedWrap ${removedStaffAccordionOpen ? '' : 'teamStoresRemovedWrap--collapsed'}`}
+      >
+        <button
+          type="button"
+          id="team-stores-removed-heading"
+          className="teamStoresRemovedAccordionTrigger"
+          aria-expanded={removedStaffAccordionOpen}
+          aria-controls="team-stores-removed-panel"
+          onClick={() => setRemovedStaffAccordionOpen((open) => !open)}
+        >
+          <span className="teamStoresRemovedTriggerTitle">Удалённые сотрудники</span>
+          <span className="teamStoresRemovedAccordionChevron" aria-hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M7 10l5 5 5-5z" />
+            </svg>
+          </span>
+        </button>
+        <div
+          id="team-stores-removed-panel"
+          className="teamStoresRemovedAccordionPanel"
+          role="region"
+          aria-labelledby="team-stores-removed-heading"
+        >
+          <div className="teamStoresRemovedAccordionPanelInner">
+            <p className="teamStoresRemovedIntro">
+              Отключённые учётные записи и те, у кого не осталось привязки ни к одной точке после исключения из
+              состава.
+            </p>
+            {removedStaffRows.length === 0 ? (
+              <p className="teamStoresRemovedEmpty">Записей пока нет.</p>
+            ) : (
+              <ul className="teamStoresRemovedList">
+                {removedStaffRows.map((member) => {
+                  const isRetoucher = member.staffPosition === 'RETOUCHER';
+                  const reasonLabel = !member.isActive ? 'Отключён' : 'Не привязан к точкам';
+                  const chosenStore =
+                    restorePickStore[member.id] ?? restoreStoreChoices[0] ?? '';
+                  return (
+                    <li key={`removed-${member.id}`} className="teamStoresRemovedRow">
+                      <span className="teamStoresRemovedName">
+                        <strong>{member.fullName}</strong>{' '}
+                        <span className="teamMemberNick">({member.nickname})</span>
+                      </span>
+                      <span className="teamStoresRemovedBadges">
+                        {isRetoucher ? (
+                          <span className="statusPill statusPillOn retoucherBadge">Ретушёр</span>
+                        ) : (
+                          <span className="teamStoresRemovedRoleSeller">Продавец</span>
+                        )}
+                      </span>
+                      <span className="teamStoresRemovedReason">{reasonLabel}</span>
+                      <span className="teamStoresRemovedRestore">
+                        <select
+                          className="teamStoresRestoreSelect"
+                          aria-label={`Точка для восстановления ${member.fullName}`}
+                          value={chosenStore}
+                          onChange={(event) =>
+                            setRestorePickStore((prev) => ({
+                              ...prev,
+                              [member.id]: event.target.value,
+                            }))
+                          }
+                          disabled={restoreStoreChoices.length === 0 || restoreBusyId === member.id}
+                        >
+                          {restoreStoreChoices.length === 0 ? (
+                            <option value="">Нет точек в списке</option>
+                          ) : (
+                            restoreStoreChoices.map((sn) => (
+                              <option key={sn} value={sn}>
+                                {sn}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        <button
+                          type="button"
+                          className="teamStoresRestoreBtn"
+                          disabled={
+                            restoreStoreChoices.length === 0 ||
+                            !chosenStore ||
+                            restoreBusyId === member.id
+                          }
+                          onClick={async () => {
+                            const ok = window.confirm(
+                              `Вернуть «${member.fullName}» в точку «${chosenStore}»? Учётная запись будет активна.`,
+                            );
+                            if (!ok) {
+                              return;
+                            }
+                            setRestoreBusyId(member.id);
+                            try {
+                              await onRestoreStaffToStore(token, member.id, chosenStore);
+                            } finally {
+                              setRestoreBusyId(null);
+                            }
+                          }}
+                        >
+                          {restoreBusyId === member.id ? '…' : 'Вернуть'}
+                        </button>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
       </section>
     </div>
   );

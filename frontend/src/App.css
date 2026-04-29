@@ -780,16 +780,119 @@ button.ghost.navActive:hover {
 
 .teamStoresRemovedWrap {
   margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed #c8d7cb;
+  border-radius: 10px;
+  border: 1px solid #9a7144;
+  overflow: hidden;
+  background: rgba(250, 242, 230, 0.75);
+  transition:
+    background 0.35s ease,
+    border-color 0.35s ease;
 }
 
-.teamStoresRemovedHeading {
-  margin-bottom: 4px !important;
+.teamStoresRemovedWrap--collapsed {
+  background: rgba(235, 212, 182, 0.55);
+  border-color: #8b642e;
+}
+
+.teamStoresRemovedAccordionTrigger {
+  position: relative;
+  width: 100%;
+  display: block;
+  margin: 0;
+  padding: 11px 40px;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  font: inherit;
+  color: #3d2e22;
+  transition:
+    background 0.35s ease,
+    color 0.35s ease;
+  background: linear-gradient(180deg, #e4c49a 0%, #cea063 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.teamStoresRemovedWrap:not(.teamStoresRemovedWrap--collapsed) .teamStoresRemovedAccordionTrigger:hover {
+  filter: brightness(1.04);
+}
+
+.teamStoresRemovedAccordionTrigger:focus-visible {
+  outline: 2px solid rgba(139, 100, 46, 0.55);
+  outline-offset: 2px;
+}
+
+.teamStoresRemovedWrap--collapsed .teamStoresRemovedAccordionTrigger {
+  background: linear-gradient(180deg, #a67c3d 0%, #7a5424 100%);
+  color: #faf4ea;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+}
+
+.teamStoresRemovedWrap--collapsed .teamStoresRemovedAccordionTrigger:hover {
+  background: linear-gradient(180deg, #b18746 0%, #8a612b 100%);
+  color: #fffefb;
+  filter: none;
+}
+
+.teamStoresRemovedWrap--collapsed .teamStoresRemovedAccordionTrigger:focus-visible {
+  outline-color: rgba(255, 231, 196, 0.85);
+}
+
+.teamStoresRemovedTriggerTitle {
+  display: block;
+  width: 100%;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  transition: color 0.35s ease;
+}
+
+.teamStoresRemovedWrap--collapsed .teamStoresRemovedTriggerTitle {
+  color: #faf4ea;
+}
+
+.teamStoresRemovedAccordionChevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  opacity: 0.92;
+  transform: translateY(-50%);
+  transition: transform 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.teamStoresRemovedWrap--collapsed .teamStoresRemovedAccordionChevron {
+  transform: translateY(-50%) rotate(-90deg);
+}
+
+.teamStoresRemovedAccordionPanel {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.teamStoresRemovedWrap--collapsed .teamStoresRemovedAccordionPanel {
+  grid-template-rows: 0fr;
+}
+
+.teamStoresRemovedAccordionPanelInner {
+  overflow: hidden;
+  min-height: 0;
+  padding-bottom: 12px;
+}
+
+.teamStoresRemovedAccordionPanelInner .teamStoresRemovedIntro:first-child {
+  margin-top: 0;
 }
 
 .teamStoresRemovedIntro {
   margin: 0 0 10px;
+  padding: 10px 10px 0;
   font-size: 12px;
   color: var(--ui-text-secondary, #64748b);
   line-height: 1.35;
@@ -1018,7 +1121,9 @@ button.ghost.navActive:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .teamStoreAccordionPanel,
-  .teamStoreAccordionChevron {
+  .teamStoreAccordionChevron,
+  .teamStoresRemovedAccordionPanel,
+  .teamStoresRemovedAccordionChevron {
     transition: none;
   }
 }
