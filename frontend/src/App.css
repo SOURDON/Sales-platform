@@ -908,19 +908,84 @@ button.ghost.navActive:hover {
 .teamStoreSection {
   border: 1px solid #c8d7cb;
   border-radius: 10px;
-  padding: 8px;
+  padding: 6px 8px 8px;
   background: rgba(255, 255, 255, 0.58);
 }
 
-.teamStoreTitle {
-  margin: 0 0 6px;
-  font-size: 13px;
+.teamStoreAccordionTrigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 4px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
   color: #0f4c81;
+}
+
+.teamStoreAccordionTrigger:hover {
+  background: rgba(15, 76, 129, 0.07);
+}
+
+.teamStoreAccordionTrigger:focus-visible {
+  outline: 2px solid rgba(15, 76, 129, 0.35);
+  outline-offset: 1px;
+}
+
+.teamStoreTitleText {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.teamStoreAccordionChevron {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f4c81;
+  opacity: 0.85;
+  transition: transform 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.teamStoreSection--collapsed .teamStoreAccordionChevron {
+  transform: rotate(-90deg);
+}
+
+.teamStoreAccordionPanel {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.teamStoreSection--collapsed .teamStoreAccordionPanel {
+  grid-template-rows: 0fr;
+}
+
+.teamStoreAccordionPanelInner {
+  overflow: hidden;
+  min-height: 0;
 }
 
 .teamStoreGrid {
   display: grid;
   gap: 6px;
+  padding-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .teamStoreAccordionPanel,
+  .teamStoreAccordionChevron {
+    transition: none;
+  }
 }
 
 .storeTeamMemberCard.teamMemberCard {

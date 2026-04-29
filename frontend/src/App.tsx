@@ -3000,6 +3000,17 @@ function TeamStoresOverview({
   const [restorePickStore, setRestorePickStore] = useState<Record<number, string>>({});
   const [restoreBusyId, setRestoreBusyId] = useState<number | null>(null);
 
+  const [storeAccordionOpen, setStoreAccordionOpen] = useState<Record<string, boolean>>({});
+
+  const isStoreAccordionOpen = (name: string) => storeAccordionOpen[name] !== false;
+
+  const toggleStoreAccordion = (name: string) => {
+    setStoreAccordionOpen((prev) => {
+      const currentlyOpen = prev[name] !== false;
+      return { ...prev, [name]: !currentlyOpen };
+    });
+  };
+
   for (const sale of sales) {
     if (calendarDayKeyMoscow(sale.createdAt) !== todayKey) {
       continue;
@@ -3038,10 +3049,28 @@ function TeamStoresOverview({
           if (members.length === 0) {
             return null;
           }
+          const accordionExpanded = isStoreAccordionOpen(storeName);
           return (
-          <section key={storeName} className="teamStoreSection">
-            <h5 className="teamStoreTitle">{storeName}</h5>
-            <div className="teamStoreGrid">
+          <section
+            key={storeName}
+            className={`teamStoreSection ${accordionExpanded ? '' : 'teamStoreSection--collapsed'}`}
+          >
+            <button
+              type="button"
+              className="teamStoreAccordionTrigger"
+              aria-expanded={accordionExpanded}
+              onClick={() => toggleStoreAccordion(storeName)}
+            >
+              <span className="teamStoreTitleText">{storeName}</span>
+              <span className="teamStoreAccordionChevron" aria-hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18">
+                  <path fill="currentColor" d="M7 10l5 5 5-5z" />
+                </svg>
+              </span>
+            </button>
+            <div className="teamStoreAccordionPanel">
+              <div className="teamStoreAccordionPanelInner">
+                <div className="teamStoreGrid">
               {members
                 .slice()
                 .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'))
@@ -3215,6 +3244,8 @@ function TeamStoresOverview({
                     </article>
                   );
                 })}
+                </div>
+              </div>
             </div>
           </section>
           );
