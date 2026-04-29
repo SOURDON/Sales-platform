@@ -2410,15 +2410,17 @@ h1 {
 }
 
 .mobileDock a.ghost {
-  background: rgba(16, 42, 33, 0.72) !important;
-  border: 1px solid rgba(194, 165, 109, 0.2) !important;
-  color: #d3b377 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: rgba(196, 165, 109, 0.58) !important;
 }
 
 .mobileDock a.ghost.navActive {
-  background: linear-gradient(160deg, #c4a56d 0%, #b48f53 100%) !important;
-  color: #0f221b !important;
-  border-color: rgba(194, 165, 109, 0.5) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #c4a56d !important;
 }
 
 /* Login background matches the app background */
