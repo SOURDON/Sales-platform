@@ -3655,10 +3655,9 @@ function AccountantProcurementPanel({
   return (
     <div className="opsCard">
       <h4>Закупочные цены товаров (директор и бухгалтер)</h4>
-      <p className="hint">Эти значения используются в расчёте затрат на товар и сохраняются на backend.</p>
       <div className="inlineGrid">
         <label>
-          Эквайринг, %
+          Эквайринг Путинцев
           <input
             value={acquiringPercent}
             onChange={(event) => {
