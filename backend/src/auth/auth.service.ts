@@ -1560,6 +1560,37 @@ export class AuthService implements OnModuleInit {
     return member;
   }
 
+  /** Восстановление в точке: активировать учётку и добавить привязку к магазину. */
+  restoreStaffToStore(staffId: number, storeName: string, actor: string) {
+    const trimmed = storeName.trim();
+    if (!(DEMO_STORE_NAMES as readonly string[]).includes(trimmed)) {
+      return null;
+    }
+    const member = this.staff.find((item) => item.id === staffId);
+    if (!member) {
+      return null;
+    }
+    member.isActive = true;
+    member.assignedShiftId = undefined;
+    const demoUser = this.demoUsers.find((item) => item.id === staffId);
+    if (demoUser) {
+      demoUser.isActive = true;
+      demoUser.storeName = trimmed;
+    }
+    const sellerProfile = this.sellerProfiles.find((item) => item.id === staffId);
+    if (sellerProfile) {
+      sellerProfile.storeName = trimmed;
+    }
+    this.attachStaffToStore(staffId, trimmed);
+    this.pushAudit(
+      actor,
+      'STAFF_RESTORED_TO_STORE',
+      `${member.fullName} (${member.nickname}) → ${trimmed}`,
+    );
+    this.queuePersist();
+    return member;
+  }
+
   assignStaffToShift(id: number, shiftId: string, actor: string) {
     const member = this.staff.find((item) => item.id === id);
     const shift = this.shiftHistory.find((item) => item.id === shiftId && item.status === 'OPEN');

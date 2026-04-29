@@ -811,7 +811,7 @@ button.ghost.navActive:hover {
 
 .teamStoresRemovedRow {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -841,6 +841,47 @@ button.ghost.navActive:hover {
   justify-self: end;
 }
 
+.teamStoresRemovedRestore {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  justify-self: end;
+}
+
+.teamStoresRestoreSelect {
+  max-width: min(52vw, 220px);
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #c8bfb8;
+  font-size: 12px;
+  background: #fff;
+  color: #1e293b;
+}
+
+.teamStoresRestoreBtn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(63, 107, 79, 0.45);
+  background: linear-gradient(180deg, #9fb8a8 0%, #7a9b87 100%);
+  color: #f8faf9;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.teamStoresRestoreBtn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.teamStoresRestoreBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media (max-width: 520px) {
   .teamStoresRemovedRow {
     grid-template-columns: 1fr;
@@ -849,6 +890,18 @@ button.ghost.navActive:hover {
 
   .teamStoresRemovedReason {
     justify-self: start;
+  }
+
+  .teamStoresRemovedRestore {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    justify-content: flex-start;
+  }
+
+  .teamStoresRestoreSelect {
+    max-width: none;
+    flex: 1;
+    min-width: 140px;
   }
 }
 

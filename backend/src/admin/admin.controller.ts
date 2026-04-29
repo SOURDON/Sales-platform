@@ -62,6 +62,10 @@ interface StaffFromBaseBody {
   employeeId?: number;
 }
 
+interface RestoreStaffToStoreBody {
+  storeName?: string;
+}
+
 interface RemoveStaffFromStoreBody {
   storeName?: string;
 }
@@ -461,6 +465,23 @@ export class AdminController {
     const staff = this.authService.removeStaffFromStore(Number(id), session.nickname, body.storeName);
     if (!staff) {
       throw new BadRequestException('Staff not found in selected store');
+    }
+    return staff as unknown;
+  }
+
+  @Post('staff/:id/restore-to-store')
+  restoreStaffToStore(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: RestoreStaffToStoreBody,
+  ) {
+    const session = this.requireRemoveFromStoreAccess(authorization);
+    if (!body.storeName?.trim()) {
+      throw new BadRequestException('storeName is required');
+    }
+    const staff = this.authService.restoreStaffToStore(Number(id), body.storeName.trim(), session.nickname);
+    if (!staff) {
+      throw new BadRequestException('Staff not found or invalid store name');
     }
     return staff as unknown;
   }

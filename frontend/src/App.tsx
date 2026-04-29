@@ -1139,6 +1139,16 @@ function App() {
     await Promise.all([loadStaff(token), loadSellers(token), loadShifts(token), loadGlobalEmployees(token)]);
   };
 
+  const restoreStaffToStore = async (token: string, staffId: number, storeName: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/staff/${staffId}/restore-to-store`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ storeName }),
+    });
+    if (!response.ok) throw new Error('restore staff to store error');
+    await Promise.all([loadStaff(token), loadSellers(token), loadShifts(token), loadGlobalEmployees(token)]);
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
@@ -1769,6 +1779,7 @@ function App() {
                           role={role}
                           onDirectorSetPercent={setDirectorPercent}
                           onRemoveFromStore={removeStaffFromStore}
+                          onRestoreStaffToStore={restoreStaffToStore}
                         />
                       ) : (
                         <StaffPanel
@@ -2949,6 +2960,7 @@ function TeamStoresOverview({
   role,
   onDirectorSetPercent,
   onRemoveFromStore,
+  onRestoreStaffToStore,
 }: {
   token: string;
   staff: StaffMember[];
@@ -2958,6 +2970,7 @@ function TeamStoresOverview({
   role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
   onRemoveFromStore: (token: string, id: number, storeName?: string) => Promise<void>;
+  onRestoreStaffToStore: (token: string, staffId: number, storeName: string) => Promise<void>;
 }) {
   const openShift = shifts.find((item) => item.status === 'OPEN');
   const openShiftId = openShift?.id;
@@ -2970,6 +2983,22 @@ function TeamStoresOverview({
   const [removingMemberId, setRemovingMemberId] = useState<number | null>(null);
   const [percentEditingId, setPercentEditingId] = useState<number | null>(null);
   const skipPercentBlurSave = useRef(false);
+
+  const restoreStoreChoices = useMemo(() => {
+    const names = new Set<string>();
+    for (const s of sellers) {
+      names.add(s.storeName);
+    }
+    for (const m of staff) {
+      for (const sn of staffAssignedStores(m)) {
+        names.add(sn);
+      }
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'ru-RU'));
+  }, [sellers, staff]);
+
+  const [restorePickStore, setRestorePickStore] = useState<Record<number, string>>({});
+  const [restoreBusyId, setRestoreBusyId] = useState<number | null>(null);
 
   for (const sale of sales) {
     if (calendarDayKeyMoscow(sale.createdAt) !== todayKey) {
@@ -3207,6 +3236,8 @@ function TeamStoresOverview({
             {removedStaffRows.map((member) => {
               const isRetoucher = member.staffPosition === 'RETOUCHER';
               const reasonLabel = !member.isActive ? 'Отключён' : 'Не привязан к точкам';
+              const chosenStore =
+                restorePickStore[member.id] ?? restoreStoreChoices[0] ?? '';
               return (
                 <li key={`removed-${member.id}`} className="teamStoresRemovedRow">
                   <span className="teamStoresRemovedName">
@@ -3221,6 +3252,55 @@ function TeamStoresOverview({
                     )}
                   </span>
                   <span className="teamStoresRemovedReason">{reasonLabel}</span>
+                  <span className="teamStoresRemovedRestore">
+                    <select
+                      className="teamStoresRestoreSelect"
+                      aria-label={`Точка для восстановления ${member.fullName}`}
+                      value={chosenStore}
+                      onChange={(event) =>
+                        setRestorePickStore((prev) => ({
+                          ...prev,
+                          [member.id]: event.target.value,
+                        }))
+                      }
+                      disabled={restoreStoreChoices.length === 0 || restoreBusyId === member.id}
+                    >
+                      {restoreStoreChoices.length === 0 ? (
+                        <option value="">Нет точек в списке</option>
+                      ) : (
+                        restoreStoreChoices.map((sn) => (
+                          <option key={sn} value={sn}>
+                            {sn}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    <button
+                      type="button"
+                      className="teamStoresRestoreBtn"
+                      disabled={
+                        restoreStoreChoices.length === 0 ||
+                        !chosenStore ||
+                        restoreBusyId === member.id
+                      }
+                      onClick={async () => {
+                        const ok = window.confirm(
+                          `Вернуть «${member.fullName}» в точку «${chosenStore}»? Учётная запись будет активна.`,
+                        );
+                        if (!ok) {
+                          return;
+                        }
+                        setRestoreBusyId(member.id);
+                        try {
+                          await onRestoreStaffToStore(token, member.id, chosenStore);
+                        } finally {
+                          setRestoreBusyId(null);
+                        }
+                      }}
+                    >
+                      {restoreBusyId === member.id ? '…' : 'Вернуть'}
+                    </button>
+                  </span>
                 </li>
               );
             })}
