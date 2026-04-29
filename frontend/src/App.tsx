@@ -77,6 +77,8 @@ type StaffMember = {
   assignedShiftId?: string;
   storeName: string;
   staffPosition: StaffPositionKind;
+  /** Доля от выручки точки за день (ретушёр); с бэкенда. */
+  retoucherRatePercent?: number;
   /** Для ретушёра, ₽; с бэкенда. */
   earningsAmount: number;
 };
@@ -246,6 +248,32 @@ type AdminSale = {
   /** Себестоимость по закупкам, считает backend (₽). */
   goodsCost?: number;
 };
+
+/** Заработок ретушёра по точке: сумма по календарным дням (доля от выручки точки за каждый день). */
+function retoucherEarnRubSnapshot(
+  storeName: string,
+  sellers: SellerProfile[],
+  sales: AdminSale[],
+  ratePercent: number,
+  todayKey: string,
+): { todayRub: number; lifetimeRub: number } {
+  const sellerIds = new Set(sellers.filter((s) => s.storeName === storeName).map((s) => s.id));
+  const revByDay = new Map<string, number>();
+  for (const sale of sales) {
+    if (!sellerIds.has(sale.sellerId)) {
+      continue;
+    }
+    const day = calendarDayKeyMoscow(sale.createdAt);
+    revByDay.set(day, (revByDay.get(day) ?? 0) + sale.totalAmount);
+  }
+  let lifetimeRub = 0;
+  for (const rev of revByDay.values()) {
+    lifetimeRub += Math.round((rev * ratePercent) / 100);
+  }
+  const todayRev = revByDay.get(todayKey) ?? 0;
+  const todayRub = Math.round((todayRev * ratePercent) / 100);
+  return { todayRub, lifetimeRub };
+}
 
 type ShiftInfo = {
   id: string;
@@ -939,6 +967,7 @@ function App() {
       throw new Error('set percent error');
     }
     await loadSellers(token);
+    await loadStaff(token);
     await loadCommissionRequests(token);
   };
 
@@ -2779,6 +2808,11 @@ function TeamMemberCard({
   const isRetoucher = member.staffPosition === 'RETOUCHER';
   const isShiftOpen = Boolean(openShiftId && member.assignedShiftId === openShiftId);
   const shiftStatusLabel = isShiftOpen ? 'Смена открыта' : 'Смена закрыта';
+  const retoucherRatePct = member.retoucherRatePercent ?? 5;
+  const retoucherImpliedRevToday =
+    isRetoucher && retoucherRatePct > 0
+      ? Math.round(member.earningsAmount / (retoucherRatePct / 100))
+      : 0;
   const [newPercent, setNewPercent] = useState(String(seller?.ratePercent ?? 0));
   const [busy, setBusy] = useState(false);
 
@@ -2826,11 +2860,11 @@ function TeamMemberCard({
           <div className="statCell">
             <span className="statLabel">Выручка точки (сегодня)</span>
             <span className="statValue">
-              {Math.round(member.earningsAmount / 0.05).toLocaleString('ru-RU')} ₽
+              {retoucherImpliedRevToday.toLocaleString('ru-RU')} ₽
             </span>
           </div>
           <div className="statCell">
-            <span className="statLabel">Начислено (5%)</span>
+            <span className="statLabel">{`Начислено (${retoucherRatePct}%)`}</span>
             <span className="statValue">{Math.round(member.earningsAmount).toLocaleString('ru-RU')} ₽</span>
           </div>
         </div>
@@ -2899,29 +2933,19 @@ function TeamStoresOverview({
   const openShiftId = openShift?.id;
   const canEditPercent = role === 'DIRECTOR' || role === 'ACCOUNTANT';
   const sellerById = new Map(sellers.map((item) => [item.id, item]));
-  const sellerStoreById = new Map(sellers.map((item) => [item.id, item.storeName]));
   const todayKey = todayKeyMoscow();
   const todaySalesBySellerId = new Map<number, number>();
-  const allSalesByStore = new Map<string, number>();
-  const todaySalesByStore = new Map<string, number>();
   const [draftPercent, setDraftPercent] = useState<Record<number, string>>({});
-  const [busySellerId, setBusySellerId] = useState<number | null>(null);
+  const [busyPercentMemberId, setBusyPercentMemberId] = useState<number | null>(null);
   const [removingMemberId, setRemovingMemberId] = useState<number | null>(null);
   const [percentEditingId, setPercentEditingId] = useState<number | null>(null);
   const skipPercentBlurSave = useRef(false);
 
-  for (const seller of sellers) {
-    allSalesByStore.set(seller.storeName, (allSalesByStore.get(seller.storeName) ?? 0) + seller.salesAmount);
-  }
   for (const sale of sales) {
     if (calendarDayKeyMoscow(sale.createdAt) !== todayKey) {
       continue;
     }
     todaySalesBySellerId.set(sale.sellerId, (todaySalesBySellerId.get(sale.sellerId) ?? 0) + sale.totalAmount);
-    const storeName = sellerStoreById.get(sale.sellerId);
-    if (storeName) {
-      todaySalesByStore.set(storeName, (todaySalesByStore.get(storeName) ?? 0) + sale.totalAmount);
-    }
   }
 
   const membersByStore = new Map<string, StaffMember[]>();
@@ -2948,13 +2972,19 @@ function TeamStoresOverview({
                   const seller = sellerById.get(member.id);
                   const isRetoucher = member.staffPosition === 'RETOUCHER';
                   const isShiftOpen = Boolean(openShiftId && member.assignedShiftId === openShiftId);
-                  const todaySales = isRetoucher
-                    ? todaySalesByStore.get(member.storeName) ?? 0
-                    : todaySalesBySellerId.get(member.id) ?? 0;
-                  const allSales = isRetoucher
-                    ? allSalesByStore.get(member.storeName) ?? 0
-                    : seller?.salesAmount ?? 0;
-                  const currentPercent = isRetoucher ? 5 : seller?.ratePercent ?? 0;
+                  const ratePctRetoucher = member.retoucherRatePercent ?? 5;
+                  const retoucherEarn = isRetoucher
+                    ? retoucherEarnRubSnapshot(member.storeName, sellers, sales, ratePctRetoucher, todayKey)
+                    : null;
+                  const todaySales = todaySalesBySellerId.get(member.id) ?? 0;
+                  const allSalesSeller = seller?.salesAmount ?? 0;
+                  const statPrimaryLabel = isRetoucher ? 'Заработок за сегодня' : 'Продажи за сегодня';
+                  const statPrimaryRub = isRetoucher ? retoucherEarn!.todayRub : todaySales;
+                  const statSecondaryLabel = isRetoucher ? 'Заработок за всё время' : 'Продажи за всё время';
+                  const statSecondaryRub = isRetoucher ? retoucherEarn!.lifetimeRub : allSalesSeller;
+                  const baselinePercent = seller?.ratePercent ?? member.retoucherRatePercent ?? 5;
+                  const currentPercent = baselinePercent;
+                  const percentEditable = canEditPercent && Boolean(seller || isRetoucher);
 
                   return (
                     <article
@@ -3012,21 +3042,21 @@ function TeamStoresOverview({
 
                       <div className="teamMemberStats">
                         <div className="statCell">
-                          <span className="statLabel">Продажи за сегодня</span>
-                          <span className="statValue">{todaySales.toLocaleString('ru-RU')} ₽</span>
+                          <span className="statLabel">{statPrimaryLabel}</span>
+                          <span className="statValue">{statPrimaryRub.toLocaleString('ru-RU')} ₽</span>
                         </div>
                         <div className="statCell">
-                          <span className="statLabel">Продажи за всё время</span>
-                          <span className="statValue">{allSales.toLocaleString('ru-RU')} ₽</span>
+                          <span className="statLabel">{statSecondaryLabel}</span>
+                          <span className="statValue">{statSecondaryRub.toLocaleString('ru-RU')} ₽</span>
                         </div>
-                        {!isRetoucher && seller && canEditPercent ? (
+                        {percentEditable ? (
                           percentEditingId === member.id ? (
                             <div className="statCell statCellPercentEdit">
                               <span className="statLabel">Текущий %</span>
                               <input
                                 className="statPercentInlineInput"
                                 value={draftPercent[member.id] ?? String(currentPercent)}
-                                disabled={busySellerId === seller.id}
+                                disabled={busyPercentMemberId === member.id}
                                 autoFocus
                                 inputMode="decimal"
                                 onChange={(event) =>
@@ -3040,7 +3070,7 @@ function TeamStoresOverview({
                                     skipPercentBlurSave.current = false;
                                     return;
                                   }
-                                  if (!seller || percentEditingId !== member.id) {
+                                  if (percentEditingId !== member.id) {
                                     return;
                                   }
                                   const raw = (draftPercent[member.id] ?? '').trim().replace(',', '.');
@@ -3054,13 +3084,13 @@ function TeamStoresOverview({
                                     return;
                                   }
                                   const next = Number(raw);
-                                  const safe = Number.isFinite(next) ? next : seller.ratePercent;
-                                  if (safe !== seller.ratePercent) {
-                                    setBusySellerId(seller.id);
+                                  const safe = Number.isFinite(next) ? next : baselinePercent;
+                                  if (safe !== baselinePercent) {
+                                    setBusyPercentMemberId(member.id);
                                     try {
-                                      await onDirectorSetPercent(token, seller.id, safe);
+                                      await onDirectorSetPercent(token, member.id, safe);
                                     } finally {
-                                      setBusySellerId(null);
+                                      setBusyPercentMemberId(null);
                                     }
                                   }
                                 }}
@@ -3085,12 +3115,12 @@ function TeamStoresOverview({
                             <button
                               type="button"
                               className="statCell statPercentToggleBtn"
-                              disabled={busySellerId === seller.id}
+                              disabled={busyPercentMemberId === member.id}
                               onClick={() => {
                                 setPercentEditingId(member.id);
                                 setDraftPercent((prev) => ({
                                   ...prev,
-                                  [member.id]: String(seller.ratePercent),
+                                  [member.id]: String(baselinePercent),
                                 }));
                               }}
                             >

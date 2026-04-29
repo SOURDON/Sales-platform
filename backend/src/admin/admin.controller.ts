@@ -521,7 +521,7 @@ export class AdminController {
 
     const result = await this.authService.setSellerPercentDirect(body.sellerId, body.ratePercent);
     if (!result) {
-      throw new BadRequestException('Seller not found or invalid percent');
+      throw new BadRequestException('Продавец или ретушёр не найден, либо недопустимый процент');
     }
     return result;
   }

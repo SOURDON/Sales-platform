@@ -174,14 +174,16 @@ model CashDisciplineEvent {
 }
 
 model StaffMember {
-  id              Int           @id
-  user            User          @relation(fields: [id], references: [id], onDelete: Cascade)
-  fullName        String
-  nickname        String        @unique
-  isActive        Boolean       @default(true)
-  assignedShiftId String?
-  staffPosition   StaffPosition @default(SALES)
-  assignments     StoreStaffAssignment[]
+  id                   Int           @id
+  user                 User          @relation(fields: [id], references: [id], onDelete: Cascade)
+  fullName             String
+  nickname             String        @unique
+  isActive             Boolean       @default(true)
+  assignedShiftId      String?
+  staffPosition        StaffPosition @default(SALES)
+  /** Доля от выручки точки за календарный день (используется для позиции RETOUCHER). */
+  retoucherRatePercent Float         @default(5)
+  assignments          StoreStaffAssignment[]
 }
 
 model StoreStaffAssignment {

@@ -141,7 +141,9 @@ interface StaffMember {
   isActive: boolean;
   assignedShiftId?: string;
   staffPosition: StaffPositionKind;
-  /** Для ретушёра: 5% от дневной выручки точки. */
+  /** Доля от дневной выручки точки для RETOUCHER (остальным позициям не используется). */
+  retoucherRatePercent: number;
+  /** Для ретушёра: начисление за текущий календарный день по точке. */
   earningsAmount: number;
 }
 
@@ -956,14 +958,32 @@ export class AuthService implements OnModuleInit {
       return null;
     }
     const seller = this.sellerProfiles.find((item) => item.id === sellerId);
-    if (!seller) {
+    if (seller) {
+      seller.ratePercent = ratePercent;
+      this.recomputeSeller(seller);
+      this.queuePersist();
+      await this.persistChain;
+      return this.getSellerProfiles().find((item) => item.id === sellerId) ?? null;
+    }
+    const staffMember = this.staff.find((m) => m.id === sellerId && m.staffPosition === 'RETOUCHER');
+    if (!staffMember) {
       return null;
     }
-    seller.ratePercent = ratePercent;
-    this.recomputeSeller(seller);
+    staffMember.retoucherRatePercent = ratePercent;
+    this.syncRetoucherEarnings();
     this.queuePersist();
     await this.persistChain;
-    return this.getSellerProfiles().find((item) => item.id === sellerId) ?? null;
+    const u = this.demoUsers.find((item) => item.id === staffMember.id);
+    return {
+      id: staffMember.id,
+      fullName: staffMember.fullName,
+      nickname: staffMember.nickname,
+      storeName: u?.storeName ?? '',
+      ratePercent: staffMember.retoucherRatePercent,
+      salesAmount: 0,
+      checksCount: 0,
+      commissionAmount: 0,
+    };
   }
 
   createCommissionChangeRequest(
@@ -1293,6 +1313,8 @@ export class AuthService implements OnModuleInit {
         staffPosition: member.staffPosition,
         storeName: u?.storeName ?? '',
         earningsAmount: member.staffPosition === 'RETOUCHER' ? member.earningsAmount : 0,
+        retoucherRatePercent:
+          member.staffPosition === 'RETOUCHER' ? member.retoucherRatePercent : undefined,
       };
     });
   }
@@ -1355,6 +1377,7 @@ export class AuthService implements OnModuleInit {
       nickname: normalizedNickname,
       isActive: true,
       staffPosition: 'SALES',
+      retoucherRatePercent: 5,
       earningsAmount: 0,
     };
     const storeForActor =
@@ -1441,6 +1464,7 @@ export class AuthService implements OnModuleInit {
       nickname: seller.nickname,
       isActive: true,
       staffPosition: 'SALES',
+      retoucherRatePercent: 5,
       earningsAmount: 0,
     };
     this.staff.push(member);
@@ -1619,7 +1643,12 @@ export class AuthService implements OnModuleInit {
         this.recomputeSeller(p);
         storeDayRevenue += p.salesAmount;
       }
-      member.earningsAmount = Math.round((storeDayRevenue * 5) / 100);
+      const rate =
+        typeof member.retoucherRatePercent === 'number' &&
+        Number.isFinite(member.retoucherRatePercent)
+          ? member.retoucherRatePercent
+          : 5;
+      member.earningsAmount = Math.round((storeDayRevenue * rate) / 100);
     }
   }
 
@@ -1778,6 +1807,7 @@ export class AuthService implements OnModuleInit {
       nickname: row.nickname,
       isActive: row.isActive,
       staffPosition: row.staffPosition,
+      retoucherRatePercent: 5,
       earningsAmount: 0,
     }));
     this.storeStaffAssignments = this.staff.map((member) => ({
@@ -1957,6 +1987,10 @@ export class AuthService implements OnModuleInit {
       isActive: member.isActive,
       assignedShiftId: member.assignedShiftId ?? undefined,
       staffPosition: member.staffPosition === StaffPosition.RETOUCHER ? 'RETOUCHER' : 'SALES',
+      retoucherRatePercent:
+        typeof member.retoucherRatePercent === 'number' && Number.isFinite(member.retoucherRatePercent)
+          ? member.retoucherRatePercent
+          : 5,
       earningsAmount: 0,
     }));
     this.storeStaffAssignments = storeStaffAssignments.map((item) => ({
@@ -2138,6 +2172,7 @@ export class AuthService implements OnModuleInit {
             isActive: member.isActive,
             assignedShiftId: member.assignedShiftId ?? null,
             staffPosition: member.staffPosition === 'RETOUCHER' ? StaffPosition.RETOUCHER : StaffPosition.SALES,
+            retoucherRatePercent: member.retoucherRatePercent,
           })),
         });
       }
