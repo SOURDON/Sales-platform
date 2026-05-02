@@ -2361,6 +2361,14 @@ function WriteOffForm({
   );
 }
 
+/** Порядок счётов на главном блоке оперативных финансов (остатки и приход за день). */
+const FINANCE_OPS_PRIMARY_ACCOUNT_IDS = [
+  'fa-bank-extra',
+  'fa-bank-main',
+  'fa-bank-putintsev-sber',
+  'fa-cash-main',
+] as const;
+
 function FinanceOpsPanel({
   token,
   isDirector,
@@ -2384,22 +2392,26 @@ function FinanceOpsPanel({
 }) {
   const cashAccount = snapshot.accounts.find((a) => a.kind === 'CASH');
   const bankAccounts = snapshot.accounts.filter((a) => a.kind === 'BANK');
-  const bankAccountsOrdered = useMemo(
-    () =>
-      [...bankAccounts].sort((a, b) => {
-        const rank = (id: string) => {
-          if (id === 'fa-bank-main') return 0;
-          if (id === 'fa-bank-extra') return 1;
-          return 10;
-        };
-        return rank(a.id) - rank(b.id) || a.name.localeCompare(b.name, 'ru-RU');
-      }),
-    [bankAccounts],
-  );
+  const bankAccountsOrdered = useMemo(() => {
+    const primaryIds = FINANCE_OPS_PRIMARY_ACCOUNT_IDS as readonly string[];
+    const rank = (id: string) => {
+      const i = primaryIds.indexOf(id);
+      return i === -1 ? 50 : i;
+    };
+    return [...bankAccounts].sort(
+      (a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name, 'ru-RU'),
+    );
+  }, [bankAccounts]);
+
+  const primaryFinanceAccounts = useMemo(() => {
+    const map = new Map(snapshot.accounts.map((a) => [a.id, a]));
+    return FINANCE_OPS_PRIMARY_ACCOUNT_IDS.map((id) => map.get(id)).filter(
+      (a): a is FinanceAccount => Boolean(a),
+    );
+  }, [snapshot.accounts]);
+
   const [incomeWorkDay, setIncomeWorkDay] = useState(todayKeyMoscow());
-  const [incomeAmountCash, setIncomeAmountCash] = useState('');
-  const [incomeCommentCash, setIncomeCommentCash] = useState('');
-  const [incomeBankDrafts, setIncomeBankDrafts] = useState<
+  const [incomeDraftsByAccount, setIncomeDraftsByAccount] = useState<
     Record<string, { amount: string; comment: string }>
   >({});
   const [expenseAccountId, setExpenseAccountId] = useState(snapshot.accounts[0]?.id ?? '');
@@ -2431,29 +2443,21 @@ function FinanceOpsPanel({
   }, [expenseAccountId, snapshot.accounts]);
 
   useEffect(() => {
-    if (bankAccounts.length === 0) {
-      return;
-    }
-    setIncomeBankDrafts((prev) => {
+    const ids = FINANCE_OPS_PRIMARY_ACCOUNT_IDS.filter((id) =>
+      snapshot.accounts.some((a) => a.id === id),
+    );
+    setIncomeDraftsByAccount((prev) => {
       const next = { ...prev };
       let changed = false;
-      for (const b of bankAccounts) {
-        if (next[b.id] === undefined) {
-          next[b.id] = { amount: '', comment: '' };
+      for (const id of ids) {
+        if (next[id] === undefined) {
+          next[id] = { amount: '', comment: '' };
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [bankAccounts]);
-
-  const incomeSumByAccountId = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const inc of snapshot.incomes ?? []) {
-      m.set(inc.accountId, (m.get(inc.accountId) ?? 0) + inc.amount);
-    }
-    return m;
-  }, [snapshot.incomes]);
+  }, [snapshot.accounts]);
 
   const accountsForIncomeHistory = useMemo(() => {
     const list: FinanceAccount[] = [];
@@ -2465,182 +2469,119 @@ function FinanceOpsPanel({
   }, [cashAccount, bankAccountsOrdered]);
 
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
-  const incomeTotal = snapshot.totals.incomes ?? 0;
+
+  const submitIncomeBatch = async () => {
+    setError('');
+    setStatus('');
+    const ids = FINANCE_OPS_PRIMARY_ACCOUNT_IDS.filter((id) =>
+      snapshot.accounts.some((a) => a.id === id),
+    );
+    const queue: Array<{ accountId: string; amount: string; comment?: string }> = [];
+    for (const id of ids) {
+      const row = incomeDraftsByAccount[id] ?? { amount: '', comment: '' };
+      const n = Number(String(row.amount).replace(',', '.'));
+      if (Number.isFinite(n) && n > 0) {
+        queue.push({ accountId: id, amount: row.amount, comment: row.comment });
+      }
+    }
+    if (queue.length === 0) {
+      setError('Укажите сумму хотя бы по одному из счётов');
+      return;
+    }
+    setBusyId('income-batch');
+    try {
+      for (const row of queue) {
+        await onAddIncome(token, {
+          accountId: row.accountId,
+          amount: row.amount,
+          workDay: incomeWorkDay,
+          comment: row.comment,
+        });
+      }
+      setIncomeDraftsByAccount((prev) => {
+        const next = { ...prev };
+        for (const row of queue) {
+          next[row.accountId] = { amount: '', comment: '' };
+        }
+        return next;
+      });
+      setStatus(
+        queue.length === 1
+          ? 'Приход записан, балансы обновлены.'
+          : `Записано приходов: ${queue.length}. Балансы обновлены.`,
+      );
+    } catch {
+      setError('Не удалось записать приход');
+    } finally {
+      setBusyId('');
+    }
+  };
 
   return (
-    <div className="opsCard">
+    <div className="opsCard financeOpsCard">
       <h4>Оперативные финансы</h4>
-      <p className="hint">
-        Баланс накапливается отдельно по каждому счёту. За рабочий день вносите приход в блоке «Наличка» или в блоке
-        нужного расчётного счёта (деньги уходят в разные банки). Расходы уменьшают остаток на выбранном счёте.
+      <p className="hint financeOpsHint">
+        Сверху — актуальные остатки по четырём счётам. Ниже одним блоком внесите приход за выбранный рабочий день: заполните
+        суммы только там, где был приход, и нажмите «Записать приход». Расходы уменьшают остаток на выбранном счёте.
       </p>
-      <div className="metrics financeMetrics5">
-        <article className="metricCard">
-          <p>Наличка (остаток)</p>
-          <strong>{fmt(snapshot.totals.cash)}</strong>
-        </article>
-        <article className="metricCard">
-          <p>Р/с (всего на счетах)</p>
-          <strong>{fmt(snapshot.totals.bank)}</strong>
-        </article>
-        <article className="metricCard">
-          <p>Общий остаток</p>
-          <strong>{fmt(snapshot.totals.balance)}</strong>
-        </article>
-        <article className="metricCard">
-          <p>Учтено приходов (детализация)</p>
-          <strong>{fmt(incomeTotal)}</strong>
-          {accountsForIncomeHistory.length > 0 ? (
-            <div className="incomeByAccountBreakdown" aria-label="Сумма приходов по счетам">
-              {accountsForIncomeHistory.map((acc) => (
-                <div key={acc.id}>
-                  {acc.name}: {fmt(incomeSumByAccountId.get(acc.id) ?? 0)}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </article>
-        <article className="metricCard">
-          <p>Всего расходов</p>
-          <strong>{fmt(snapshot.totals.expenses)}</strong>
-        </article>
+
+      <div className="financeOpsBalancesGrid">
+        {primaryFinanceAccounts.map((acc) => (
+          <article key={acc.id} className="metricCard financeOpsBalanceCard">
+            <p>{acc.name}</p>
+            <strong>{fmt(acc.balance)}</strong>
+          </article>
+        ))}
       </div>
 
-      <div className="addSaleForm">
-        <h4>Записать приход за день</h4>
-        <div className="inlineGrid">
-          <label>
-            Рабочий день (МСК) — для всех счетов в форме
-            <input type="date" value={incomeWorkDay} onChange={(event) => setIncomeWorkDay(event.target.value)} />
-          </label>
-        </div>
-
-        {cashAccount ? (
-          <div className="incomeAccountBlock">
-            <h5>Приход — {cashAccount.name}</h5>
-            <div className="inlineGrid">
-              <label>
-                Сумма
-                <input
-                  value={incomeAmountCash}
-                  onChange={(event) => setIncomeAmountCash(event.target.value)}
-                  inputMode="decimal"
-                />
-              </label>
-              <label>
-                Комментарий
-                <input value={incomeCommentCash} onChange={(event) => setIncomeCommentCash(event.target.value)} />
-              </label>
-            </div>
-            <div className="inlineActions">
-              <button
-                type="button"
-                className="primaryAction"
-                disabled={busyId === `income-${cashAccount.id}`}
-                onClick={async () => {
-                  setError('');
-                  setStatus('');
-                  const n = Number(String(incomeAmountCash).replace(',', '.'));
-                  if (!Number.isFinite(n) || n <= 0) {
-                    setError('Укажите сумму прихода в наличку');
-                    return;
-                  }
-                  setBusyId(`income-${cashAccount.id}`);
-                  try {
-                    await onAddIncome(token, {
-                      accountId: cashAccount.id,
-                      amount: incomeAmountCash,
-                      workDay: incomeWorkDay,
-                      comment: incomeCommentCash,
-                    });
-                    setIncomeAmountCash('');
-                    setIncomeCommentCash('');
-                    setStatus('Приход в наличку записан, баланс обновлён.');
-                  } catch {
-                    setError('Не удалось записать приход');
-                  } finally {
-                    setBusyId('');
-                  }
-                }}
-              >
-                Добавить приход (нал)
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {bankAccountsOrdered.map((b) => {
-          const row = incomeBankDrafts[b.id] ?? { amount: '', comment: '' };
-          return (
-            <div className="incomeAccountBlock" key={b.id}>
-              <h5>Приход — {b.name}</h5>
-              <p className="muted incomeAccountHint">Безнал на этот расчётный счёт (отдельный банк / поток).</p>
-              <div className="inlineGrid">
-                <label>
-                  Сумма
+      <div className="financeOpsIncomeBlock addSaleForm">
+        <h4>Приход за день по счетам</h4>
+        <label className="financeOpsIncomeDayLabel">
+          Рабочий день (МСК)
+          <input type="date" value={incomeWorkDay} onChange={(event) => setIncomeWorkDay(event.target.value)} />
+        </label>
+        <div className="financeOpsIncomeRows">
+          {primaryFinanceAccounts.map((acc) => {
+            const row = incomeDraftsByAccount[acc.id] ?? { amount: '', comment: '' };
+            return (
+              <div key={acc.id} className="financeOpsIncomeRow">
+                <span className="financeOpsIncomeRowTitle">{acc.name}</span>
+                <label className="financeOpsIncomeAmountLabel">
+                  Сумма, ₽
                   <input
                     value={row.amount}
                     onChange={(event) =>
-                      setIncomeBankDrafts((prev) => ({
+                      setIncomeDraftsByAccount((prev) => ({
                         ...prev,
-                        [b.id]: { ...row, amount: event.target.value },
+                        [acc.id]: { ...row, amount: event.target.value },
                       }))
                     }
                     inputMode="decimal"
+                    placeholder="0"
                   />
                 </label>
-                <label>
+                <label className="financeOpsIncomeCommentLabel">
                   Комментарий
                   <input
                     value={row.comment}
                     onChange={(event) =>
-                      setIncomeBankDrafts((prev) => ({
+                      setIncomeDraftsByAccount((prev) => ({
                         ...prev,
-                        [b.id]: { ...row, comment: event.target.value },
+                        [acc.id]: { ...row, comment: event.target.value },
                       }))
                     }
+                    placeholder="Необязательно"
                   />
                 </label>
               </div>
-              <div className="inlineActions">
-                <button
-                  type="button"
-                  className="primaryAction"
-                  disabled={busyId === `income-${b.id}`}
-                  onClick={async () => {
-                    setError('');
-                    setStatus('');
-                    const n = Number(String(row.amount).replace(',', '.'));
-                    if (!Number.isFinite(n) || n <= 0) {
-                      setError(`Укажите сумму прихода для «${b.name}»`);
-                      return;
-                    }
-                    setBusyId(`income-${b.id}`);
-                    try {
-                      await onAddIncome(token, {
-                        accountId: b.id,
-                        amount: row.amount,
-                        workDay: incomeWorkDay,
-                        comment: row.comment,
-                      });
-                      setIncomeBankDrafts((prev) => ({
-                        ...prev,
-                        [b.id]: { amount: '', comment: '' },
-                      }));
-                      setStatus(`Приход на «${b.name}» записан, баланс обновлён.`);
-                    } catch {
-                      setError('Не удалось записать приход');
-                    } finally {
-                      setBusyId('');
-                    }
-                  }}
-                >
-                  Добавить приход
-                </button>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+        <div className="inlineActions">
+          <button type="button" className="primaryAction" disabled={busyId === 'income-batch'} onClick={submitIncomeBatch}>
+            Записать приход
+          </button>
+        </div>
       </div>
 
       <div className="tableWrap">
@@ -2656,7 +2597,7 @@ function FinanceOpsPanel({
             {snapshot.accounts.map((account) => (
               <tr key={account.id}>
                 <td>{account.name}</td>
-                <td>{account.kind === 'CASH' ? 'Наличка' : 'Расчётный счёт'}</td>
+                <td>{account.kind === 'CASH' ? 'Наличные' : 'Расчётный счёт'}</td>
                 <td>
                   <strong>{fmt(account.balance)}</strong>
                 </td>

@@ -490,10 +490,38 @@ export class AuthService implements OnModuleInit {
 
   private defaultFinanceAccounts(): FinanceAccount[] {
     return [
-      { id: 'fa-cash-main', name: 'Наличка', kind: 'CASH', balance: 0 },
-      { id: 'fa-bank-main', name: 'Р/с Путинцев', kind: 'BANK', balance: 0 },
-      { id: 'fa-bank-extra', name: 'Р/с (Детков)', kind: 'BANK', balance: 0 },
+      { id: 'fa-bank-extra', name: 'Р/с Д ВТБ', kind: 'BANK', balance: 0 },
+      { id: 'fa-bank-main', name: 'Р/с П ВТБ', kind: 'BANK', balance: 0 },
+      { id: 'fa-bank-putintsev-sber', name: 'Р/с П СБЕР', kind: 'BANK', balance: 0 },
+      { id: 'fa-cash-main', name: 'Наличные', kind: 'CASH', balance: 0 },
     ];
+  }
+
+  /** Добавляет новые счета из эталона и приводит названия к актуальным подписи в UI. */
+  private mergeFinanceAccountsWithDefaults(loaded: FinanceAccount[]): FinanceAccount[] {
+    const canonical = this.defaultFinanceAccounts();
+    const canonById = new Map(canonical.map((a) => [a.id, a]));
+    const byId = new Map(loaded.map((a) => [a.id, { ...a }]));
+    for (const [id, def] of canonById) {
+      const cur = byId.get(id);
+      if (!cur) {
+        byId.set(id, { ...def });
+      } else {
+        cur.name = def.name;
+        cur.kind = def.kind;
+      }
+    }
+    const primaryOrder = canonical.map((a) => a.id);
+    const ordered: FinanceAccount[] = [];
+    for (const id of primaryOrder) {
+      const acc = byId.get(id);
+      if (acc) {
+        ordered.push(acc);
+        byId.delete(id);
+      }
+    }
+    const rest = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'ru-RU'));
+    return [...ordered, ...rest];
   }
 
   private demoUsers: DemoUser[] = [];
@@ -2143,6 +2171,8 @@ export class AuthService implements OnModuleInit {
     }));
     if (this.financeAccounts.length === 0) {
       this.financeAccounts = this.defaultFinanceAccounts();
+    } else {
+      this.financeAccounts = this.mergeFinanceAccountsWithDefaults(this.financeAccounts);
     }
     this.financeExpenses = financeExpenses.map((item) => ({
       id: item.id,
