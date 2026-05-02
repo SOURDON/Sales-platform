@@ -2085,6 +2085,35 @@ button.financeRangePresetBtn {
   font-size: 12px;
 }
 
+.financeOpsBankTotalCallout {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: -2px 0 12px;
+  padding: 6px 10px;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #334155;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #0d9488;
+  border-radius: 8px;
+}
+
+.financeOpsBankTotalCalloutLabel {
+  font-weight: 600;
+  color: #475569;
+}
+
+.financeOpsBankTotalCalloutValue {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #0f172a;
+}
+
 .financeOpsBalancesGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2148,36 +2177,62 @@ button.financeRangePresetBtn {
 .financeOpsExpensePickRow {
   display: flex;
   flex-wrap: nowrap;
-  gap: 12px 14px;
+  gap: 10px;
   margin-bottom: 12px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
-.financeOpsExpensePickCol {
+.financeOpsExpenseUnifiedPick {
   flex: 1 1 0;
   min-width: 0;
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
-.financeOpsExpensePickLabel {
+.financeOpsExpenseUnifiedPick:hover {
+  border-color: #94a3b8;
+}
+
+.financeOpsExpenseUnifiedPick:focus-within {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.22);
+}
+
+.financeOpsExpenseUnifiedPickCaption {
   font-size: 11px;
   font-weight: 600;
-  color: #374151;
+  color: #64748b;
 }
 
-.financeOpsExpenseChipRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+.financeOpsExpenseUnifiedSelect {
+  width: 100%;
+  margin: 0;
+  padding: 0 22px 0 0;
+  border: none;
+  background-color: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  line-height: 1.35;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 2px center;
 }
 
-.financeOpsExpenseChipBtn {
-  padding: 4px 8px !important;
-  font-size: 11px !important;
-  min-height: 0 !important;
-  line-height: 1.25 !important;
-  white-space: nowrap;
+.financeOpsExpenseUnifiedSelect:focus {
+  outline: none;
 }
 
 .financeOpsExpenseAmountRow {
@@ -3595,4 +3650,417 @@ textarea {
     font-size: 11px !important;
     min-height: 36px !important;
   }
+}
+
+/* Оперативные финансы (/shift для бухгалтера): компактная типографика, без «тяжёлых» карточек */
+.financeOpsCard {
+  font-family:
+    'DM Sans',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  font-optical-sizing: auto;
+  font-feature-settings: 'tnum' 1, 'kern' 1;
+  letter-spacing: -0.012em;
+  color: #334155;
+}
+
+.sectionCard .financeOpsCard.opsCard,
+.financeOpsCard.opsCard {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 2px 0 12px !important;
+  gap: 0 !important;
+}
+
+.financeOpsCard > h4:first-of-type {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+  margin: 0 0 8px !important;
+}
+
+.financeOpsCard .financeOpsBankTotalCallout {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  flex-wrap: wrap !important;
+  gap: 5px 8px !important;
+  margin: 0 0 10px !important;
+  padding: 0 0 0 9px !important;
+  border: none !important;
+  border-left: 2px solid #94a3b8 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 11px !important;
+  color: #475569 !important;
+  line-height: 1.35 !important;
+}
+
+.financeOpsCard .financeOpsBankTotalCalloutLabel {
+  font-weight: 500 !important;
+  color: #64748b !important;
+}
+
+.financeOpsCard .financeOpsBankTotalCalloutValue {
+  font-weight: 600 !important;
+  color: #0f172a !important;
+}
+
+.financeOpsCard .financeOpsBalancesGrid {
+  gap: 6px !important;
+  margin-bottom: 10px !important;
+}
+
+@media (min-width: 520px) {
+  .financeOpsCard .financeOpsBalancesGrid {
+    gap: 8px !important;
+  }
+}
+
+.financeOpsCard .financeOpsBalanceCard.metricCard {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 6px 2px 8px !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07) !important;
+}
+
+.financeOpsCard .financeOpsBalanceCard p {
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+  line-height: 1.2 !important;
+}
+
+.financeOpsCard .financeOpsBalanceCard strong {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+  margin-top: 2px !important;
+  color: #0f172a !important;
+}
+
+.financeOpsCard .financeOpsIncomeBlock.addSaleForm,
+.financeOpsCard > .addSaleForm {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 10px 0 !important;
+  margin: 0 !important;
+  gap: 7px !important;
+}
+
+.financeOpsCard .financeOpsIncomeBlock.addSaleForm {
+  border-top: 1px solid rgba(15, 23, 42, 0.07) !important;
+}
+
+.financeOpsCard .balanceAdjustBlock {
+  margin: 0 !important;
+  padding: 10px 0 !important;
+  gap: 8px !important;
+  border-top: 1px solid rgba(15, 23, 42, 0.07) !important;
+}
+
+.financeOpsCard > .addSaleForm:not(.financeOpsIncomeBlock) {
+  border-top: 1px solid rgba(15, 23, 42, 0.07) !important;
+}
+
+.financeOpsCard .addSaleForm h4 {
+  color: #475569 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  margin: 0 0 6px !important;
+}
+
+.financeOpsCard .financeOpsIncomeBlock > h4 {
+  margin-bottom: 6px !important;
+}
+
+.financeOpsCard .financeOpsAccountsPick {
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  gap: 4px !important;
+  margin-bottom: 6px !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+}
+
+.financeOpsCard .financeOpsAccountBtnRow {
+  gap: 5px !important;
+}
+
+.financeOpsCard .financeOpsAccountPickBtn.paymentTypeBtn {
+  min-height: 30px !important;
+  padding: 5px 8px !important;
+  font-size: 11px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  background: rgba(255, 255, 255, 0.5) !important;
+  box-shadow: none !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
+}
+
+.financeOpsCard .financeOpsAccountPickBtn.paymentTypeBtnActive {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #1e293b !important;
+  box-shadow: none !important;
+}
+
+.financeOpsCard .financeOpsIncomeFieldsRow.addSaleRow label {
+  font-size: 9px !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+}
+
+.financeOpsCard .financeOpsIncomeFieldsRow input {
+  min-height: 32px !important;
+  padding: 5px 8px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  background: rgba(255, 255, 255, 0.65) !important;
+}
+
+.financeOpsCard .addSaleSubmitBottom.primaryAction {
+  min-height: 32px !important;
+  padding: 7px 12px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  border-radius: 7px !important;
+  margin-top: 4px !important;
+  letter-spacing: 0.03em !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+}
+
+.financeOpsCard .financeBalanceAdjustToggle {
+  width: fit-content !important;
+  max-width: 100% !important;
+  min-height: 30px !important;
+  padding: 6px 11px !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  color: #475569 !important;
+}
+
+.financeOpsCard .financeBalanceAdjustToggle:hover {
+  filter: none !important;
+  background: rgba(15, 23, 42, 0.04) !important;
+}
+
+.financeOpsCard .financeBalanceAdjustToggleOpen {
+  background: rgba(15, 23, 42, 0.06) !important;
+  box-shadow: none !important;
+}
+
+.financeOpsCard .balanceAdjustBlock .addSaleForm {
+  padding: 8px 0 0 !important;
+  margin: 0 !important;
+  gap: 8px !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.financeOpsCard .balanceAdjustBlock .hint {
+  font-size: 10px !important;
+  line-height: 1.4 !important;
+  margin: 0 0 6px !important;
+  color: #64748b !important;
+}
+
+.financeOpsCard .balanceAdjustBlock .inlineGrid {
+  gap: 8px !important;
+}
+
+@media (max-width: 640px) {
+  .financeOpsCard .balanceAdjustBlock .inlineGrid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.financeOpsCard .balanceAdjustBlock select,
+.financeOpsCard .balanceAdjustBlock input {
+  min-height: 32px !important;
+  padding: 5px 8px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  background: rgba(255, 255, 255, 0.65) !important;
+}
+
+.financeOpsCard .balanceAdjustBlock .inlineActions .primaryAction {
+  min-height: 32px !important;
+  padding: 7px 12px !important;
+  font-size: 11px !important;
+  border-radius: 7px !important;
+}
+
+.financeOpsCard .financeOpsExpensePickRow {
+  gap: 8px !important;
+  margin-bottom: 6px !important;
+}
+
+.financeOpsCard .financeOpsExpenseUnifiedPick {
+  padding: 6px 8px !important;
+  gap: 2px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(15, 23, 42, 0.11) !important;
+  background: transparent !important;
+}
+
+.financeOpsCard .financeOpsExpenseUnifiedPick:hover {
+  border-color: rgba(15, 23, 42, 0.18) !important;
+}
+
+.financeOpsCard .financeOpsExpenseUnifiedPick:focus-within {
+  border-color: #64748b !important;
+  box-shadow: none !important;
+}
+
+.financeOpsCard .financeOpsExpenseUnifiedPickCaption {
+  font-size: 8px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+}
+
+.financeOpsCard .financeOpsExpenseUnifiedSelect {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.financeOpsCard .financeOpsExpenseAmountRow {
+  margin-bottom: 2px !important;
+}
+
+.financeOpsCard .financeOpsExpenseAmountRow label {
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+}
+
+.financeOpsCard .financeOpsExpenseAmountRow input {
+  min-height: 32px !important;
+  padding: 5px 8px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  background: rgba(255, 255, 255, 0.65) !important;
+}
+
+.financeOpsCard .inlineActions {
+  gap: 6px !important;
+}
+
+.financeOpsCard .inlineActions .primaryAction {
+  min-height: 32px !important;
+  padding: 7px 12px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  border-radius: 7px !important;
+  letter-spacing: 0.03em !important;
+}
+
+.financeOpsCard .success,
+.financeOpsCard .error {
+  font-size: 11px !important;
+  margin: 6px 0 0 !important;
+  line-height: 1.35 !important;
+}
+
+.financeOpsCard .financeHistoryAccordions {
+  gap: 6px !important;
+  margin-top: 8px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid rgba(15, 23, 42, 0.07) !important;
+}
+
+.financeOpsCard .financeHistoryAccordions .procurementAccordionTrigger {
+  margin: 0 !important;
+  padding: 7px 26px 7px 10px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(15, 23, 42, 0.11) !important;
+  background: rgba(255, 255, 255, 0.35) !important;
+  color: #334155 !important;
+  box-shadow: none !important;
+  font-weight: 600 !important;
+}
+
+.financeOpsCard .financeHistoryAccordions .procurementAccordion:not(.procurementAccordion--collapsed) .procurementAccordionTrigger:hover {
+  filter: none !important;
+  background: rgba(15, 23, 42, 0.04) !important;
+}
+
+.financeOpsCard .financeHistoryAccordionTitle.procurementAccordionTriggerTitle {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  text-align: left !important;
+  color: #475569 !important;
+}
+
+.financeOpsCard .financeHistoryAccordions .procurementAccordionChevron {
+  right: 8px !important;
+  opacity: 0.65 !important;
+}
+
+.financeOpsCard .financeHistoryAccordions .procurementAccordionChevron svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+.financeOpsCard .financeHistoryAccordionBody.procurementAccordionBody {
+  padding: 5px 2px 6px !important;
+  gap: 6px !important;
+}
+
+.financeOpsCard .incomeHistoryHeading {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  margin: 6px 0 3px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+}
+
+.financeOpsCard .opsList p {
+  font-size: 10.5px !important;
+  line-height: 1.42 !important;
+  margin: 1px 0 !important;
+  color: #475569 !important;
+}
+
+.financeOpsCard .financeHistoryAccordionBody .muted {
+  font-size: 10.5px !important;
+  color: #94a3b8 !important;
 }

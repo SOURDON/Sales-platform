@@ -2524,6 +2524,10 @@ function FinanceOpsPanel({
   return (
     <div className="opsCard financeOpsCard">
       <h4>Оперативные финансы</h4>
+      <p className="financeOpsBankTotalCallout" role="note">
+        <span className="financeOpsBankTotalCalloutLabel">Всего по банку:</span>{' '}
+        <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.bank)}</span>
+      </p>
 
       <div className="financeOpsBalancesGrid">
         {primaryFinanceAccounts.map((acc) => (
@@ -2681,40 +2685,40 @@ function FinanceOpsPanel({
       <div className="addSaleForm">
         <h4>Добавить расход</h4>
         <div className="financeOpsExpensePickRow">
-          <div className="financeOpsExpensePickCol">
-            <span className="financeOpsExpensePickLabel">Счёт списания</span>
-            <div className="financeOpsExpenseChipRow" role="group" aria-label="Счёт списания">
+          <label className="financeOpsExpenseUnifiedPick">
+            <span className="financeOpsExpenseUnifiedPickCaption">Счёт списания</span>
+            <select
+              className="financeOpsExpenseUnifiedSelect"
+              value={expenseAccountId}
+              onChange={(event) => setExpenseAccountId(event.target.value)}
+              aria-label="Счёт списания"
+            >
               {snapshot.accounts.map((account) => (
-                <button
-                  key={account.id}
-                  type="button"
-                  className={`ghost paymentTypeBtn financeOpsExpenseChipBtn ${
-                    expenseAccountId === account.id ? 'paymentTypeBtnActive' : ''
-                  }`}
-                  onClick={() => setExpenseAccountId(account.id)}
-                >
+                <option key={account.id} value={account.id}>
                   {account.name}
-                </button>
+                </option>
               ))}
-            </div>
-          </div>
-          <div className="financeOpsExpensePickCol">
-            <span className="financeOpsExpensePickLabel">Статья расхода</span>
-            <div className="financeOpsExpenseChipRow" role="group" aria-label="Статья расхода">
+            </select>
+          </label>
+          <label className="financeOpsExpenseUnifiedPick">
+            <span className="financeOpsExpenseUnifiedPickCaption">Статья расхода</span>
+            <select
+              className="financeOpsExpenseUnifiedSelect"
+              value={expenseTitle}
+              onChange={(event) =>
+                setExpenseTitle(
+                  event.target.value as (typeof FINANCE_EXPENSE_CATEGORY_LABELS)[number],
+                )
+              }
+              aria-label="Статья расхода"
+            >
               {FINANCE_EXPENSE_CATEGORY_LABELS.map((label) => (
-                <button
-                  key={label}
-                  type="button"
-                  className={`ghost paymentTypeBtn financeOpsExpenseChipBtn ${
-                    expenseTitle === label ? 'paymentTypeBtnActive' : ''
-                  }`}
-                  onClick={() => setExpenseTitle(label)}
-                >
+                <option key={label} value={label}>
                   {label}
-                </button>
+                </option>
               ))}
-            </div>
-          </div>
+            </select>
+          </label>
         </div>
         <div className="addSaleRow financeOpsExpenseAmountRow">
           <label>
