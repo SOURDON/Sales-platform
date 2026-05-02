@@ -527,17 +527,103 @@ th {
   color: #111827 !important;
 }
 
-/* Закупки / эквайринг (бухгалтер): компактная сетка */
-.accountantProcurementPanel.opsCard {
-  gap: 8px !important;
-  padding: 10px 12px !important;
+/* Закупки / эквайринг (бухгалтер): два выкатных блока */
+.accountantProcurementRoot {
+  display: grid;
+  gap: 10px;
+  width: 100%;
 }
 
-.accountantProcurementTitle {
-  margin: 0 0 6px !important;
-  font-size: 15px !important;
-  font-weight: 600 !important;
-  line-height: 1.25 !important;
+.procurementAccordion {
+  border: none;
+  border-radius: 12px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+}
+
+.procurementAccordion--collapsed {
+  background: transparent;
+}
+
+.procurementAccordionTrigger {
+  position: relative;
+  width: 100%;
+  display: block;
+  margin: 0 0 6px;
+  padding: 11px 40px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(165deg, #c4a56d 0%, #b48f53 100%);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  color: #12241d;
+  box-shadow: 0 2px 8px rgba(8, 22, 17, 0.22);
+  transition:
+    filter 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.procurementAccordion:not(.procurementAccordion--collapsed) .procurementAccordionTrigger:hover {
+  filter: brightness(1.05);
+}
+
+.procurementAccordionTrigger:focus-visible {
+  outline: 2px solid rgba(180, 143, 83, 0.55);
+  outline-offset: 2px;
+}
+
+.procurementAccordion--collapsed .procurementAccordionTrigger {
+  margin-bottom: 0;
+}
+
+.procurementAccordionTriggerTitle {
+  display: block;
+  width: 100%;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  color: inherit;
+}
+
+.procurementAccordionChevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  opacity: 0.88;
+  transform: translateY(-50%);
+  transition: transform 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.procurementAccordion--collapsed .procurementAccordionChevron {
+  transform: translateY(-50%) rotate(-90deg);
+}
+
+.procurementAccordionPanel {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.procurementAccordion--collapsed .procurementAccordionPanel {
+  grid-template-rows: 0fr;
+}
+
+.procurementAccordionPanelInner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.procurementAccordionBody {
+  padding: 4px 2px 8px;
+  display: grid;
+  gap: 8px;
 }
 
 .procurementAcquiringGrid {
@@ -572,7 +658,7 @@ th {
 }
 
 .procurementTableWrap {
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 .procurementCostsTable {
@@ -1239,7 +1325,9 @@ button.ghost.navActive:hover {
   .teamStoreAccordionPanel,
   .teamStoreAccordionChevron,
   .teamStoresRemovedAccordionPanel,
-  .teamStoresRemovedAccordionChevron {
+  .teamStoresRemovedAccordionChevron,
+  .procurementAccordionPanel,
+  .procurementAccordionChevron {
     transition: none;
   }
 }
@@ -2927,4 +3015,129 @@ textarea {
 
 .shiftActionsRow button {
   width: 100%;
+}
+
+/* Карточка фин. отчёта: один столбец периода без обрыва сетки/полей даты; компактнее */
+.opsCard.financeReportCard {
+  gap: 8px !important;
+  padding: 10px !important;
+}
+
+.financeReportCardTitle {
+  margin: 0 0 4px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  line-height: 1.25 !important;
+  color: #6e552f !important;
+}
+
+.financeReportCard .financeRangeToolbar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  flex-direction: unset !important;
+  align-items: stretch !important;
+  align-content: start !important;
+  gap: 6px !important;
+  padding: 6px 8px !important;
+  margin-bottom: 2px !important;
+  overflow: hidden !important;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.financeReportCard .financeRangeDates {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  max-width: 100%;
+  min-width: 0 !important;
+  gap: 6px !important;
+}
+
+.financeReportCard .financeRangeDateInput {
+  flex: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 30px !important;
+  padding: 3px 6px !important;
+  font-size: 12px !important;
+}
+
+.financeReportCard .financeRangePresets {
+  flex: none !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  width: 100% !important;
+  max-width: 100%;
+  min-width: 0 !important;
+}
+
+.financeReportCard .financeRangePresetGrid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  width: 100% !important;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.financeReportCard button.financeRangePresetBtn {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 32px !important;
+  padding: 4px 6px !important;
+  font-size: 12px !important;
+}
+
+.financeReportCard .financeRangeSummary {
+  margin: 0 !important;
+  padding: 0 2px !important;
+  font-size: 10px !important;
+  text-align: center !important;
+  line-height: 1.25 !important;
+  word-break: break-word !important;
+}
+
+.financeReportCard .financeReportActionsBar {
+  margin: 4px 0 6px !important;
+  gap: 6px !important;
+}
+
+.financeReportCard .financeReportSaveBtn {
+  min-height: 36px !important;
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+}
+
+.financeReportCard .financeReportExportBtn {
+  min-height: 36px !important;
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+}
+
+.financeReportCard .financeReportTable {
+  margin-top: 2px;
+}
+
+.financeReportCard .financeReportTable table {
+  font-size: 11px !important;
+}
+
+.financeReportCard .financeReportTable th,
+.financeReportCard .financeReportTable td {
+  padding: 3px 5px !important;
+}
+
+.financeReportCard .financeReportTable .financeReportPlanInput {
+  font-size: 11px !important;
+  padding: 2px 4px !important;
+  min-height: 26px !important;
+  max-width: 4.25rem !important;
+}
+
+.financeReportCard .financeReportTable th.thPlan,
+.financeReportCard .financeReportTable td.tdPlan {
+  max-width: 5rem !important;
 }

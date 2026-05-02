@@ -3807,6 +3807,8 @@ function AccountantProcurementPanel({
   const [acquiringSaveError, setAcquiringSaveError] = useState('');
   const [acquiringDetkovSaveError, setAcquiringDetkovSaveError] = useState('');
   const [acquiringPutintsevSberSaveError, setAcquiringPutintsevSberSaveError] = useState('');
+  const [acquiringAccordionOpen, setAcquiringAccordionOpen] = useState(false);
+  const [costsAccordionOpen, setCostsAccordionOpen] = useState(false);
 
   const byName = new Map(procurementCosts.map((item) => [item.name.trim(), item.cost]));
   const rows = products.map((item) => ({
@@ -3834,125 +3836,173 @@ function AccountantProcurementPanel({
   };
 
   return (
-    <div className="opsCard accountantProcurementPanel">
-      <h4 className="accountantProcurementTitle">Закупочные цены товаров (директор и бухгалтер)</h4>
-      <div className="procurementAcquiringGrid">
-        <label className="procurementAcquiringField">
-          Путинцев ВТБ
-          <input
-            className="procurementAcquiringInput"
-            inputMode="decimal"
-            value={acquiringPercent}
-            onChange={(event) => {
-              setAcquiringSaveError('');
-              onAcquiringPercentChange(event.target.value);
-            }}
-            onBlur={(event) => {
-              const value = event.currentTarget.value;
-              void (async () => {
-                try {
-                  await onSaveAcquiringPercent(token, value);
-                } catch {
-                  setAcquiringSaveError('Не удалось сохранить ставку');
-                }
-              })();
-            }}
-            placeholder="1.94"
-          />
-        </label>
-        <label className="procurementAcquiringField">
-          Детков ВТБ
-          <input
-            className="procurementAcquiringInput"
-            inputMode="decimal"
-            value={acquiringPercentDetkov}
-            onChange={(event) => {
-              setAcquiringDetkovSaveError('');
-              onAcquiringPercentDetkovChange(event.target.value);
-            }}
-            onBlur={(event) => {
-              const value = event.currentTarget.value;
-              void (async () => {
-                try {
-                  await onSaveAcquiringPercentDetkov(token, value);
-                } catch {
-                  setAcquiringDetkovSaveError('Не удалось сохранить ставку');
-                }
-              })();
-            }}
-            placeholder="2"
-          />
-        </label>
-        <label className="procurementAcquiringField">
-          Путинцев Сбербанк
-          <input
-            className="procurementAcquiringInput"
-            inputMode="decimal"
-            value={acquiringPercentPutintsevSber}
-            onChange={(event) => {
-              setAcquiringPutintsevSberSaveError('');
-              onAcquiringPercentPutintsevSberChange(event.target.value);
-            }}
-            onBlur={(event) => {
-              const value = event.currentTarget.value;
-              void (async () => {
-                try {
-                  await onSaveAcquiringPercentPutintsevSber(token, value);
-                } catch {
-                  setAcquiringPutintsevSberSaveError('Не удалось сохранить ставку');
-                }
-              })();
-            }}
-            placeholder="1.8"
-          />
-        </label>
-      </div>
-      {(acquiringSaveError || acquiringDetkovSaveError || acquiringPutintsevSberSaveError) && (
-        <div className="procurementAcquiringErrors">
-          {acquiringSaveError && <p className="error procurementInlineError">{acquiringSaveError}</p>}
-          {acquiringDetkovSaveError && <p className="error procurementInlineError">{acquiringDetkovSaveError}</p>}
-          {acquiringPutintsevSberSaveError && (
-            <p className="error procurementInlineError">{acquiringPutintsevSberSaveError}</p>
-          )}
-        </div>
-      )}
-      <div className="tableWrap procurementTableWrap">
-        <table className="procurementCostsTable">
-          <thead>
-            <tr>
-              <th>Товар</th>
-              <th>Закупочная цена</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.name}>
-                <td>{row.name}</td>
-                <td>
-                  <input
-                    className="procurementCostInput"
-                    inputMode="decimal"
-                    value={draft[row.name] ?? String(row.currentCost)}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        [row.name]: event.target.value,
-                      }))
-                    }
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="procurementSaveRow">
-        <button type="button" className="primaryAction procurementSaveBtn" onClick={save} disabled={busy}>
-          {busy ? 'Сохраняем...' : 'Сохранить закупочные цены'}
+    <div className="accountantProcurementRoot">
+      <section
+        className={`procurementAccordion ${acquiringAccordionOpen ? '' : 'procurementAccordion--collapsed'}`}
+      >
+        <button
+          type="button"
+          className="procurementAccordionTrigger"
+          aria-expanded={acquiringAccordionOpen}
+          onClick={() => setAcquiringAccordionOpen((open) => !open)}
+        >
+          <span className="procurementAccordionTriggerTitle">Эквайринг</span>
+          <span className="procurementAccordionChevron" aria-hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M7 10l5 5 5-5z" />
+            </svg>
+          </span>
         </button>
-      </div>
-      {status && <p className="success procurementStatusMsg">{status}</p>}
-      {error && <p className="error procurementStatusMsg">{error}</p>}
+        <div className="procurementAccordionPanel">
+          <div className="procurementAccordionPanelInner">
+            <div className="procurementAccordionBody">
+              <div className="procurementAcquiringGrid">
+                <label className="procurementAcquiringField">
+                  Путинцев ВТБ
+                  <input
+                    className="procurementAcquiringInput"
+                    inputMode="decimal"
+                    value={acquiringPercent}
+                    onChange={(event) => {
+                      setAcquiringSaveError('');
+                      onAcquiringPercentChange(event.target.value);
+                    }}
+                    onBlur={(event) => {
+                      const value = event.currentTarget.value;
+                      void (async () => {
+                        try {
+                          await onSaveAcquiringPercent(token, value);
+                        } catch {
+                          setAcquiringSaveError('Не удалось сохранить ставку');
+                        }
+                      })();
+                    }}
+                    placeholder="1.94"
+                  />
+                </label>
+                <label className="procurementAcquiringField">
+                  Детков ВТБ
+                  <input
+                    className="procurementAcquiringInput"
+                    inputMode="decimal"
+                    value={acquiringPercentDetkov}
+                    onChange={(event) => {
+                      setAcquiringDetkovSaveError('');
+                      onAcquiringPercentDetkovChange(event.target.value);
+                    }}
+                    onBlur={(event) => {
+                      const value = event.currentTarget.value;
+                      void (async () => {
+                        try {
+                          await onSaveAcquiringPercentDetkov(token, value);
+                        } catch {
+                          setAcquiringDetkovSaveError('Не удалось сохранить ставку');
+                        }
+                      })();
+                    }}
+                    placeholder="2"
+                  />
+                </label>
+                <label className="procurementAcquiringField">
+                  Путинцев Сбербанк
+                  <input
+                    className="procurementAcquiringInput"
+                    inputMode="decimal"
+                    value={acquiringPercentPutintsevSber}
+                    onChange={(event) => {
+                      setAcquiringPutintsevSberSaveError('');
+                      onAcquiringPercentPutintsevSberChange(event.target.value);
+                    }}
+                    onBlur={(event) => {
+                      const value = event.currentTarget.value;
+                      void (async () => {
+                        try {
+                          await onSaveAcquiringPercentPutintsevSber(token, value);
+                        } catch {
+                          setAcquiringPutintsevSberSaveError('Не удалось сохранить ставку');
+                        }
+                      })();
+                    }}
+                    placeholder="1.8"
+                  />
+                </label>
+              </div>
+              {(acquiringSaveError || acquiringDetkovSaveError || acquiringPutintsevSberSaveError) && (
+                <div className="procurementAcquiringErrors">
+                  {acquiringSaveError && (
+                    <p className="error procurementInlineError">{acquiringSaveError}</p>
+                  )}
+                  {acquiringDetkovSaveError && (
+                    <p className="error procurementInlineError">{acquiringDetkovSaveError}</p>
+                  )}
+                  {acquiringPutintsevSberSaveError && (
+                    <p className="error procurementInlineError">{acquiringPutintsevSberSaveError}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={`procurementAccordion ${costsAccordionOpen ? '' : 'procurementAccordion--collapsed'}`}>
+        <button
+          type="button"
+          className="procurementAccordionTrigger"
+          aria-expanded={costsAccordionOpen}
+          onClick={() => setCostsAccordionOpen((open) => !open)}
+        >
+          <span className="procurementAccordionTriggerTitle">Закупочные цены товаров</span>
+          <span className="procurementAccordionChevron" aria-hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M7 10l5 5 5-5z" />
+            </svg>
+          </span>
+        </button>
+        <div className="procurementAccordionPanel">
+          <div className="procurementAccordionPanelInner">
+            <div className="procurementAccordionBody">
+              <div className="tableWrap procurementTableWrap">
+                <table className="procurementCostsTable">
+                  <thead>
+                    <tr>
+                      <th>Товар</th>
+                      <th>Закупочная цена</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={row.name}>
+                        <td>{row.name}</td>
+                        <td>
+                          <input
+                            className="procurementCostInput"
+                            inputMode="decimal"
+                            value={draft[row.name] ?? String(row.currentCost)}
+                            onChange={(event) =>
+                              setDraft((current) => ({
+                                ...current,
+                                [row.name]: event.target.value,
+                              }))
+                            }
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="procurementSaveRow">
+                <button type="button" className="primaryAction procurementSaveBtn" onClick={save} disabled={busy}>
+                  {busy ? 'Сохраняем...' : 'Сохранить закупочные цены'}
+                </button>
+              </div>
+              {status && <p className="success procurementStatusMsg">{status}</p>}
+              {error && <p className="error procurementStatusMsg">{error}</p>}
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -4187,8 +4237,10 @@ function FinanceReportPanel({
   };
 
   return (
-    <div className="opsCard">
-      <h4>{role === 'DIRECTOR' ? 'Финансовый отчёт директора' : 'Полный отчёт по магазинам'}</h4>
+    <div className="opsCard financeReportCard">
+      <h4 className="financeReportCardTitle">
+        {role === 'DIRECTOR' ? 'Финансовый отчёт директора' : 'Полный отчёт по магазинам'}
+      </h4>
       <div className="financeRangeToolbar">
         <div className="financeRangeDates">
           <input
@@ -4213,12 +4265,6 @@ function FinanceReportPanel({
             </button>
             <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(1)}>
               Сегодня
-            </button>
-            <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(7)}>
-              7 дней
-            </button>
-            <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(30)}>
-              30 дней
             </button>
           </div>
           <span className="financeRangeSummary">
