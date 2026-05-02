@@ -2145,7 +2145,50 @@ button.financeRangePresetBtn {
   grid-column: 1 / -1;
 }
 
+.financeOpsExpensePickRow {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px 14px;
+  margin-bottom: 12px;
+  align-items: flex-start;
+}
+
+.financeOpsExpensePickCol {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.financeOpsExpensePickLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.financeOpsExpenseChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.financeOpsExpenseChipBtn {
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  min-height: 0 !important;
+  line-height: 1.25 !important;
+  white-space: nowrap;
+}
+
+.financeOpsExpenseAmountRow {
+  margin-bottom: 4px;
+}
+
 @media (max-width: 560px) {
+  .financeOpsExpensePickRow {
+    flex-wrap: wrap;
+  }
+
   .financeOpsBalancesGrid {
     gap: 8px;
   }

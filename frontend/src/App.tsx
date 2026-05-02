@@ -2369,6 +2369,14 @@ const FINANCE_OPS_PRIMARY_ACCOUNT_IDS = [
   'fa-cash-main',
 ] as const;
 
+const FINANCE_EXPENSE_CATEGORY_LABELS = [
+  'Аренда',
+  'Налоги',
+  'ЗП',
+  'Расходка',
+  'Прочие траты',
+] as const;
+
 function FinanceOpsPanel({
   token,
   isDirector,
@@ -2413,9 +2421,10 @@ function FinanceOpsPanel({
   const [incomeDraftsByAccount, setIncomeDraftsByAccount] = useState<Record<string, string>>({});
   const [selectedIncomeAccountId, setSelectedIncomeAccountId] = useState('');
   const [expenseAccountId, setExpenseAccountId] = useState(snapshot.accounts[0]?.id ?? '');
-  const [expenseTitle, setExpenseTitle] = useState('');
+  const [expenseTitle, setExpenseTitle] = useState<
+    (typeof FINANCE_EXPENSE_CATEGORY_LABELS)[number]
+  >(FINANCE_EXPENSE_CATEGORY_LABELS[0]);
   const [expenseAmount, setExpenseAmount] = useState('');
-  const [expenseComment, setExpenseComment] = useState('');
   const [busyId, setBusyId] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -2671,28 +2680,51 @@ function FinanceOpsPanel({
 
       <div className="addSaleForm">
         <h4>Добавить расход</h4>
-        <div className="inlineGrid">
-          <label>
-            Счёт списания
-            <select value={expenseAccountId} onChange={(event) => setExpenseAccountId(event.target.value)}>
+        <div className="financeOpsExpensePickRow">
+          <div className="financeOpsExpensePickCol">
+            <span className="financeOpsExpensePickLabel">Счёт списания</span>
+            <div className="financeOpsExpenseChipRow" role="group" aria-label="Счёт списания">
               {snapshot.accounts.map((account) => (
-                <option key={account.id} value={account.id}>
+                <button
+                  key={account.id}
+                  type="button"
+                  className={`ghost paymentTypeBtn financeOpsExpenseChipBtn ${
+                    expenseAccountId === account.id ? 'paymentTypeBtnActive' : ''
+                  }`}
+                  onClick={() => setExpenseAccountId(account.id)}
+                >
                   {account.name}
-                </option>
+                </button>
               ))}
-            </select>
-          </label>
-          <label>
-            Статья расхода
-            <input value={expenseTitle} onChange={(event) => setExpenseTitle(event.target.value)} />
-          </label>
+            </div>
+          </div>
+          <div className="financeOpsExpensePickCol">
+            <span className="financeOpsExpensePickLabel">Статья расхода</span>
+            <div className="financeOpsExpenseChipRow" role="group" aria-label="Статья расхода">
+              {FINANCE_EXPENSE_CATEGORY_LABELS.map((label) => (
+                <button
+                  key={label}
+                  type="button"
+                  className={`ghost paymentTypeBtn financeOpsExpenseChipBtn ${
+                    expenseTitle === label ? 'paymentTypeBtnActive' : ''
+                  }`}
+                  onClick={() => setExpenseTitle(label)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="addSaleRow financeOpsExpenseAmountRow">
           <label>
             Сумма
-            <input value={expenseAmount} onChange={(event) => setExpenseAmount(event.target.value)} />
-          </label>
-          <label>
-            Комментарий
-            <input value={expenseComment} onChange={(event) => setExpenseComment(event.target.value)} />
+            <input
+              inputMode="decimal"
+              value={expenseAmount}
+              onChange={(event) => setExpenseAmount(event.target.value)}
+              placeholder="Например, 5000"
+            />
           </label>
         </div>
         <div className="inlineActions">
@@ -2709,11 +2741,9 @@ function FinanceOpsPanel({
                   accountId: expenseAccountId,
                   title: expenseTitle,
                   amount: expenseAmount,
-                  comment: expenseComment,
                 });
-                setExpenseTitle('');
+                setExpenseTitle(FINANCE_EXPENSE_CATEGORY_LABELS[0]);
                 setExpenseAmount('');
-                setExpenseComment('');
                 setStatus('Расход добавлен.');
               } catch {
                 setError('Не удалось добавить расход');
