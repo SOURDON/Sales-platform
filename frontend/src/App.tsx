@@ -1692,10 +1692,19 @@ function App() {
                           {homeDashboard.role !== 'ADMIN' ? (
                             <div className="metrics homeMetricsTight">
                               {homeDashboard.metrics
-                                .filter(
-                                  (metric) =>
-                                    !metric.label.toLowerCase().includes('чистая прибыль'),
-                                )
+                                .filter((metric) => {
+                                  const l = metric.label.toLowerCase().trim();
+                                  if (l.includes('чистая прибыль')) {
+                                    return false;
+                                  }
+                                  if (l.includes('закупки') && l.includes('оценка')) {
+                                    return false;
+                                  }
+                                  if (l === 'открытые смены') {
+                                    return false;
+                                  }
+                                  return true;
+                                })
                                 .map((metric) => (
                                   <article key={metric.label} className="metricCard">
                                     <p>{metric.label}</p>
