@@ -1590,6 +1590,16 @@ select {
   margin-left: auto;
 }
 
+.salePendingBadge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b45309;
+}
+
+.saleItemPendingSync {
+  border-style: dashed;
+}
+
 .saleItem ul {
   margin: 0;
   padding-left: 16px;
@@ -2408,6 +2418,14 @@ h1 {
   background: rgba(244, 247, 240, 0.95) !important;
   border: 1px solid rgba(141, 117, 75, 0.18) !important;
   border-radius: 12px !important;
+}
+
+.saleItemPendingSync {
+  border-style: dashed !important;
+}
+
+.salePendingBadge {
+  color: #dcc698 !important;
 }
 
 .mobileDock {

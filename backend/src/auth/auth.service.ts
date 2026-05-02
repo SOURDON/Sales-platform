@@ -1083,7 +1083,22 @@ export class AuthService implements OnModuleInit {
     totalAmount: number,
     actor = 'system',
     paymentType: SalePaymentType = 'CASH',
+    optionalSaleId?: string,
   ) {
+    const trimmedOptionalId =
+      typeof optionalSaleId === 'string'
+        ? optionalSaleId.trim().slice(0, 128).replace(/[^\w.-]/g, '') || undefined
+        : undefined;
+
+    if (trimmedOptionalId) {
+      for (const profile of this.sellerProfiles) {
+        const existing = profile.sales.find((s) => s.id === trimmedOptionalId);
+        if (existing) {
+          return existing;
+        }
+      }
+    }
+
     this.ensureActiveShiftForToday();
     if (!this.currentShiftId) {
       return null;
@@ -1133,7 +1148,7 @@ export class AuthService implements OnModuleInit {
 
     const units = lines.reduce((sum, line) => sum + line.qty, 0);
     const sale: SaleRecord = {
-      id: `sale-${Date.now()}`,
+      id: trimmedOptionalId ?? `sale-${Date.now()}`,
       createdAt: new Date().toISOString(),
       items: lines,
       totalAmount,

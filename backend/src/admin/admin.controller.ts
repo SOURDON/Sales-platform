@@ -27,6 +27,8 @@ interface CreateSaleBody {
   totalAmount?: number;
   /** CASH = наличные, NON_CASH = безнал / эквайринг, TRANSFER = перевод */
   paymentType?: 'CASH' | 'NON_CASH' | 'TRANSFER';
+  /** Одинаковый id при повторной отправке после офлайна — не создаёт дубликат */
+  saleId?: string;
 }
 
 interface SetPercentBody {
@@ -572,6 +574,7 @@ export class AdminController {
       body.totalAmount,
       session.nickname,
       paymentType,
+      body.saleId,
     );
     if (!result) {
       throw new BadRequestException(

@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import './App.css';
+import { appendOfflineSale, readOfflineQueue, writeOfflineQueue, type OfflineQueuedSale } from './offlineSalesQueue';
 
 /** Календарный день в Europe/Moscow (как на backend для смен), YYYY-MM-DD */
 function calendarDayKeyMoscow(iso: string): string {
@@ -260,7 +261,34 @@ type AdminSale = {
   paymentType?: 'CASH' | 'NON_CASH' | 'TRANSFER';
   /** Себестоимость по закупкам, считает backend (₽). */
   goodsCost?: number;
+  /** Локальная очередь без сети — отправится при восстановлении связи */
+  pendingSync?: boolean;
 };
+
+function offlineQueueToAdminSales(queue: OfflineQueuedSale[], sellers: SellerProfile[]): AdminSale[] {
+  return queue.map((q) => {
+    const seller = sellers.find((s) => s.id === q.sellerId);
+    const units = q.items.reduce((sum, line) => sum + line.qty, 0);
+    return {
+      id: q.saleId,
+      createdAt: q.createdAt,
+      sellerName: seller?.fullName ?? `Продавец #${q.sellerId}`,
+      sellerId: q.sellerId,
+      totalAmount: q.totalAmount,
+      units,
+      items: q.items,
+      paymentType: q.paymentType,
+      pendingSync: true,
+    };
+  });
+}
+
+function isLikelyOfflineFetchError(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return true;
+  }
+  return error instanceof TypeError;
+}
 
 /** Заработок ретушёра по точке: сумма по календарным дням (доля от выручки точки за каждый день). */
 function retoucherEarnRubSnapshot(
@@ -569,6 +597,7 @@ function App() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [productProcurementCosts, setProductProcurementCosts] = useState<ProductProcurementCost[]>([]);
   const [sales, setSales] = useState<AdminSale[]>([]);
+  const [offlineQueueTick, setOfflineQueueTick] = useState(0);
   const [commissionRequests, setCommissionRequests] = useState<CommissionRequest[]>([]);
   const [shifts, setShifts] = useState<ShiftInfo[]>([]);
   const [cashEvents, setCashEvents] = useState<CashDisciplineEvent[]>([]);
@@ -587,6 +616,18 @@ function App() {
     totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
   });
 
+  const pendingOfflineSales = useMemo(() => {
+    if (!session?.user?.id) {
+      return [] as AdminSale[];
+    }
+    return offlineQueueToAdminSales(readOfflineQueue(session.user.id), sellers);
+  }, [session?.user?.id, sellers, offlineQueueTick]);
+
+  const salesMerged = useMemo(
+    () => [...sales, ...pendingOfflineSales],
+    [sales, pendingOfflineSales],
+  );
+
   const homeDashboard = useMemo((): DashboardResponse | null => {
     if (!dashboard || !session) {
       return null;
@@ -596,13 +637,13 @@ function App() {
         dashboard,
         session.user.storeName,
         sellers,
-        sales,
+        salesMerged,
         shifts,
         staff,
       );
     }
     return dashboard;
-  }, [dashboard, session, sellers, sales, shifts, staff]);
+  }, [dashboard, session, sellers, salesMerged, shifts, staff]);
 
   const todayStoreSales = useMemo(() => {
     if (!session) {
@@ -611,11 +652,11 @@ function App() {
     const todayKey = todayKeyMoscow();
     const currentStoreName = session.user.storeName;
     const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
-    return sales.filter((sale) => {
+    return salesMerged.filter((sale) => {
       const saleStore = sellerStoreById.get(sale.sellerId);
       return saleStore === currentStoreName && calendarDayKeyMoscow(sale.createdAt) === todayKey;
     });
-  }, [sales, sellers, session]);
+  }, [salesMerged, sellers, session]);
 
   const todaySoldProducts = useMemo(() => {
     if (!session) {
@@ -625,7 +666,7 @@ function App() {
     const currentStoreName = session.user.storeName;
     const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
     const qtyByProduct = new Map<string, number>();
-    for (const sale of sales) {
+    for (const sale of salesMerged) {
       const saleStore = sellerStoreById.get(sale.sellerId);
       if (saleStore !== currentStoreName || calendarDayKeyMoscow(sale.createdAt) !== todayKey) {
         continue;
@@ -637,7 +678,7 @@ function App() {
     return Array.from(qtyByProduct.entries())
       .map(([name, qty]) => ({ name, qty }))
       .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ru-RU'));
-  }, [sales, sellers, session]);
+  }, [salesMerged, sellers, session]);
 
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
@@ -915,6 +956,45 @@ function App() {
     setSales(data);
   }, []);
 
+  const flushOfflineSalesQueue = useCallback(async (token: string, userId: number) => {
+    const queueBefore = readOfflineQueue(userId);
+    if (queueBefore.length === 0) {
+      return;
+    }
+    const remaining: OfflineQueuedSale[] = [];
+    for (const entry of queueBefore) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/admin/sales`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            sellerId: entry.sellerId,
+            items: entry.items,
+            totalAmount: entry.totalAmount,
+            paymentType: entry.paymentType,
+            saleId: entry.saleId,
+          }),
+        });
+        if (!response.ok) {
+          remaining.push(entry);
+        }
+      } catch {
+        remaining.push(entry);
+      }
+    }
+    writeOfflineQueue(userId, remaining);
+    try {
+      await loadSales(token);
+      await loadSellers(token);
+    } catch {
+      // нет сети — очередь уже короче, продажи подтянутся при следующем онлайне
+    }
+    setOfflineQueueTick((x) => x + 1);
+  }, [loadSales]);
+
   const refreshFinanceInputs = useCallback(async () => {
     if (!session?.token) {
       return;
@@ -1027,29 +1107,56 @@ function App() {
     totalAmount: number,
     paymentType: 'CASH' | 'NON_CASH' | 'TRANSFER',
   ) => {
-    const response = await fetch(`${API_BASE_URL}/admin/sales`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ sellerId, items, totalAmount, paymentType }),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      let message = 'Не удалось сохранить продажу';
-      try {
-        const parsed = JSON.parse(text) as { message?: string | string[] };
-        if (typeof parsed.message === 'string') {
-          message = parsed.message;
+    const saleId =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `offline-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/sales`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sellerId, items, totalAmount, paymentType, saleId }),
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        let message = 'Не удалось сохранить продажу';
+        try {
+          const parsed = JSON.parse(text) as { message?: string | string[] };
+          if (typeof parsed.message === 'string') {
+            message = parsed.message;
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
+        throw new Error(message);
       }
-      throw new Error(message);
+    } catch (error) {
+      const uid = session?.user?.id;
+      if (uid !== undefined && isLikelyOfflineFetchError(error)) {
+        appendOfflineSale(uid, {
+          saleId,
+          sellerId,
+          items,
+          totalAmount,
+          paymentType,
+          createdAt: new Date().toISOString(),
+        });
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+      throw error instanceof Error ? error : new Error('Не удалось сохранить продажу');
     }
-    await loadSellers(token);
-    await loadSales(token);
+
+    try {
+      await loadSellers(token);
+      await loadSales(token);
+    } catch {
+      // продажа уже записана на сервере; список обновится при следующей загрузке или офлайн-синке
+    }
   };
 
   const addWriteOff = async (
@@ -1353,6 +1460,20 @@ function App() {
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
     window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
   }, [rememberMe, session]);
+
+  useEffect(() => {
+    if (!session?.token || session.user.id == null) {
+      return;
+    }
+    const token = session.token;
+    const userId = session.user.id;
+    const run = () => {
+      void flushOfflineSalesQueue(token, userId);
+    };
+    run();
+    window.addEventListener('online', run);
+    return () => window.removeEventListener('online', run);
+  }, [session?.token, session?.user?.id, flushOfflineSalesQueue]);
 
   useEffect(() => {
     if (!restoredSession || !session || restoredSession.token !== session.token) {
@@ -1726,10 +1847,16 @@ function App() {
                               ) : (
                                 <div className="salesList">
                                   {todayStoreSales.map((sale) => (
-                                    <article key={sale.id} className="saleItem">
+                                    <article
+                                      key={sale.id}
+                                      className={`saleItem ${sale.pendingSync ? 'saleItemPendingSync' : ''}`}
+                                    >
                                       <p className="saleHeader">
                                         <strong>{new Date(sale.createdAt).toLocaleTimeString('ru-RU')}</strong> –{' '}
                                         {sale.sellerName}
+                                        {sale.pendingSync ? (
+                                          <span className="salePendingBadge"> нет сети · отправится позже</span>
+                                        ) : null}
                                         <span className="salePay">
                                           {sale.paymentType === 'NON_CASH'
                                             ? 'Безнал'
@@ -1774,7 +1901,7 @@ function App() {
                           token={session.token}
                           staff={staff}
                           sellers={sellers}
-                          sales={sales}
+                          sales={salesMerged}
                           shifts={shifts}
                           role={role}
                           onDirectorSetPercent={setDirectorPercent}
@@ -1823,7 +1950,7 @@ function App() {
                         <section className="sectionCard">
                           <FinanceReportPanel
                             token={session.token}
-                            sales={sales}
+                            sales={salesMerged}
                             sellers={sellers}
                             procurementCosts={productProcurementCosts}
                             role={role}
