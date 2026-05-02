@@ -572,7 +572,6 @@ export class AuthService implements OnModuleInit {
         }
       }
       const totalCommission = totalSellerCommission + retoucherTotal;
-      const openShifts = this.shiftHistory.filter((s) => s.status === 'OPEN').length;
       const roughPurchases = Math.round(totalRevenue * 0.43);
       const netCompany = Math.max(0, Math.round(totalRevenue - roughPurchases - totalCommission));
       const storeRows = DEMO_STORE_NAMES.map((name) => {
@@ -608,9 +607,7 @@ export class AuthService implements OnModuleInit {
         metrics: [
           { label: 'Выручка (все точки)', value: this.formatCurrency(Math.round(totalRevenue)) },
           { label: 'Чистая прибыль (оценка)', value: this.formatCurrency(netCompany) },
-          { label: 'Закупки (оценка)', value: this.formatCurrency(roughPurchases) },
           { label: 'Выплаты персоналу', value: this.formatCurrency(Math.round(totalCommission)) },
-          { label: 'Открытые смены', value: String(openShifts) },
         ],
         stores: storeRows,
       };

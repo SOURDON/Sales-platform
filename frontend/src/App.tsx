@@ -1705,34 +1705,57 @@ function App() {
                             </div>
                           ) : null}
 
-                          <div className="homeStoresList">
-                            {homeDashboard.stores.map((store) => (
-                              <article key={store.name} className="homeStoreCard">
-                                <dl className="homeStoreDl">
-                                  <div className="homeStoreRow">
-                                    <dt>Выручка</dt>
-                                    <dd>{store.revenue}</dd>
-                                  </div>
-                                  {homeDashboard.role === 'ADMIN' ? (
-                                    <>
-                                      <div className="homeStoreRow">
-                                        <dt>Наличные</dt>
-                                        <dd>{store.cash ?? '—'}</dd>
-                                      </div>
-                                      <div className="homeStoreRow">
-                                        <dt>Эквайринг</dt>
-                                        <dd>{store.acquiring ?? '—'}</dd>
-                                      </div>
-                                      <div className="homeStoreRow">
-                                        <dt>Переводы</dt>
-                                        <dd>{store.transfer ?? '—'}</dd>
-                                      </div>
-                                    </>
-                                  ) : null}
-                                </dl>
-                              </article>
-                            ))}
-                          </div>
+                          {homeDashboard.role === 'ADMIN' ? (
+                            <div className="homeStoresList">
+                              {homeDashboard.stores.map((store) => (
+                                <article key={store.name} className="homeStoreCard">
+                                  <dl className="homeStoreDl">
+                                    <div className="homeStoreRow">
+                                      <dt>Выручка</dt>
+                                      <dd>{store.revenue}</dd>
+                                    </div>
+                                    <div className="homeStoreRow">
+                                      <dt>Наличные</dt>
+                                      <dd>{store.cash ?? '—'}</dd>
+                                    </div>
+                                    <div className="homeStoreRow">
+                                      <dt>Эквайринг</dt>
+                                      <dd>{store.acquiring ?? '—'}</dd>
+                                    </div>
+                                    <div className="homeStoreRow">
+                                      <dt>Переводы</dt>
+                                      <dd>{store.transfer ?? '—'}</dd>
+                                    </div>
+                                  </dl>
+                                </article>
+                              ))}
+                            </div>
+                          ) : homeDashboard.role === 'DIRECTOR' || homeDashboard.role === 'ACCOUNTANT' ? (
+                            <div className="homeStoresAggregateCard">
+                              <h4 className="homeStoresAggregateTitle">Выручка по точкам</h4>
+                              <ul className="homeStoresMiniList">
+                                {homeDashboard.stores.map((store) => (
+                                  <li key={store.name} className="homeStoresMiniRow">
+                                    <span className="homeStoresMiniName">{store.name}</span>
+                                    <span className="homeStoresMiniValue">{store.revenue}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : (
+                            <div className="homeStoresList">
+                              {homeDashboard.stores.map((store) => (
+                                <article key={store.name} className="homeStoreCard">
+                                  <dl className="homeStoreDl">
+                                    <div className="homeStoreRow">
+                                      <dt>Выручка</dt>
+                                      <dd>{store.revenue}</dd>
+                                    </div>
+                                  </dl>
+                                </article>
+                              ))}
+                            </div>
+                          )}
 
                           {homeDashboard.role === 'ADMIN' ? (
                             <>
@@ -3858,7 +3881,7 @@ function AccountantProcurementPanel({
             <div className="procurementAccordionBody">
               <div className="procurementAcquiringGrid">
                 <label className="procurementAcquiringField">
-                  Путинцев ВТБ
+                  <span className="procurementAcquiringLabel">Путинцев ВТБ</span>
                   <input
                     className="procurementAcquiringInput"
                     inputMode="decimal"
@@ -3881,7 +3904,7 @@ function AccountantProcurementPanel({
                   />
                 </label>
                 <label className="procurementAcquiringField">
-                  Детков ВТБ
+                  <span className="procurementAcquiringLabel">Детков ВТБ</span>
                   <input
                     className="procurementAcquiringInput"
                     inputMode="decimal"
@@ -3904,7 +3927,7 @@ function AccountantProcurementPanel({
                   />
                 </label>
                 <label className="procurementAcquiringField">
-                  Путинцев Сбербанк
+                  <span className="procurementAcquiringLabel">Путинцев Сбербанк</span>
                   <input
                     className="procurementAcquiringInput"
                     inputMode="decimal"

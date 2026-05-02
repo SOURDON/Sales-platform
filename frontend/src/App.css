@@ -258,6 +258,75 @@ input:focus {
   min-width: 0;
 }
 
+.homeStoresAggregateCard {
+  margin: 0;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid #dbe4ee;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  box-sizing: border-box;
+}
+
+.homeStoresAggregateTitle {
+  margin: 0 0 8px;
+  padding: 0 2px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #0b4f82;
+  line-height: 1.2;
+}
+
+.homeStoresMiniList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.homeStoresMiniRow {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 2px;
+  min-width: 0;
+  border-bottom: 1px solid #e8eef6;
+}
+
+.homeStoresMiniRow:last-child {
+  border-bottom: none;
+  padding-bottom: 2px;
+}
+
+.homeStoresMiniName {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #475569;
+  word-break: break-word;
+}
+
+.homeStoresMiniValue {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+  white-space: nowrap;
+  padding-left: 6px;
+}
+
 .homeStoreCard {
   margin: 0;
   min-width: 0;
@@ -629,14 +698,35 @@ th {
 .procurementAcquiringGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
 .procurementAcquiringField {
-  display: grid;
-  gap: 2px;
-  font-size: 11px;
-  font-weight: 600;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.procurementAcquiringLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  color: #f5ecd8;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+.procurementAcquiringField .procurementAcquiringInput {
+  flex: 0 0 auto;
+  width: min(6.25rem, 32vw);
+  max-width: 100%;
 }
 
 .procurementAcquiringInput,
@@ -2660,6 +2750,7 @@ h1 {
 .homeProfileCard,
 .opsCard,
 .homeStoreCard,
+.homeStoresAggregateCard,
 .adminSellerRegister,
 .teamMemberCard,
 .addSaleForm,
@@ -2685,7 +2776,30 @@ h1 {
   padding: 12px 14px !important;
 }
 
+.homeStoresAggregateCard {
+  padding: 8px 10px !important;
+}
+
+.homeStoresAggregateTitle {
+  margin-bottom: 6px !important;
+  font-size: 11px !important;
+}
+
+.homeStoresMiniRow {
+  padding: 4px 2px !important;
+  border-bottom-color: rgba(141, 117, 75, 0.14) !important;
+}
+
+.homeStoresMiniName {
+  font-size: 10px !important;
+}
+
+.homeStoresMiniValue {
+  font-size: 11px !important;
+}
+
 .homeStoreCardTitle,
+.homeStoresAggregateTitle,
 .opsCard h4,
 .addSaleForm h4,
 .writeOffForm h4,
@@ -2769,6 +2883,7 @@ h1 {
 
 .homeProfileVal,
 .homeStoreRow dd,
+.homeStoresMiniValue,
 .statValue,
 .saleHeader,
 .productName,
@@ -3021,6 +3136,9 @@ textarea {
 .opsCard.financeReportCard {
   gap: 8px !important;
   padding: 10px !important;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .financeReportCardTitle {
@@ -3040,9 +3158,9 @@ textarea {
   gap: 6px !important;
   padding: 6px 8px !important;
   margin-bottom: 2px !important;
-  overflow: hidden !important;
   width: 100%;
   max-width: 100%;
+  min-width: 0 !important;
   box-sizing: border-box;
 }
 
@@ -3055,6 +3173,10 @@ textarea {
   gap: 6px !important;
 }
 
+.financeReportCard .financeRangeDates > .financeRangeDateInput {
+  min-width: 0 !important;
+}
+
 .financeReportCard .financeRangeDateInput {
   flex: none !important;
   width: 100% !important;
@@ -3063,6 +3185,7 @@ textarea {
   min-height: 30px !important;
   padding: 3px 6px !important;
   font-size: 12px !important;
+  box-sizing: border-box !important;
 }
 
 .financeReportCard .financeRangePresets {
@@ -3080,11 +3203,16 @@ textarea {
   gap: 6px !important;
   width: 100% !important;
   max-width: 100%;
-  min-width: 0;
+  min-width: 0 !important;
+}
+
+.financeReportCard .financeRangePresetGrid > * {
+  min-width: 0 !important;
 }
 
 .financeReportCard button.financeRangePresetBtn {
   width: 100% !important;
+  max-width: 100% !important;
   box-sizing: border-box !important;
   min-height: 32px !important;
   padding: 4px 6px !important;
@@ -3140,4 +3268,11 @@ textarea {
 .financeReportCard .financeReportTable th.thPlan,
 .financeReportCard .financeReportTable td.tdPlan {
   max-width: 5rem !important;
+}
+
+/* Узкая ширина: нативный date показывает длинную строку («2 мая 2026 г.») — не режем по краю контейнера */
+@media (max-width: 560px) {
+  .financeReportCard .financeRangeDates {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
 }
