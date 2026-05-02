@@ -2815,6 +2815,158 @@ h1 {
   letter-spacing: 0.01em;
 }
 
+/* Главная директора / бухгалтера — более выразительная иерархия и карточки */
+.homeDashboardDirectorSkin .homeMetricsTight {
+  margin-bottom: 14px !important;
+}
+
+.homeDashboardDirectorSkin .metrics {
+  gap: 12px !important;
+}
+
+.homeDashboardDirectorSkin .homeMetricsTight .metricCard {
+  position: relative !important;
+  padding: 14px 14px 16px !important;
+  border-radius: 16px !important;
+  overflow: visible !important;
+  background: linear-gradient(
+    165deg,
+    rgba(252, 253, 250, 0.99) 0%,
+    rgba(236, 241, 230, 0.93) 55%,
+    rgba(228, 234, 222, 0.92) 100%
+  ) !important;
+  border: 1px solid rgba(176, 148, 98, 0.38) !important;
+  box-shadow:
+    0 14px 34px rgba(4, 16, 12, 0.22),
+    0 1px 0 rgba(255, 255, 255, 0.88) inset !important;
+}
+
+.homeDashboardDirectorSkin .homeMetricsTight .metricCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 3px;
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(196, 165, 109, 0.15),
+    rgba(180, 143, 83, 0.85),
+    rgba(196, 165, 109, 0.15)
+  );
+  pointer-events: none;
+}
+
+.homeDashboardDirectorSkin .homeMetricsTight .metricCard p {
+  margin: 0 0 8px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  color: rgba(110, 85, 47, 0.68) !important;
+}
+
+.homeDashboardDirectorSkin .homeMetricsTight .metricCard strong {
+  font-size: 1.42rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.028em !important;
+  font-variant-numeric: tabular-nums !important;
+  color: #162922 !important;
+}
+
+.homeDashboardDirectorSkin .homePanelTitle {
+  margin-bottom: 12px !important;
+  letter-spacing: 0.02em !important;
+  text-shadow: 0 2px 22px rgba(212, 182, 123, 0.28);
+}
+
+.homeDashboardDirectorSkin .homeStoresAggregateCard {
+  margin-top: 2px !important;
+  padding: 14px 14px 12px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(
+    185deg,
+    rgba(249, 251, 246, 0.98) 0%,
+    rgba(235, 240, 229, 0.94) 48%,
+    rgba(226, 232, 220, 0.93) 100%
+  ) !important;
+  border: 1px solid rgba(156, 132, 88, 0.32) !important;
+  box-shadow:
+    0 16px 38px rgba(4, 16, 12, 0.24),
+    0 1px 0 rgba(255, 255, 255, 0.82) inset !important;
+}
+
+.homeDashboardDirectorSkin .homeStoresAggregateTitle {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 0 12px !important;
+  padding: 0 2px 12px !important;
+  border-bottom: 1px solid rgba(138, 110, 63, 0.18) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: #7d6844 !important;
+}
+
+.homeDashboardDirectorSkin .homeStoresAggregateTitle::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: radial-gradient(circle at 32% 28%, #f3e6c8, #b48f53 72%);
+  box-shadow:
+    0 0 0 2px rgba(180, 143, 83, 0.28),
+    0 2px 8px rgba(4, 16, 12, 0.18);
+}
+
+.homeDashboardDirectorSkin .homeStoresMiniList {
+  gap: 4px !important;
+}
+
+.homeDashboardDirectorSkin .homeStoresMiniRow {
+  padding: 9px 10px !important;
+  margin: 0 !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(138, 110, 63, 0.08) !important;
+  border-bottom: none !important;
+  background: rgba(255, 255, 255, 0.28) !important;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.homeDashboardDirectorSkin .homeStoresMiniRow:nth-child(even) {
+  background: rgba(255, 255, 255, 0.45) !important;
+}
+
+.homeDashboardDirectorSkin .homeStoresMiniName {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  color: #31443a !important;
+}
+
+.homeDashboardDirectorSkin .homeStoresMiniValue {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: #14221c !important;
+}
+
+@media (hover: hover) {
+  .homeDashboardDirectorSkin .homeStoresMiniRow:hover {
+    background: rgba(255, 255, 255, 0.72) !important;
+    box-shadow: 0 4px 14px rgba(4, 16, 12, 0.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .homeDashboardDirectorSkin .homeStoresMiniRow {
+    transition: none;
+  }
+}
+
 .metricCard,
 .statCell,
 .productCell,
@@ -3155,8 +3307,8 @@ textarea {
   flex-direction: unset !important;
   align-items: stretch !important;
   align-content: start !important;
-  gap: 6px !important;
-  padding: 6px 8px !important;
+  gap: 8px !important;
+  padding: 8px 10px !important;
   margin-bottom: 2px !important;
   width: 100%;
   max-width: 100%;
@@ -3170,7 +3322,8 @@ textarea {
   width: 100% !important;
   max-width: 100%;
   min-width: 0 !important;
-  gap: 6px !important;
+  gap: 8px !important;
+  align-items: stretch;
 }
 
 .financeReportCard .financeRangeDates > .financeRangeDateInput {
@@ -3182,8 +3335,8 @@ textarea {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  min-height: 30px !important;
-  padding: 3px 6px !important;
+  min-height: 34px !important;
+  padding: 4px 6px !important;
   font-size: 12px !important;
   box-sizing: border-box !important;
 }
@@ -3191,7 +3344,7 @@ textarea {
 .financeReportCard .financeRangePresets {
   flex: none !important;
   flex-direction: column !important;
-  gap: 4px !important;
+  gap: 6px !important;
   width: 100% !important;
   max-width: 100%;
   min-width: 0 !important;
@@ -3200,7 +3353,7 @@ textarea {
 .financeReportCard .financeRangePresetGrid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 6px !important;
+  gap: 8px !important;
   width: 100% !important;
   max-width: 100%;
   min-width: 0 !important;
@@ -3214,8 +3367,8 @@ textarea {
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
-  min-height: 32px !important;
-  padding: 4px 6px !important;
+  min-height: 34px !important;
+  padding: 5px 8px !important;
   font-size: 12px !important;
 }
 
@@ -3270,9 +3423,14 @@ textarea {
   max-width: 5rem !important;
 }
 
-/* Узкая ширина: нативный date показывает длинную строку («2 мая 2026 г.») — не режем по краю контейнера */
 @media (max-width: 560px) {
   .financeReportCard .financeRangeDates {
-    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .financeReportCard .financeRangeDateInput {
+    padding: 4px 5px !important;
+    font-size: 11px !important;
+    min-height: 36px !important;
   }
 }

@@ -1678,7 +1678,13 @@ function App() {
             <Route
               path="/home"
               element={
-                <div className="dashboard homeDashboard">
+                <div
+                  className={`dashboard homeDashboard${
+                    homeDashboard?.role === 'DIRECTOR' || homeDashboard?.role === 'ACCOUNTANT'
+                      ? ' homeDashboardDirectorSkin'
+                      : ''
+                  }`}
+                >
                   <section className="sectionCard homePanelSection">
                     {dashboardLoading ? (
                       <p className="muted">Загружаем сводку...</p>
