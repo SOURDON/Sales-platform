@@ -2537,7 +2537,7 @@ button.financeRangePresetBtn {
   padding: 0;
   width: 100%;
   overflow-x: hidden;
-  background: #f4f7fb;
+  background: transparent !important;
 }
 
 .cardWorkspace {
@@ -2884,10 +2884,36 @@ body {
   color: #c4a56d;
 }
 
-.app,
+.app {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+
+/* Рабочее приложение: единая палитра как у оперативки / сводки директора */
 .appWorkspace {
   background: transparent !important;
   padding-top: max(env(safe-area-inset-top), 0px);
+  --ui-glass: rgba(10, 26, 20, 0.52);
+  --ui-glass-deep: rgba(8, 22, 17, 0.72);
+  --ui-glass-raised: rgba(16, 38, 30, 0.68);
+  --ui-edge-soft: rgba(255, 255, 255, 0.07);
+  --ui-edge-gold: rgba(212, 182, 123, 0.22);
+  --ui-text: #ece8df;
+  --ui-muted: #9aab9f;
+  --ui-dim: #7a8a80;
+  --ui-gold: #d4b67b;
+  --ui-gold-soft: #c4a56d;
+  --ui-field: rgba(4, 14, 11, 0.55);
+  --ui-chip: rgba(255, 255, 255, 0.07);
+  --ui-glow: 0 0 0 1px rgba(212, 182, 123, 0.12);
+  font-family:
+    'DM Sans',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-feature-settings: 'tnum' 1, 'kern' 1;
 }
 
 .cardWorkspace {
@@ -2966,65 +2992,74 @@ h1 {
   padding: 0 !important;
 }
 
-.homeProfileCard,
-.opsCard,
-.homeStoreCard,
-.homeStoresAggregateCard,
-.adminSellerRegister,
-.teamMemberCard,
-.addSaleForm,
-.writeOffForm,
-.writeOffManager {
-  background: rgba(230, 236, 226, 0.95) !important;
-  border: 1px solid rgba(138, 110, 63, 0.24) !important;
-  border-radius: 18px !important;
+.appWorkspace .homeProfileCard,
+.appWorkspace .opsCard:not(.financeOpsCard),
+.appWorkspace .homeStoreCard,
+.appWorkspace .homeStoresAggregateCard,
+.appWorkspace .adminSellerRegister,
+.appWorkspace .teamMemberCard,
+.appWorkspace .addSaleForm:not(.financeOpsIncomeBlock),
+.appWorkspace .writeOffForm,
+.appWorkspace .writeOffManager {
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05) 0%, transparent 42%),
+    var(--ui-glass) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  border-radius: 16px !important;
   box-shadow:
-    0 14px 30px rgba(4, 16, 12, 0.22),
-    0 1px 0 rgba(255, 255, 255, 0.76) inset !important;
+    0 18px 40px rgba(2, 8, 6, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
-.homeProfileCard,
-.opsCard,
-.addSaleForm,
-.writeOffForm,
-.writeOffManager {
+.appWorkspace .homeProfileCard,
+.appWorkspace .opsCard:not(.financeOpsCard),
+.appWorkspace .addSaleForm:not(.financeOpsIncomeBlock),
+.appWorkspace .writeOffForm,
+.appWorkspace .writeOffManager {
   padding: 14px !important;
 }
 
-.homeStoreCard {
+.appWorkspace .homeStoreCard {
   padding: 12px 14px !important;
 }
 
-.homeStoresAggregateCard {
-  padding: 8px 10px !important;
+.appWorkspace .homeStoresAggregateCard {
+  padding: 10px 12px !important;
 }
 
-.homeStoresAggregateTitle {
-  margin-bottom: 6px !important;
-  font-size: 11px !important;
-}
-
-.homeStoresMiniRow {
-  padding: 4px 2px !important;
-  border-bottom-color: rgba(141, 117, 75, 0.14) !important;
-}
-
-.homeStoresMiniName {
+.appWorkspace .homeStoresAggregateTitle {
+  margin-bottom: 8px !important;
   font-size: 10px !important;
+  letter-spacing: 0.1em !important;
+  color: var(--ui-muted) !important;
 }
 
-.homeStoresMiniValue {
+.appWorkspace .homeStoresMiniRow {
+  padding: 6px 4px !important;
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.appWorkspace .homeStoresMiniName {
   font-size: 11px !important;
+  color: var(--ui-muted) !important;
 }
 
-.homeStoreCardTitle,
-.homeStoresAggregateTitle,
-.opsCard h4,
-.addSaleForm h4,
-.writeOffForm h4,
-.writeOffManager h4 {
-  color: #6e552f;
-  font-weight: 600;
+.appWorkspace .homeStoresMiniValue {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--ui-gold) !important;
+}
+
+.appWorkspace .homeStoreCardTitle,
+.appWorkspace .homeStoresAggregateTitle,
+.appWorkspace .opsCard:not(.financeOpsCard) h4,
+.appWorkspace .addSaleForm:not(.financeOpsIncomeBlock) h4,
+.appWorkspace .writeOffForm h4,
+.appWorkspace .writeOffManager h4 {
+  color: var(--ui-gold-soft) !important;
+  font-weight: 700 !important;
 }
 
 .homePanelTitle {
@@ -3034,124 +3069,202 @@ h1 {
   letter-spacing: 0.01em;
 }
 
-/* Главная директора / бухгалтера — лёгкая, лаконичная подача */
+/* Главная директора / бухгалтера — тот же язык, что и оперативные финансы (выверенные отступы и ритм) */
+.homeDashboardDirectorSkin {
+  --dh-glass: rgba(10, 26, 20, 0.52);
+  --dh-glass-raised: rgba(16, 38, 30, 0.68);
+  --dh-edge: rgba(212, 182, 123, 0.22);
+  --dh-edge-soft: rgba(255, 255, 255, 0.07);
+  --dh-text: #ece8df;
+  --dh-muted: #9aab9f;
+  --dh-dim: #7a8a80;
+  --dh-gold: #d4b67b;
+  --dh-gold-soft: #c4a56d;
+  --dh-field: rgba(4, 14, 11, 0.38);
+  --dh-glow: 0 0 0 1px rgba(212, 182, 123, 0.12);
+}
+
+.homeDashboardDirectorSkin.dashboard {
+  gap: 10px !important;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.cardWorkspace:has(.homeDashboardDirectorSkin) {
+  padding-left: max(8px, env(safe-area-inset-left)) !important;
+  padding-right: max(8px, env(safe-area-inset-right)) !important;
+}
+
+.homeDashboardDirectorSkin .homePanelSection {
+  font-family:
+    'DM Sans',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  font-optical-sizing: auto;
+  font-feature-settings: 'tnum' 1, 'kern' 1;
+  letter-spacing: -0.01em;
+  color: var(--dh-text);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 12px clamp(8px, 2.5vw, 12px) 14px;
+  border-radius: 16px;
+  border: 1px solid var(--dh-edge-soft);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05) 0%, transparent 42%),
+    var(--dh-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 18px 40px rgba(2, 8, 6, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.homeDashboardDirectorSkin .homePanelSection > .muted {
+  margin: 0 !important;
+  padding: 28px 12px 32px !important;
+  color: var(--dh-muted) !important;
+  text-align: center !important;
+  font-size: 12px !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.5 !important;
+}
+
 .homeDashboardDirectorSkin .homeMetricsTight {
-  margin-bottom: 10px !important;
+  margin-bottom: 0 !important;
 }
 
 .homeDashboardDirectorSkin .metrics {
   gap: 8px !important;
 }
 
+@media (min-width: 520px) {
+  .homeDashboardDirectorSkin .metrics {
+    gap: 9px !important;
+  }
+}
+
 .homeDashboardDirectorSkin .homeMetricsTight .metricCard {
   position: relative !important;
-  padding: 10px 12px 11px !important;
-  border-radius: 14px !important;
-  overflow: visible !important;
-  background: rgba(252, 252, 248, 0.92) !important;
-  border: 1px solid rgba(170, 148, 108, 0.22) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  min-height: 4.75rem !important;
+  padding: 9px 7px 10px !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  text-align: center !important;
+  background: var(--dh-glass-raised) !important;
+  border: 1px solid var(--dh-edge-soft) !important;
   box-shadow:
-    0 6px 20px rgba(4, 16, 12, 0.1),
-    0 1px 0 rgba(255, 255, 255, 0.65) inset !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 6px 16px rgba(2, 8, 6, 0.2) !important;
 }
 
 .homeDashboardDirectorSkin .homeMetricsTight .metricCard::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 12px;
-  right: 12px;
-  height: 2px;
-  border-radius: 0 0 4px 4px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(196, 165, 109, 0.45),
-    transparent
-  );
-  opacity: 0.85;
-  pointer-events: none;
+  display: none !important;
 }
 
 .homeDashboardDirectorSkin .homeMetricsTight .metricCard p {
-  margin: 0 0 4px !important;
-  font-size: 9px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.07em !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+  font-size: 8.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
-  color: rgba(90, 110, 100, 0.75) !important;
+  color: var(--dh-dim) !important;
+  line-height: 1.28 !important;
+  overflow-wrap: anywhere !important;
+  hyphens: auto !important;
 }
 
 .homeDashboardDirectorSkin .homeMetricsTight .metricCard strong {
-  font-size: 1.2rem !important;
-  font-weight: 700 !important;
+  display: block !important;
+  margin-top: 6px !important;
+  max-width: 100% !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
   letter-spacing: -0.02em !important;
   font-variant-numeric: tabular-nums !important;
-  color: #24332c !important;
+  color: var(--dh-text) !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.2 !important;
 }
 
 .homeDashboardDirectorSkin .homePanelTitle {
-  margin-bottom: 8px !important;
-  font-size: 1.22rem !important;
-  letter-spacing: 0.03em !important;
-  font-weight: 500 !important;
-  color: #e0cfa3 !important;
-  text-shadow: none !important;
+  margin: 0 0 14px !important;
+  padding: 0 clamp(4px, 2vw, 12px) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  text-align: center !important;
+  line-height: 1.4 !important;
+  color: var(--dh-gold) !important;
+  text-shadow: 0 1px 12px rgba(212, 182, 123, 0.25);
 }
 
 .homeDashboardDirectorSkin .homeStoresAggregateCard {
-  margin-top: 0 !important;
-  padding: 10px 12px 8px !important;
+  margin-top: 14px !important;
+  padding: 11px 10px 10px !important;
   border-radius: 14px !important;
-  background: rgba(250, 251, 247, 0.9) !important;
-  border: 1px solid rgba(160, 138, 95, 0.2) !important;
+  background: var(--dh-field) !important;
+  border: 1px solid var(--dh-edge-soft) !important;
   box-shadow:
-    0 8px 22px rgba(4, 16, 12, 0.11),
-    0 1px 0 rgba(255, 255, 255, 0.55) inset !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    var(--dh-glow) !important;
 }
 
 .homeDashboardDirectorSkin .homeStoresAggregateTitle {
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  margin: 0 0 6px !important;
-  padding: 0 0 8px !important;
-  border-bottom: 1px solid rgba(138, 110, 63, 0.12) !important;
-  font-size: 10px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.1em !important;
+  display: block !important;
+  text-align: center !important;
+  margin: 0 0 10px !important;
+  padding: 0 4px 10px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.12em !important;
   text-transform: uppercase !important;
-  color: rgba(125, 104, 68, 0.88) !important;
+  color: var(--dh-muted) !important;
+  line-height: 1.3 !important;
 }
 
 .homeDashboardDirectorSkin .homeStoresAggregateTitle::before {
-  content: '';
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  flex-shrink: 0;
-  background: linear-gradient(145deg, #e5d7b8, #a67c52);
-  box-shadow: 0 0 0 1px rgba(180, 143, 83, 0.2);
-  opacity: 0.85;
+  display: none !important;
 }
 
 .homeDashboardDirectorSkin .homeStoresMiniList {
   gap: 0 !important;
+  padding: 0 2px !important;
 }
 
 .homeDashboardDirectorSkin .homeStoresMiniRow {
-  padding: 5px 2px !important;
+  align-items: center !important;
+  padding: 8px 5px !important;
   margin: 0 !important;
-  border-radius: 0 !important;
+  border-radius: 8px !important;
   border: none !important;
-  border-bottom: 1px solid rgba(110, 95, 70, 0.1) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
   background: transparent !important;
-  transition: background 0.18s ease;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
 }
 
 .homeDashboardDirectorSkin .homeStoresMiniRow:last-child {
   border-bottom: none !important;
-  padding-bottom: 2px !important;
+  padding-bottom: 4px !important;
 }
 
 .homeDashboardDirectorSkin .homeStoresMiniRow:nth-child(even) {
@@ -3159,22 +3272,28 @@ h1 {
 }
 
 .homeDashboardDirectorSkin .homeStoresMiniName {
-  font-size: 10px !important;
+  margin: 0 !important;
+  font-size: 11px !important;
   font-weight: 500 !important;
-  line-height: 1.3 !important;
-  color: rgba(60, 82, 72, 0.88) !important;
+  line-height: 1.35 !important;
+  color: var(--dh-muted) !important;
+  overflow-wrap: anywhere !important;
 }
 
 .homeDashboardDirectorSkin .homeStoresMiniValue {
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  color: #1f2d27 !important;
+  flex-shrink: 0 !important;
+  margin-left: 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums !important;
+  color: var(--dh-gold) !important;
+  text-align: right !important;
 }
 
 @media (hover: hover) {
   .homeDashboardDirectorSkin .homeStoresMiniRow:hover {
-    background: rgba(255, 255, 255, 0.35) !important;
-    box-shadow: none;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border-bottom-color: transparent !important;
   }
 }
 
@@ -3184,14 +3303,55 @@ h1 {
   }
 }
 
-.metricCard,
-.statCell,
-.productCell,
-.saleItem,
-.writeOffItem {
-  background: rgba(244, 247, 240, 0.95) !important;
-  border: 1px solid rgba(141, 117, 75, 0.18) !important;
+.homeDashboardDirectorSkin .directorHomeLogoutStrip {
+  padding: 0 !important;
+  padding-inline: clamp(8px, 2.5vw, 12px) !important;
+  margin-top: 2px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.homeDashboardDirectorSkin .directorHomeLogoutStrip .homeLogoutButton {
+  width: 100%;
+  box-sizing: border-box !important;
+  max-width: none !important;
+  min-height: 42px !important;
+  padding: 10px 14px !important;
   border-radius: 12px !important;
+  border: 1px solid var(--dh-edge-soft) !important;
+  background: rgba(4, 14, 11, 0.42) !important;
+  color: var(--dh-muted) !important;
+  font-family: inherit !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+
+.homeDashboardDirectorSkin .directorHomeLogoutStrip .homeLogoutButton:hover {
+  border-color: rgba(212, 182, 123, 0.38) !important;
+  color: var(--dh-gold-soft) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+}
+
+.homeDashboardDirectorSkin .directorHomeLogoutStrip .homeLogoutButton:focus-visible {
+  outline: none !important;
+  border-color: rgba(212, 182, 123, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(212, 182, 123, 0.18) !important;
+}
+
+.appWorkspace article.metricCard:not(.financeOpsBalanceCard),
+.appWorkspace .statCell,
+.appWorkspace .productCell,
+.appWorkspace .saleItem,
+.appWorkspace .writeOffItem {
+  background: var(--ui-glass-raised) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  border-radius: 12px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 6px 16px rgba(2, 8, 6, 0.18) !important;
 }
 
 .saleItemPendingSync {
@@ -3250,28 +3410,28 @@ h1 {
   border-radius: 16px !important;
 }
 
-.homeProfileVal,
-.homeStoreRow dd,
-.homeStoresMiniValue,
-.statValue,
-.saleHeader,
-.productName,
-.productPrice,
-.teamMemberName,
-.teamMemberMeta,
-.muted,
-.notice,
-.hint,
-label,
-input,
-select,
-textarea {
+.app:not(.appWorkspace) .homeProfileVal,
+.app:not(.appWorkspace) .homeStoreRow dd,
+.app:not(.appWorkspace) .homeStoresMiniValue,
+.app:not(.appWorkspace) .statValue,
+.app:not(.appWorkspace) .saleHeader,
+.app:not(.appWorkspace) .productName,
+.app:not(.appWorkspace) .productPrice,
+.app:not(.appWorkspace) .teamMemberName,
+.app:not(.appWorkspace) .teamMemberMeta,
+.app:not(.appWorkspace) .muted,
+.app:not(.appWorkspace) .notice,
+.app:not(.appWorkspace) .hint,
+.app:not(.appWorkspace) label,
+.app:not(.appWorkspace) input:not([type='checkbox']):not([type='radio']),
+.app:not(.appWorkspace) select,
+.app:not(.appWorkspace) textarea {
   color: #253e34 !important;
 }
 
-input,
-select,
-textarea {
+.app:not(.appWorkspace) input:not([type='checkbox']):not([type='radio']),
+.app:not(.appWorkspace) select,
+.app:not(.appWorkspace) textarea {
   background: #f7f9f4 !important;
   border: 1px solid #c9d5c7 !important;
 }
@@ -3280,6 +3440,381 @@ textarea {
   background: #fff0ec !important;
   color: #8a3124 !important;
   border: 1px solid #e5b6ac;
+}
+
+/* --- Рабочее приложение: типографика, поля и вложенные блоки (glass) --- */
+.appWorkspace .pageOutlet,
+.appWorkspace .cardWorkspace {
+  color: rgba(236, 232, 223, 0.94);
+}
+
+.appWorkspace .muted {
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .hint {
+  color: var(--ui-dim) !important;
+}
+
+.appWorkspace .notice {
+  background: rgba(4, 14, 11, 0.45) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .success {
+  background: rgba(34, 120, 80, 0.2) !important;
+  border: 1px solid rgba(120, 200, 160, 0.35) !important;
+  color: #c8f0d8 !important;
+}
+
+.appWorkspace .error {
+  background: rgba(120, 40, 40, 0.28) !important;
+  border: 1px solid rgba(248, 113, 113, 0.35) !important;
+  color: #fecaca !important;
+}
+
+.appWorkspace label {
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace input:not([type='checkbox']):not([type='radio']),
+.appWorkspace select,
+.appWorkspace textarea {
+  background: var(--ui-field) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  color: var(--ui-text) !important;
+  border-radius: 10px !important;
+}
+
+.appWorkspace input:not([type='checkbox']):not([type='radio']):focus,
+.appWorkspace select:focus,
+.appWorkspace textarea:focus {
+  outline: none !important;
+  border-color: rgba(212, 182, 123, 0.42) !important;
+  box-shadow: 0 0 0 3px rgba(212, 182, 123, 0.12) !important;
+}
+
+.appWorkspace input::placeholder,
+.appWorkspace textarea::placeholder {
+  color: rgba(212, 182, 123, 0.32) !important;
+}
+
+.appWorkspace .homeDashboard:not(.homeDashboardDirectorSkin) .homePanelTitle {
+  color: var(--ui-gold) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  font-size: 11px !important;
+  text-align: center !important;
+  margin: 4px 0 12px !important;
+}
+
+.appWorkspace .homeStoreRow {
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.appWorkspace .homeStoreRow dt {
+  color: var(--ui-dim) !important;
+}
+
+.appWorkspace .homeStoreRow dd {
+  color: var(--ui-gold) !important;
+}
+
+.appWorkspace .homeProfileKey {
+  color: var(--ui-dim) !important;
+}
+
+.appWorkspace .homeProfileVal {
+  color: var(--ui-text) !important;
+}
+
+.appWorkspace .metrics .metricCard:not(.financeOpsBalanceCard) p {
+  color: var(--ui-dim) !important;
+}
+
+.appWorkspace .metrics .metricCard:not(.financeOpsBalanceCard) strong {
+  color: var(--ui-text) !important;
+}
+
+.appWorkspace .shiftSellerRow {
+  background: rgba(4, 14, 11, 0.42) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.appWorkspace .shiftSellerText {
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .shiftSellerName {
+  color: var(--ui-text) !important;
+}
+
+.appWorkspace .shiftSellerStore {
+  color: var(--ui-dim) !important;
+}
+
+.appWorkspace .opsList p {
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .salesLog h3 {
+  color: var(--ui-gold-soft) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  text-align: center !important;
+}
+
+.appWorkspace .salesToggle {
+  padding: 10px 12px !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  border-radius: 12px !important;
+  background: rgba(4, 14, 11, 0.38) !important;
+  color: var(--ui-muted) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+}
+
+.appWorkspace .saleHeader {
+  color: var(--ui-text) !important;
+}
+
+.appWorkspace .salePay {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--ui-gold-soft) !important;
+  border: 1px solid var(--ui-edge-soft);
+}
+
+.appWorkspace .saleTotal {
+  color: var(--ui-gold) !important;
+}
+
+.appWorkspace .saleItem ul {
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .salePendingBadge {
+  color: var(--ui-gold-soft) !important;
+}
+
+.appWorkspace .productName {
+  color: var(--ui-text) !important;
+}
+
+.appWorkspace .productPrice {
+  color: var(--ui-gold) !important;
+}
+
+.appWorkspace .statLabel {
+  color: var(--ui-dim) !important;
+}
+
+.appWorkspace .statValue {
+  color: var(--ui-text) !important;
+}
+
+.appWorkspace .teamMemberName {
+  color: var(--ui-text) !important;
+}
+
+.appWorkspace .teamMemberNick {
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .teamMemberMeta {
+  color: var(--ui-dim) !important;
+}
+
+.appWorkspace .teamMemberShiftState {
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .teamMemberShiftState.shiftOpen {
+  color: #7dd9a8 !important;
+}
+
+.appWorkspace .teamMemberActions .ghost {
+  border: 1px solid var(--ui-edge-soft) !important;
+  background: rgba(4, 14, 11, 0.35) !important;
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .teamMemberActions .ghost:hover {
+  border-color: rgba(212, 182, 123, 0.38) !important;
+  color: var(--ui-gold) !important;
+}
+
+.appWorkspace .staffRow {
+  background: rgba(4, 14, 11, 0.42) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+}
+
+.appWorkspace .adminSellerRegister {
+  border-color: rgba(212, 182, 123, 0.28) !important;
+  background:
+    linear-gradient(165deg, rgba(212, 182, 123, 0.08) 0%, transparent 55%),
+    rgba(4, 14, 11, 0.42) !important;
+}
+
+.appWorkspace .adminSellerRegister h4,
+.appWorkspace .adminSellerRegisterHint {
+  color: var(--ui-gold-soft) !important;
+}
+
+.appWorkspace .adminSellerRegister li {
+  background: rgba(8, 22, 17, 0.55) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+}
+
+.appWorkspace .adminSellerRegisterName {
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .adminSellerRegisterAmount {
+  color: var(--ui-gold) !important;
+}
+
+.appWorkspace .soldProductsBlock {
+  border-color: rgba(212, 182, 123, 0.28) !important;
+  background:
+    linear-gradient(165deg, rgba(212, 182, 123, 0.06) 0%, transparent 50%),
+    rgba(4, 14, 11, 0.42) !important;
+}
+
+.appWorkspace .soldProductsBlock h4 {
+  color: var(--ui-gold-soft) !important;
+}
+
+.appWorkspace .soldProductsBlock h3 {
+  color: var(--ui-gold-soft) !important;
+  font-weight: 600 !important;
+}
+
+.appWorkspace .soldProductsBlock li {
+  background: rgba(8, 22, 17, 0.5) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .soldProductsBlock li strong {
+  color: var(--ui-gold) !important;
+}
+
+.appWorkspace .writeOffsBlock {
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.04) 0%, transparent 45%),
+    var(--ui-glass) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  color: var(--ui-muted);
+}
+
+.appWorkspace .writeOffsBlock h3 {
+  color: var(--ui-gold-soft) !important;
+}
+
+.appWorkspace .writeOffItem p {
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .procurementAccordionTrigger {
+  border: 1px solid var(--ui-edge-soft) !important;
+  background: rgba(4, 14, 11, 0.48) !important;
+  color: var(--ui-muted) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+.appWorkspace .procurementAccordionTriggerTitle {
+  color: var(--ui-gold-soft) !important;
+}
+
+.appWorkspace .procurementAccordion:not(.procurementAccordion--collapsed) .procurementAccordionTrigger:hover {
+  filter: none !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.appWorkspace .financeRangeToolbar {
+  background: rgba(4, 14, 11, 0.42) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+}
+
+.appWorkspace .financeRangeSummary {
+  color: var(--ui-dim) !important;
+}
+
+.appWorkspace .financeReportCardTitle {
+  color: var(--ui-gold) !important;
+}
+
+.appWorkspace .financeReportCard .financeReportTable th,
+.appWorkspace .financeReportCard .financeReportTable td {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .financeReportCard .financeReportTable th {
+  color: var(--ui-gold-soft) !important;
+  background: rgba(4, 14, 11, 0.55) !important;
+}
+
+.appWorkspace .inlineGridStaffBase select,
+.appWorkspace .inlineGridStaffBase input {
+  background: var(--ui-field) !important;
+  color: var(--ui-text) !important;
+}
+
+.appWorkspace .homeLogoutSection:not(.directorHomeLogoutStrip) {
+  padding-inline: clamp(8px, 2.5vw, 12px) !important;
+}
+
+.appWorkspace .homeLogoutSection:not(.directorHomeLogoutStrip) .homeLogoutButton {
+  border-radius: 12px !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  background: rgba(4, 14, 11, 0.42) !important;
+  color: var(--ui-muted) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  font-size: 11px !important;
+}
+
+.appWorkspace .homeLogoutSection:not(.directorHomeLogoutStrip) .homeLogoutButton:hover {
+  border-color: rgba(212, 182, 123, 0.38) !important;
+  color: var(--ui-gold) !important;
+}
+
+.appWorkspace table {
+  color: var(--ui-muted);
+}
+
+.appWorkspace thead {
+  background: rgba(4, 14, 11, 0.55);
+}
+
+.appWorkspace th {
+  color: var(--ui-gold-soft) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.appWorkspace td {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.appWorkspace .paymentTypeBtn:not(.paymentTypeBtnActive) {
+  border: 1px solid var(--ui-edge-soft) !important;
+  background: var(--ui-chip) !important;
+  color: var(--ui-text) !important;
+}
+
+.appWorkspace .primaryAction {
+  border: 1px solid rgba(194, 165, 109, 0.45) !important;
+  background: linear-gradient(165deg, #d4c49a 0%, #c4a56d 48%, #b48f53 100%) !important;
+  color: #0c1a14 !important;
+  box-shadow:
+    0 8px 22px rgba(8, 22, 17, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
 }
 
 /* Compact and linear staff cards */
@@ -3356,6 +3891,38 @@ textarea {
 .teamMemberCardShiftClosed {
   border-color: rgba(178, 74, 74, 0.35) !important;
   background: linear-gradient(180deg, rgba(251, 240, 240, 0.94), rgba(248, 233, 233, 0.94)) !important;
+}
+
+.appWorkspace .teamMemberCardShiftOpen {
+  border-color: rgba(74, 186, 118, 0.45) !important;
+  background:
+    linear-gradient(165deg, rgba(74, 186, 118, 0.12) 0%, transparent 52%),
+    var(--ui-glass) !important;
+  box-shadow:
+    0 14px 32px rgba(2, 8, 6, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.appWorkspace .teamMemberCardShiftClosed {
+  border-color: rgba(200, 96, 96, 0.45) !important;
+  background:
+    linear-gradient(165deg, rgba(200, 96, 96, 0.12) 0%, transparent 52%),
+    var(--ui-glass) !important;
+  box-shadow:
+    0 14px 32px rgba(2, 8, 6, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.appWorkspace .teamMemberShiftState.shiftOpen {
+  color: #8fdfb4 !important;
+}
+
+.appWorkspace .teamMemberShiftState.shiftClosed {
+  color: #f5b4b4 !important;
 }
 
 .teamMemberActions {
@@ -3742,33 +4309,69 @@ textarea {
 .financeOpsCard .financeOpsBankTotalCallout {
   display: flex !important;
   justify-content: center !important;
-  align-items: baseline !important;
-  flex-wrap: wrap !important;
-  gap: 6px 10px !important;
+  align-items: stretch !important;
+  flex-wrap: nowrap !important;
+  gap: 0 !important;
   margin: 0 auto 12px !important;
-  padding: 7px 14px !important;
-  width: fit-content !important;
+  padding: 8px 12px !important;
+  width: 100% !important;
   max-width: 100% !important;
+  box-sizing: border-box !important;
   border: 1px solid var(--fo-edge) !important;
-  border-radius: 999px !important;
+  border-radius: 14px !important;
   background: rgba(4, 14, 11, 0.35) !important;
   box-shadow: var(--fo-glow) !important;
   font-size: 11px !important;
   color: var(--fo-muted) !important;
   line-height: 1.35 !important;
+}
+
+.financeOpsCard .financeOpsBankTotalCalloutPair {
+  flex: 1 1 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  min-width: 0 !important;
+  padding: 2px 4px !important;
   text-align: center !important;
 }
 
+.financeOpsCard .financeOpsBankTotalCalloutSep {
+  flex: 0 0 auto !important;
+  width: 1px !important;
+  align-self: stretch !important;
+  min-height: 2rem !important;
+  margin: 2px 4px !important;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(212, 182, 123, 0.35) 20%,
+    rgba(212, 182, 123, 0.35) 80%,
+    transparent 100%
+  ) !important;
+}
+
 .financeOpsCard .financeOpsBankTotalCalloutLabel {
-  font-weight: 500 !important;
+  font-weight: 600 !important;
+  font-size: 9px !important;
   color: var(--fo-dim) !important;
-  letter-spacing: 0.04em !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
 }
 
 .financeOpsCard .financeOpsBankTotalCalloutValue {
   font-weight: 600 !important;
+  font-size: 12px !important;
   color: var(--fo-gold) !important;
   font-variant-numeric: tabular-nums !important;
+}
+
+@media (max-width: 360px) {
+  .financeOpsCard .financeOpsBankTotalCalloutValue {
+    font-size: 11px !important;
+  }
 }
 
 .financeOpsCard .financeOpsBalancesGrid {

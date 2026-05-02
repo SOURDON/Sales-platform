@@ -1809,7 +1809,11 @@ function App() {
                       )
                     )}
                   </section>
-                  <section className="sectionCard homeLogoutSection">
+                  <section
+                    className={`sectionCard homeLogoutSection${
+                      role === 'DIRECTOR' || role === 'ACCOUNTANT' ? ' directorHomeLogoutStrip' : ''
+                    }`}
+                  >
                     <button type="button" className="ghost homeLogoutButton" onClick={handleLogout}>
                       Выйти
                     </button>
@@ -2525,10 +2529,17 @@ function FinanceOpsPanel({
     <div className="opsCard financeOpsCard">
       <div className="financeOpsShell">
       <h4>Оперативные финансы</h4>
-      <p className="financeOpsBankTotalCallout" role="note">
-        <span className="financeOpsBankTotalCalloutLabel">Всего по банку:</span>{' '}
-        <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.bank)}</span>
-      </p>
+      <div className="financeOpsBankTotalCallout" role="note">
+        <div className="financeOpsBankTotalCalloutPair">
+          <span className="financeOpsBankTotalCalloutLabel">Банк</span>
+          <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.bank)}</span>
+        </div>
+        <span className="financeOpsBankTotalCalloutSep" aria-hidden />
+        <div className="financeOpsBankTotalCalloutPair">
+          <span className="financeOpsBankTotalCalloutLabel">Наличные</span>
+          <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.cash)}</span>
+        </div>
+      </div>
 
       <div className="financeOpsBalancesGrid">
         {primaryFinanceAccounts.map((acc) => (
