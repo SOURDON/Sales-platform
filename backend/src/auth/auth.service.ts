@@ -211,6 +211,7 @@ export class AuthService implements OnModuleInit {
   private lastSaleAt: string | null = null;
   private acquiringPercent = 1.8;
   private acquiringPercentDetkov = 1.8;
+  private acquiringPercentPutintsevSber = 1.8;
   private shiftHistory: Shift[] = [];
   private cashDisciplineEvents: CashDisciplineEvent[] = [];
   private staff: StaffMember[] = [];
@@ -302,6 +303,10 @@ export class AuthService implements OnModuleInit {
     return this.acquiringPercentDetkov;
   }
 
+  getAcquiringPercentPutintsevSber() {
+    return this.acquiringPercentPutintsevSber;
+  }
+
   getFinanceOpsSnapshot() {
     const accounts = this.financeAccounts
       .map((item) => ({ ...item }))
@@ -353,6 +358,20 @@ export class AuthService implements OnModuleInit {
     this.pushAudit(actor, 'ACQUIRING_PERCENT_DETKOV_UPDATED', String(this.acquiringPercentDetkov));
     this.queuePersist();
     return { percent: this.acquiringPercentDetkov };
+  }
+
+  setAcquiringPercentPutintsevSber(percent: number, actor = 'system') {
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      return null;
+    }
+    this.acquiringPercentPutintsevSber = Math.round(percent * 1000) / 1000;
+    this.pushAudit(
+      actor,
+      'ACQUIRING_PERCENT_PUTINTSEV_SBER_UPDATED',
+      String(this.acquiringPercentPutintsevSber),
+    );
+    this.queuePersist();
+    return { percent: this.acquiringPercentPutintsevSber };
   }
 
   setFinanceAccountBalance(id: string, balance: number, actor = 'system') {
@@ -1937,6 +1956,7 @@ export class AuthService implements OnModuleInit {
     this.lastSaleAt = null;
     this.acquiringPercent = 1.8;
     this.acquiringPercentDetkov = 1.8;
+    this.acquiringPercentPutintsevSber = 1.8;
   }
 
   private async loadState() {
@@ -2157,6 +2177,10 @@ export class AuthService implements OnModuleInit {
       appState?.acquiringPercentDetkov !== undefined && appState.acquiringPercentDetkov !== null
         ? appState.acquiringPercentDetkov
         : 1.8;
+    this.acquiringPercentPutintsevSber =
+      appState?.acquiringPercentPutintsevSber != null
+        ? appState.acquiringPercentPutintsevSber
+        : 1.8;
   }
 
   private async persistState() {
@@ -2168,6 +2192,7 @@ export class AuthService implements OnModuleInit {
           lastSaleAt: this.lastSaleAt ? new Date(this.lastSaleAt) : null,
           acquiringPercent: this.acquiringPercent,
           acquiringPercentDetkov: this.acquiringPercentDetkov,
+          acquiringPercentPutintsevSber: this.acquiringPercentPutintsevSber,
         },
         create: {
           id: 1,
@@ -2175,6 +2200,7 @@ export class AuthService implements OnModuleInit {
           lastSaleAt: this.lastSaleAt ? new Date(this.lastSaleAt) : null,
           acquiringPercent: this.acquiringPercent,
           acquiringPercentDetkov: this.acquiringPercentDetkov,
+          acquiringPercentPutintsevSber: this.acquiringPercentPutintsevSber,
         },
       });
 

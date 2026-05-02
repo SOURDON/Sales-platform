@@ -527,6 +527,90 @@ th {
   color: #111827 !important;
 }
 
+/* Закупки / эквайринг (бухгалтер): компактная сетка */
+.accountantProcurementPanel.opsCard {
+  gap: 8px !important;
+  padding: 10px 12px !important;
+}
+
+.accountantProcurementTitle {
+  margin: 0 0 6px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  line-height: 1.25 !important;
+}
+
+.procurementAcquiringGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.procurementAcquiringField {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.procurementAcquiringInput,
+.procurementCostInput {
+  padding: 4px 8px !important;
+  min-height: 32px !important;
+  font-size: 13px !important;
+}
+
+.procurementAcquiringErrors {
+  display: grid;
+  gap: 4px;
+}
+
+.procurementInlineError {
+  margin: 0 !important;
+  font-size: 11px !important;
+  padding: 4px 6px !important;
+}
+
+.procurementTableWrap {
+  margin-top: 2px;
+}
+
+.procurementCostsTable {
+  font-size: 12px;
+}
+
+.procurementCostsTable th,
+.procurementCostsTable td {
+  padding: 4px 6px !important;
+}
+
+.procurementCostsTable td .procurementCostInput {
+  min-height: 30px !important;
+  padding: 3px 6px !important;
+}
+
+.procurementSaveRow {
+  margin-top: 4px;
+}
+
+.procurementSaveBtn {
+  width: 100%;
+  padding: 8px 12px !important;
+  min-height: 40px !important;
+  font-size: 14px !important;
+}
+
+.procurementStatusMsg {
+  margin: 2px 0 0 !important;
+  font-size: 12px !important;
+}
+
+@media (max-width: 560px) {
+  .procurementAcquiringGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .sellerList {
   display: grid;
   gap: 10px;

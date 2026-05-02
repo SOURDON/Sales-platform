@@ -53,6 +53,13 @@ function isDetkovAcquiringStore(storeName: string): boolean {
   return DETKOV_ACQUIRING_STORES.has(String(storeName).toLocaleLowerCase('ru-RU').trim());
 }
 
+/** Точки со ставкой «Путинцев Сбербанк». Пока пусто — в отчёте везде ВТБ/Детков; добавьте `storeName.toLowerCase()` при необходимости. */
+const PUTINTSEV_SBER_ACQUIRING_STORES = new Set<string>();
+
+function isPutintsevSberAcquiringStore(storeName: string): boolean {
+  return PUTINTSEV_SBER_ACQUIRING_STORES.has(String(storeName).toLocaleLowerCase('ru-RU').trim());
+}
+
 function parseGoodsCost(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -608,6 +615,7 @@ function App() {
   const [adminError, setAdminError] = useState('');
   const [acquiringPercent, setAcquiringPercent] = useState('1.8');
   const [acquiringPercentDetkov, setAcquiringPercentDetkov] = useState('1.8');
+  const [acquiringPercentPutintsevSber, setAcquiringPercentPutintsevSber] = useState('1.8');
   const [salesExpanded, setSalesExpanded] = useState(false);
   const [financeOps, setFinanceOps] = useState<FinanceOpsSnapshot>({
     accounts: [],
@@ -800,11 +808,20 @@ function App() {
     if (!response.ok) {
       throw new Error('acquiring percent error');
     }
-    const data = (await response.json()) as { percent: number; detkovPercent?: number };
+    const data = (await response.json()) as {
+      percent: number;
+      detkovPercent?: number;
+      putintsevSberPercent?: number;
+    };
     setAcquiringPercent(String(data.percent));
     setAcquiringPercentDetkov(
       String(Number.isFinite(data.detkovPercent) ? data.detkovPercent : data.percent),
     );
+    const putintsevSber =
+      typeof data.putintsevSberPercent === 'number' && Number.isFinite(data.putintsevSberPercent)
+        ? data.putintsevSberPercent
+        : data.percent;
+    setAcquiringPercentPutintsevSber(String(putintsevSber));
   };
 
   const saveAcquiringPercent = async (token: string, value: string) => {
@@ -845,6 +862,26 @@ function App() {
     }
     const data = (await response.json()) as { percent: number };
     setAcquiringPercentDetkov(String(data.percent));
+  };
+
+  const saveAcquiringPercentPutintsevSber = async (token: string, value: string) => {
+    const num = Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0 || num > 100) {
+      return;
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/acquiring-percent/putintsev-sber`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ percent: num }),
+    });
+    if (!response.ok) {
+      throw new Error('save putintsev sber acquiring percent error');
+    }
+    const data = (await response.json()) as { percent: number };
+    setAcquiringPercentPutintsevSber(String(data.percent));
   };
 
   const loadFinanceOps = async (token: string) => {
@@ -1348,6 +1385,7 @@ function App() {
           if (hasFinanceFailure) {
             setAcquiringPercent('1.8');
             setAcquiringPercentDetkov('1.8');
+            setAcquiringPercentPutintsevSber('1.8');
             setFinanceOps({
               accounts: [],
               expenses: [],
@@ -1358,6 +1396,7 @@ function App() {
         } else {
           setAcquiringPercent('1.8');
           setAcquiringPercentDetkov('1.8');
+          setAcquiringPercentPutintsevSber('1.8');
           setFinanceOps({
             accounts: [],
             expenses: [],
@@ -1383,6 +1422,7 @@ function App() {
         setAuditLog([]);
         setAcquiringPercent('1.8');
         setAcquiringPercentDetkov('1.8');
+        setAcquiringPercentPutintsevSber('1.8');
         setFinanceOps({
           accounts: [],
           expenses: [],
@@ -1405,6 +1445,8 @@ function App() {
       setThresholds([]);
       setAuditLog([]);
       setAcquiringPercent('1.8');
+      setAcquiringPercentDetkov('1.8');
+      setAcquiringPercentPutintsevSber('1.8');
       setError(
         'Не удалось войти. Проверьте логин/пароль, что backend запущен, в Vercel задан VITE_API_URL (https://…), в Render у backend в CORS_ORIGIN — адрес фронта.',
       );
@@ -1431,6 +1473,7 @@ function App() {
     setAuditLog([]);
     setAcquiringPercent('1.8');
     setAcquiringPercentDetkov('1.8');
+    setAcquiringPercentPutintsevSber('1.8');
     setFinanceOps({
       accounts: [],
       expenses: [],
@@ -1819,10 +1862,13 @@ function App() {
                           procurementCosts={productProcurementCosts}
                           acquiringPercent={acquiringPercent}
                           acquiringPercentDetkov={acquiringPercentDetkov}
+                          acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
                           onAcquiringPercentChange={setAcquiringPercent}
                           onAcquiringPercentDetkovChange={setAcquiringPercentDetkov}
+                          onAcquiringPercentPutintsevSberChange={setAcquiringPercentPutintsevSber}
                           onSaveAcquiringPercent={saveAcquiringPercent}
                           onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
+                          onSaveAcquiringPercentPutintsevSber={saveAcquiringPercentPutintsevSber}
                           onSave={saveProductProcurementCosts}
                         />
                       </section>
@@ -1956,6 +2002,7 @@ function App() {
                             role={role}
                             acquiringPercent={acquiringPercent}
                             acquiringPercentDetkov={acquiringPercentDetkov}
+                            acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
                             onRefreshFinanceInputs={refreshFinanceInputs}
                             onLoadPlans={loadRevenuePlans}
                             onSavePlans={saveRevenuePlans}
@@ -3730,10 +3777,13 @@ function AccountantProcurementPanel({
   procurementCosts,
   acquiringPercent,
   acquiringPercentDetkov,
+  acquiringPercentPutintsevSber,
   onAcquiringPercentChange,
   onAcquiringPercentDetkovChange,
+  onAcquiringPercentPutintsevSberChange,
   onSaveAcquiringPercent,
   onSaveAcquiringPercentDetkov,
+  onSaveAcquiringPercentPutintsevSber,
   onSave,
 }: {
   token: string;
@@ -3741,10 +3791,13 @@ function AccountantProcurementPanel({
   procurementCosts: ProductProcurementCost[];
   acquiringPercent: string;
   acquiringPercentDetkov: string;
+  acquiringPercentPutintsevSber: string;
   onAcquiringPercentChange: (value: string) => void;
   onAcquiringPercentDetkovChange: (value: string) => void;
+  onAcquiringPercentPutintsevSberChange: (value: string) => void;
   onSaveAcquiringPercent: (token: string, value: string) => Promise<void>;
   onSaveAcquiringPercentDetkov: (token: string, value: string) => Promise<void>;
+  onSaveAcquiringPercentPutintsevSber: (token: string, value: string) => Promise<void>;
   onSave: (token: string, items: Array<{ name: string; cost: number }>) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -3753,6 +3806,7 @@ function AccountantProcurementPanel({
   const [error, setError] = useState('');
   const [acquiringSaveError, setAcquiringSaveError] = useState('');
   const [acquiringDetkovSaveError, setAcquiringDetkovSaveError] = useState('');
+  const [acquiringPutintsevSberSaveError, setAcquiringPutintsevSberSaveError] = useState('');
 
   const byName = new Map(procurementCosts.map((item) => [item.name.trim(), item.cost]));
   const rows = products.map((item) => ({
@@ -3780,12 +3834,14 @@ function AccountantProcurementPanel({
   };
 
   return (
-    <div className="opsCard">
-      <h4>Закупочные цены товаров (директор и бухгалтер)</h4>
-      <div className="inlineGrid">
-        <label>
-          Эквайринг Путинцев
+    <div className="opsCard accountantProcurementPanel">
+      <h4 className="accountantProcurementTitle">Закупочные цены товаров (директор и бухгалтер)</h4>
+      <div className="procurementAcquiringGrid">
+        <label className="procurementAcquiringField">
+          Путинцев ВТБ
           <input
+            className="procurementAcquiringInput"
+            inputMode="decimal"
             value={acquiringPercent}
             onChange={(event) => {
               setAcquiringSaveError('');
@@ -3797,16 +3853,18 @@ function AccountantProcurementPanel({
                 try {
                   await onSaveAcquiringPercent(token, value);
                 } catch {
-                  setAcquiringSaveError('Не удалось сохранить ставку эквайринга');
+                  setAcquiringSaveError('Не удалось сохранить ставку');
                 }
               })();
             }}
-            placeholder="Например 1.8"
+            placeholder="1.94"
           />
         </label>
-        <label>
-          Экварийнг Детков, %
+        <label className="procurementAcquiringField">
+          Детков ВТБ
           <input
+            className="procurementAcquiringInput"
+            inputMode="decimal"
             value={acquiringPercentDetkov}
             onChange={(event) => {
               setAcquiringDetkovSaveError('');
@@ -3818,18 +3876,48 @@ function AccountantProcurementPanel({
                 try {
                   await onSaveAcquiringPercentDetkov(token, value);
                 } catch {
-                  setAcquiringDetkovSaveError('Не удалось сохранить ставку Экварийнг Детков');
+                  setAcquiringDetkovSaveError('Не удалось сохранить ставку');
                 }
               })();
             }}
-            placeholder="Например 1.8"
+            placeholder="2"
+          />
+        </label>
+        <label className="procurementAcquiringField">
+          Путинцев Сбербанк
+          <input
+            className="procurementAcquiringInput"
+            inputMode="decimal"
+            value={acquiringPercentPutintsevSber}
+            onChange={(event) => {
+              setAcquiringPutintsevSberSaveError('');
+              onAcquiringPercentPutintsevSberChange(event.target.value);
+            }}
+            onBlur={(event) => {
+              const value = event.currentTarget.value;
+              void (async () => {
+                try {
+                  await onSaveAcquiringPercentPutintsevSber(token, value);
+                } catch {
+                  setAcquiringPutintsevSberSaveError('Не удалось сохранить ставку');
+                }
+              })();
+            }}
+            placeholder="1.8"
           />
         </label>
       </div>
-      {acquiringSaveError && <p className="error">{acquiringSaveError}</p>}
-      {acquiringDetkovSaveError && <p className="error">{acquiringDetkovSaveError}</p>}
-      <div className="tableWrap">
-        <table>
+      {(acquiringSaveError || acquiringDetkovSaveError || acquiringPutintsevSberSaveError) && (
+        <div className="procurementAcquiringErrors">
+          {acquiringSaveError && <p className="error procurementInlineError">{acquiringSaveError}</p>}
+          {acquiringDetkovSaveError && <p className="error procurementInlineError">{acquiringDetkovSaveError}</p>}
+          {acquiringPutintsevSberSaveError && (
+            <p className="error procurementInlineError">{acquiringPutintsevSberSaveError}</p>
+          )}
+        </div>
+      )}
+      <div className="tableWrap procurementTableWrap">
+        <table className="procurementCostsTable">
           <thead>
             <tr>
               <th>Товар</th>
@@ -3842,6 +3930,8 @@ function AccountantProcurementPanel({
                 <td>{row.name}</td>
                 <td>
                   <input
+                    className="procurementCostInput"
+                    inputMode="decimal"
                     value={draft[row.name] ?? String(row.currentCost)}
                     onChange={(event) =>
                       setDraft((current) => ({
@@ -3856,13 +3946,13 @@ function AccountantProcurementPanel({
           </tbody>
         </table>
       </div>
-      <div className="inlineActions">
-        <button type="button" className="primaryAction" onClick={save} disabled={busy}>
+      <div className="procurementSaveRow">
+        <button type="button" className="primaryAction procurementSaveBtn" onClick={save} disabled={busy}>
           {busy ? 'Сохраняем...' : 'Сохранить закупочные цены'}
         </button>
       </div>
-      {status && <p className="success">{status}</p>}
-      {error && <p className="error">{error}</p>}
+      {status && <p className="success procurementStatusMsg">{status}</p>}
+      {error && <p className="error procurementStatusMsg">{error}</p>}
     </div>
   );
 }
@@ -3875,6 +3965,7 @@ function FinanceReportPanel({
   role,
   acquiringPercent,
   acquiringPercentDetkov,
+  acquiringPercentPutintsevSber,
   onRefreshFinanceInputs,
   onLoadPlans,
   onSavePlans,
@@ -3886,6 +3977,7 @@ function FinanceReportPanel({
   role: 'DIRECTOR' | 'ACCOUNTANT' | 'ADMIN' | 'SELLER';
   acquiringPercent: string;
   acquiringPercentDetkov: string;
+  acquiringPercentPutintsevSber: string;
   onRefreshFinanceInputs: () => Promise<void>;
   onLoadPlans: (token: string, dayKey: string) => Promise<StoreRevenuePlan[]>;
   onSavePlans: (
@@ -3951,6 +4043,7 @@ function FinanceReportPanel({
 
   const acquiringRateDefault = Math.max(0, Number(acquiringPercent) || 0);
   const acquiringRateDetkov = Math.max(0, Number(acquiringPercentDetkov) || 0);
+  const acquiringRatePutintsevSber = Math.max(0, Number(acquiringPercentPutintsevSber) || 0);
   const rows = storeNames.map((storeName) => {
     const sellerIds = new Set(
       sellers.filter((seller) => seller.storeName === storeName).map((seller) => seller.id),
@@ -3968,7 +4061,9 @@ function FinanceReportPanel({
       .reduce((sum, sale) => sum + sale.totalAmount, 0);
     const acquiringRateForStore = isDetkovAcquiringStore(storeName)
       ? acquiringRateDetkov
-      : acquiringRateDefault;
+      : isPutintsevSberAcquiringStore(storeName)
+        ? acquiringRatePutintsevSber
+        : acquiringRateDefault;
     const acquiringFee = (nonCashRevenue * acquiringRateForStore) / 100;
     const goodsSpent = storeSales.reduce((sum, sale) => {
       const fromApi = parseGoodsCost(sale.goodsCost);

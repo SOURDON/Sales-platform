@@ -59,6 +59,7 @@ model AppState {
   lastSaleAt       DateTime?
   acquiringPercent Float     @default(1.8)
   acquiringPercentDetkov Float @default(1.8)
+  acquiringPercentPutintsevSber Float @default(1.8)
   updatedAt        DateTime  @updatedAt
 }
 

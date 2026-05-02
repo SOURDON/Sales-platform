@@ -172,6 +172,7 @@ export class AdminController {
     return {
       percent: this.authService.getAcquiringPercent(),
       detkovPercent: this.authService.getAcquiringPercentDetkov(),
+      putintsevSberPercent: this.authService.getAcquiringPercentPutintsevSber(),
     };
   }
 
@@ -201,6 +202,22 @@ export class AdminController {
       throw new BadRequestException('percent is required');
     }
     const result = this.authService.setAcquiringPercentDetkov(body.percent, session.nickname);
+    if (!result) {
+      throw new BadRequestException('percent must be between 0 and 100');
+    }
+    return result;
+  }
+
+  @Put('acquiring-percent/putintsev-sber')
+  setAcquiringPercentPutintsevSber(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: AcquiringPercentBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    if (body.percent === undefined || !Number.isFinite(body.percent)) {
+      throw new BadRequestException('percent is required');
+    }
+    const result = this.authService.setAcquiringPercentPutintsevSber(body.percent, session.nickname);
     if (!result) {
       throw new BadRequestException('percent must be between 0 and 100');
     }
