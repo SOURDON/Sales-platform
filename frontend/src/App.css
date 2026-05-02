@@ -3481,7 +3481,8 @@ h1 {
 .appWorkspace input:not([type='checkbox']):not([type='radio']),
 .appWorkspace select,
 .appWorkspace textarea {
-  background: var(--ui-field) !important;
+  /* только цвет слоя — без shorthand `background`, иначе сбрасывается repeat и ломает стрелку у select */
+  background-color: var(--ui-field) !important;
   border: 1px solid var(--ui-edge-soft) !important;
   color: var(--ui-text) !important;
   border-radius: 10px !important;
@@ -3761,7 +3762,7 @@ h1 {
 
 .appWorkspace .inlineGridStaffBase select,
 .appWorkspace .inlineGridStaffBase input {
-  background: var(--ui-field) !important;
+  background-color: var(--ui-field) !important;
   color: var(--ui-text) !important;
 }
 
@@ -4308,12 +4309,12 @@ h1 {
 
 .financeOpsCard .financeOpsBankTotalCallout {
   display: flex !important;
+  flex-direction: column !important;
   justify-content: center !important;
-  align-items: stretch !important;
-  flex-wrap: nowrap !important;
-  gap: 0 !important;
+  align-items: center !important;
+  gap: 6px !important;
   margin: 0 auto 12px !important;
-  padding: 8px 12px !important;
+  padding: 10px 14px !important;
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
@@ -4324,53 +4325,31 @@ h1 {
   font-size: 11px !important;
   color: var(--fo-muted) !important;
   line-height: 1.35 !important;
-}
-
-.financeOpsCard .financeOpsBankTotalCalloutPair {
-  flex: 1 1 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 3px !important;
-  min-width: 0 !important;
-  padding: 2px 4px !important;
   text-align: center !important;
 }
 
-.financeOpsCard .financeOpsBankTotalCalloutSep {
-  flex: 0 0 auto !important;
-  width: 1px !important;
-  align-self: stretch !important;
-  min-height: 2rem !important;
-  margin: 2px 4px !important;
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(212, 182, 123, 0.35) 20%,
-    rgba(212, 182, 123, 0.35) 80%,
-    transparent 100%
-  ) !important;
-}
-
 .financeOpsCard .financeOpsBankTotalCalloutLabel {
+  display: block !important;
+  max-width: 22rem !important;
   font-weight: 600 !important;
-  font-size: 9px !important;
+  font-size: 11px !important;
   color: var(--fo-dim) !important;
-  letter-spacing: 0.12em !important;
-  text-transform: uppercase !important;
+  letter-spacing: 0.02em !important;
+  text-transform: none !important;
+  line-height: 1.45 !important;
 }
 
 .financeOpsCard .financeOpsBankTotalCalloutValue {
-  font-weight: 600 !important;
-  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-size: 1.125rem !important;
   color: var(--fo-gold) !important;
   font-variant-numeric: tabular-nums !important;
+  letter-spacing: -0.02em !important;
 }
 
 @media (max-width: 360px) {
   .financeOpsCard .financeOpsBankTotalCalloutValue {
-    font-size: 11px !important;
+    font-size: 1rem !important;
   }
 }
 
@@ -4723,8 +4702,16 @@ h1 {
   color: var(--fo-text) !important;
   text-align: center !important;
   text-align-last: center !important;
-  padding-right: 22px !important;
+  padding-right: 26px !important;
+  padding-left: 6px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-color: transparent !important;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23d4b67b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 6px center !important;
+  background-size: 14px 14px !important;
 }
 
 .financeOpsCard .financeOpsExpenseAmountRow {

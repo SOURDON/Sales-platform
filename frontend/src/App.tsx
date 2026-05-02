@@ -2530,15 +2530,8 @@ function FinanceOpsPanel({
       <div className="financeOpsShell">
       <h4>Оперативные финансы</h4>
       <div className="financeOpsBankTotalCallout" role="note">
-        <div className="financeOpsBankTotalCalloutPair">
-          <span className="financeOpsBankTotalCalloutLabel">Банк</span>
-          <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.bank)}</span>
-        </div>
-        <span className="financeOpsBankTotalCalloutSep" aria-hidden />
-        <div className="financeOpsBankTotalCalloutPair">
-          <span className="financeOpsBankTotalCalloutLabel">Наличные</span>
-          <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.cash)}</span>
-        </div>
+        <span className="financeOpsBankTotalCalloutLabel">общее</span>
+        <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.balance)}</span>
       </div>
 
       <div className="financeOpsBalancesGrid">
