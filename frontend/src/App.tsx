@@ -2414,6 +2414,7 @@ function FinanceOpsPanel({
   const [incomeDraftsByAccount, setIncomeDraftsByAccount] = useState<
     Record<string, { amount: string; comment: string }>
   >({});
+  const [selectedIncomeAccountId, setSelectedIncomeAccountId] = useState('');
   const [expenseAccountId, setExpenseAccountId] = useState(snapshot.accounts[0]?.id ?? '');
   const [expenseTitle, setExpenseTitle] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
@@ -2459,6 +2460,15 @@ function FinanceOpsPanel({
     });
   }, [snapshot.accounts]);
 
+  useEffect(() => {
+    if (primaryFinanceAccounts.length === 0) {
+      return;
+    }
+    setSelectedIncomeAccountId((cur) =>
+      primaryFinanceAccounts.some((a) => a.id === cur) ? cur : primaryFinanceAccounts[0]!.id,
+    );
+  }, [primaryFinanceAccounts]);
+
   const accountsForIncomeHistory = useMemo(() => {
     const list: FinanceAccount[] = [];
     if (cashAccount) {
@@ -2470,46 +2480,33 @@ function FinanceOpsPanel({
 
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
 
-  const submitIncomeBatch = async () => {
+  const submitIncomeForSelectedAccount = async () => {
     setError('');
     setStatus('');
-    const ids = FINANCE_OPS_PRIMARY_ACCOUNT_IDS.filter((id) =>
-      snapshot.accounts.some((a) => a.id === id),
-    );
-    const queue: Array<{ accountId: string; amount: string; comment?: string }> = [];
-    for (const id of ids) {
-      const row = incomeDraftsByAccount[id] ?? { amount: '', comment: '' };
-      const n = Number(String(row.amount).replace(',', '.'));
-      if (Number.isFinite(n) && n > 0) {
-        queue.push({ accountId: id, amount: row.amount, comment: row.comment });
-      }
-    }
-    if (queue.length === 0) {
-      setError('Укажите сумму хотя бы по одному из счётов');
+    if (!selectedIncomeAccountId) {
+      setError('Выберите счёт');
       return;
     }
-    setBusyId('income-batch');
+    const row = incomeDraftsByAccount[selectedIncomeAccountId] ?? { amount: '', comment: '' };
+    const n = Number(String(row.amount).replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) {
+      setError('Укажите сумму прихода');
+      return;
+    }
+    setBusyId(`income-${selectedIncomeAccountId}`);
     try {
-      for (const row of queue) {
-        await onAddIncome(token, {
-          accountId: row.accountId,
-          amount: row.amount,
-          workDay: incomeWorkDay,
-          comment: row.comment,
-        });
-      }
-      setIncomeDraftsByAccount((prev) => {
-        const next = { ...prev };
-        for (const row of queue) {
-          next[row.accountId] = { amount: '', comment: '' };
-        }
-        return next;
+      await onAddIncome(token, {
+        accountId: selectedIncomeAccountId,
+        amount: row.amount,
+        workDay: incomeWorkDay,
+        comment: row.comment,
       });
-      setStatus(
-        queue.length === 1
-          ? 'Приход записан, балансы обновлены.'
-          : `Записано приходов: ${queue.length}. Балансы обновлены.`,
-      );
+      setIncomeDraftsByAccount((prev) => ({
+        ...prev,
+        [selectedIncomeAccountId]: { amount: '', comment: '' },
+      }));
+      const acc = snapshot.accounts.find((a) => a.id === selectedIncomeAccountId);
+      setStatus(acc ? `Приход на «${acc.name}» записан, баланс обновлён.` : 'Приход записан.');
     } catch {
       setError('Не удалось записать приход');
     } finally {
@@ -2521,8 +2518,9 @@ function FinanceOpsPanel({
     <div className="opsCard financeOpsCard">
       <h4>Оперативные финансы</h4>
       <p className="hint financeOpsHint">
-        Сверху — актуальные остатки по четырём счётам. Ниже одним блоком внесите приход за выбранный рабочий день: заполните
-        суммы только там, где был приход, и нажмите «Записать приход». Расходы уменьшают остаток на выбранном счёте.
+        Сверху — остатки по счетам. Ниже выберите счёт кнопкой (как вид оплаты в продаже), укажите рабочий день и сумму прихода,
+        затем «Записать приход». Черновик суммы хранится отдельно для каждого счёта при переключении. Расходы уменьшают остаток на
+        выбранном счёте.
       </p>
 
       <div className="financeOpsBalancesGrid">
@@ -2536,52 +2534,76 @@ function FinanceOpsPanel({
 
       <div className="financeOpsIncomeBlock addSaleForm">
         <h4>Приход за день по счетам</h4>
-        <label className="financeOpsIncomeDayLabel">
-          Рабочий день (МСК)
-          <input type="date" value={incomeWorkDay} onChange={(event) => setIncomeWorkDay(event.target.value)} />
+        <div className="addSaleRow financeOpsIncomeDayRow">
+          <label>
+            Рабочий день (МСК)
+            <input type="date" value={incomeWorkDay} onChange={(event) => setIncomeWorkDay(event.target.value)} />
+          </label>
+        </div>
+        <label className="financeOpsAccountsPick">
+          Счёт прихода
+          <div className="financeOpsAccountBtnRow" role="group" aria-label="Счёт для записи прихода">
+            {primaryFinanceAccounts.map((acc) => (
+              <button
+                key={acc.id}
+                type="button"
+                className={`ghost paymentTypeBtn financeOpsAccountPickBtn ${
+                  selectedIncomeAccountId === acc.id ? 'paymentTypeBtnActive' : ''
+                }`}
+                onClick={() => setSelectedIncomeAccountId(acc.id)}
+              >
+                {acc.name}
+              </button>
+            ))}
+          </div>
         </label>
-        <div className="financeOpsIncomeRows">
-          {primaryFinanceAccounts.map((acc) => {
-            const row = incomeDraftsByAccount[acc.id] ?? { amount: '', comment: '' };
-            return (
-              <div key={acc.id} className="financeOpsIncomeRow">
-                <span className="financeOpsIncomeRowTitle">{acc.name}</span>
-                <label className="financeOpsIncomeAmountLabel">
-                  Сумма, ₽
-                  <input
-                    value={row.amount}
-                    onChange={(event) =>
-                      setIncomeDraftsByAccount((prev) => ({
-                        ...prev,
-                        [acc.id]: { ...row, amount: event.target.value },
-                      }))
-                    }
-                    inputMode="decimal"
-                    placeholder="0"
-                  />
-                </label>
-                <label className="financeOpsIncomeCommentLabel">
-                  Комментарий
-                  <input
-                    value={row.comment}
-                    onChange={(event) =>
-                      setIncomeDraftsByAccount((prev) => ({
-                        ...prev,
-                        [acc.id]: { ...row, comment: event.target.value },
-                      }))
-                    }
-                    placeholder="Необязательно"
-                  />
-                </label>
-              </div>
-            );
-          })}
+        <div className="addSaleRow financeOpsIncomeFieldsRow">
+          <label>
+            Сумма прихода (₽)
+            <input
+              inputMode="decimal"
+              value={(incomeDraftsByAccount[selectedIncomeAccountId] ?? { amount: '', comment: '' }).amount}
+              onChange={(event) =>
+                setIncomeDraftsByAccount((prev) => ({
+                  ...prev,
+                  [selectedIncomeAccountId]: {
+                    ...(prev[selectedIncomeAccountId] ?? { amount: '', comment: '' }),
+                    amount: event.target.value,
+                  },
+                }))
+              }
+              placeholder="Например, 15000"
+            />
+          </label>
+          <label>
+            Комментарий
+            <input
+              value={(incomeDraftsByAccount[selectedIncomeAccountId] ?? { amount: '', comment: '' }).comment}
+              onChange={(event) =>
+                setIncomeDraftsByAccount((prev) => ({
+                  ...prev,
+                  [selectedIncomeAccountId]: {
+                    ...(prev[selectedIncomeAccountId] ?? { amount: '', comment: '' }),
+                    comment: event.target.value,
+                  },
+                }))
+              }
+              placeholder="Необязательно"
+            />
+          </label>
         </div>
-        <div className="inlineActions">
-          <button type="button" className="primaryAction" disabled={busyId === 'income-batch'} onClick={submitIncomeBatch}>
-            Записать приход
-          </button>
-        </div>
+        <button
+          type="button"
+          className="primaryAction addSaleSubmitBottom"
+          disabled={
+            !selectedIncomeAccountId ||
+            busyId === `income-${selectedIncomeAccountId}` ||
+            primaryFinanceAccounts.length === 0
+          }
+          onClick={submitIncomeForSelectedAccount}
+        >
+          Записать приход
+        </button>
       </div>
 
       <div className="tableWrap">

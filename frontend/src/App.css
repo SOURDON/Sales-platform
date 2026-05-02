@@ -2092,58 +2092,47 @@ button.financeRangePresetBtn {
   margin-bottom: 8px !important;
 }
 
-.financeOpsIncomeDayLabel {
+.financeOpsIncomeDayRow label {
+  grid-column: 1 / -1;
+}
+
+.financeOpsAccountsPick {
   display: grid;
-  gap: 4px;
-  font-size: 13px;
-  font-weight: 600;
+  gap: 6px;
   margin-bottom: 12px;
-}
-
-.financeOpsIncomeRows {
-  display: grid;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.financeOpsIncomeRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(5.5rem, 7rem) minmax(0, 1fr);
-  gap: 10px;
-  align-items: end;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
-}
-
-.financeOpsIncomeRow:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.financeOpsIncomeRowTitle {
   font-size: 12px;
-  font-weight: 700;
-  color: #334155;
-  line-height: 1.25;
+  font-weight: 600;
 }
 
-.financeOpsIncomeAmountLabel,
-.financeOpsIncomeCommentLabel {
+.financeOpsAccountBtnRow {
   display: grid;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  margin: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+@media (min-width: 520px) {
+  .financeOpsAccountBtnRow {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.financeOpsAccountPickBtn {
+  white-space: normal !important;
+  line-height: 1.25 !important;
+  min-height: 42px !important;
+}
+
+.financeOpsIncomeFieldsRow {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 }
 
 @media (max-width: 560px) {
-  .financeOpsIncomeRow {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-
   .financeOpsBalancesGrid {
     gap: 8px;
+  }
+
+  .financeOpsIncomeFieldsRow {
+    grid-template-columns: 1fr !important;
   }
 }
 
