@@ -4096,28 +4096,36 @@ function FinanceReportPanel({
       <h4>{role === 'DIRECTOR' ? 'Финансовый отчёт директора' : 'Полный отчёт по магазинам'}</h4>
       <div className="financeRangeToolbar">
         <div className="financeRangeDates">
-          <label className="financeRangeDateLabel">
-            С (МСК)
-            <input type="date" value={rangeFrom} onChange={(event) => setRangeFrom(event.target.value)} />
-          </label>
-          <label className="financeRangeDateLabel">
-            По (МСК)
-            <input type="date" value={rangeTo} onChange={(event) => setRangeTo(event.target.value)} />
-          </label>
+          <input
+            type="date"
+            className="financeRangeDateInput"
+            aria-label="Дата начала периода (МСК)"
+            value={rangeFrom}
+            onChange={(event) => setRangeFrom(event.target.value)}
+          />
+          <input
+            type="date"
+            className="financeRangeDateInput"
+            aria-label="Дата конца периода (МСК)"
+            value={rangeTo}
+            onChange={(event) => setRangeTo(event.target.value)}
+          />
         </div>
         <div className="financeRangePresets">
-          <button type="button" className="ghost financeRangePresetBtn" onClick={applyYesterday}>
-            Вчера
-          </button>
-          <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(1)}>
-            Сегодня
-          </button>
-          <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(7)}>
-            7 дней
-          </button>
-          <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(30)}>
-            30 дней
-          </button>
+          <div className="financeRangePresetGrid">
+            <button type="button" className="ghost financeRangePresetBtn" onClick={applyYesterday}>
+              Вчера
+            </button>
+            <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(1)}>
+              Сегодня
+            </button>
+            <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(7)}>
+              7 дней
+            </button>
+            <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(30)}>
+              30 дней
+            </button>
+          </div>
           <span className="financeRangeSummary">
             {fromDay} — {toDay}
           </span>
