@@ -2410,10 +2410,7 @@ function FinanceOpsPanel({
     );
   }, [snapshot.accounts]);
 
-  const [incomeWorkDay, setIncomeWorkDay] = useState(todayKeyMoscow());
-  const [incomeDraftsByAccount, setIncomeDraftsByAccount] = useState<
-    Record<string, { amount: string; comment: string }>
-  >({});
+  const [incomeDraftsByAccount, setIncomeDraftsByAccount] = useState<Record<string, string>>({});
   const [selectedIncomeAccountId, setSelectedIncomeAccountId] = useState('');
   const [expenseAccountId, setExpenseAccountId] = useState(snapshot.accounts[0]?.id ?? '');
   const [expenseTitle, setExpenseTitle] = useState('');
@@ -2427,6 +2424,8 @@ function FinanceOpsPanel({
   const [adjustNewBalance, setAdjustNewBalance] = useState('');
   const [adjustBusy, setAdjustBusy] = useState(false);
   const [adjustError, setAdjustError] = useState('');
+  const [incomesHistoryOpen, setIncomesHistoryOpen] = useState(false);
+  const [expensesHistoryOpen, setExpensesHistoryOpen] = useState(false);
 
   useEffect(() => {
     if (snapshot.accounts.length === 0) {
@@ -2452,7 +2451,7 @@ function FinanceOpsPanel({
       let changed = false;
       for (const id of ids) {
         if (next[id] === undefined) {
-          next[id] = { amount: '', comment: '' };
+          next[id] = '';
           changed = true;
         }
       }
@@ -2487,8 +2486,8 @@ function FinanceOpsPanel({
       setError('Выберите счёт');
       return;
     }
-    const row = incomeDraftsByAccount[selectedIncomeAccountId] ?? { amount: '', comment: '' };
-    const n = Number(String(row.amount).replace(',', '.'));
+    const amountStr = incomeDraftsByAccount[selectedIncomeAccountId] ?? '';
+    const n = Number(String(amountStr).replace(',', '.'));
     if (!Number.isFinite(n) || n <= 0) {
       setError('Укажите сумму прихода');
       return;
@@ -2497,13 +2496,12 @@ function FinanceOpsPanel({
     try {
       await onAddIncome(token, {
         accountId: selectedIncomeAccountId,
-        amount: row.amount,
-        workDay: incomeWorkDay,
-        comment: row.comment,
+        amount: amountStr,
+        workDay: todayKeyMoscow(),
       });
       setIncomeDraftsByAccount((prev) => ({
         ...prev,
-        [selectedIncomeAccountId]: { amount: '', comment: '' },
+        [selectedIncomeAccountId]: '',
       }));
       const acc = snapshot.accounts.find((a) => a.id === selectedIncomeAccountId);
       setStatus(acc ? `Приход на «${acc.name}» записан, баланс обновлён.` : 'Приход записан.');
@@ -2517,11 +2515,6 @@ function FinanceOpsPanel({
   return (
     <div className="opsCard financeOpsCard">
       <h4>Оперативные финансы</h4>
-      <p className="hint financeOpsHint">
-        Сверху — остатки по счетам. Ниже выберите счёт кнопкой (как вид оплаты в продаже), укажите рабочий день и сумму прихода,
-        затем «Записать приход». Черновик суммы хранится отдельно для каждого счёта при переключении. Расходы уменьшают остаток на
-        выбранном счёте.
-      </p>
 
       <div className="financeOpsBalancesGrid">
         {primaryFinanceAccounts.map((acc) => (
@@ -2534,12 +2527,6 @@ function FinanceOpsPanel({
 
       <div className="financeOpsIncomeBlock addSaleForm">
         <h4>Приход за день по счетам</h4>
-        <div className="addSaleRow financeOpsIncomeDayRow">
-          <label>
-            Рабочий день (МСК)
-            <input type="date" value={incomeWorkDay} onChange={(event) => setIncomeWorkDay(event.target.value)} />
-          </label>
-        </div>
         <label className="financeOpsAccountsPick">
           Счёт прихода
           <div className="financeOpsAccountBtnRow" role="group" aria-label="Счёт для записи прихода">
@@ -2562,33 +2549,14 @@ function FinanceOpsPanel({
             Сумма прихода (₽)
             <input
               inputMode="decimal"
-              value={(incomeDraftsByAccount[selectedIncomeAccountId] ?? { amount: '', comment: '' }).amount}
+              value={incomeDraftsByAccount[selectedIncomeAccountId] ?? ''}
               onChange={(event) =>
                 setIncomeDraftsByAccount((prev) => ({
                   ...prev,
-                  [selectedIncomeAccountId]: {
-                    ...(prev[selectedIncomeAccountId] ?? { amount: '', comment: '' }),
-                    amount: event.target.value,
-                  },
+                  [selectedIncomeAccountId]: event.target.value,
                 }))
               }
               placeholder="Например, 15000"
-            />
-          </label>
-          <label>
-            Комментарий
-            <input
-              value={(incomeDraftsByAccount[selectedIncomeAccountId] ?? { amount: '', comment: '' }).comment}
-              onChange={(event) =>
-                setIncomeDraftsByAccount((prev) => ({
-                  ...prev,
-                  [selectedIncomeAccountId]: {
-                    ...(prev[selectedIncomeAccountId] ?? { amount: '', comment: '' }),
-                    comment: event.target.value,
-                  },
-                }))
-              }
-              placeholder="Необязательно"
             />
           </label>
         </div>
@@ -2606,36 +2574,12 @@ function FinanceOpsPanel({
         </button>
       </div>
 
-      <div className="tableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Счёт</th>
-              <th>Тип</th>
-              <th>Остаток (по приходам и расходам)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {snapshot.accounts.map((account) => (
-              <tr key={account.id}>
-                <td>{account.name}</td>
-                <td>{account.kind === 'CASH' ? 'Наличные' : 'Расчётный счёт'}</td>
-                <td>
-                  <strong>{fmt(account.balance)}</strong>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
       {isDirector && (
         <div className="balanceAdjustBlock">
-          <div className="inlineActions">
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => {
+          <button
+            type="button"
+            className={`primaryAction financeBalanceAdjustToggle ${balanceAdjustOpen ? 'financeBalanceAdjustToggleOpen' : ''}`}
+            onClick={() => {
                 setAdjustError('');
                 setBalanceAdjustOpen((open) => {
                   if (open) {
@@ -2654,10 +2598,9 @@ function FinanceOpsPanel({
                   return true;
                 });
               }}
-            >
-              {balanceAdjustOpen ? 'Скрыть корректировку' : 'Корректировка остатка'}
-            </button>
-          </div>
+          >
+            {balanceAdjustOpen ? 'Скрыть корректировку' : 'Корректировка остатка'}
+          </button>
           {balanceAdjustOpen ? (
             <div className="addSaleForm">
               <p className="hint">
@@ -2787,44 +2730,90 @@ function FinanceOpsPanel({
       {status && <p className="success">{status}</p>}
       {error && <p className="error">{error}</p>}
 
-      <h4 className="financeSubheading">Последние приходы по счетам</h4>
-      {accountsForIncomeHistory.length === 0 ? (
-        <p className="muted">Счетов нет — приходы не настроены.</p>
-      ) : (
-        accountsForIncomeHistory.map((acc) => {
-          const list = (snapshot.incomes ?? []).filter((item) => item.accountId === acc.id);
-          return (
-            <div className="incomeHistorySection" key={acc.id}>
-              <h5 className="incomeHistoryHeading">{acc.name}</h5>
-              <div className="opsList">
-                {list.length === 0 ? (
-                  <p className="muted">По этому счёту приходов пока нет.</p>
+      <div className="financeHistoryAccordions">
+        <section className={`procurementAccordion ${incomesHistoryOpen ? '' : 'procurementAccordion--collapsed'}`}>
+          <button
+            type="button"
+            className="procurementAccordionTrigger"
+            aria-expanded={incomesHistoryOpen}
+            onClick={() => setIncomesHistoryOpen((open) => !open)}
+          >
+            <span className="procurementAccordionTriggerTitle financeHistoryAccordionTitle">
+              Последние приходы по счетам
+            </span>
+            <span className="procurementAccordionChevron" aria-hidden>
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path fill="currentColor" d="M7 10l5 5 5-5z" />
+              </svg>
+            </span>
+          </button>
+          <div className="procurementAccordionPanel">
+            <div className="procurementAccordionPanelInner">
+              <div className="procurementAccordionBody financeHistoryAccordionBody">
+                {accountsForIncomeHistory.length === 0 ? (
+                  <p className="muted">Счетов нет — приходы не настроены.</p>
                 ) : (
-                  list.slice(0, 20).map((item) => (
-                    <p key={item.id}>
-                      День {item.workDay} | {fmt(item.amount)}
-                      {item.comment ? ` | ${item.comment}` : ''}
-                    </p>
-                  ))
+                  accountsForIncomeHistory.map((acc) => {
+                    const list = (snapshot.incomes ?? []).filter((item) => item.accountId === acc.id);
+                    return (
+                      <div className="incomeHistorySection" key={acc.id}>
+                        <h5 className="incomeHistoryHeading">{acc.name}</h5>
+                        <div className="opsList">
+                          {list.length === 0 ? (
+                            <p className="muted">По этому счёту приходов пока нет.</p>
+                          ) : (
+                            list.slice(0, 20).map((item) => (
+                              <p key={item.id}>
+                                День {item.workDay} | {fmt(item.amount)}
+                                {item.comment ? ` | ${item.comment}` : ''}
+                              </p>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
-          );
-        })
-      )}
+          </div>
+        </section>
 
-      <h4 className="financeSubheading">Последние расходы</h4>
-      <div className="opsList">
-        {snapshot.expenses.length === 0 ? (
-          <p className="muted">Расходов пока нет.</p>
-        ) : (
-          snapshot.expenses.slice(0, 20).map((item) => (
-            <p key={item.id}>
-              {new Date(item.createdAt).toLocaleString('ru-RU')} | {item.title} | {fmt(item.amount)} |{' '}
-              {item.accountName}
-            </p>
-          ))
-        )}
+        <section className={`procurementAccordion ${expensesHistoryOpen ? '' : 'procurementAccordion--collapsed'}`}>
+          <button
+            type="button"
+            className="procurementAccordionTrigger"
+            aria-expanded={expensesHistoryOpen}
+            onClick={() => setExpensesHistoryOpen((open) => !open)}
+          >
+            <span className="procurementAccordionTriggerTitle financeHistoryAccordionTitle">
+              Последние расходы
+            </span>
+            <span className="procurementAccordionChevron" aria-hidden>
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path fill="currentColor" d="M7 10l5 5 5-5z" />
+              </svg>
+            </span>
+          </button>
+          <div className="procurementAccordionPanel">
+            <div className="procurementAccordionPanelInner">
+              <div className="procurementAccordionBody financeHistoryAccordionBody">
+                <div className="opsList">
+                  {snapshot.expenses.length === 0 ? (
+                    <p className="muted">Расходов пока нет.</p>
+                  ) : (
+                    snapshot.expenses.slice(0, 20).map((item) => (
+                      <p key={item.id}>
+                        {new Date(item.createdAt).toLocaleString('ru-RU')} | {item.title} | {fmt(item.amount)} |{' '}
+                        {item.accountName}
+                      </p>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

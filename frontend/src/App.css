@@ -2023,6 +2023,29 @@ button.financeRangePresetBtn {
   color: #0b4f82;
 }
 
+.financeHistoryAccordions {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.financeHistoryAccordionTitle.procurementAccordionTriggerTitle {
+  font-size: 12px;
+  line-height: 1.32;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.financeHistoryAccordionBody.procurementAccordionBody {
+  gap: 10px;
+}
+
+.financeHistoryAccordionBody .incomeHistorySection:first-child .incomeHistoryHeading {
+  margin-top: 2px;
+}
+
 .incomeByAccountBreakdown {
   margin: 6px 0 0;
   font-size: 12px;
@@ -2092,10 +2115,6 @@ button.financeRangePresetBtn {
   margin-bottom: 8px !important;
 }
 
-.financeOpsIncomeDayRow label {
-  grid-column: 1 / -1;
-}
-
 .financeOpsAccountsPick {
   display: grid;
   gap: 6px;
@@ -2122,17 +2141,13 @@ button.financeRangePresetBtn {
   min-height: 42px !important;
 }
 
-.financeOpsIncomeFieldsRow {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+.financeOpsIncomeFieldsRow label {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 560px) {
   .financeOpsBalancesGrid {
     gap: 8px;
-  }
-
-  .financeOpsIncomeFieldsRow {
-    grid-template-columns: 1fr !important;
   }
 }
 
@@ -2235,6 +2250,38 @@ button.financeRangePresetBtn {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+
+.balanceAdjustBlock {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.financeBalanceAdjustToggle {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 50px !important;
+  padding: 12px 18px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em;
+  border-radius: 14px !important;
+  box-shadow:
+    0 10px 26px rgba(8, 22, 17, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.42) inset !important;
+}
+
+.financeBalanceAdjustToggle:hover {
+  filter: brightness(1.06);
+}
+
+.financeBalanceAdjustToggleOpen {
+  box-shadow:
+    0 6px 18px rgba(8, 22, 17, 0.34),
+    inset 0 2px 10px rgba(0, 0, 0, 0.14) !important;
 }
 
 .inlineStatus {
