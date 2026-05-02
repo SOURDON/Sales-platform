@@ -4050,18 +4050,6 @@ function FinanceReportPanel({
     'Прибыль с товаром': Math.round(row.profitWithGoods),
   }));
 
-  const exportCsv = () => {
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    const csv = XLSX.utils.sheet_to_csv(ws, { FS: ';' });
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `finance-report-${fromDay}_${toDay}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const exportXlsx = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
@@ -4096,52 +4084,61 @@ function FinanceReportPanel({
     setRangeTo(to);
   };
 
+  const applyYesterday = () => {
+    const today = todayKeyMoscow();
+    const y = shiftDayKey(today, -1);
+    setRangeFrom(y);
+    setRangeTo(y);
+  };
+
   return (
     <div className="opsCard">
       <h4>{role === 'DIRECTOR' ? 'Финансовый отчёт директора' : 'Полный отчёт по магазинам'}</h4>
-      <p className="hint">
-        Списания не учитываются в формулах прибыли: (1) Выручка - ЗП - Эквайринг; (2) Выручка - ЗП - Эквайринг - Товар.
-        Продажи в отчёте считаются по выбранному
-        диапазону дат (МСК). «Потрачено на товар» = по каждому чеку сумма (кол-во × закупочная цена за шт.) по всем
-        позициям; если в чеке несколько товаров — складываются; по магазину за день — сумма по всем чекам. Закупки
-        и эквайринг настраиваются на вкладке «Продажи».
-      </p>
-      <div className="inlineGrid financeRangeGrid">
-        <label>
-          Период с (МСК)
-          <input type="date" value={rangeFrom} onChange={(event) => setRangeFrom(event.target.value)} />
-        </label>
-        <label>
-          Период по (МСК)
-          <input type="date" value={rangeTo} onChange={(event) => setRangeTo(event.target.value)} />
-        </label>
+      <div className="financeRangeToolbar">
+        <div className="financeRangeDates">
+          <label className="financeRangeDateLabel">
+            С (МСК)
+            <input type="date" value={rangeFrom} onChange={(event) => setRangeFrom(event.target.value)} />
+          </label>
+          <label className="financeRangeDateLabel">
+            По (МСК)
+            <input type="date" value={rangeTo} onChange={(event) => setRangeTo(event.target.value)} />
+          </label>
+        </div>
+        <div className="financeRangePresets">
+          <button type="button" className="ghost financeRangePresetBtn" onClick={applyYesterday}>
+            Вчера
+          </button>
+          <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(1)}>
+            Сегодня
+          </button>
+          <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(7)}>
+            7 дней
+          </button>
+          <button type="button" className="ghost financeRangePresetBtn" onClick={() => applyRangePreset(30)}>
+            30 дней
+          </button>
+          <span className="financeRangeSummary">
+            {fromDay} — {toDay}
+          </span>
+        </div>
       </div>
-      <div className="inlineActions financeRangeActions">
-        <button type="button" className="ghost" onClick={() => applyRangePreset(1)}>
-          Сегодня
-        </button>
-        <button type="button" className="ghost" onClick={() => applyRangePreset(7)}>
-          7 дней
-        </button>
-        <button type="button" className="ghost" onClick={() => applyRangePreset(30)}>
-          30 дней
-        </button>
-        <p className="inlineStatus">Период отчёта: {fromDay} - {toDay}</p>
-      </div>
-      <div className="inlineActions">
-        <button type="button" className="primaryAction" onClick={savePlans} disabled={plansBusy}>
+      <div className="financeReportActionsBar">
+        <button
+          type="button"
+          className="primaryAction financeReportSaveBtn"
+          onClick={savePlans}
+          disabled={plansBusy}
+        >
           {plansBusy ? 'Сохраняем план...' : 'Сохранить план выручки'}
         </button>
-        <button type="button" className="ghost" onClick={exportCsv}>
-          Экспорт CSV
-        </button>
-        <button type="button" className="ghost" onClick={exportXlsx}>
+        <button type="button" className="ghost financeReportExportBtn" onClick={exportXlsx}>
           Экспорт XLSX
         </button>
       </div>
       {plansStatus && <p className="success">{plansStatus}</p>}
       {plansError && <p className="error">{plansError}</p>}
-      <div className="tableWrap">
+      <div className="tableWrap financeReportTable">
         <table>
           <thead>
             <tr>

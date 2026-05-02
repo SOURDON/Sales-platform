@@ -489,6 +489,44 @@ th {
   background: #fff;
 }
 
+.financeReportActionsBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+  margin: 10px 0 8px;
+}
+
+.financeReportActionsBar .financeReportSaveBtn {
+  flex: 1 1 auto;
+  min-width: min(100%, 200px);
+}
+
+.financeReportActionsBar .financeReportExportBtn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .financeReportActionsBar {
+    flex-direction: column;
+  }
+
+  .financeReportActionsBar .financeReportExportBtn {
+    width: 100%;
+  }
+}
+
+/* Финансовый отчёт: числа и названия магазинов читаемые чёрным (не цвет текста темы) */
+.financeReportTable table tbody td,
+.financeReportTable table tbody td strong {
+  color: #111827 !important;
+}
+
+.financeReportTable table tbody .financeReportPlanInput {
+  color: #111827 !important;
+}
+
 .sellerList {
   display: grid;
   gap: 10px;
@@ -1654,17 +1692,60 @@ select {
   align-items: end;
 }
 
-.financeRangeGrid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  padding: 10px;
+.financeRangeToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 14px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
   border: 1px solid #dbeafe;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #f8fbff;
 }
 
-.financeRangeActions {
-  justify-content: flex-start;
+.financeRangeDates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.financeRangeDateLabel {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-secondary, #64748b);
+}
+
+.financeRangeDateLabel input[type='date'] {
+  padding: 4px 8px;
+  font-size: 13px;
+  min-height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border, #e2e8f0);
+}
+
+.financeRangePresets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+button.financeRangePresetBtn {
+  padding: 6px 10px !important;
+  min-height: 34px !important;
+  font-size: 12px !important;
+  font-weight: 600;
+}
+
+.financeRangeSummary {
+  font-size: 11px;
+  color: var(--ui-text-secondary, #64748b);
+  white-space: nowrap;
+  margin-left: 2px;
 }
 
 .financeSubheading {
@@ -2161,13 +2242,42 @@ select {
     grid-template-columns: 1fr;
   }
 
-  .financeRangeGrid {
+  .financeRangeToolbar {
+    flex-direction: column;
+    align-items: stretch;
     padding: 8px;
     gap: 8px;
   }
 
-  .financeRangeActions .ghost {
-    min-width: 90px;
+  .financeRangeDates {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .financeRangeDateLabel {
+    flex: 1;
+    min-width: min(160px, 48vw);
+  }
+
+  .financeRangeDateLabel input[type='date'] {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .financeRangePresets {
+    justify-content: flex-start;
+  }
+
+  button.financeRangePresetBtn {
+    flex: 1 1 auto;
+    min-width: 72px;
+  }
+
+  .financeRangeSummary {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 2px;
+    white-space: normal;
   }
 
   .quickNav {
