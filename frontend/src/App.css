@@ -3692,13 +3692,27 @@ textarea {
   box-shadow: none !important;
   padding: 0 !important;
   gap: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Убираем боковые поля workspace только на экране оперативных финансов */
+.cardWorkspace:has(.financeOpsCard) {
+  padding-left: max(8px, env(safe-area-inset-left)) !important;
+  padding-right: max(8px, env(safe-area-inset-right)) !important;
 }
 
 .financeOpsShell {
-  max-width: 28rem;
-  margin: 0 auto;
-  padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
-  border-radius: 18px;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding-top: 10px;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  padding-left: clamp(8px, 2.5vw, 12px);
+  padding-right: clamp(8px, 2.5vw, 12px);
+  border-radius: 16px;
   border: 1px solid var(--fo-edge-soft);
   background:
     linear-gradient(165deg, rgba(255, 255, 255, 0.05) 0%, transparent 42%),
@@ -3799,7 +3813,7 @@ textarea {
 }
 
 .financeOpsCard .financeOpsIncomeBlock.addSaleForm,
-.financeOpsCard > .addSaleForm {
+.financeOpsCard .financeOpsShell > .addSaleForm {
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
@@ -3823,7 +3837,7 @@ textarea {
   flex-direction: column !important;
 }
 
-.financeOpsCard > .addSaleForm:not(.financeOpsIncomeBlock) {
+.financeOpsCard .financeOpsShell > .addSaleForm:not(.financeOpsIncomeBlock) {
   border-top: 1px solid var(--fo-edge-soft) !important;
 }
 
