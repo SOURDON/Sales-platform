@@ -2523,6 +2523,7 @@ function FinanceOpsPanel({
 
   return (
     <div className="opsCard financeOpsCard">
+      <div className="financeOpsShell">
       <h4>Оперативные финансы</h4>
       <p className="financeOpsBankTotalCallout" role="note">
         <span className="financeOpsBankTotalCalloutLabel">Всего по банку:</span>{' '}
@@ -2731,7 +2732,7 @@ function FinanceOpsPanel({
             />
           </label>
         </div>
-        <div className="inlineActions">
+        <div className="inlineActions financeOpsExpenseActions">
           <button
             type="button"
             className="primaryAction"
@@ -2848,6 +2849,7 @@ function FinanceOpsPanel({
             </div>
           </div>
         </section>
+      </div>
       </div>
     </div>
   );

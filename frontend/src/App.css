@@ -3652,8 +3652,22 @@ textarea {
   }
 }
 
-/* Оперативные финансы (/shift для бухгалтера): компактная типографика, без «тяжёлых» карточек */
+/* Оперативные финансы: тёмная «стеклянная» панель под фон приложения */
 .financeOpsCard {
+  --fo-glass: rgba(10, 26, 20, 0.52);
+  --fo-glass-raised: rgba(16, 38, 30, 0.68);
+  --fo-edge: rgba(212, 182, 123, 0.22);
+  --fo-edge-soft: rgba(255, 255, 255, 0.07);
+  --fo-text: #ece8df;
+  --fo-muted: #9aab9f;
+  --fo-dim: #7a8a80;
+  --fo-gold: #d4b67b;
+  --fo-gold-soft: #c4a56d;
+  --fo-field: rgba(4, 14, 11, 0.55);
+  --fo-chip: rgba(255, 255, 255, 0.07);
+  --fo-chip-active: rgba(8, 32, 26, 0.92);
+  --fo-glow: 0 0 0 1px rgba(212, 182, 123, 0.12);
+
   font-family:
     'DM Sans',
     ui-sans-serif,
@@ -3662,12 +3676,12 @@ textarea {
     'Segoe UI',
     Roboto,
     sans-serif;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.45;
   font-optical-sizing: auto;
   font-feature-settings: 'tnum' 1, 'kern' 1;
-  letter-spacing: -0.012em;
-  color: #334155;
+  letter-spacing: -0.01em;
+  color: var(--fo-text);
 }
 
 .sectionCard .financeOpsCard.opsCard,
@@ -3676,81 +3690,112 @@ textarea {
   border: none !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  padding: 2px 0 12px !important;
+  padding: 0 !important;
   gap: 0 !important;
 }
 
-.financeOpsCard > h4:first-of-type {
+.financeOpsShell {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
+  border-radius: 18px;
+  border: 1px solid var(--fo-edge-soft);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05) 0%, transparent 42%),
+    var(--fo-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 18px 40px rgba(2, 8, 6, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  box-sizing: border-box;
+}
+
+.financeOpsShell > h4:first-of-type {
   font-size: 10px !important;
   font-weight: 700 !important;
-  letter-spacing: 0.12em !important;
+  letter-spacing: 0.16em !important;
   text-transform: uppercase !important;
-  color: #64748b !important;
-  margin: 0 0 8px !important;
+  text-align: center !important;
+  color: var(--fo-gold) !important;
+  margin: 2px 0 10px !important;
+  text-shadow: 0 1px 12px rgba(212, 182, 123, 0.25);
 }
 
 .financeOpsCard .financeOpsBankTotalCallout {
-  display: inline-flex !important;
+  display: flex !important;
+  justify-content: center !important;
   align-items: baseline !important;
   flex-wrap: wrap !important;
-  gap: 5px 8px !important;
-  margin: 0 0 10px !important;
-  padding: 0 0 0 9px !important;
-  border: none !important;
-  border-left: 2px solid #94a3b8 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  gap: 6px 10px !important;
+  margin: 0 auto 12px !important;
+  padding: 7px 14px !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  border: 1px solid var(--fo-edge) !important;
+  border-radius: 999px !important;
+  background: rgba(4, 14, 11, 0.35) !important;
+  box-shadow: var(--fo-glow) !important;
   font-size: 11px !important;
-  color: #475569 !important;
+  color: var(--fo-muted) !important;
   line-height: 1.35 !important;
+  text-align: center !important;
 }
 
 .financeOpsCard .financeOpsBankTotalCalloutLabel {
   font-weight: 500 !important;
-  color: #64748b !important;
+  color: var(--fo-dim) !important;
+  letter-spacing: 0.04em !important;
 }
 
 .financeOpsCard .financeOpsBankTotalCalloutValue {
   font-weight: 600 !important;
-  color: #0f172a !important;
+  color: var(--fo-gold) !important;
+  font-variant-numeric: tabular-nums !important;
 }
 
 .financeOpsCard .financeOpsBalancesGrid {
-  gap: 6px !important;
-  margin-bottom: 10px !important;
+  gap: 8px !important;
+  margin-bottom: 12px !important;
 }
 
 @media (min-width: 520px) {
   .financeOpsCard .financeOpsBalancesGrid {
-    gap: 8px !important;
+    gap: 9px !important;
   }
 }
 
 .financeOpsCard .financeOpsBalanceCard.metricCard {
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  padding: 6px 2px 8px !important;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.07) !important;
+  background: var(--fo-glass-raised) !important;
+  border: 1px solid var(--fo-edge-soft) !important;
+  border-radius: 12px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 6px 16px rgba(2, 8, 6, 0.2) !important;
+  padding: 8px 6px 9px !important;
+  text-align: center !important;
 }
 
 .financeOpsCard .financeOpsBalanceCard p {
-  font-size: 9px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.06em !important;
+  font-size: 8.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
-  color: #64748b !important;
-  line-height: 1.2 !important;
+  color: var(--fo-dim) !important;
+  line-height: 1.25 !important;
+  margin: 0 !important;
 }
 
 .financeOpsCard .financeOpsBalanceCard strong {
-  font-size: 13px !important;
+  display: block !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
   letter-spacing: -0.02em !important;
-  margin-top: 2px !important;
-  color: #0f172a !important;
+  margin-top: 4px !important;
+  color: var(--fo-text) !important;
 }
 
 .financeOpsCard .financeOpsIncomeBlock.addSaleForm,
@@ -3759,143 +3804,211 @@ textarea {
   border: none !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  padding: 10px 0 !important;
+  padding: 12px 0 10px !important;
   margin: 0 !important;
-  gap: 7px !important;
+  gap: 9px !important;
 }
 
 .financeOpsCard .financeOpsIncomeBlock.addSaleForm {
-  border-top: 1px solid rgba(15, 23, 42, 0.07) !important;
+  border-top: 1px solid var(--fo-edge-soft) !important;
 }
 
 .financeOpsCard .balanceAdjustBlock {
   margin: 0 !important;
-  padding: 10px 0 !important;
+  padding: 10px 0 12px !important;
   gap: 8px !important;
-  border-top: 1px solid rgba(15, 23, 42, 0.07) !important;
+  border-top: 1px solid var(--fo-edge-soft) !important;
+  align-items: center !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 .financeOpsCard > .addSaleForm:not(.financeOpsIncomeBlock) {
-  border-top: 1px solid rgba(15, 23, 42, 0.07) !important;
+  border-top: 1px solid var(--fo-edge-soft) !important;
 }
 
 .financeOpsCard .addSaleForm h4 {
-  color: #475569 !important;
-  font-size: 10px !important;
+  color: var(--fo-gold-soft) !important;
+  font-size: 9.5px !important;
   font-weight: 700 !important;
-  letter-spacing: 0.1em !important;
+  letter-spacing: 0.14em !important;
   text-transform: uppercase !important;
-  margin: 0 0 6px !important;
+  margin: 0 0 8px !important;
+  text-align: center !important;
 }
 
 .financeOpsCard .financeOpsIncomeBlock > h4 {
-  margin-bottom: 6px !important;
+  margin-bottom: 8px !important;
 }
 
 .financeOpsCard .financeOpsAccountsPick {
+  display: grid !important;
+  justify-items: center !important;
   font-size: 9px !important;
   font-weight: 700 !important;
-  gap: 4px !important;
-  margin-bottom: 6px !important;
-  letter-spacing: 0.07em !important;
+  gap: 6px !important;
+  margin-bottom: 7px !important;
+  letter-spacing: 0.1em !important;
   text-transform: uppercase !important;
-  color: #64748b !important;
+  color: var(--fo-muted) !important;
+  text-align: center !important;
+  width: 100% !important;
 }
 
 .financeOpsCard .financeOpsAccountBtnRow {
-  gap: 5px !important;
+  gap: 6px !important;
+  width: 100% !important;
 }
 
 .financeOpsCard .financeOpsAccountPickBtn.paymentTypeBtn {
-  min-height: 30px !important;
-  padding: 5px 8px !important;
-  font-size: 11px !important;
-  border-radius: 6px !important;
-  border: 1px solid rgba(15, 23, 42, 0.12) !important;
-  background: rgba(255, 255, 255, 0.5) !important;
-  box-shadow: none !important;
+  min-height: 34px !important;
+  padding: 6px 6px !important;
+  font-size: 10.5px !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--fo-edge-soft) !important;
+  background: var(--fo-chip) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
   font-weight: 500 !important;
-  line-height: 1.25 !important;
+  line-height: 1.2 !important;
+  color: var(--fo-text) !important;
+  text-align: center !important;
+}
+
+.financeOpsCard .financeOpsAccountPickBtn.paymentTypeBtn:hover {
+  border-color: rgba(212, 182, 123, 0.35) !important;
 }
 
 .financeOpsCard .financeOpsAccountPickBtn.paymentTypeBtnActive {
-  background: #1e293b !important;
-  color: #f8fafc !important;
-  border-color: #1e293b !important;
-  box-shadow: none !important;
+  background: var(--fo-chip-active) !important;
+  color: var(--fo-gold) !important;
+  border-color: rgba(212, 182, 123, 0.45) !important;
+  box-shadow:
+    0 4px 14px rgba(2, 8, 6, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+.financeOpsCard .financeOpsIncomeFieldsRow.addSaleRow {
+  grid-template-columns: 1fr !important;
 }
 
 .financeOpsCard .financeOpsIncomeFieldsRow.addSaleRow label {
+  display: grid !important;
+  justify-items: center !important;
+  gap: 6px !important;
   font-size: 9px !important;
-  letter-spacing: 0.05em !important;
+  letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
-  color: #64748b !important;
+  color: var(--fo-muted) !important;
+  text-align: center !important;
 }
 
 .financeOpsCard .financeOpsIncomeFieldsRow input {
-  min-height: 32px !important;
-  padding: 5px 8px !important;
-  font-size: 12px !important;
-  border-radius: 6px !important;
-  border: 1px solid rgba(15, 23, 42, 0.12) !important;
-  background: rgba(255, 255, 255, 0.65) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 40px !important;
+  padding: 9px 12px !important;
+  font-size: 13px !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--fo-edge-soft) !important;
+  background: var(--fo-field) !important;
+  color: var(--fo-text) !important;
+  text-align: center !important;
+}
+
+.financeOpsCard .financeOpsIncomeFieldsRow input::placeholder {
+  color: rgba(212, 182, 123, 0.28) !important;
+}
+
+.financeOpsCard .financeOpsIncomeFieldsRow input:focus {
+  outline: none !important;
+  border-color: rgba(212, 182, 123, 0.42) !important;
+  box-shadow: 0 0 0 3px rgba(212, 182, 123, 0.12) !important;
 }
 
 .financeOpsCard .addSaleSubmitBottom.primaryAction {
-  min-height: 32px !important;
-  padding: 7px 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 42px !important;
+  padding: 10px 16px !important;
   font-size: 11px !important;
-  font-weight: 600 !important;
-  border-radius: 7px !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
   margin-top: 4px !important;
-  letter-spacing: 0.03em !important;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  text-align: center !important;
+  justify-content: center !important;
+  border: 1px solid rgba(194, 165, 109, 0.45) !important;
+  background: linear-gradient(165deg, #d4c49a 0%, #c4a56d 48%, #b48f53 100%) !important;
+  color: #0c1a14 !important;
+  box-shadow:
+    0 8px 22px rgba(8, 22, 17, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+}
+
+.financeOpsCard .addSaleSubmitBottom.primaryAction:disabled {
+  opacity: 0.45 !important;
+  box-shadow: none !important;
 }
 
 .financeOpsCard .financeBalanceAdjustToggle {
-  width: fit-content !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 12rem !important;
   max-width: 100% !important;
-  min-height: 30px !important;
-  padding: 6px 11px !important;
-  font-size: 10px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.06em !important;
+  min-height: 36px !important;
+  padding: 8px 16px !important;
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.12em !important;
   text-transform: uppercase !important;
-  border-radius: 6px !important;
+  text-align: center !important;
+  border-radius: 10px !important;
   box-shadow: none !important;
-  background: transparent !important;
-  border: 1px solid rgba(15, 23, 42, 0.14) !important;
-  color: #475569 !important;
+  background: var(--fo-chip) !important;
+  border: 1px solid var(--fo-edge) !important;
+  color: var(--fo-gold-soft) !important;
 }
 
 .financeOpsCard .financeBalanceAdjustToggle:hover {
   filter: none !important;
-  background: rgba(15, 23, 42, 0.04) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(212, 182, 123, 0.38) !important;
 }
 
 .financeOpsCard .financeBalanceAdjustToggleOpen {
-  background: rgba(15, 23, 42, 0.06) !important;
-  box-shadow: none !important;
+  background: rgba(212, 182, 123, 0.12) !important;
+  box-shadow: inset 0 0 0 1px rgba(212, 182, 123, 0.2) !important;
 }
 
 .financeOpsCard .balanceAdjustBlock .addSaleForm {
-  padding: 8px 0 0 !important;
+  padding: 10px 0 0 !important;
   margin: 0 !important;
-  gap: 8px !important;
+  width: 100% !important;
+  gap: 9px !important;
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
+  align-items: stretch !important;
 }
 
 .financeOpsCard .balanceAdjustBlock .hint {
   font-size: 10px !important;
-  line-height: 1.4 !important;
-  margin: 0 0 6px !important;
-  color: #64748b !important;
+  line-height: 1.45 !important;
+  margin: 0 0 4px !important;
+  color: var(--fo-muted) !important;
+  text-align: center !important;
 }
 
 .financeOpsCard .balanceAdjustBlock .inlineGrid {
   gap: 8px !important;
+  width: 100% !important;
 }
 
 @media (max-width: 640px) {
@@ -3904,163 +4017,267 @@ textarea {
   }
 }
 
+.financeOpsCard .balanceAdjustBlock label {
+  color: var(--fo-muted) !important;
+  font-size: 9px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  text-align: center !important;
+}
+
 .financeOpsCard .balanceAdjustBlock select,
 .financeOpsCard .balanceAdjustBlock input {
-  min-height: 32px !important;
-  padding: 5px 8px !important;
-  font-size: 12px !important;
-  border-radius: 6px !important;
-  border: 1px solid rgba(15, 23, 42, 0.12) !important;
-  background: rgba(255, 255, 255, 0.65) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 38px !important;
+  padding: 8px 10px !important;
+  font-size: 12.5px !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--fo-edge-soft) !important;
+  background: var(--fo-field) !important;
+  color: var(--fo-text) !important;
+  text-align: center !important;
+}
+
+.financeOpsCard .balanceAdjustBlock .inlineActions {
+  width: 100% !important;
+  justify-content: center !important;
 }
 
 .financeOpsCard .balanceAdjustBlock .inlineActions .primaryAction {
-  min-height: 32px !important;
-  padding: 7px 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 40px !important;
+  padding: 9px 14px !important;
   font-size: 11px !important;
-  border-radius: 7px !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  text-align: center !important;
+  border: 1px solid rgba(194, 165, 109, 0.45) !important;
+  background: linear-gradient(165deg, #d4c49a 0%, #c4a56d 48%, #b48f53 100%) !important;
+  color: #0c1a14 !important;
 }
 
 .financeOpsCard .financeOpsExpensePickRow {
   gap: 8px !important;
-  margin-bottom: 6px !important;
+  margin-bottom: 8px !important;
 }
 
 .financeOpsCard .financeOpsExpenseUnifiedPick {
-  padding: 6px 8px !important;
-  gap: 2px !important;
-  border-radius: 6px !important;
-  border: 1px solid rgba(15, 23, 42, 0.11) !important;
-  background: transparent !important;
+  padding: 8px 10px 9px !important;
+  gap: 4px !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--fo-edge-soft) !important;
+  background: rgba(4, 14, 11, 0.38) !important;
+  align-items: center !important;
+  text-align: center !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
 }
 
 .financeOpsCard .financeOpsExpenseUnifiedPick:hover {
-  border-color: rgba(15, 23, 42, 0.18) !important;
+  border-color: rgba(212, 182, 123, 0.28) !important;
 }
 
 .financeOpsCard .financeOpsExpenseUnifiedPick:focus-within {
-  border-color: #64748b !important;
-  box-shadow: none !important;
+  border-color: rgba(212, 182, 123, 0.45) !important;
+  box-shadow:
+    0 0 0 3px rgba(212, 182, 123, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
 }
 
 .financeOpsCard .financeOpsExpenseUnifiedPickCaption {
   font-size: 8px !important;
   font-weight: 700 !important;
-  letter-spacing: 0.08em !important;
+  letter-spacing: 0.1em !important;
   text-transform: uppercase !important;
-  color: #64748b !important;
+  color: var(--fo-dim) !important;
+  width: 100% !important;
+  text-align: center !important;
 }
 
 .financeOpsCard .financeOpsExpenseUnifiedSelect {
   font-size: 12px !important;
   font-weight: 600 !important;
+  color: var(--fo-text) !important;
+  text-align: center !important;
+  text-align-last: center !important;
+  padding-right: 22px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23d4b67b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") !important;
 }
 
 .financeOpsCard .financeOpsExpenseAmountRow {
-  margin-bottom: 2px !important;
+  margin-bottom: 4px !important;
+  grid-template-columns: 1fr !important;
 }
 
 .financeOpsCard .financeOpsExpenseAmountRow label {
+  display: grid !important;
+  justify-items: center !important;
+  gap: 6px !important;
   font-size: 9px !important;
   font-weight: 700 !important;
-  letter-spacing: 0.06em !important;
+  letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
-  color: #64748b !important;
+  color: var(--fo-muted) !important;
+  text-align: center !important;
 }
 
 .financeOpsCard .financeOpsExpenseAmountRow input {
-  min-height: 32px !important;
-  padding: 5px 8px !important;
-  font-size: 12px !important;
-  border-radius: 6px !important;
-  border: 1px solid rgba(15, 23, 42, 0.12) !important;
-  background: rgba(255, 255, 255, 0.65) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 40px !important;
+  padding: 9px 12px !important;
+  font-size: 13px !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--fo-edge-soft) !important;
+  background: var(--fo-field) !important;
+  color: var(--fo-text) !important;
+  text-align: center !important;
+}
+
+.financeOpsCard .financeOpsExpenseAmountRow input::placeholder {
+  color: rgba(212, 182, 123, 0.28) !important;
+}
+
+.financeOpsCard .financeOpsExpenseAmountRow input:focus {
+  outline: none !important;
+  border-color: rgba(212, 182, 123, 0.42) !important;
+  box-shadow: 0 0 0 3px rgba(212, 182, 123, 0.12) !important;
 }
 
 .financeOpsCard .inlineActions {
-  gap: 6px !important;
+  gap: 8px !important;
+  width: 100% !important;
+}
+
+.financeOpsCard .inlineActions.financeOpsExpenseActions {
+  flex-direction: column !important;
+  align-items: stretch !important;
 }
 
 .financeOpsCard .inlineActions .primaryAction {
-  min-height: 32px !important;
-  padding: 7px 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 42px !important;
+  padding: 10px 16px !important;
   font-size: 11px !important;
-  font-weight: 600 !important;
-  border-radius: 7px !important;
-  letter-spacing: 0.03em !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  text-align: center !important;
+  justify-content: center !important;
+  border: 1px solid rgba(194, 165, 109, 0.45) !important;
+  background: linear-gradient(165deg, #d4c49a 0%, #c4a56d 48%, #b48f53 100%) !important;
+  color: #0c1a14 !important;
+  box-shadow:
+    0 8px 22px rgba(8, 22, 17, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
 }
 
 .financeOpsCard .success,
 .financeOpsCard .error {
   font-size: 11px !important;
-  margin: 6px 0 0 !important;
-  line-height: 1.35 !important;
+  margin: 10px 0 0 !important;
+  line-height: 1.4 !important;
+  text-align: center !important;
+  padding: 7px 10px !important;
+  border-radius: 10px !important;
+}
+
+.financeOpsCard .success {
+  color: #b8e6c8 !important;
+  background: rgba(34, 120, 80, 0.18) !important;
+  border: 1px solid rgba(120, 200, 160, 0.28) !important;
+}
+
+.financeOpsCard .error {
+  color: #fecaca !important;
+  background: rgba(120, 40, 40, 0.2) !important;
+  border: 1px solid rgba(248, 113, 113, 0.28) !important;
 }
 
 .financeOpsCard .financeHistoryAccordions {
-  gap: 6px !important;
-  margin-top: 8px !important;
-  padding-top: 10px !important;
-  border-top: 1px solid rgba(15, 23, 42, 0.07) !important;
+  gap: 8px !important;
+  margin-top: 10px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid var(--fo-edge-soft) !important;
 }
 
 .financeOpsCard .financeHistoryAccordions .procurementAccordionTrigger {
   margin: 0 !important;
-  padding: 7px 26px 7px 10px !important;
-  border-radius: 6px !important;
-  border: 1px solid rgba(15, 23, 42, 0.11) !important;
-  background: rgba(255, 255, 255, 0.35) !important;
-  color: #334155 !important;
-  box-shadow: none !important;
+  padding: 10px 36px 10px 14px !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--fo-edge-soft) !important;
+  background: rgba(4, 14, 11, 0.42) !important;
+  color: var(--fo-muted) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
   font-weight: 600 !important;
 }
 
 .financeOpsCard .financeHistoryAccordions .procurementAccordion:not(.procurementAccordion--collapsed) .procurementAccordionTrigger:hover {
   filter: none !important;
-  background: rgba(15, 23, 42, 0.04) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(212, 182, 123, 0.22) !important;
 }
 
 .financeOpsCard .financeHistoryAccordionTitle.procurementAccordionTriggerTitle {
-  font-size: 10px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.06em !important;
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.12em !important;
   text-transform: uppercase !important;
-  text-align: left !important;
-  color: #475569 !important;
+  text-align: center !important;
+  color: var(--fo-gold-soft) !important;
+  padding-right: 4px !important;
 }
 
 .financeOpsCard .financeHistoryAccordions .procurementAccordionChevron {
-  right: 8px !important;
-  opacity: 0.65 !important;
+  right: 10px !important;
+  opacity: 0.55 !important;
+  color: var(--fo-gold) !important;
 }
 
 .financeOpsCard .financeHistoryAccordions .procurementAccordionChevron svg {
-  width: 14px !important;
-  height: 14px !important;
+  width: 15px !important;
+  height: 15px !important;
 }
 
 .financeOpsCard .financeHistoryAccordionBody.procurementAccordionBody {
-  padding: 5px 2px 6px !important;
-  gap: 6px !important;
+  padding: 8px 6px 10px !important;
+  gap: 8px !important;
 }
 
 .financeOpsCard .incomeHistoryHeading {
-  font-size: 10px !important;
+  font-size: 9.5px !important;
   font-weight: 700 !important;
-  margin: 6px 0 3px !important;
-  letter-spacing: 0.06em !important;
+  margin: 8px 0 4px !important;
+  letter-spacing: 0.1em !important;
   text-transform: uppercase !important;
-  color: #64748b !important;
+  color: var(--fo-dim) !important;
+  text-align: center !important;
+}
+
+.financeOpsCard .opsList {
+  text-align: center !important;
 }
 
 .financeOpsCard .opsList p {
   font-size: 10.5px !important;
-  line-height: 1.42 !important;
-  margin: 1px 0 !important;
-  color: #475569 !important;
+  line-height: 1.48 !important;
+  margin: 3px 0 !important;
+  color: var(--fo-muted) !important;
 }
 
 .financeOpsCard .financeHistoryAccordionBody .muted {
   font-size: 10.5px !important;
-  color: #94a3b8 !important;
+  color: var(--fo-dim) !important;
+  text-align: center !important;
 }
