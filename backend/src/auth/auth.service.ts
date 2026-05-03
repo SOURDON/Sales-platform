@@ -437,7 +437,7 @@ export class AuthService implements OnModuleInit {
       return null;
     }
     const amount = Math.round(payload.amount * 100) / 100;
-    account.balance = Math.max(0, Math.round((account.balance - amount) * 100) / 100);
+    account.balance = Math.round((account.balance - amount) * 100) / 100;
     const expense: FinanceExpense = {
       id: `fexp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       createdAt: new Date().toISOString(),

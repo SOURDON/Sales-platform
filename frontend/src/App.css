@@ -4885,3 +4885,178 @@ h1 {
   color: var(--fo-dim) !important;
   text-align: center !important;
 }
+
+/* Выкатная панель: расходы по статьям (карусель) */
+.financeOpsExpenseArticlesSheet {
+  margin-top: 12px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--fo-edge-soft) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.financeOpsExpenseArticlesSheetHandle {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 10px 12px !important;
+  min-height: 46px !important;
+  border: 1px solid var(--fo-edge-soft) !important;
+  border-radius: 14px !important;
+  background: rgba(4, 14, 11, 0.42) !important;
+  color: var(--fo-muted) !important;
+  font: inherit !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    var(--fo-glow) !important;
+}
+
+.financeOpsExpenseArticlesSheetHandle:focus-visible {
+  outline: none !important;
+  border-color: rgba(212, 182, 123, 0.45) !important;
+  box-shadow:
+    0 0 0 3px rgba(212, 182, 123, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+.financeOpsExpenseArticlesSheetHandleLabel {
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  color: var(--fo-gold-soft) !important;
+}
+
+.financeOpsExpenseArticlesSheetHandleRight {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+.financeOpsExpenseArticlesSheetHandleTotal {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums !important;
+  color: var(--fo-gold) !important;
+}
+
+.financeOpsExpenseArticlesSheetHandleChevron {
+  display: flex !important;
+  color: var(--fo-gold) !important;
+  opacity: 0.75 !important;
+  transition: transform 0.22s ease !important;
+}
+
+.financeOpsExpenseArticlesSheet--open .financeOpsExpenseArticlesSheetHandleChevron {
+  transform: rotate(180deg) !important;
+}
+
+.financeOpsExpenseArticlesSheet--open .financeOpsExpenseArticlesSheetHandle {
+  border-radius: 14px 14px 0 0 !important;
+  border-bottom-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.financeOpsExpenseArticlesSheetPanel {
+  max-height: 0 !important;
+  overflow: hidden !important;
+  transition: max-height 0.3s ease !important;
+  border: 1px solid var(--fo-edge-soft) !important;
+  border-top: none !important;
+  border-radius: 0 0 14px 14px !important;
+  background: rgba(4, 14, 11, 0.38) !important;
+  box-sizing: border-box !important;
+}
+
+.financeOpsExpenseArticlesSheet--open .financeOpsExpenseArticlesSheetPanel {
+  max-height: min(52vh, 380px) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.financeOpsExpenseArticlesSheetPanelInner {
+  padding: 8px 10px 14px !important;
+  box-sizing: border-box !important;
+}
+
+.financeOpsExpenseArticlesSheetHint {
+  margin: 0 0 8px !important;
+  font-size: 10px !important;
+  line-height: 1.4 !important;
+  text-align: center !important;
+  color: var(--fo-dim) !important;
+}
+
+.financeOpsExpenseArticlesCarousel {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 10px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding: 4px 2px 8px !important;
+  margin: 0 -2px !important;
+  scroll-snap-type: x mandatory !important;
+  scrollbar-width: thin !important;
+}
+
+.financeOpsExpenseArticlesCarousel::-webkit-scrollbar {
+  height: 5px !important;
+}
+
+.financeOpsExpenseArticlesCarousel::-webkit-scrollbar-thumb {
+  background: rgba(212, 182, 123, 0.25) !important;
+  border-radius: 999px !important;
+}
+
+.financeOpsExpenseArticlesChip {
+  flex: 0 0 auto !important;
+  scroll-snap-align: start !important;
+  width: min(42vw, 9.5rem) !important;
+  min-height: 4.5rem !important;
+  padding: 8px 10px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  text-align: center !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--fo-edge-soft) !important;
+  background: var(--fo-glass-raised) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 6px 14px rgba(2, 8, 6, 0.22) !important;
+}
+
+.financeOpsExpenseArticlesChipTitle {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  line-height: 1.25 !important;
+  color: var(--fo-muted) !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+}
+
+.financeOpsExpenseArticlesChipAmount {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums !important;
+  color: var(--fo-gold) !important;
+  letter-spacing: -0.02em !important;
+}
+
+@media (min-width: 520px) {
+  .financeOpsExpenseArticlesChip {
+    width: 8.75rem !important;
+  }
+}

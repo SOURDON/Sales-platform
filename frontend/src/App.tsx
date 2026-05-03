@@ -2439,6 +2439,7 @@ function FinanceOpsPanel({
   const [adjustError, setAdjustError] = useState('');
   const [incomesHistoryOpen, setIncomesHistoryOpen] = useState(false);
   const [expensesHistoryOpen, setExpensesHistoryOpen] = useState(false);
+  const [expenseArticlesSheetOpen, setExpenseArticlesSheetOpen] = useState(false);
 
   useEffect(() => {
     if (snapshot.accounts.length === 0) {
@@ -2491,6 +2492,35 @@ function FinanceOpsPanel({
   }, [cashAccount, bankAccountsOrdered]);
 
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
+
+  const expenseTotalsByArticle = useMemo(() => {
+    const fromData = new Map<string, number>();
+    for (const e of snapshot.expenses) {
+      const t = (e.title ?? '').trim() || 'Без статьи';
+      const prev = fromData.get(t) ?? 0;
+      fromData.set(t, Math.round((prev + e.amount) * 100) / 100);
+    }
+    const rows: { title: string; total: number }[] = [];
+    for (const label of FINANCE_EXPENSE_CATEGORY_LABELS) {
+      rows.push({ title: label, total: fromData.get(label) ?? 0 });
+      fromData.delete(label);
+    }
+    const rest = [...fromData.entries()].sort((a, b) =>
+      a[0].localeCompare(b[0], 'ru-RU', { sensitivity: 'base' }),
+    );
+    for (const [title, total] of rest) {
+      rows.push({ title, total });
+    }
+    return rows;
+  }, [snapshot.expenses]);
+
+  const expensesGrandTotal = useMemo(
+    () =>
+      Math.round(
+        expenseTotalsByArticle.reduce((sum, row) => sum + row.total, 0) * 100,
+      ) / 100,
+    [expenseTotalsByArticle],
+  );
 
   const submitIncomeForSelectedAccount = async () => {
     setError('');
@@ -2854,6 +2884,57 @@ function FinanceOpsPanel({
           </div>
         </section>
       </div>
+
+      <section
+        className={`financeOpsExpenseArticlesSheet ${
+          expenseArticlesSheetOpen ? 'financeOpsExpenseArticlesSheet--open' : ''
+        }`}
+      >
+        <button
+          type="button"
+          className="financeOpsExpenseArticlesSheetHandle"
+          aria-expanded={expenseArticlesSheetOpen}
+          aria-controls="finance-ops-expense-articles-panel"
+          onClick={() => setExpenseArticlesSheetOpen((open) => !open)}
+        >
+          <span className="financeOpsExpenseArticlesSheetHandleLabel">Расходы по статьям</span>
+          <span className="financeOpsExpenseArticlesSheetHandleRight">
+            <span className="financeOpsExpenseArticlesSheetHandleTotal">{fmt(expensesGrandTotal)}</span>
+            <span className="financeOpsExpenseArticlesSheetHandleChevron" aria-hidden>
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <path fill="currentColor" d="M7 10l5 5 5-5z" />
+              </svg>
+            </span>
+          </span>
+        </button>
+        <div
+          className="financeOpsExpenseArticlesSheetPanel"
+          id="finance-ops-expense-articles-panel"
+          aria-hidden={!expenseArticlesSheetOpen}
+        >
+          <div className="financeOpsExpenseArticlesSheetPanelInner">
+            <p className="financeOpsExpenseArticlesSheetHint">
+              Прокрутите вбок — суммы по каждой статье за всё время учёта.
+            </p>
+            <div
+              className="financeOpsExpenseArticlesCarousel"
+              role="list"
+              aria-label="Суммы расходов по статьям"
+            >
+              {expenseTotalsByArticle.map((row) => (
+                <article
+                  key={row.title}
+                  className="financeOpsExpenseArticlesChip"
+                  role="listitem"
+                >
+                  <span className="financeOpsExpenseArticlesChipTitle">{row.title}</span>
+                  <strong className="financeOpsExpenseArticlesChipAmount">{fmt(row.total)}</strong>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
       </div>
     </div>
   );
