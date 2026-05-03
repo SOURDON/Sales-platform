@@ -4275,6 +4275,7 @@ h1 {
 .financeOpsShell {
   max-width: none;
   width: 100%;
+  min-width: 0;
   margin: 0;
   padding-top: 10px;
   padding-bottom: calc(14px + env(safe-area-inset-bottom));
@@ -4294,6 +4295,7 @@ h1 {
   flex-direction: column;
   gap: 0;
   box-sizing: border-box;
+  overflow-x: clip;
 }
 
 .financeOpsShell > h4:first-of-type {
@@ -4541,6 +4543,7 @@ h1 {
   border: 1px solid rgba(194, 165, 109, 0.45) !important;
   background: linear-gradient(165deg, #d4c49a 0%, #c4a56d 48%, #b48f53 100%) !important;
   color: #0c1a14 !important;
+  -webkit-text-fill-color: #0c1a14 !important;
   box-shadow:
     0 8px 22px rgba(8, 22, 17, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
@@ -4570,6 +4573,7 @@ h1 {
   background: var(--fo-chip) !important;
   border: 1px solid var(--fo-edge) !important;
   color: var(--fo-gold-soft) !important;
+  -webkit-text-fill-color: var(--fo-gold-soft) !important;
 }
 
 .financeOpsCard .financeBalanceAdjustToggle:hover {
@@ -4657,14 +4661,19 @@ h1 {
   border: 1px solid rgba(194, 165, 109, 0.45) !important;
   background: linear-gradient(165deg, #d4c49a 0%, #c4a56d 48%, #b48f53 100%) !important;
   color: #0c1a14 !important;
+  -webkit-text-fill-color: #0c1a14 !important;
 }
 
 .financeOpsCard .financeOpsExpensePickRow {
   gap: 8px !important;
   margin-bottom: 8px !important;
+  flex-wrap: wrap !important;
 }
 
 .financeOpsCard .financeOpsExpenseUnifiedPick {
+  flex: 1 1 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
   padding: 8px 10px 9px !important;
   gap: 4px !important;
   border-radius: 12px !important;
@@ -4673,6 +4682,16 @@ h1 {
   align-items: center !important;
   text-align: center !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+@media (min-width: 520px) {
+  .financeOpsCard .financeOpsExpensePickRow {
+    flex-wrap: nowrap !important;
+  }
+
+  .financeOpsCard .financeOpsExpenseUnifiedPick {
+    flex: 1 1 0 !important;
+  }
 }
 
 .financeOpsCard .financeOpsExpenseUnifiedPick:hover {
@@ -4687,13 +4706,19 @@ h1 {
 }
 
 .financeOpsCard .financeOpsExpenseUnifiedPickCaption {
-  font-size: 8px !important;
+  font-size: 9px !important;
   font-weight: 700 !important;
-  letter-spacing: 0.1em !important;
+  letter-spacing: 0.04em !important;
   text-transform: uppercase !important;
   color: var(--fo-dim) !important;
   width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
   text-align: center !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.35 !important;
+  hyphens: auto !important;
 }
 
 .financeOpsCard .financeOpsExpenseUnifiedSelect {
@@ -4782,6 +4807,7 @@ h1 {
   border: 1px solid rgba(194, 165, 109, 0.45) !important;
   background: linear-gradient(165deg, #d4c49a 0%, #c4a56d 48%, #b48f53 100%) !important;
   color: #0c1a14 !important;
+  -webkit-text-fill-color: #0c1a14 !important;
   box-shadow:
     0 8px 22px rgba(8, 22, 17, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
@@ -4967,10 +4993,10 @@ h1 {
   max-height: 0 !important;
   overflow: hidden !important;
   transition: max-height 0.3s ease !important;
-  border: 1px solid var(--fo-edge-soft) !important;
-  border-top: none !important;
-  border-radius: 0 0 14px 14px !important;
-  background: rgba(4, 14, 11, 0.38) !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
   box-sizing: border-box !important;
 }
 
@@ -4978,6 +5004,10 @@ h1 {
   max-height: min(52vh, 380px) !important;
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch !important;
+  border: 1px solid var(--fo-edge-soft) !important;
+  border-top: none !important;
+  border-radius: 0 0 14px 14px !important;
+  background: rgba(4, 14, 11, 0.38) !important;
 }
 
 .financeOpsExpenseArticlesSheetPanelInner {
@@ -5041,9 +5071,8 @@ h1 {
   font-weight: 600 !important;
   line-height: 1.25 !important;
   color: var(--fo-muted) !important;
-  display: -webkit-box !important;
-  -webkit-line-clamp: 2 !important;
-  -webkit-box-orient: vertical !important;
+  display: block !important;
+  max-height: 2.6em !important;
   overflow: hidden !important;
 }
 

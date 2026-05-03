@@ -2567,7 +2567,7 @@ function FinanceOpsPanel({
       <div className="financeOpsBalancesGrid">
         {primaryFinanceAccounts.map((acc) => (
           <article key={acc.id} className="metricCard financeOpsBalanceCard">
-            <p>{acc.name}</p>
+            <p>{acc.name?.trim() || 'Счёт'}</p>
             <strong>{fmt(acc.balance)}</strong>
           </article>
         ))}
