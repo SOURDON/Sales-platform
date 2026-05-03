@@ -482,6 +482,22 @@ type MobileNavItem = {
   end?: boolean;
 };
 
+function findWorkspaceTabIndex(pathname: string, items: MobileNavItem[]): number {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const raw = item.to.replace(/\/+$/, '') || '/';
+    if (item.end) {
+      if (path === raw) {
+        return i;
+      }
+    } else if (path === raw || path.startsWith(`${raw}/`)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 const SESSION_STORAGE_KEY = 'sales-platform-session-v1';
 const SESSION_PERSISTENCE_KEY = 'sales-platform-session-persistence-v1';
 
@@ -652,6 +668,7 @@ function App() {
   });
   const [inventoryOverview, setInventoryOverview] = useState<InventoryOverviewResponse | null>(null);
   const [storeInventory, setStoreInventory] = useState<StoreInventoryDetailResponse | null>(null);
+  const workspaceSwipeRef = useRef<{ x: number; y: number } | null>(null);
 
   const pendingOfflineSales = useMemo(() => {
     if (!session?.user?.id) {
@@ -1678,6 +1695,83 @@ function App() {
     }
   }, [loadInventoryOverview, loadStoreInventory, location.pathname, session]);
 
+  const mobileNavItems = useMemo((): MobileNavItem[] => {
+    if (!session?.user) {
+      return [];
+    }
+    const r = session.user.role;
+    const retoucher = r === 'RETOUCHER';
+    const sellerOnly = r === 'SELLER';
+    const readOnlyObserver = r === 'ACCOUNTANT';
+    const financeViewer = r === 'ACCOUNTANT' || r === 'DIRECTOR';
+    const shiftL = financeViewer ? 'Оперативка' : 'Смена';
+    const controlL = readOnlyObserver ? 'Отчёт' : 'Контроль';
+    if (retoucher) {
+      return [{ to: '/home', label: 'Главная', icon: <HomeIcon />, end: true }];
+    }
+    if (sellerOnly) {
+      return [
+        { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
+        { to: '/shift', label: 'Смена', icon: <ShiftIcon /> },
+      ];
+    }
+    return [
+      { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
+      { to: '/shift', label: shiftL, icon: <ShiftIcon /> },
+      { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
+      { to: '/team', label: 'Команда', icon: <TeamIcon /> },
+      { to: '/control', label: controlL, icon: <ControlIcon /> },
+    ];
+  }, [session]);
+
+  const onWorkspaceSwipeTouchStart = useCallback((e: TouchEvent) => {
+    const t = e.targetTouches[0];
+    if (!t) {
+      return;
+    }
+    workspaceSwipeRef.current = { x: t.clientX, y: t.clientY };
+  }, []);
+
+  const onWorkspaceSwipeTouchEnd = useCallback(
+    (e: TouchEvent) => {
+      const start = workspaceSwipeRef.current;
+      workspaceSwipeRef.current = null;
+      if (!start || mobileNavItems.length <= 1) {
+        return;
+      }
+      const target = e.target;
+      if (target instanceof Element) {
+        if (target.closest('[data-no-swipe-nav], input, textarea, select, [contenteditable="true"]')) {
+          return;
+        }
+      }
+      const t = e.changedTouches[0];
+      if (!t) {
+        return;
+      }
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      const minTravel = 56;
+      const verticalSlop = 52;
+      if (Math.abs(dx) < minTravel) {
+        return;
+      }
+      if (Math.abs(dy) > verticalSlop && Math.abs(dy) > Math.abs(dx) * 0.85) {
+        return;
+      }
+      const idx = findWorkspaceTabIndex(location.pathname, mobileNavItems);
+      if (idx < 0) {
+        return;
+      }
+      if (dx < 0 && idx < mobileNavItems.length - 1) {
+        navigate(mobileNavItems[idx + 1].to);
+      } else if (dx > 0 && idx > 0) {
+        navigate(mobileNavItems[idx - 1].to);
+      }
+    },
+    [location.pathname, mobileNavItems, navigate],
+  );
+
   if (!session) {
     return (
       <main className="app">
@@ -1763,20 +1857,6 @@ function App() {
   const isFinanceViewer = role === 'ACCOUNTANT' || role === 'DIRECTOR';
   const shiftLabel = isFinanceViewer ? 'Оперативка' : 'Смена';
   const controlLabel = isReadOnlyObserver ? 'Отчёт' : 'Контроль';
-  const mobileNavItems: MobileNavItem[] = isRetoucher
-    ? [{ to: '/home', label: 'Главная', icon: <HomeIcon />, end: true }]
-    : isSellerOnly
-      ? [
-          { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
-          { to: '/shift', label: 'Смена', icon: <ShiftIcon /> },
-        ]
-      : [
-          { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
-          { to: '/shift', label: shiftLabel, icon: <ShiftIcon /> },
-          { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
-          { to: '/team', label: 'Команда', icon: <TeamIcon /> },
-          { to: '/control', label: controlLabel, icon: <ControlIcon /> },
-        ];
 
   return (
     <main className="app appWorkspace">
@@ -1811,7 +1891,11 @@ function App() {
 
         {adminError && <p className="error">{adminError}</p>}
 
-        <div className="pageOutlet">
+        <div
+          className="pageOutlet pageOutletSwipeNav"
+          onTouchStart={onWorkspaceSwipeTouchStart}
+          onTouchEnd={onWorkspaceSwipeTouchEnd}
+        >
           <Routes>
             <Route path="/" element={<Navigate to="/home" replace />} />
             <Route
@@ -2110,8 +2194,46 @@ function App() {
                                               ? 'Перевод'
                                               : 'Наличные'}
                                         </span>
-                                        <span className="saleTotal">
-                                          Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
+                                        <span className="saleHeaderTrailing">
+                                          {role === 'ADMIN' && !sale.pendingSync ? (
+                                            <button
+                                              type="button"
+                                              className="saleDeleteRequestIconBtn"
+                                              title="Запросить у директора удаление этой продажи"
+                                              aria-label="Запросить у директора удаление этой продажи"
+                                              onClick={() => {
+                                                void (async () => {
+                                                  try {
+                                                    await requestSaleDelete(session.token, sale.id);
+                                                  } catch (e) {
+                                                    setSalesNotice(
+                                                      e instanceof Error ? e.message : 'Не удалось отправить запрос',
+                                                    );
+                                                  }
+                                                })();
+                                              }}
+                                            >
+                                              <svg
+                                                className="saleDeleteRequestIconSvg"
+                                                width="14"
+                                                height="14"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                aria-hidden
+                                              >
+                                                <path d="M3 6h18" />
+                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                                <path d="M10 11v6M14 11v6" />
+                                              </svg>
+                                            </button>
+                                          ) : null}
+                                          <span className="saleTotal">
+                                            Итог: {sale.totalAmount.toLocaleString('ru-RU')} ₽
+                                          </span>
                                         </span>
                                       </p>
                                       <ul>
@@ -2121,28 +2243,6 @@ function App() {
                                           </li>
                                         ))}
                                       </ul>
-                                      {role === 'ADMIN' && !sale.pendingSync ? (
-                                        <div className="saleItemFooter">
-                                          <button
-                                            type="button"
-                                            className="saleDeleteRequestBtn"
-                                            title="Отправить директору запрос на удаление этой продажи"
-                                            onClick={() => {
-                                              void (async () => {
-                                                try {
-                                                  await requestSaleDelete(session.token, sale.id);
-                                                } catch (e) {
-                                                  setSalesNotice(
-                                                    e instanceof Error ? e.message : 'Не удалось отправить запрос',
-                                                  );
-                                                }
-                                              })();
-                                            }}
-                                          >
-                                            Запросить удаление
-                                          </button>
-                                        </div>
-                                      ) : null}
                                     </article>
                                   ))}
                                 </div>
@@ -2578,6 +2678,7 @@ function DirectorHomeApprovalsCarousel({
       {banner ? <p className="notice directorApprovalsCarouselBanner">{banner}</p> : null}
       <div
         className="directorApprovalsCarouselViewport"
+        data-no-swipe-nav
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         role="region"

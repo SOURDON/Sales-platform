@@ -1890,6 +1890,50 @@ select {
   margin-left: auto;
 }
 
+.saleHeaderTrailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+.saleHeaderTrailing .saleTotal {
+  margin-left: 0;
+}
+
+.saleDeleteRequestIconBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.saleDeleteRequestIconBtn:hover {
+  color: #64748b;
+  background: rgba(148, 163, 184, 0.15);
+  opacity: 1;
+}
+
+.saleDeleteRequestIconBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(11, 79, 130, 0.35);
+}
+
+.saleDeleteRequestIconSvg {
+  display: block;
+}
+
 .salePendingBadge {
   font-size: 11px;
   font-weight: 600;
@@ -1910,36 +1954,6 @@ select {
 .salesList {
   display: grid;
   gap: 8px;
-}
-
-.saleItemFooter {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed rgba(148, 163, 184, 0.45);
-  display: flex;
-  justify-content: flex-end;
-}
-
-.saleDeleteRequestBtn {
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  color: #64748b;
-  cursor: pointer;
-}
-
-.saleDeleteRequestBtn:hover:not(:disabled) {
-  border-color: #94a3b8;
-  color: #475569;
-}
-
-.saleDeleteRequestBtn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .saleRequestNotice {
@@ -3835,19 +3849,17 @@ h1 {
   color: var(--ui-muted) !important;
 }
 
-.appWorkspace .saleItemFooter {
-  border-top-color: rgba(255, 255, 255, 0.08) !important;
+.appWorkspace .saleDeleteRequestIconBtn {
+  color: rgba(196, 165, 109, 0.45) !important;
 }
 
-.appWorkspace .saleDeleteRequestBtn {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid var(--ui-edge-soft) !important;
-  color: var(--ui-muted) !important;
-}
-
-.appWorkspace .saleDeleteRequestBtn:hover:not(:disabled) {
-  border-color: rgba(212, 182, 123, 0.35) !important;
+.appWorkspace .saleDeleteRequestIconBtn:hover {
   color: var(--ui-gold-soft) !important;
+  background: rgba(212, 182, 123, 0.1) !important;
+}
+
+.appWorkspace .saleDeleteRequestIconBtn:focus-visible {
+  box-shadow: 0 0 0 2px rgba(212, 182, 123, 0.28) !important;
 }
 
 .appWorkspace .salePendingBadge {
