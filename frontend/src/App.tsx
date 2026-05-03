@@ -375,14 +375,6 @@ type ShiftInfo = {
   status: 'OPEN' | 'CLOSED';
 };
 
-type CashDisciplineEvent = {
-  id: string;
-  createdAt: string;
-  type: 'RETURN' | 'CANCEL' | 'ADJUSTMENT';
-  comment: string;
-  createdBy: string;
-};
-
 type GlobalEmployee = {
   id: number;
   fullName: string;
@@ -631,7 +623,6 @@ function App() {
   const [offlineQueueTick, setOfflineQueueTick] = useState(0);
   const [commissionRequests, setCommissionRequests] = useState<CommissionRequest[]>([]);
   const [shifts, setShifts] = useState<ShiftInfo[]>([]);
-  const [cashEvents, setCashEvents] = useState<CashDisciplineEvent[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [globalEmployees, setGlobalEmployees] = useState<GlobalEmployee[]>([]);
   const [thresholds, setThresholds] = useState<ThresholdNotification[]>([]);
@@ -1151,14 +1142,6 @@ function App() {
     setShifts((await response.json()) as ShiftInfo[]);
   };
 
-  const loadCashEvents = async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/cash-discipline`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error('cash events error');
-    setCashEvents((await response.json()) as CashDisciplineEvent[]);
-  };
-
   const loadStaff = async (token: string) => {
     const response = await fetch(`${API_BASE_URL}/admin/staff`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1333,20 +1316,6 @@ function App() {
     await Promise.all([loadShifts(token), loadStaff(token)]);
   };
 
-  const addCashEvent = async (
-    token: string,
-    type: 'RETURN' | 'CANCEL' | 'ADJUSTMENT',
-    comment: string,
-  ) => {
-    const response = await fetch(`${API_BASE_URL}/admin/cash-discipline`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ type, comment }),
-    });
-    if (!response.ok) throw new Error('cash event error');
-    await loadCashEvents(token);
-  };
-
   const addStaffMember = async (token: string, fullName: string, nickname: string) => {
     const response = await fetch(`${API_BASE_URL}/admin/staff`, {
       method: 'POST',
@@ -1469,13 +1438,8 @@ function App() {
         ]);
 
         if (data.user.role === 'ADMIN') {
-          await Promise.allSettled([
-            loadCashEvents(data.token),
-            loadThresholds(data.token),
-            loadAuditLog(data.token),
-          ]);
+          await Promise.allSettled([loadThresholds(data.token), loadAuditLog(data.token)]);
         } else {
-          setCashEvents([]);
           setThresholds([]);
           setAuditLog([]);
         }
@@ -1520,7 +1484,6 @@ function App() {
         setProductProcurementCosts([]);
         setCommissionRequests([]);
         setShifts([]);
-        setCashEvents([]);
         setStaff([]);
         setThresholds([]);
         setAuditLog([]);
@@ -1545,7 +1508,6 @@ function App() {
       setProductProcurementCosts([]);
       setCommissionRequests([]);
       setShifts([]);
-      setCashEvents([]);
       setStaff([]);
       setGlobalEmployees([]);
       setThresholds([]);
@@ -1575,7 +1537,6 @@ function App() {
     setProductProcurementCosts([]);
     setCommissionRequests([]);
     setShifts([]);
-    setCashEvents([]);
     setStaff([]);
     setThresholds([]);
     setAuditLog([]);
@@ -2192,14 +2153,6 @@ function App() {
                       </>
                     ) : (
                       <>
-                        <section className="sectionCard">
-                          <CashDisciplinePanel
-                            token={session.token}
-                            events={cashEvents}
-                            readOnly={isReadOnlyObserver}
-                            onAdd={addCashEvent}
-                          />
-                        </section>
                         <section className="sectionCard">
                           <WriteOffForm
                             products={products}
@@ -3201,69 +3154,6 @@ function ShiftPanel({
   );
 }
 
-function CashDisciplinePanel({
-  token,
-  events,
-  readOnly,
-  onAdd,
-}: {
-  token: string;
-  events: CashDisciplineEvent[];
-  readOnly?: boolean;
-  onAdd: (
-    token: string,
-    type: 'RETURN' | 'CANCEL' | 'ADJUSTMENT',
-    comment: string,
-  ) => Promise<void>;
-}) {
-  const [type, setType] = useState<'RETURN' | 'CANCEL' | 'ADJUSTMENT'>('RETURN');
-  const [comment, setComment] = useState('');
-  return (
-    <div className="opsCard">
-      <h4>Кассовая дисциплина</h4>
-      {!readOnly && (
-        <div className="inlineGrid">
-          <label>
-            Тип
-            <select
-              value={type}
-              onChange={(event) =>
-                setType(event.target.value as 'RETURN' | 'CANCEL' | 'ADJUSTMENT')
-              }
-            >
-              <option value="RETURN">Возврат</option>
-              <option value="CANCEL">Отмена</option>
-              <option value="ADJUSTMENT">Корректировка</option>
-            </select>
-          </label>
-          <label>
-            Комментарий (обязательно)
-            <input value={comment} onChange={(event) => setComment(event.target.value)} />
-          </label>
-          <button
-            className="primaryAction"
-            type="button"
-            onClick={async () => {
-              await onAdd(token, type, comment);
-              setComment('');
-            }}
-          >
-            Добавить
-          </button>
-        </div>
-      )}
-      <div className="opsList">
-        {events.map((event) => (
-          <p key={event.id}>
-            {new Date(event.createdAt).toLocaleString('ru-RU')} | {event.type} | {event.comment} |{' '}
-            {event.createdBy}
-          </p>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function TeamMemberCard({
   token,
   member,
@@ -4087,30 +3977,31 @@ function DirectorWarehousePanel({
 
   return (
     <div className="invGlassRoot directorWarehouseRoot">
-      <div className="invGlassShell">
-        <header className="invGlassHeader">
-          <div className="invGlassHeaderText">
-            <h3 className="invGlassTitle">Склад и остатки</h3>
-            <p className="invGlassSubtitle">
-              Склад, сумма по точкам и итог по каталогу продаж. Пополнение только склад; на точки — из «Контроля» у
-              админа точки.
-            </p>
-          </div>
-          <button type="button" className="invGhostBtn" onClick={() => void handleRefresh()} disabled={refreshing}>
-            {refreshing ? '…' : 'Обновить'}
+      <div className="invGlassShell directorWarehouseShell">
+        <header className="invGlassHeader directorWarehouseHeader">
+          <h3 className="invGlassTitle directorWarehouseTitle">Склад и остатки</h3>
+          <button
+            type="button"
+            className="invGhostBtn directorWarehouseRefreshBtn"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            aria-label="Обновить"
+            title="Обновить"
+          >
+            {refreshing ? '…' : '↻'}
           </button>
         </header>
 
-        <div className="invSummaryChips" aria-label="Сводка по остаткам">
-          <div className="invChip">
+        <div className="invSummaryChips directorWarehouseSummary" aria-label="Сводка по остаткам">
+          <div className="invChip directorWarehouseSummaryCell">
             <span className="invChipLabel">На складе</span>
             <span className="invChipValue">{totals.warehouse}</span>
           </div>
-          <div className="invChip">
+          <div className="invChip directorWarehouseSummaryCell">
             <span className="invChipLabel">В точках</span>
             <span className="invChipValue">{totals.inStores}</span>
           </div>
-          <div className="invChip invChipAccent">
+          <div className="invChip invChipAccent directorWarehouseSummaryCell directorWarehouseSummaryTotal">
             <span className="invChipLabel">Всего</span>
             <span className="invChipValue">{totals.grand}</span>
           </div>
@@ -4123,7 +4014,7 @@ function DirectorWarehousePanel({
         ) : null}
         {status ? <p className="invInlineOk">{status}</p> : null}
 
-        <div className="invTableScroll invTableScrollFit">
+        <div className="invTableScroll invTableScrollFit directorWarehouseTableWrap">
           <table className="invTable invTableWarehouse">
             <thead>
               <tr>
@@ -4137,8 +4028,10 @@ function DirectorWarehousePanel({
                 <th className="invThNum" scope="col">
                   Всего
                 </th>
-                <th className="invThAction" scope="col" title="Пополнить центральный склад">
-                  <span className="invThActionHead">Добавить</span>
+                <th className="invThAction" scope="col" title="Пополнить склад" aria-label="Добавить на склад">
+                  <span className="invThGlyph directorWarehouseThGlyph" aria-hidden>
+                    +
+                  </span>
                 </th>
               </tr>
             </thead>
@@ -4154,18 +4047,18 @@ function DirectorWarehousePanel({
                   <tr key={row.name}>
                     <td className="invTdName">{row.name}</td>
                     <td className="invTdNum">
-                      <span className="invQtyPill">{row.qtyWarehouse}</span>
+                      <span className="dwQty">{row.qtyWarehouse}</span>
                     </td>
                     <td className="invTdNum">
-                      <span className="invQtyPill invQtyPillMuted">{row.qtyInStores}</span>
+                      <span className="dwQty dwQtyMuted">{row.qtyInStores}</span>
                     </td>
                     <td className="invTdNum">
-                      <span className="invQtyTotal">{row.qtyGrandTotal}</span>
+                      <span className="dwQty dwQtyTotal">{row.qtyGrandTotal}</span>
                     </td>
                     <td className="invTdAction">
-                      <div className="invActionRow invActionRowTight">
+                      <div className="invActionRow invActionRowTight directorWarehouseActions">
                         <input
-                          className="invQtyInput invQtyInputTight"
+                          className="invQtyInput invQtyInputTight dwQtyInput"
                           inputMode="numeric"
                           placeholder="шт"
                           value={draft[row.name] ?? ''}
@@ -4176,7 +4069,7 @@ function DirectorWarehousePanel({
                         />
                         <button
                           type="button"
-                          className="invPrimaryMini invPrimaryMiniTight"
+                          className="invPrimaryMini invPrimaryMiniTight dwApplyBtn"
                           disabled={busyName === row.name}
                           title="Пополнить склад"
                           onClick={() => void handleReplenish(row.name)}
@@ -4253,12 +4146,6 @@ function StoreInventoryControlPanel({
             <p className="storeInvMetaLine" title={storeName}>
               <strong>{storeName}</strong>
             </p>
-            <p
-              className="storeInvHintLine"
-              title="Тот же каталог, что в «Продажах». Приход со склада директора; продажа и списания уменьшают остаток здесь."
-            >
-              Как в «Продажах» · приход со склада директора
-            </p>
           </div>
           <button
             type="button"
@@ -4313,15 +4200,15 @@ function StoreInventoryControlPanel({
                   <tr key={row.name}>
                     <td className="invTdName">{row.name}</td>
                     <td className="invTdNum">
-                      <span className="invQtyPill">{row.qtyInStore}</span>
+                      <span className="siQty">{row.qtyInStore}</span>
                     </td>
                     <td className="invTdNum">
-                      <span className="invQtyPill invQtyPillMuted">{row.qtyOnWarehouse}</span>
+                      <span className="siQty siQtyMuted">{row.qtyOnWarehouse}</span>
                     </td>
                     <td className="invTdAction">
-                      <div className="invActionRow invActionRowTight">
+                      <div className="invActionRow invActionRowTight storeInvActions">
                         <input
-                          className="invQtyInput invQtyInputTight"
+                          className="invQtyInput invQtyInputTight siQtyInput"
                           inputMode="numeric"
                           placeholder="шт"
                           value={draft[row.name] ?? ''}
@@ -4332,7 +4219,7 @@ function StoreInventoryControlPanel({
                         />
                         <button
                           type="button"
-                          className="invPrimaryMini invPrimaryMiniTight"
+                          className="invPrimaryMini invPrimaryMiniTight siApplyBtn"
                           disabled={busyName === row.name || row.qtyOnWarehouse <= 0}
                           title="Принять на точку"
                           onClick={() => void handleReceive(row.name)}
