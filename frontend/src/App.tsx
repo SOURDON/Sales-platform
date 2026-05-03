@@ -650,17 +650,6 @@ function App() {
   const [inventoryOverview, setInventoryOverview] = useState<InventoryOverviewResponse | null>(null);
   const [storeInventory, setStoreInventory] = useState<StoreInventoryDetailResponse | null>(null);
 
-  const storeSaleQtyByName = useMemo(() => {
-    if (!storeInventory) {
-      return null;
-    }
-    const map: Record<string, number> = {};
-    for (const row of storeInventory.products) {
-      map[row.name] = row.qtyInStore;
-    }
-    return map;
-  }, [storeInventory]);
-
   const pendingOfflineSales = useMemo(() => {
     if (!session?.user?.id) {
       return [] as AdminSale[];
@@ -1674,7 +1663,7 @@ function App() {
     if ((r === 'DIRECTOR' || r === 'ACCOUNTANT') && location.pathname === '/sales') {
       void loadInventoryOverview(session.token);
     }
-    if (r === 'ADMIN' && (location.pathname === '/sales' || location.pathname === '/control')) {
+    if (r === 'ADMIN' && location.pathname === '/control') {
       void loadStoreInventory(session.token);
     }
   }, [loadInventoryOverview, loadStoreInventory, location.pathname, session]);
@@ -2028,7 +2017,6 @@ function App() {
                                 })()}
                                 hasOpenShift={shifts.some((s) => s.status === 'OPEN')}
                                 products={products}
-                                storeQtyByName={role === 'ADMIN' ? storeSaleQtyByName : null}
                                 token={session.token}
                                 onAddSale={addSale}
                               />
@@ -2277,14 +2265,12 @@ function AddSaleForm({
   sellers,
   hasOpenShift,
   products,
-  storeQtyByName,
   token,
   onAddSale,
 }: {
   sellers: SellerProfile[];
   hasOpenShift: boolean;
   products: ProductItem[];
-  storeQtyByName?: Record<string, number> | null;
   token: string;
   onAddSale: (
     token: string,
@@ -2419,27 +2405,19 @@ function AddSaleForm({
       </div>
       {formError && <p className="error">{formError}</p>}
       <div className="productGrid">
-        {products.map((item) => {
-          const onHand = storeQtyByName?.[item.name];
-          return (
-            <label key={item.name} className="productCell">
-              <div className="productRow">
-                <span className="productName">{item.name}</span>
-                <input
-                  inputMode="numeric"
-                  value={qty[item.name] ?? ''}
-                  onChange={(event) => updateQty(item.name, event.target.value)}
-                  placeholder="0"
-                />
-              </div>
-              {onHand !== undefined && onHand !== null ? (
-                <span className="productStockHint" title="Остаток на этой точке (не в смене — списание при продаже)">
-                  На точке: <strong>{onHand}</strong> шт.
-                </span>
-              ) : null}
-            </label>
-          );
-        })}
+        {products.map((item) => (
+          <label key={item.name} className="productCell">
+            <div className="productRow">
+              <span className="productName">{item.name}</span>
+              <input
+                inputMode="numeric"
+                value={qty[item.name] ?? ''}
+                onChange={(event) => updateQty(item.name, event.target.value)}
+                placeholder="0"
+              />
+            </div>
+          </label>
+        ))}
       </div>
       <button
         className="primaryAction addSaleSubmitBottom"
@@ -4114,8 +4092,8 @@ function DirectorWarehousePanel({
           <div className="invGlassHeaderText">
             <h3 className="invGlassTitle">Склад и остатки</h3>
             <p className="invGlassSubtitle">
-              Остатки по каталогу продаж: центральный склад, сумма по точкам и общий итог. Пополнение увеличивает только
-              склад — на точки товар уходит из раздела «Контроль» у администратора точки.
+              Склад, сумма по точкам и итог по каталогу продаж. Пополнение только склад; на точки — из «Контроля» у
+              админа точки.
             </p>
           </div>
           <button type="button" className="invGhostBtn" onClick={() => void handleRefresh()} disabled={refreshing}>
@@ -4145,22 +4123,29 @@ function DirectorWarehousePanel({
         ) : null}
         {status ? <p className="invInlineOk">{status}</p> : null}
 
-        <div className="invTableScroll">
-          <table className="invTable">
+        <div className="invTableScroll invTableScrollFit">
+          <table className="invTable invTableWarehouse">
             <thead>
               <tr>
-                <th>Товар</th>
-                <th className="invThNum">Цена</th>
-                <th className="invThNum">Склад</th>
-                <th className="invThNum">В точках</th>
-                <th className="invThNum">Всего</th>
-                <th className="invThAction">Пополнить склад</th>
+                <th scope="col">Товар</th>
+                <th className="invThNum" scope="col" title="Центральный склад">
+                  Склад
+                </th>
+                <th className="invThNum" scope="col" title="Сумма по всем точкам">
+                  Точки
+                </th>
+                <th className="invThNum" scope="col">
+                  Всего
+                </th>
+                <th className="invThAction" scope="col" title="Пополнить центральный склад">
+                  <span className="invThActionHead">Добавить</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="invTableEmpty">
+                  <td colSpan={5} className="invTableEmpty">
                     {overview ? 'Нет позиций в каталоге' : 'Загрузка остатков…'}
                   </td>
                 </tr>
@@ -4168,7 +4153,6 @@ function DirectorWarehousePanel({
                 rows.map((row) => (
                   <tr key={row.name}>
                     <td className="invTdName">{row.name}</td>
-                    <td className="invTdNum">{row.price.toLocaleString('ru-RU')} ₽</td>
                     <td className="invTdNum">
                       <span className="invQtyPill">{row.qtyWarehouse}</span>
                     </td>
@@ -4176,14 +4160,14 @@ function DirectorWarehousePanel({
                       <span className="invQtyPill invQtyPillMuted">{row.qtyInStores}</span>
                     </td>
                     <td className="invTdNum">
-                      <strong>{row.qtyGrandTotal}</strong>
+                      <span className="invQtyTotal">{row.qtyGrandTotal}</span>
                     </td>
                     <td className="invTdAction">
-                      <div className="invActionRow">
+                      <div className="invActionRow invActionRowTight">
                         <input
-                          className="invQtyInput"
+                          className="invQtyInput invQtyInputTight"
                           inputMode="numeric"
-                          placeholder="+шт"
+                          placeholder="шт"
                           value={draft[row.name] ?? ''}
                           onChange={(event) =>
                             setDraft((current) => ({ ...current, [row.name]: event.target.value }))
@@ -4192,11 +4176,12 @@ function DirectorWarehousePanel({
                         />
                         <button
                           type="button"
-                          className="invPrimaryMini"
+                          className="invPrimaryMini invPrimaryMiniTight"
                           disabled={busyName === row.name}
+                          title="Пополнить склад"
                           onClick={() => void handleReplenish(row.name)}
                         >
-                          {busyName === row.name ? '…' : 'Пополнить'}
+                          {busyName === row.name ? '…' : 'Ок'}
                         </button>
                       </div>
                     </td>
@@ -4260,40 +4245,60 @@ function StoreInventoryControlPanel({
   };
 
   return (
-    <div className="invGlassRoot storeInventoryRoot">
-      <div className="invGlassShell">
-        <header className="invGlassHeader">
-          <div className="invGlassHeaderText">
-            <h3 className="invGlassTitle">Учёт товара на точке</h3>
-            <p className="invGlassSubtitle">
-              Тот же каталог, что во вкладке «Продажи». Приход — со склада аккаунта директора; продажа и списания
-              уменьшают остаток в магазине.
+    <div className="invGlassRoot storeInventoryRoot storeInventoryPanel">
+      <div className="invGlassShell storeInventoryShell">
+        <header className="invGlassHeader storeInventoryHeader">
+          <div className="invGlassHeaderText storeInventoryHeaderText">
+            <h3 className="invGlassTitle">Учёт на точке</h3>
+            <p className="storeInvMetaLine" title={storeName}>
+              <strong>{storeName}</strong>
+            </p>
+            <p
+              className="storeInvHintLine"
+              title="Тот же каталог, что в «Продажах». Приход со склада директора; продажа и списания уменьшают остаток здесь."
+            >
+              Как в «Продажах» · приход со склада директора
             </p>
           </div>
-          <button type="button" className="invGhostBtn" onClick={() => void handleRefresh()} disabled={refreshing}>
-            {refreshing ? '…' : 'Обновить'}
+          <button
+            type="button"
+            className="invGhostBtn storeInventoryRefreshBtn"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            aria-label="Обновить остатки"
+            title="Обновить"
+          >
+            {refreshing ? '…' : '↻'}
           </button>
         </header>
 
-        <p className="invStoreBadge">
-          Точка: <strong>{storeName}</strong>
-        </p>
-
         {error ? (
-          <p className="invInlineError" role="alert">
+          <p className="invInlineError storeInvMessage" role="alert">
             {error}
           </p>
         ) : null}
-        {status ? <p className="invInlineOk">{status}</p> : null}
+        {status ? (
+          <p className="invInlineOk storeInvMessage" title={status}>
+            {status}
+          </p>
+        ) : null}
 
-        <div className="invTableScroll">
-          <table className="invTable">
+        <div className="invTableScroll invTableScrollFit storeInventoryTableWrap">
+          <table className="invTable invTableStore">
             <thead>
               <tr>
-                <th>Товар</th>
-                <th className="invThNum">В магазине</th>
-                <th className="invThNum">На складе</th>
-                <th className="invThAction">Принять со склада</th>
+                <th scope="col">Товар</th>
+                <th className="invThNum" scope="col" title="Остаток в магазине">
+                  У вас
+                </th>
+                <th className="invThNum" scope="col" title="На центральном складе">
+                  Склад
+                </th>
+                <th className="invThAction" scope="col" title="Принять со склада на точку" aria-label="Принять">
+                  <span className="invThGlyph" aria-hidden>
+                    +
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -4314,9 +4319,9 @@ function StoreInventoryControlPanel({
                       <span className="invQtyPill invQtyPillMuted">{row.qtyOnWarehouse}</span>
                     </td>
                     <td className="invTdAction">
-                      <div className="invActionRow">
+                      <div className="invActionRow invActionRowTight">
                         <input
-                          className="invQtyInput"
+                          className="invQtyInput invQtyInputTight"
                           inputMode="numeric"
                           placeholder="шт"
                           value={draft[row.name] ?? ''}
@@ -4327,11 +4332,12 @@ function StoreInventoryControlPanel({
                         />
                         <button
                           type="button"
-                          className="invPrimaryMini"
+                          className="invPrimaryMini invPrimaryMiniTight"
                           disabled={busyName === row.name || row.qtyOnWarehouse <= 0}
+                          title="Принять на точку"
                           onClick={() => void handleReceive(row.name)}
                         >
-                          {busyName === row.name ? '…' : 'Принять'}
+                          {busyName === row.name ? '…' : 'Ок'}
                         </button>
                       </div>
                     </td>
