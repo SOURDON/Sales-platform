@@ -125,6 +125,71 @@ export class AdminController {
     return this.authService.productCatalog;
   }
 
+  @Get('inventory/overview')
+  getInventoryOverview(@Headers('authorization') authorization?: string) {
+    this.requireDirectorOrAccountantAccess(authorization);
+    return this.authService.getInventoryOverview();
+  }
+
+  @Get('inventory/my-store')
+  getInventoryMyStore(@Headers('authorization') authorization?: string) {
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'ADMIN') {
+      throw new ForbiddenException('Остатки точки доступны только администратору магазина');
+    }
+    const storeName = this.authService.getStoreNameForNickname(session.nickname);
+    if (!storeName) {
+      throw new BadRequestException('Не удалось определить точку');
+    }
+    const data = this.authService.getStoreInventoryDetail(storeName);
+    if (!data) {
+      throw new BadRequestException('Неизвестная точка');
+    }
+    return data;
+  }
+
+  @Post('inventory/warehouse/replenish')
+  replenishWarehouse(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { name?: string; qty?: number },
+  ) {
+    const session = this.requireDirectorOrAccountantAccess(authorization);
+    const result = this.authService.replenishWarehouseStock(
+      String(body.name ?? ''),
+      Number(body.qty),
+      session.nickname,
+    );
+    if (!result) {
+      throw new BadRequestException('Укажите товар из каталога и положительное количество');
+    }
+    return result;
+  }
+
+  @Post('inventory/transfer-from-warehouse')
+  transferFromWarehouse(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { storeName?: string; name?: string; qty?: number },
+  ) {
+    const session = this.requireInventoryTransferAccess(authorization);
+    const storeName = body.storeName?.trim();
+    const name = body.name?.trim();
+    const qty = Number(body.qty);
+    if (!storeName || !name || !Number.isFinite(qty)) {
+      throw new BadRequestException('Нужны storeName, name и qty');
+    }
+    if (session.role === 'ADMIN') {
+      const mine = this.authService.getStoreNameForNickname(session.nickname);
+      if (mine !== storeName) {
+        throw new ForbiddenException('Можно принимать товар только на свою точку');
+      }
+    }
+    const result = this.authService.transferWarehouseToStore(storeName, name, qty, session.nickname);
+    if (!result) {
+      throw new BadRequestException('Недостаточно товара на центральном складе или неверные данные');
+    }
+    return result;
+  }
+
   @Get('products/procurement-costs')
   getProductProcurementCosts(@Headers('authorization') authorization?: string) {
     this.requireFinanceRead(authorization);
@@ -595,7 +660,7 @@ export class AdminController {
     );
     if (!result) {
       throw new BadRequestException(
-        'Нельзя оформить продажу: нет открытой смены, неверные позиции, или продавец не в текущей смене. В разделе «Смена» сначала откройте смену и добавьте продавцов.',
+        'Нельзя оформить продажу: нет открытой смены, неверные позиции, продавец не в текущей смене или недостаточно товара на складе точки. В разделе «Смена» откройте смену; в «Контроле» пополните остаток со склада.',
       );
     }
     return result as unknown;
@@ -621,7 +686,9 @@ export class AdminController {
       session.nickname,
     );
     if (!result) {
-      throw new BadRequestException('Invalid write-off data');
+      throw new BadRequestException(
+        'Не удалось списать: проверьте товар, количество и остаток на точке (списание только для администратора магазина).',
+      );
     }
     return result as unknown;
   }
@@ -698,6 +765,23 @@ export class AdminController {
   }
 
   /** Снятие сотрудника с точки: админ своей точки, директор и бухгалтер (с указанием storeName в теле). */
+  private requireInventoryTransferAccess(authorization?: string) {
+    const token = authorization?.replace('Bearer ', '').trim();
+    if (!token) {
+      throw new UnauthorizedException('Missing token');
+    }
+    const session = this.authService.parseToken(token);
+    if (
+      !session ||
+      (session.role !== 'ADMIN' &&
+        session.role !== 'DIRECTOR' &&
+        session.role !== 'ACCOUNTANT')
+    ) {
+      throw new UnauthorizedException('Only admin, director, or accountant allowed');
+    }
+    return session;
+  }
+
   private requireRemoveFromStoreAccess(authorization?: string) {
     const token = authorization?.replace('Bearer ', '').trim();
     if (!token) {

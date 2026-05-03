@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import './App.css';
 import { appendOfflineSale, readOfflineQueue, writeOfflineQueue, type OfflineQueuedSale } from './offlineSalesQueue';
@@ -253,6 +253,29 @@ type CommissionRequest = {
 };
 
 type ProductItem = { name: string; price: number };
+
+type InventoryOverviewResponse = {
+  warehouseKey: string;
+  storeNames: string[];
+  products: Array<{
+    name: string;
+    price: number;
+    qtyWarehouse: number;
+    qtyInStores: number;
+    qtyGrandTotal: number;
+  }>;
+};
+
+type StoreInventoryDetailResponse = {
+  storeName: string;
+  warehouseKey: string;
+  products: Array<{
+    name: string;
+    price: number;
+    qtyInStore: number;
+    qtyOnWarehouse: number;
+  }>;
+};
 type ProductProcurementCost = { name: string; cost: number };
 type StoreRevenuePlan = { dayKey: string; storeName: string; planRevenue: number };
 type AddSalePaymentType = 'CASH' | 'NON_CASH' | 'TRANSFER';
@@ -590,6 +613,7 @@ function ControlIcon() {
 
 function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const restoredSession = useMemo(() => readStoredSession(), []);
   const restoredPersistence = useMemo(() => readSessionPersistence(), []);
   const [nickname, setNickname] = useState('');
@@ -623,6 +647,19 @@ function App() {
     incomes: [],
     totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
   });
+  const [inventoryOverview, setInventoryOverview] = useState<InventoryOverviewResponse | null>(null);
+  const [storeInventory, setStoreInventory] = useState<StoreInventoryDetailResponse | null>(null);
+
+  const storeSaleQtyByName = useMemo(() => {
+    if (!storeInventory) {
+      return null;
+    }
+    const map: Record<string, number> = {};
+    for (const row of storeInventory.products) {
+      map[row.name] = row.qtyInStore;
+    }
+    return map;
+  }, [storeInventory]);
 
   const pendingOfflineSales = useMemo(() => {
     if (!session?.user?.id) {
@@ -740,6 +777,71 @@ function App() {
     }
     const data = (await response.json()) as ProductItem[];
     setProducts(data);
+  };
+
+  const loadInventoryOverview = useCallback(async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/inventory/overview`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      setInventoryOverview(null);
+      return;
+    }
+    setInventoryOverview((await response.json()) as InventoryOverviewResponse);
+  }, []);
+
+  const loadStoreInventory = useCallback(async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/inventory/my-store`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      setStoreInventory(null);
+      return;
+    }
+    setStoreInventory((await response.json()) as StoreInventoryDetailResponse);
+  }, []);
+
+  const replenishWarehouse = async (token: string, name: string, qtyStr: string) => {
+    const qty = Number(String(qtyStr).replace(',', '.'));
+    if (!Number.isFinite(qty) || qty <= 0) {
+      throw new Error('Укажите количество больше нуля');
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/inventory/warehouse/replenish`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name, qty }),
+    });
+    if (!response.ok) {
+      throw new Error('Не удалось пополнить склад');
+    }
+    await loadInventoryOverview(token);
+  };
+
+  const transferFromWarehouseToStore = async (
+    token: string,
+    storeName: string,
+    name: string,
+    qtyStr: string,
+  ) => {
+    const qty = Number(String(qtyStr).replace(',', '.'));
+    if (!Number.isFinite(qty) || qty <= 0) {
+      throw new Error('Укажите количество больше нуля');
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/inventory/transfer-from-warehouse`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ storeName, name, qty }),
+    });
+    if (!response.ok) {
+      throw new Error('Не удалось принять товар со склада');
+    }
+    await loadStoreInventory(token);
   };
 
   const loadProductProcurementCosts = useCallback(async (token: string) => {
@@ -1191,6 +1293,9 @@ function App() {
     try {
       await loadSellers(token);
       await loadSales(token);
+      if (session?.user.role === 'ADMIN') {
+        await loadStoreInventory(token);
+      }
     } catch {
       // продажа уже записана на сервере; список обновится при следующей загрузке или офлайн-синке
     }
@@ -1214,6 +1319,9 @@ function App() {
       throw new Error('write-off error');
     }
     await loadDashboard(token);
+    if (session?.user.role === 'ADMIN') {
+      await loadStoreInventory(token);
+    }
   };
 
   const openShift = async (token: string, assignedSellerIds: number[]) => {
@@ -1364,6 +1472,13 @@ function App() {
           loadGlobalEmployees(data.token),
         ]);
 
+        await Promise.allSettled([
+          ...(data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT'
+            ? [loadInventoryOverview(data.token)]
+            : []),
+          ...(data.user.role === 'ADMIN' ? [loadStoreInventory(data.token)] : []),
+        ]);
+
         if (data.user.role === 'ADMIN') {
           await Promise.allSettled([
             loadCashEvents(data.token),
@@ -1429,6 +1544,8 @@ function App() {
           incomes: [],
           totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
         });
+        setInventoryOverview(null);
+        setStoreInventory(null);
       }
     } catch {
       setSession(null);
@@ -1447,6 +1564,8 @@ function App() {
       setAcquiringPercent('1.8');
       setAcquiringPercentDetkov('1.8');
       setAcquiringPercentPutintsevSber('1.8');
+      setInventoryOverview(null);
+      setStoreInventory(null);
       setError(
         'Не удалось войти. Проверьте логин/пароль, что backend запущен, в Vercel задан VITE_API_URL (https://…), в Render у backend в CORS_ORIGIN — адрес фронта.',
       );
@@ -1480,6 +1599,8 @@ function App() {
       incomes: [],
       totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
     });
+    setInventoryOverview(null);
+    setStoreInventory(null);
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
     window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     window.localStorage.removeItem(SESSION_PERSISTENCE_KEY);
@@ -1535,9 +1656,28 @@ function App() {
           loadStaff(session.token),
           loadGlobalEmployees(session.token),
         ]);
+        await Promise.allSettled([
+          ...(session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT'
+            ? [loadInventoryOverview(session.token)]
+            : []),
+          ...(session.user.role === 'ADMIN' ? [loadStoreInventory(session.token)] : []),
+        ]);
       }
     })();
-  }, [loadProductProcurementCosts, restoredSession, session]);
+  }, [loadInventoryOverview, loadProductProcurementCosts, loadStoreInventory, restoredSession, session]);
+
+  useEffect(() => {
+    if (!session?.token) {
+      return;
+    }
+    const r = session.user.role;
+    if ((r === 'DIRECTOR' || r === 'ACCOUNTANT') && location.pathname === '/sales') {
+      void loadInventoryOverview(session.token);
+    }
+    if (r === 'ADMIN' && (location.pathname === '/sales' || location.pathname === '/control')) {
+      void loadStoreInventory(session.token);
+    }
+  }, [loadInventoryOverview, loadStoreInventory, location.pathname, session]);
 
   if (!session) {
     return (
@@ -1888,6 +2028,7 @@ function App() {
                                 })()}
                                 hasOpenShift={shifts.some((s) => s.status === 'OPEN')}
                                 products={products}
+                                storeQtyByName={role === 'ADMIN' ? storeSaleQtyByName : null}
                                 token={session.token}
                                 onAddSale={addSale}
                               />
@@ -1897,23 +2038,33 @@ function App() {
                       </>
                     )}
                     {isFinanceViewer ? (
-                      <section className="sectionCard">
-                        <AccountantProcurementPanel
-                          token={session.token}
-                          products={products}
-                          procurementCosts={productProcurementCosts}
-                          acquiringPercent={acquiringPercent}
-                          acquiringPercentDetkov={acquiringPercentDetkov}
-                          acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
-                          onAcquiringPercentChange={setAcquiringPercent}
-                          onAcquiringPercentDetkovChange={setAcquiringPercentDetkov}
-                          onAcquiringPercentPutintsevSberChange={setAcquiringPercentPutintsevSber}
-                          onSaveAcquiringPercent={saveAcquiringPercent}
-                          onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
-                          onSaveAcquiringPercentPutintsevSber={saveAcquiringPercentPutintsevSber}
-                          onSave={saveProductProcurementCosts}
-                        />
-                      </section>
+                      <>
+                        <section className="sectionCard inventorySectionCard">
+                          <DirectorWarehousePanel
+                            token={session.token}
+                            overview={inventoryOverview}
+                            onReload={() => loadInventoryOverview(session.token)}
+                            onReplenish={replenishWarehouse}
+                          />
+                        </section>
+                        <section className="sectionCard">
+                          <AccountantProcurementPanel
+                            token={session.token}
+                            products={products}
+                            procurementCosts={productProcurementCosts}
+                            acquiringPercent={acquiringPercent}
+                            acquiringPercentDetkov={acquiringPercentDetkov}
+                            acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
+                            onAcquiringPercentChange={setAcquiringPercent}
+                            onAcquiringPercentDetkovChange={setAcquiringPercentDetkov}
+                            onAcquiringPercentPutintsevSberChange={setAcquiringPercentPutintsevSber}
+                            onSaveAcquiringPercent={saveAcquiringPercent}
+                            onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
+                            onSaveAcquiringPercentPutintsevSber={saveAcquiringPercentPutintsevSber}
+                            onSave={saveProductProcurementCosts}
+                          />
+                        </section>
+                      </>
                     ) : (
                       <>
                         <section className="sectionCard">
@@ -2068,6 +2219,17 @@ function App() {
                             onAddWriteOff={addWriteOff}
                           />
                         </section>
+                        {role === 'ADMIN' && (
+                          <section className="sectionCard inventorySectionCard">
+                            <StoreInventoryControlPanel
+                              token={session.token}
+                              detail={storeInventory}
+                              storeName={session.user.storeName}
+                              onReload={() => loadStoreInventory(session.token)}
+                              onReceiveFromWarehouse={transferFromWarehouseToStore}
+                            />
+                          </section>
+                        )}
                         {role !== 'ADMIN' && (
                           <section className="sectionCard">
                             <ThresholdPanel notifications={thresholds} />
@@ -2115,12 +2277,14 @@ function AddSaleForm({
   sellers,
   hasOpenShift,
   products,
+  storeQtyByName,
   token,
   onAddSale,
 }: {
   sellers: SellerProfile[];
   hasOpenShift: boolean;
   products: ProductItem[];
+  storeQtyByName?: Record<string, number> | null;
   token: string;
   onAddSale: (
     token: string,
@@ -2255,19 +2419,27 @@ function AddSaleForm({
       </div>
       {formError && <p className="error">{formError}</p>}
       <div className="productGrid">
-        {products.map((item) => (
-          <label key={item.name} className="productCell">
-            <div className="productRow">
-              <span className="productName">{item.name}</span>
-              <input
-                inputMode="numeric"
-                value={qty[item.name] ?? ''}
-                onChange={(event) => updateQty(item.name, event.target.value)}
-                placeholder="0"
-              />
-            </div>
-          </label>
-        ))}
+        {products.map((item) => {
+          const onHand = storeQtyByName?.[item.name];
+          return (
+            <label key={item.name} className="productCell">
+              <div className="productRow">
+                <span className="productName">{item.name}</span>
+                <input
+                  inputMode="numeric"
+                  value={qty[item.name] ?? ''}
+                  onChange={(event) => updateQty(item.name, event.target.value)}
+                  placeholder="0"
+                />
+              </div>
+              {onHand !== undefined && onHand !== null ? (
+                <span className="productStockHint" title="Остаток на этой точке (не в смене — списание при продаже)">
+                  На точке: <strong>{onHand}</strong> шт.
+                </span>
+              ) : null}
+            </label>
+          );
+        })}
       </div>
       <button
         className="primaryAction addSaleSubmitBottom"
@@ -2494,24 +2666,22 @@ function FinanceOpsPanel({
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
 
   const expenseTotalsByArticle = useMemo(() => {
-    const fromData = new Map<string, number>();
-    for (const e of snapshot.expenses) {
-      const t = (e.title ?? '').trim() || 'Без статьи';
-      const prev = fromData.get(t) ?? 0;
-      fromData.set(t, Math.round((prev + e.amount) * 100) / 100);
-    }
-    const rows: { title: string; total: number }[] = [];
+    const canonical = new Set<string>(FINANCE_EXPENSE_CATEGORY_LABELS);
+    const totals = new Map<string, number>();
     for (const label of FINANCE_EXPENSE_CATEGORY_LABELS) {
-      rows.push({ title: label, total: fromData.get(label) ?? 0 });
-      fromData.delete(label);
+      totals.set(label, 0);
     }
-    const rest = [...fromData.entries()].sort((a, b) =>
-      a[0].localeCompare(b[0], 'ru-RU', { sensitivity: 'base' }),
-    );
-    for (const [title, total] of rest) {
-      rows.push({ title, total });
+    const misc = 'Прочие траты';
+    for (const e of snapshot.expenses) {
+      const raw = (e.title ?? '').trim() || misc;
+      const bucket = canonical.has(raw) ? raw : misc;
+      const prev = totals.get(bucket) ?? 0;
+      totals.set(bucket, Math.round((prev + e.amount) * 100) / 100);
     }
-    return rows;
+    return FINANCE_EXPENSE_CATEGORY_LABELS.map((label) => ({
+      title: label,
+      total: totals.get(label) ?? 0,
+    }));
   }, [snapshot.expenses]);
 
   const expensesGrandTotal = useMemo(
@@ -3877,6 +4047,300 @@ function ThresholdPanel({ notifications }: { notifications: ThresholdNotificatio
             </p>
           ))
         )}
+      </div>
+    </div>
+  );
+}
+
+function DirectorWarehousePanel({
+  token,
+  overview,
+  onReload,
+  onReplenish,
+}: {
+  token: string;
+  overview: InventoryOverviewResponse | null;
+  onReload: () => Promise<void>;
+  onReplenish: (token: string, name: string, qtyStr: string) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busyName, setBusyName] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+
+  const rows = overview?.products ?? [];
+  const totals = useMemo(() => {
+    let w = 0;
+    let s = 0;
+    for (const r of rows) {
+      w += r.qtyWarehouse;
+      s += r.qtyInStores;
+    }
+    return { warehouse: w, inStores: s, grand: w + s };
+  }, [rows]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setError('');
+    try {
+      await onReload();
+    } catch {
+      setError('Не удалось обновить данные');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleReplenish = async (name: string) => {
+    setBusyName(name);
+    setError('');
+    setStatus('');
+    try {
+      await onReplenish(token, name, draft[name] ?? '0');
+      setDraft((current) => ({ ...current, [name]: '' }));
+      setStatus(`Склад пополнен: ${name}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось пополнить склад');
+    } finally {
+      setBusyName(null);
+    }
+  };
+
+  return (
+    <div className="invGlassRoot directorWarehouseRoot">
+      <div className="invGlassShell">
+        <header className="invGlassHeader">
+          <div className="invGlassHeaderText">
+            <h3 className="invGlassTitle">Склад и остатки</h3>
+            <p className="invGlassSubtitle">
+              Остатки по каталогу продаж: центральный склад, сумма по точкам и общий итог. Пополнение увеличивает только
+              склад — на точки товар уходит из раздела «Контроль» у администратора точки.
+            </p>
+          </div>
+          <button type="button" className="invGhostBtn" onClick={() => void handleRefresh()} disabled={refreshing}>
+            {refreshing ? '…' : 'Обновить'}
+          </button>
+        </header>
+
+        <div className="invSummaryChips" aria-label="Сводка по остаткам">
+          <div className="invChip">
+            <span className="invChipLabel">На складе</span>
+            <span className="invChipValue">{totals.warehouse}</span>
+          </div>
+          <div className="invChip">
+            <span className="invChipLabel">В точках</span>
+            <span className="invChipValue">{totals.inStores}</span>
+          </div>
+          <div className="invChip invChipAccent">
+            <span className="invChipLabel">Всего</span>
+            <span className="invChipValue">{totals.grand}</span>
+          </div>
+        </div>
+
+        {error ? (
+          <p className="invInlineError" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {status ? <p className="invInlineOk">{status}</p> : null}
+
+        <div className="invTableScroll">
+          <table className="invTable">
+            <thead>
+              <tr>
+                <th>Товар</th>
+                <th className="invThNum">Цена</th>
+                <th className="invThNum">Склад</th>
+                <th className="invThNum">В точках</th>
+                <th className="invThNum">Всего</th>
+                <th className="invThAction">Пополнить склад</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="invTableEmpty">
+                    {overview ? 'Нет позиций в каталоге' : 'Загрузка остатков…'}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
+                  <tr key={row.name}>
+                    <td className="invTdName">{row.name}</td>
+                    <td className="invTdNum">{row.price.toLocaleString('ru-RU')} ₽</td>
+                    <td className="invTdNum">
+                      <span className="invQtyPill">{row.qtyWarehouse}</span>
+                    </td>
+                    <td className="invTdNum">
+                      <span className="invQtyPill invQtyPillMuted">{row.qtyInStores}</span>
+                    </td>
+                    <td className="invTdNum">
+                      <strong>{row.qtyGrandTotal}</strong>
+                    </td>
+                    <td className="invTdAction">
+                      <div className="invActionRow">
+                        <input
+                          className="invQtyInput"
+                          inputMode="numeric"
+                          placeholder="+шт"
+                          value={draft[row.name] ?? ''}
+                          onChange={(event) =>
+                            setDraft((current) => ({ ...current, [row.name]: event.target.value }))
+                          }
+                          aria-label={`Количество пополнения для ${row.name}`}
+                        />
+                        <button
+                          type="button"
+                          className="invPrimaryMini"
+                          disabled={busyName === row.name}
+                          onClick={() => void handleReplenish(row.name)}
+                        >
+                          {busyName === row.name ? '…' : 'Пополнить'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StoreInventoryControlPanel({
+  token,
+  detail,
+  storeName,
+  onReload,
+  onReceiveFromWarehouse,
+}: {
+  token: string;
+  detail: StoreInventoryDetailResponse | null;
+  storeName: string;
+  onReload: () => Promise<void>;
+  onReceiveFromWarehouse: (token: string, storeName: string, name: string, qtyStr: string) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busyName, setBusyName] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+
+  const rows = detail?.products ?? [];
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setError('');
+    try {
+      await onReload();
+    } catch {
+      setError('Не удалось обновить данные');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleReceive = async (name: string) => {
+    setBusyName(name);
+    setError('');
+    setStatus('');
+    try {
+      await onReceiveFromWarehouse(token, storeName, name, draft[name] ?? '0');
+      setDraft((current) => ({ ...current, [name]: '' }));
+      setStatus(`Принято на точку: ${name}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось принять товар');
+    } finally {
+      setBusyName(null);
+    }
+  };
+
+  return (
+    <div className="invGlassRoot storeInventoryRoot">
+      <div className="invGlassShell">
+        <header className="invGlassHeader">
+          <div className="invGlassHeaderText">
+            <h3 className="invGlassTitle">Учёт товара на точке</h3>
+            <p className="invGlassSubtitle">
+              Тот же каталог, что во вкладке «Продажи». Приход — со склада аккаунта директора; продажа и списания
+              уменьшают остаток в магазине.
+            </p>
+          </div>
+          <button type="button" className="invGhostBtn" onClick={() => void handleRefresh()} disabled={refreshing}>
+            {refreshing ? '…' : 'Обновить'}
+          </button>
+        </header>
+
+        <p className="invStoreBadge">
+          Точка: <strong>{storeName}</strong>
+        </p>
+
+        {error ? (
+          <p className="invInlineError" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {status ? <p className="invInlineOk">{status}</p> : null}
+
+        <div className="invTableScroll">
+          <table className="invTable">
+            <thead>
+              <tr>
+                <th>Товар</th>
+                <th className="invThNum">В магазине</th>
+                <th className="invThNum">На складе</th>
+                <th className="invThAction">Принять со склада</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="invTableEmpty">
+                    {detail ? 'Нет позиций' : 'Загрузка…'}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
+                  <tr key={row.name}>
+                    <td className="invTdName">{row.name}</td>
+                    <td className="invTdNum">
+                      <span className="invQtyPill">{row.qtyInStore}</span>
+                    </td>
+                    <td className="invTdNum">
+                      <span className="invQtyPill invQtyPillMuted">{row.qtyOnWarehouse}</span>
+                    </td>
+                    <td className="invTdAction">
+                      <div className="invActionRow">
+                        <input
+                          className="invQtyInput"
+                          inputMode="numeric"
+                          placeholder="шт"
+                          value={draft[row.name] ?? ''}
+                          onChange={(event) =>
+                            setDraft((current) => ({ ...current, [row.name]: event.target.value }))
+                          }
+                          aria-label={`Принять на точку ${row.name}`}
+                        />
+                        <button
+                          type="button"
+                          className="invPrimaryMini"
+                          disabled={busyName === row.name || row.qtyOnWarehouse <= 0}
+                          onClick={() => void handleReceive(row.name)}
+                        >
+                          {busyName === row.name ? '…' : 'Принять'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

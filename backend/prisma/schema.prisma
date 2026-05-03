@@ -200,9 +200,13 @@ model ProductCatalog {
   price Float
 }
 
-model ProductStock {
-  name String @id
-  qty  Int
+/// Остатки по локации: `CENTRAL_WAREHOUSE_LOCATION_KEY` — центральный склад; иначе — `storeName` точки.
+model ProductStockLocation {
+  locationKey String
+  productName String
+  qty         Int
+  @@id([locationKey, productName])
+  @@index([locationKey])
 }
 
 model ProductProcurementCost {

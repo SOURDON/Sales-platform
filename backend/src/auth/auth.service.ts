@@ -12,7 +12,7 @@ import {
 import { ensureDemoData, ensureRetoucherUsersIfMissing } from '../database/ensure-demo-data';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildDefaultDemoUserRows, buildDefaultSellerProfileRows, buildDefaultStaffRows } from './build-demo-entities';
-import { DEMO_STORE_NAMES } from './demo-stores';
+import { CENTRAL_WAREHOUSE_LOCATION_KEY, DEMO_STORE_NAMES } from './demo-stores';
 
 export type UserRole = 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
 
@@ -216,7 +216,9 @@ export class AuthService implements OnModuleInit {
   private cashDisciplineEvents: CashDisciplineEvent[] = [];
   private staff: StaffMember[] = [];
   private storeStaffAssignments: StoreStaffAssignment[] = [];
-  private productStock: Record<string, number> = {};
+  /** Остатки: ключ локации — центральный склад или `storeName` точки. */
+  private productStockByLocation: Record<string, Record<string, number>> = {};
+  private readonly warehouseLocationKey = CENTRAL_WAREHOUSE_LOCATION_KEY;
   private productProcurementCosts: Record<string, number> = {};
   private storeRevenuePlans: Record<string, Record<string, number>> = {};
   private auditLog: AuditLogItem[] = [];
@@ -224,6 +226,140 @@ export class AuthService implements OnModuleInit {
   private financeAccounts: FinanceAccount[] = [];
   private financeExpenses: FinanceExpense[] = [];
   private financeIncomes: FinanceIncome[] = [];
+
+  private allStockLocationKeys(): string[] {
+    return [this.warehouseLocationKey, ...DEMO_STORE_NAMES];
+  }
+
+  private ensureStockCell(locationKey: string, productName: string): void {
+    if (!this.productStockByLocation[locationKey]) {
+      this.productStockByLocation[locationKey] = {};
+    }
+    const row = this.productStockByLocation[locationKey];
+    if (row[productName] === undefined) {
+      row[productName] = 0;
+    }
+  }
+
+  private syncStockWithCatalog(): void {
+    const names = this.productCatalog.map((p) => p.name.trim()).filter(Boolean);
+    for (const loc of this.allStockLocationKeys()) {
+      if (!this.productStockByLocation[loc]) {
+        this.productStockByLocation[loc] = {};
+      }
+      const m = this.productStockByLocation[loc];
+      for (const nm of names) {
+        if (m[nm] === undefined) {
+          m[nm] = 0;
+        }
+      }
+    }
+    const allowed = new Set(names);
+    for (const loc of Object.keys(this.productStockByLocation)) {
+      const m = this.productStockByLocation[loc];
+      for (const k of Object.keys(m)) {
+        if (!allowed.has(k)) {
+          delete m[k];
+        }
+      }
+    }
+  }
+
+  private getStockQty(locationKey: string, productName: string): number {
+    return this.productStockByLocation[locationKey]?.[productName] ?? 0;
+  }
+
+  private addStockDelta(locationKey: string, productName: string, delta: number): void {
+    this.ensureStockCell(locationKey, productName);
+    const row = this.productStockByLocation[locationKey];
+    row[productName] = Math.round((row[productName] ?? 0) + delta);
+  }
+
+  private stockStoreKeyForActor(actor: string): string | null {
+    const user = this.demoUsers.find((u) => u.nickname === actor);
+    if (!user) {
+      return null;
+    }
+    if (user.role === 'ADMIN') {
+      return user.storeName;
+    }
+    return null;
+  }
+
+  getInventoryOverview() {
+    this.syncStockWithCatalog();
+    const products = this.productCatalog.map((p) => {
+      const w = this.getStockQty(this.warehouseLocationKey, p.name);
+      const inStores = DEMO_STORE_NAMES.reduce((s, sn) => s + this.getStockQty(sn, p.name), 0);
+      return {
+        name: p.name,
+        price: p.price,
+        qtyWarehouse: w,
+        qtyInStores: inStores,
+        qtyGrandTotal: w + inStores,
+      };
+    });
+    return {
+      warehouseKey: this.warehouseLocationKey,
+      storeNames: [...DEMO_STORE_NAMES],
+      products,
+    };
+  }
+
+  getStoreInventoryDetail(storeName: string) {
+    if (!(DEMO_STORE_NAMES as readonly string[]).includes(storeName)) {
+      return null;
+    }
+    this.syncStockWithCatalog();
+    const products = this.productCatalog.map((p) => ({
+      name: p.name,
+      price: p.price,
+      qtyInStore: this.getStockQty(storeName, p.name),
+      qtyOnWarehouse: this.getStockQty(this.warehouseLocationKey, p.name),
+    }));
+    return { storeName, warehouseKey: this.warehouseLocationKey, products };
+  }
+
+  replenishWarehouseStock(productName: string, qty: number, actor: string) {
+    const name = productName?.trim();
+    if (!name || !this.productCatalog.some((p) => p.name === name) || !Number.isFinite(qty) || qty <= 0) {
+      return null;
+    }
+    const n = Math.floor(qty);
+    this.addStockDelta(this.warehouseLocationKey, name, n);
+    this.pushAudit(actor, 'WAREHOUSE_REPLENISH', `${name} +${n}`);
+    this.queuePersist();
+    return { ok: true as const };
+  }
+
+  transferWarehouseToStore(storeName: string, productName: string, qty: number, actor: string) {
+    const actorUser = this.demoUsers.find((u) => u.nickname === actor);
+    if (!actorUser) {
+      return null;
+    }
+    if (actorUser.role === 'ADMIN' && actorUser.storeName !== storeName) {
+      return null;
+    }
+    if (!(DEMO_STORE_NAMES as readonly string[]).includes(storeName)) {
+      return null;
+    }
+    const name = productName?.trim();
+    if (!name || !this.productCatalog.some((p) => p.name === name)) {
+      return null;
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return null;
+    }
+    const n = Math.floor(qty);
+    if (this.getStockQty(this.warehouseLocationKey, name) < n) {
+      return null;
+    }
+    this.addStockDelta(this.warehouseLocationKey, name, -n);
+    this.addStockDelta(storeName, name, n);
+    this.pushAudit(actor, 'INVENTORY_TRANSFER_TO_STORE', `${name} ${n} шт. → ${storeName}`);
+    this.queuePersist();
+    return { ok: true as const };
+  }
 
   getWriteOffs(filters?: { reason?: 'Брак' | 'Поломка'; dateFrom?: string; dateTo?: string }) {
     return this.adminWriteOffs
@@ -558,6 +694,10 @@ export class AuthService implements OnModuleInit {
         storeName: user.storeName,
       },
     };
+  }
+
+  getStoreNameForNickname(nickname: string): string | null {
+    return this.demoUsers.find((u) => u.nickname === nickname)?.storeName ?? null;
   }
 
   parseToken(token: string): DemoTokenPayload | null {
@@ -1190,6 +1330,16 @@ export class AuthService implements OnModuleInit {
       return null;
     }
 
+    const storeKey = seller.storeName;
+    if (!(DEMO_STORE_NAMES as readonly string[]).includes(storeKey)) {
+      return null;
+    }
+    for (const line of lines) {
+      if (this.getStockQty(storeKey, line.name) < line.qty) {
+        return null;
+      }
+    }
+
     const units = lines.reduce((sum, line) => sum + line.qty, 0);
     const sale: SaleRecord = {
       id: trimmedOptionalId ?? `sale-${Date.now()}`,
@@ -1212,7 +1362,7 @@ export class AuthService implements OnModuleInit {
       }
     }
     for (const line of lines) {
-      this.productStock[line.name] = Math.max(0, (this.productStock[line.name] ?? 0) - line.qty);
+      this.addStockDelta(storeKey, line.name, -line.qty);
     }
     this.pushAudit(
       actor,
@@ -1228,6 +1378,13 @@ export class AuthService implements OnModuleInit {
     if (!validNames.has(name) || qty <= 0) {
       return null;
     }
+    const storeKey = this.stockStoreKeyForActor(actor);
+    if (!storeKey) {
+      return null;
+    }
+    if (this.getStockQty(storeKey, name) < qty) {
+      return null;
+    }
 
     const writeOff: WriteOffItem = {
       id: `wo-${Date.now()}`,
@@ -1237,7 +1394,7 @@ export class AuthService implements OnModuleInit {
       reason,
     };
     this.adminWriteOffs.push(writeOff);
-    this.productStock[name] = Math.max(0, (this.productStock[name] ?? 0) - writeOff.qty);
+    this.addStockDelta(storeKey, name, -writeOff.qty);
     this.pushAudit(actor, 'WRITE_OFF_CREATED', `${name} qty=${writeOff.qty}, reason=${reason}`);
     this.queuePersist();
     return writeOff;
@@ -1248,13 +1405,17 @@ export class AuthService implements OnModuleInit {
     if (!writeOff || qty <= 0) {
       return null;
     }
+    const storeKey = this.stockStoreKeyForActor(actor);
+    if (!storeKey) {
+      return null;
+    }
     const diff = Math.round(qty) - writeOff.qty;
+    if (this.getStockQty(storeKey, writeOff.name) < diff) {
+      return null;
+    }
     writeOff.qty = Math.round(qty);
     writeOff.reason = reason;
-    this.productStock[writeOff.name] = Math.max(
-      0,
-      (this.productStock[writeOff.name] ?? 0) - diff,
-    );
+    this.addStockDelta(storeKey, writeOff.name, -diff);
     this.pushAudit(actor, 'WRITE_OFF_UPDATED', `${writeOff.name} qty=${writeOff.qty}, reason=${reason}`);
     this.queuePersist();
     return writeOff;
@@ -1266,7 +1427,10 @@ export class AuthService implements OnModuleInit {
       return false;
     }
     const deleted = this.adminWriteOffs[index];
-    this.productStock[deleted.name] = (this.productStock[deleted.name] ?? 0) + deleted.qty;
+    const storeKey = this.stockStoreKeyForActor(actor);
+    if (storeKey) {
+      this.addStockDelta(storeKey, deleted.name, deleted.qty);
+    }
     this.adminWriteOffs.splice(index, 1);
     this.pushAudit(actor, 'WRITE_OFF_DELETED', `${deleted.name} qty=${deleted.qty}`);
     this.queuePersist();
@@ -1674,14 +1838,18 @@ export class AuthService implements OnModuleInit {
       .filter((item) => item.reason === 'Брак')
       .reduce((sum, item) => sum + item.qty, 0);
 
-    for (const [name, qty] of Object.entries(this.productStock)) {
-      if (qty <= 10) {
-        notifications.push({
-          id: `low-${name}`,
-          type: 'LOW_STOCK',
-          message: `Товар "${name}" заканчивается: осталось ${qty} шт.`,
-          createdAt: new Date().toISOString(),
-        });
+    for (const [loc, mp] of Object.entries(this.productStockByLocation)) {
+      const locLabel =
+        loc === this.warehouseLocationKey ? 'склад' : `точка «${loc}»`;
+      for (const [name, qty] of Object.entries(mp)) {
+        if (qty <= 10) {
+          notifications.push({
+            id: `low-${loc}-${name}`,
+            type: 'LOW_STOCK',
+            message: `Товар "${name}" (${locLabel}): осталось ${qty} шт.`,
+            createdAt: new Date().toISOString(),
+          });
+        }
       }
     }
     if (damagedCount >= 5) {
@@ -1939,7 +2107,7 @@ export class AuthService implements OnModuleInit {
       storeName:
         this.demoUsers.find((user) => user.id === member.id)?.storeName ?? DEMO_STORE_NAMES[0],
     }));
-    this.productStock = {
+    const seedWarehouse: Record<string, number> = {
       Магнит: 35,
       'Рамка А4': 18,
       'Декоративная рамка': 12,
@@ -1947,6 +2115,15 @@ export class AuthService implements OnModuleInit {
       'электронный вариант и фото': 30,
       'Рамка А6': 22,
     };
+    this.productStockByLocation = {};
+    for (const loc of this.allStockLocationKeys()) {
+      this.productStockByLocation[loc] = {};
+      for (const p of this.productCatalog) {
+        const nm = p.name;
+        this.productStockByLocation[loc][nm] =
+          loc === this.warehouseLocationKey ? (seedWarehouse[nm] ?? 0) : 0;
+      }
+    }
     this.adminWriteOffs = [
       {
         id: 'wo-1',
@@ -2019,7 +2196,7 @@ export class AuthService implements OnModuleInit {
       this.prisma.staffMember.findMany(),
       this.prisma.storeStaffAssignment.findMany(),
       this.prisma.productCatalog.findMany(),
-      this.prisma.productStock.findMany(),
+      this.prisma.productStockLocation.findMany(),
       this.prisma.productProcurementCost.findMany(),
       this.prisma.storeRevenuePlan.findMany(),
       this.prisma.commissionChangeRequest.findMany(),
@@ -2131,7 +2308,12 @@ export class AuthService implements OnModuleInit {
       }));
     }
     this.productCatalog = products.map((item) => ({ name: item.name, price: item.price }));
-    this.productStock = Object.fromEntries(stock.map((item) => [item.name, item.qty]));
+    this.productStockByLocation = {};
+    for (const row of stock) {
+      this.ensureStockCell(row.locationKey, row.productName);
+      this.productStockByLocation[row.locationKey][row.productName] = row.qty;
+    }
+    this.syncStockWithCatalog();
     this.productProcurementCosts = {};
     for (const item of procurementCosts) {
       const key = item.name.trim();
@@ -2421,10 +2603,12 @@ export class AuthService implements OnModuleInit {
       if (this.productCatalog.length > 0) {
         await tx.productCatalog.createMany({ data: this.productCatalog });
       }
-      await tx.productStock.deleteMany();
-      const stockRows = Object.entries(this.productStock).map(([name, qty]) => ({ name, qty }));
+      await tx.productStockLocation.deleteMany();
+      const stockRows = Object.entries(this.productStockByLocation).flatMap(([locationKey, mp]) =>
+        Object.entries(mp).map(([productName, qty]) => ({ locationKey, productName, qty })),
+      );
       if (stockRows.length > 0) {
-        await tx.productStock.createMany({ data: stockRows });
+        await tx.productStockLocation.createMany({ data: stockRows });
       }
       await tx.productProcurementCost.deleteMany();
       const procurementRows = Object.entries(this.productProcurementCosts).map(([name, cost]) => ({

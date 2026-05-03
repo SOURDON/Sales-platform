@@ -5,7 +5,7 @@ import {
   buildDefaultSellerProfileRows,
   buildDefaultStaffRows,
 } from '../auth/build-demo-entities';
-import { DEMO_STORE_NAMES } from '../auth/demo-stores';
+import { CENTRAL_WAREHOUSE_LOCATION_KEY, DEMO_STORE_NAMES } from '../auth/demo-stores';
 
 function toPrismaUserRole(role: ReturnType<typeof buildDefaultDemoUserRows>[0]['role']): UserRole {
   switch (role) {
@@ -125,18 +125,30 @@ async function ensureProductCatalog(prisma: PrismaClient) {
   });
 }
 
-async function ensureProductStock(prisma: PrismaClient) {
-  await prisma.productStock.createMany({
-    data: [
-      { name: 'Магнит', qty: 35 },
-      { name: 'Рамка А4', qty: 18 },
-      { name: 'Декоративная рамка', qty: 12 },
-      { name: 'Бамбуковая рамка', qty: 9 },
-      { name: 'электронный вариант и фото', qty: 30 },
-      { name: 'Рамка А6', qty: 22 },
-    ],
+async function ensureProductStockLocations(prisma: PrismaClient) {
+  const catalog = await prisma.productCatalog.findMany({ select: { name: true } });
+  if (catalog.length === 0) {
+    return;
+  }
+  const warehouseRows = catalog.map((c) => ({
+    locationKey: CENTRAL_WAREHOUSE_LOCATION_KEY,
+    productName: c.name,
+    qty: 0,
+  }));
+  await prisma.productStockLocation.createMany({
+    data: warehouseRows,
     skipDuplicates: true,
   });
+  for (const storeName of DEMO_STORE_NAMES) {
+    await prisma.productStockLocation.createMany({
+      data: catalog.map((c) => ({
+        locationKey: storeName,
+        productName: c.name,
+        qty: 0,
+      })),
+      skipDuplicates: true,
+    });
+  }
 }
 
 async function ensureProductProcurementCosts(prisma: PrismaClient) {
@@ -250,7 +262,7 @@ export async function ensureDemoData(prisma: PrismaClient) {
   await ensureSellerProfiles(prisma);
   await ensureStaffMembers(prisma);
   await ensureProductCatalog(prisma);
-  await ensureProductStock(prisma);
+  await ensureProductStockLocations(prisma);
   await ensureProductProcurementCosts(prisma);
   await ensureDemoWriteOffsIfEmpty(prisma);
   await ensureAppState(prisma);

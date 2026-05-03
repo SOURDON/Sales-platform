@@ -5089,3 +5089,297 @@ h1 {
     width: 8.75rem !important;
   }
 }
+
+/* Склад (директор/бух) и учёт точки (админ) — стеклянные панели */
+.sectionCard.inventorySectionCard {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.invGlassRoot {
+  --inv-glass: rgba(10, 26, 20, 0.52);
+  --inv-glass-raised: rgba(16, 38, 30, 0.68);
+  --inv-edge: rgba(212, 182, 123, 0.22);
+  --inv-edge-soft: rgba(255, 255, 255, 0.07);
+  --inv-text: #ece8df;
+  --inv-muted: #9aab9f;
+  --inv-gold: #d4b67b;
+  --inv-field: rgba(4, 14, 11, 0.55);
+  font-family:
+    'DM Sans',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--inv-text);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.invGlassShell {
+  border-radius: 16px;
+  border: 1px solid var(--inv-edge-soft);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05) 0%, transparent 42%),
+    var(--inv-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 18px 40px rgba(2, 8, 6, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  padding: 14px clamp(10px, 2.5vw, 16px) 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-x: clip;
+}
+
+.invGlassHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.invGlassHeaderText {
+  min-width: 0;
+  flex: 1;
+}
+
+.invGlassTitle {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--inv-text);
+}
+
+.invGlassSubtitle {
+  margin: 0;
+  font-size: 11px;
+  color: var(--inv-muted);
+  max-width: 52rem;
+}
+
+.invGhostBtn {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--inv-edge-soft);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--inv-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.invGhostBtn:hover:not(:disabled) {
+  border-color: var(--inv-edge);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.invGhostBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.invSummaryChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.invChip {
+  border-radius: 12px;
+  border: 1px solid var(--inv-edge-soft);
+  background: var(--inv-field);
+  padding: 8px 12px;
+  min-width: 5.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.invChipAccent {
+  border-color: rgba(212, 182, 123, 0.28);
+  background: var(--inv-glass-raised);
+}
+
+.invChipLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--inv-muted);
+}
+
+.invChipValue {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--inv-gold);
+}
+
+.invInlineError {
+  margin: 0;
+  font-size: 12px;
+  color: #f0a8a8;
+}
+
+.invInlineOk {
+  margin: 0;
+  font-size: 12px;
+  color: #9ed4b8;
+}
+
+.invStoreBadge {
+  margin: 0;
+  font-size: 12px;
+  color: var(--inv-muted);
+}
+
+.invStoreBadge strong {
+  color: var(--inv-text);
+}
+
+.invTableScroll {
+  overflow-x: auto;
+  margin: 0 -2px;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.invTable {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.invTable th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--inv-muted);
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--inv-edge-soft);
+}
+
+.invThNum,
+.invTdNum {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.invThAction,
+.invTdAction {
+  text-align: right;
+  min-width: 9.5rem;
+}
+
+.invTable td {
+  padding: 8px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: middle;
+}
+
+.invTdName {
+  color: var(--inv-text);
+  font-weight: 500;
+  max-width: 12rem;
+}
+
+.invTableEmpty {
+  text-align: center;
+  color: var(--inv-muted);
+  padding: 20px 8px !important;
+}
+
+.invQtyPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(212, 182, 123, 0.15);
+  color: var(--inv-gold);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.invQtyPillMuted {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--inv-muted);
+  font-weight: 600;
+}
+
+.invActionRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.invQtyInput {
+  width: 4rem;
+  min-height: 32px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--inv-edge-soft);
+  background: var(--inv-field);
+  color: var(--inv-text);
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.invQtyInput::placeholder {
+  color: var(--inv-muted);
+  opacity: 0.8;
+}
+
+.invPrimaryMini {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 182, 123, 0.35);
+  background: linear-gradient(180deg, rgba(212, 182, 123, 0.22), rgba(16, 38, 30, 0.85));
+  color: #f5f0e6;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.invPrimaryMini:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.invPrimaryMini:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.productStockHint {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: rgba(236, 232, 223, 0.72);
+  line-height: 1.3;
+}
+
+.productStockHint strong {
+  color: #d4b67b;
+  font-weight: 700;
+}
