@@ -2,6 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import {
   CashEventType as PrismaCashEventType,
   CommissionRequestStatus as PrismaCommissionRequestStatus,
+  DirectorApprovalKind as PrismaDirectorApprovalKind,
+  DirectorApprovalState as PrismaDirectorApprovalState,
   FinanceAccountKind as PrismaFinanceAccountKind,
   PaymentType as PrismaPaymentType,
   StaffPosition,
@@ -110,6 +112,28 @@ interface WriteOffItem {
   reason: 'Брак' | 'Поломка';
 }
 
+type DirectorApprovalKindMem = 'SALE_DELETE' | 'WRITE_OFF';
+type DirectorApprovalStateMem = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+interface DirectorApprovalPayloadMem {
+  saleId?: string;
+  name?: string;
+  qty?: number;
+  reason?: string;
+}
+
+interface DirectorApprovalRequestMem {
+  id: string;
+  createdAt: string;
+  kind: DirectorApprovalKindMem;
+  state: DirectorApprovalStateMem;
+  requestedByNickname: string;
+  storeName: string;
+  payload: DirectorApprovalPayloadMem;
+  resolvedAt?: string;
+  resolvedBy?: string;
+}
+
 type CashEventType = 'RETURN' | 'CANCEL' | 'ADJUSTMENT';
 
 interface Shift {
@@ -207,6 +231,7 @@ export class AuthService implements OnModuleInit {
   private persistChain: Promise<void> = Promise.resolve();
 
   private commissionChangeRequests: CommissionChangeRequest[] = [];
+  private directorApprovalRequests: DirectorApprovalRequestMem[] = [];
   private currentShiftId: string | null = null;
   private lastSaleAt: string | null = null;
   private acquiringPercent = 1.8;
@@ -1261,6 +1286,214 @@ export class AuthService implements OnModuleInit {
     return { request, seller: applied };
   }
 
+  getDirectorControlRequestsSnapshot() {
+    return [...this.directorApprovalRequests]
+      .filter((r) => r.state === 'PENDING')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .map((row) => ({
+        id: row.id,
+        createdAt: row.createdAt,
+        kind: row.kind,
+        state: row.state,
+        requestedByNickname: row.requestedByNickname,
+        storeName: row.storeName,
+        payload: row.payload,
+        summary: this.describeDirectorApproval(row),
+      }));
+  }
+
+  private describeDirectorApproval(row: DirectorApprovalRequestMem): string {
+    if (row.kind === 'SALE_DELETE') {
+      const sid = row.payload.saleId ?? row.id;
+      return `Отмена продажи — «${row.storeName}», от ${row.requestedByNickname}. Чек: ${sid}`;
+    }
+    const n = row.payload.name ?? '';
+    const q = row.payload.qty ?? 0;
+    const r = row.payload.reason ?? '';
+    return `Списание — «${row.storeName}»: ${n} × ${q} шт. (${r}), заявил ${row.requestedByNickname}`;
+  }
+
+  private findAdminStoreSaleIndex(saleId: string, adminNickname: string): { seller: SellerProfile; idx: number } | null {
+    const admin = this.demoUsers.find((u) => u.nickname === adminNickname);
+    if (!admin || admin.role !== 'ADMIN') {
+      return null;
+    }
+    const store = admin.storeName;
+    for (const seller of this.sellerProfiles) {
+      if (seller.storeName !== store) {
+        continue;
+      }
+      const idx = seller.sales.findIndex((s) => s.id === saleId);
+      if (idx >= 0) {
+        return { seller, idx };
+      }
+    }
+    return null;
+  }
+
+  private tryDecrementShiftCountersForDeletedSale(sale: SaleRecord, sellerId: number) {
+    const saleDay = this.getStoreBusinessDayKey(sale.createdAt);
+    const open = this.shiftHistory.find(
+      (s) =>
+        s.status === 'OPEN' &&
+        this.getStoreBusinessDayKey(s.openedAt) === saleDay &&
+        s.assignedSellerIds.includes(sellerId),
+    );
+    if (!open) {
+      return;
+    }
+    open.checksCount = Math.max(0, open.checksCount - 1);
+    open.itemsCount = Math.max(0, open.itemsCount - sale.units);
+  }
+
+  private applyApprovedSaleDeletion(saleId: string): boolean {
+    let found: { seller: SellerProfile; idx: number } | null = null;
+    for (const seller of this.sellerProfiles) {
+      const idx = seller.sales.findIndex((s) => s.id === saleId);
+      if (idx >= 0) {
+        found = { seller, idx };
+        break;
+      }
+    }
+    if (!found) {
+      return false;
+    }
+    const sale = found.seller.sales[found.idx];
+    const storeKey = found.seller.storeName;
+    for (const line of sale.items) {
+      this.addStockDelta(storeKey, line.name, line.qty);
+    }
+    this.tryDecrementShiftCountersForDeletedSale(sale, found.seller.id);
+    found.seller.sales.splice(found.idx, 1);
+    this.recomputeSeller(found.seller);
+    this.syncRetoucherEarnings();
+    const allSales = this.sellerProfiles.flatMap((p) => p.sales);
+    const newest = allSales.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )[0];
+    this.lastSaleAt = newest?.createdAt ?? null;
+    return true;
+  }
+
+  requestSaleDeletion(saleId: string, actorNickname: string): DirectorApprovalRequestMem | null {
+    const admin = this.demoUsers.find((u) => u.nickname === actorNickname);
+    if (!admin || admin.role !== 'ADMIN') {
+      return null;
+    }
+    const sid = String(saleId ?? '').trim();
+    if (!sid) {
+      return null;
+    }
+    const hit = this.findAdminStoreSaleIndex(sid, actorNickname);
+    if (!hit) {
+      return null;
+    }
+    if (
+      this.directorApprovalRequests.some(
+        (r) => r.state === 'PENDING' && r.kind === 'SALE_DELETE' && r.payload.saleId === sid,
+      )
+    ) {
+      return null;
+    }
+    const row: DirectorApprovalRequestMem = {
+      id: `dap-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      kind: 'SALE_DELETE',
+      state: 'PENDING',
+      requestedByNickname: actorNickname,
+      storeName: admin.storeName,
+      payload: { saleId: sid },
+    };
+    this.directorApprovalRequests.unshift(row);
+    this.pushAudit(actorNickname, 'SALE_DELETE_REQUESTED', `sale=${sid}, store=${admin.storeName}`);
+    this.queuePersist();
+    return row;
+  }
+
+  requestWriteOffApproval(
+    name: string,
+    qty: number,
+    reason: 'Брак' | 'Поломка',
+    actorNickname: string,
+  ): DirectorApprovalRequestMem | null {
+    const validNames = new Set(this.productCatalog.map((item) => item.name));
+    const nm = name?.trim();
+    if (!nm || !validNames.has(nm) || qty <= 0) {
+      return null;
+    }
+    const admin = this.demoUsers.find((u) => u.nickname === actorNickname);
+    if (!admin || admin.role !== 'ADMIN') {
+      return null;
+    }
+    const storeKey = admin.storeName;
+    if (!(DEMO_STORE_NAMES as readonly string[]).includes(storeKey)) {
+      return null;
+    }
+    if (this.getStockQty(storeKey, nm) < qty) {
+      return null;
+    }
+    const q = Math.round(qty);
+    const row: DirectorApprovalRequestMem = {
+      id: `dap-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      kind: 'WRITE_OFF',
+      state: 'PENDING',
+      requestedByNickname: actorNickname,
+      storeName: storeKey,
+      payload: { name: nm, qty: q, reason },
+    };
+    this.directorApprovalRequests.unshift(row);
+    this.pushAudit(actorNickname, 'WRITE_OFF_REQUESTED', `${nm} qty=${q}, reason=${reason}`);
+    this.queuePersist();
+    return row;
+  }
+
+  async decideDirectorControlRequest(
+    id: string,
+    decision: 'APPROVE' | 'REJECT',
+    directorNickname: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const req = this.directorApprovalRequests.find((r) => r.id === id);
+    if (!req || req.state !== 'PENDING') {
+      return { ok: false, error: 'not_found' };
+    }
+    if (decision === 'REJECT') {
+      req.state = 'REJECTED';
+      req.resolvedAt = new Date().toISOString();
+      req.resolvedBy = directorNickname;
+      this.pushAudit(directorNickname, 'DIRECTOR_CONTROL_REJECTED', `${req.kind} ${id}`);
+      this.queuePersist();
+      await this.persistChain;
+      return { ok: true };
+    }
+    if (req.kind === 'SALE_DELETE') {
+      const saleId = String(req.payload.saleId ?? '');
+      const okDel = this.applyApprovedSaleDeletion(saleId);
+      if (!okDel) {
+        return { ok: false, error: 'sale_missing' };
+      }
+    } else {
+      const p = req.payload;
+      const qty = typeof p.qty === 'number' ? p.qty : 0;
+      const nm = typeof p.name === 'string' ? p.name.trim() : '';
+      const reason = p.reason === 'Поломка' ? 'Поломка' : 'Брак';
+      if (!nm || qty <= 0) {
+        return { ok: false, error: 'bad_payload' };
+      }
+      const applied = this.addWriteOff(nm, qty, reason, req.requestedByNickname);
+      if (!applied) {
+        return { ok: false, error: 'writeoff_failed' };
+      }
+    }
+    req.state = 'APPROVED';
+    req.resolvedAt = new Date().toISOString();
+    req.resolvedBy = directorNickname;
+    this.pushAudit(directorNickname, 'DIRECTOR_CONTROL_APPROVED', `${req.kind} ${id}`);
+    this.queuePersist();
+    await this.persistChain;
+    return { ok: true };
+  }
+
   addAdminSale(
     sellerId: number,
     items: Array<{ name: string; qty: number }>,
@@ -2148,6 +2381,7 @@ export class AuthService implements OnModuleInit {
       },
     ];
     this.commissionChangeRequests = [];
+    this.directorApprovalRequests = [];
     this.shiftHistory = [];
     this.cashDisciplineEvents = [];
     this.auditLog = [];
@@ -2182,6 +2416,7 @@ export class AuthService implements OnModuleInit {
       financeExpenses,
       financeIncomes,
       appState,
+      directorApprovals,
     ] = await this.prisma.$transaction([
       this.prisma.user.findMany(),
       this.prisma.sellerProfile.findMany(),
@@ -2205,6 +2440,7 @@ export class AuthService implements OnModuleInit {
       this.prisma.financeExpense.findMany(),
       this.prisma.financeIncome.findMany(),
       this.prisma.appState.findUnique({ where: { id: 1 } }),
+      this.prisma.directorApprovalRequest.findMany({ orderBy: { createdAt: 'desc' } }),
     ]);
 
     const salesBySellerId = new Map<number, SaleRecord[]>();
@@ -2338,6 +2574,29 @@ export class AuthService implements OnModuleInit {
       status: item.status as CommissionRequestStatus,
       comment: item.comment ?? undefined,
     }));
+    this.directorApprovalRequests = directorApprovals.map((item) => {
+      const raw = item.payload;
+      const payload =
+        raw && typeof raw === 'object' && !Array.isArray(raw)
+          ? (raw as DirectorApprovalPayloadMem)
+          : ({} as DirectorApprovalPayloadMem);
+      return {
+        id: item.id,
+        createdAt: item.createdAt.toISOString(),
+        kind: item.kind === PrismaDirectorApprovalKind.SALE_DELETE ? 'SALE_DELETE' : 'WRITE_OFF',
+        state:
+          item.state === PrismaDirectorApprovalState.PENDING
+            ? 'PENDING'
+            : item.state === PrismaDirectorApprovalState.APPROVED
+              ? 'APPROVED'
+              : 'REJECTED',
+        requestedByNickname: item.requestedByNickname,
+        storeName: item.storeName,
+        payload,
+        resolvedAt: item.resolvedAt?.toISOString(),
+        resolvedBy: item.resolvedBy ?? undefined,
+      };
+    });
     this.auditLog = audit.map((item) => ({
       id: item.id,
       createdAt: item.createdAt.toISOString(),
@@ -2595,6 +2854,31 @@ export class AuthService implements OnModuleInit {
             previousPercent: item.previousPercent,
             status: item.status as PrismaCommissionRequestStatus,
             comment: item.comment ?? null,
+          })),
+        });
+      }
+
+      await tx.directorApprovalRequest.deleteMany();
+      if (this.directorApprovalRequests.length > 0) {
+        await tx.directorApprovalRequest.createMany({
+          data: this.directorApprovalRequests.map((item) => ({
+            id: item.id,
+            createdAt: new Date(item.createdAt),
+            kind:
+              item.kind === 'SALE_DELETE'
+                ? PrismaDirectorApprovalKind.SALE_DELETE
+                : PrismaDirectorApprovalKind.WRITE_OFF,
+            state:
+              item.state === 'PENDING'
+                ? PrismaDirectorApprovalState.PENDING
+                : item.state === 'APPROVED'
+                  ? PrismaDirectorApprovalState.APPROVED
+                  : PrismaDirectorApprovalState.REJECTED,
+            requestedByNickname: item.requestedByNickname,
+            storeName: item.storeName,
+            payload: item.payload as object,
+            resolvedAt: item.resolvedAt ? new Date(item.resolvedAt) : null,
+            resolvedBy: item.resolvedBy ?? null,
           })),
         });
       }

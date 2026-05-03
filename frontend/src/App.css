@@ -1912,6 +1912,184 @@ select {
   gap: 8px;
 }
 
+.saleItemFooter {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.45);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.saleDeleteRequestBtn {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.saleDeleteRequestBtn:hover:not(:disabled) {
+  border-color: #94a3b8;
+  color: #475569;
+}
+
+.saleDeleteRequestBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.saleRequestNotice {
+  margin-bottom: 8px;
+}
+
+.writeOffPolicyHint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.writeOffOk {
+  margin: 0 0 10px;
+}
+
+.directorApprovalsCarousel {
+  margin: 0 0 16px;
+  padding: 12px 12px 10px;
+  border-radius: 14px;
+  border: 1px solid #dbe4ee;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.directorApprovalsCarouselHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.directorApprovalsCarouselTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0b4f82;
+}
+
+.directorApprovalsCarouselBadge {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(14, 116, 144, 0.14);
+  color: #0f4c81;
+}
+
+.directorApprovalsCarouselBanner {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.directorApprovalsCarouselViewport {
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.directorApprovalsCarouselCard {
+  margin: 0;
+  padding: 10px 10px 8px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.directorApprovalsCarouselKind {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0f4c81;
+}
+
+.directorApprovalsCarouselSummary {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #0f172a;
+}
+
+.directorApprovalsCarouselMeta {
+  margin: 0 0 10px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.directorApprovalsCarouselActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.directorApprovalsCarouselBtn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.directorApprovalsCarouselBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.directorApprovalsCarouselBtnReject {
+  background: #fff;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+.directorApprovalsCarouselBtnApprove {
+  background: #0b4f82;
+  color: #f8fafc;
+}
+
+.directorApprovalsCarouselDots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.directorApprovalsCarouselDot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #cbd5e1;
+  cursor: pointer;
+}
+
+.directorApprovalsCarouselDotActive {
+  background: #0b4f82;
+  transform: scale(1.15);
+}
+
 .writeOffsBlock {
   border: 1px solid #dbe4ee;
   border-radius: 12px;
@@ -3215,6 +3393,66 @@ h1 {
   text-shadow: 0 1px 12px rgba(212, 182, 123, 0.25);
 }
 
+.homeDashboardDirectorSkin .directorApprovalsCarousel {
+  margin: 0 0 16px !important;
+  padding: 12px 12px 10px !important;
+  border-radius: 14px !important;
+  background: var(--dh-field) !important;
+  border: 1px solid var(--dh-edge-soft) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    var(--dh-glow) !important;
+}
+
+.homeDashboardDirectorSkin .directorApprovalsCarouselTitle {
+  color: var(--dh-gold) !important;
+  text-shadow: 0 1px 10px rgba(212, 182, 123, 0.2);
+}
+
+.homeDashboardDirectorSkin .directorApprovalsCarouselBadge {
+  background: rgba(212, 182, 123, 0.16) !important;
+  color: var(--dh-gold-soft) !important;
+  border: 1px solid rgba(212, 182, 123, 0.28);
+}
+
+.homeDashboardDirectorSkin .directorApprovalsCarouselCard {
+  background: rgba(4, 14, 11, 0.42) !important;
+  border: 1px solid var(--dh-edge-soft) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.homeDashboardDirectorSkin .directorApprovalsCarouselKind {
+  color: var(--dh-gold-soft) !important;
+}
+
+.homeDashboardDirectorSkin .directorApprovalsCarouselSummary {
+  color: var(--dh-text) !important;
+}
+
+.homeDashboardDirectorSkin .directorApprovalsCarouselMeta {
+  color: var(--dh-muted) !important;
+}
+
+.homeDashboardDirectorSkin .directorApprovalsCarouselBtnReject {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: var(--dh-edge-soft) !important;
+  color: var(--dh-muted) !important;
+}
+
+.homeDashboardDirectorSkin .directorApprovalsCarouselBtnApprove {
+  background: linear-gradient(180deg, rgba(212, 182, 123, 0.35), rgba(160, 130, 80, 0.22)) !important;
+  border: 1px solid rgba(212, 182, 123, 0.45) !important;
+  color: #1a1410 !important;
+}
+
+.homeDashboardDirectorSkin .directorApprovalsCarouselDot {
+  background: rgba(255, 255, 255, 0.18) !important;
+}
+
+.homeDashboardDirectorSkin .directorApprovalsCarouselDotActive {
+  background: var(--dh-gold) !important;
+}
+
 .homeDashboardDirectorSkin .homeStoresAggregateCard {
   margin-top: 14px !important;
   padding: 11px 10px 10px !important;
@@ -3595,6 +3833,21 @@ h1 {
 
 .appWorkspace .saleItem ul {
   color: var(--ui-muted) !important;
+}
+
+.appWorkspace .saleItemFooter {
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.appWorkspace .saleDeleteRequestBtn {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .saleDeleteRequestBtn:hover:not(:disabled) {
+  border-color: rgba(212, 182, 123, 0.35) !important;
+  color: var(--ui-gold-soft) !important;
 }
 
 .appWorkspace .salePendingBadge {
@@ -5352,93 +5605,76 @@ h1 {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.directorWarehouseSummary.invSummaryChips {
-  gap: 0;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(0, 0, 0, 0.12);
-}
-
-.directorWarehouseSummary .directorWarehouseSummaryCell.invChip {
-  flex: 1 1 0;
-  min-width: 0;
-  margin: 0;
-  padding: 8px 6px;
-  border: none !important;
-  border-radius: 0;
-  box-shadow: none;
-  background: transparent;
-  border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
-}
-
-.directorWarehouseSummary .directorWarehouseSummaryCell.invChip:last-child {
-  border-right: none;
-}
-
-.directorWarehouseSummaryTotal.invChipAccent {
-  background: rgba(212, 182, 123, 0.07);
-  border: none !important;
-  box-shadow: none;
-}
-
-.directorWarehouseSummary .invChipLabel {
-  font-size: 8px;
-  letter-spacing: 0.06em;
-  opacity: 0.88;
-}
-
-.directorWarehouseSummary .invChipValue {
-  font-size: 16px;
-  font-weight: 700;
-}
-
 .directorWarehouseRoot .directorWarehouseTableWrap.invTableScrollFit {
   border: none;
   background: transparent;
   border-radius: 0;
   margin: 0;
-  padding-top: 2px;
+  padding-top: 4px;
 }
 
-.directorWarehouseRoot .invTableWarehouse thead {
-  background: transparent;
+.directorWarehouseRoot .invTableWarehouse {
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .directorWarehouseRoot .invTableWarehouse thead th {
-  padding: 8px 4px 6px;
+  padding: 9px 4px 8px;
   font-size: 8px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   font-weight: 600;
-  color: var(--inv-muted);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  vertical-align: bottom;
+  text-transform: uppercase;
+  vertical-align: middle;
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(212, 182, 123, 0.88);
+  border-bottom: 1px solid rgba(212, 182, 123, 0.14);
+  box-sizing: border-box;
+}
+
+.directorWarehouseRoot .invTableWarehouse thead th:first-child {
+  text-align: left;
+  padding-left: 10px;
+  border-radius: 10px 0 0 0;
+}
+
+.directorWarehouseRoot .invTableWarehouse thead th:last-child {
+  border-radius: 0 10px 0 0;
+  padding-right: 8px;
+}
+
+.directorWarehouseRoot .invTableWarehouse .dwThNum,
+.directorWarehouseRoot .invTableWarehouse .dwTdNum {
+  text-align: center !important;
+  width: 13%;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+.directorWarehouseRoot .invTableWarehouse .dwThAction,
+.directorWarehouseRoot .invTableWarehouse .dwTdAction {
+  text-align: center;
+  width: 24%;
+  min-width: 0 !important;
+  padding-left: 4px;
+  padding-right: 8px;
+}
+
+.directorWarehouseRoot .invTableWarehouse th:nth-child(1),
+.directorWarehouseRoot .invTableWarehouse td:nth-child(1) {
+  width: 37%;
+  padding-left: 10px;
+  padding-right: 6px;
 }
 
 .directorWarehouseRoot .invTableWarehouse tbody td {
   padding: 8px 4px;
   font-size: 11px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: middle;
 }
 
 .directorWarehouseRoot .invTableWarehouse tbody tr:last-child td {
   border-bottom: none;
-}
-
-.directorWarehouseRoot .invTableWarehouse th:nth-child(1),
-.directorWarehouseRoot .invTableWarehouse td:nth-child(1) {
-  width: 38%;
-}
-
-.directorWarehouseRoot .invTableWarehouse .invThNum,
-.directorWarehouseRoot .invTableWarehouse .invTdNum {
-  width: 14%;
-}
-
-.directorWarehouseRoot .invTableWarehouse .invThAction,
-.directorWarehouseRoot .invTableWarehouse .invTdAction {
-  width: 20%;
-  min-width: 0;
 }
 
 .directorWarehouseRoot .invTdName {
@@ -5450,14 +5686,12 @@ h1 {
   color: rgba(236, 232, 223, 0.95);
 }
 
-.directorWarehouseThGlyph.invThGlyph {
-  font-size: 14px;
-  opacity: 0.85;
-}
-
 .dwQty {
+  display: inline-block;
+  width: 100%;
   font-variant-numeric: tabular-nums;
   font-weight: 500;
+  text-align: center;
   color: var(--inv-text);
 }
 
@@ -5471,23 +5705,62 @@ h1 {
   font-weight: 600;
 }
 
-.directorWarehouseRoot .dwQtyInput.invQtyInput {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.18);
+/* Одна «капсула»: поле + подтверждение в одну линию */
+.directorWarehouseRoot .dwReplenish {
+  display: inline-flex;
+  align-items: stretch;
+  width: 100%;
+  max-width: 7.5rem;
+  margin: 0 auto;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  box-sizing: border-box;
 }
 
-.directorWarehouseRoot .dwApplyBtn.invPrimaryMini {
-  border: 1px solid rgba(212, 182, 123, 0.22);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(236, 232, 223, 0.92);
-  font-weight: 600;
-  box-shadow: none;
+.directorWarehouseRoot .dwReplenishInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 2.5rem;
+  border: none;
+  outline: none;
+  margin: 0;
+  padding: 6px 4px 6px 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--inv-text);
+  background: transparent;
+  box-sizing: border-box;
 }
 
-.directorWarehouseRoot .dwApplyBtn.invPrimaryMini:hover:not(:disabled) {
-  filter: none;
-  background: rgba(212, 182, 123, 0.12);
-  border-color: rgba(212, 182, 123, 0.35);
+.directorWarehouseRoot .dwReplenishInput::placeholder {
+  color: rgba(154, 171, 159, 0.55);
+}
+
+.directorWarehouseRoot .dwReplenishBtn {
+  flex-shrink: 0;
+  min-width: 2.5rem;
+  margin: 0;
+  padding: 0 6px;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(212, 182, 123, 0.95);
+  background: rgba(212, 182, 123, 0.1);
+  cursor: pointer;
+}
+
+.directorWarehouseRoot .dwReplenishBtn:hover:not(:disabled) {
+  background: rgba(212, 182, 123, 0.2);
+}
+
+.directorWarehouseRoot .dwReplenishBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .directorWarehouseRoot .invInlineError,
@@ -5701,19 +5974,8 @@ h1 {
 }
 
 @media (max-width: 420px) {
-  .directorWarehouseRoot .invActionRowTight {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .directorWarehouseRoot .invQtyInputTight {
+  .directorWarehouseRoot .dwReplenish {
     max-width: none;
-    width: 100%;
-  }
-
-  .directorWarehouseRoot .invPrimaryMiniTight {
-    width: 100%;
-    min-width: 0;
   }
 
   /* На точке оставляем приход в одну строку — иначе таблица «расползается» по высоте */

@@ -666,12 +666,37 @@ export class AdminController {
     return result as unknown;
   }
 
+  @Post('sales/delete-request')
+  requestSaleDeletion(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { saleId?: string },
+  ) {
+    const session = this.requireWriteAccess(authorization);
+    if (session.role !== 'ADMIN') {
+      throw new ForbiddenException('Запрос на отмену продажи может отправить только администратор точки');
+    }
+    const saleId = body.saleId?.trim();
+    if (!saleId) {
+      throw new BadRequestException('saleId обязателен');
+    }
+    const row = this.authService.requestSaleDeletion(saleId, session.nickname);
+    if (!row) {
+      throw new BadRequestException(
+        'Не удалось отправить запрос: продажа не найдена на вашей точке или уже есть ожидающая заявка на этот чек',
+      );
+    }
+    return row as unknown;
+  }
+
   @Post('write-offs')
   createWriteOff(
     @Headers('authorization') authorization: string | undefined,
     @Body() body: WriteOffBody,
   ) {
     const session = this.requireWriteAccess(authorization);
+    if (session.role !== 'ADMIN') {
+      throw new ForbiddenException('Заявку на списание может отправить только администратор точки');
+    }
     if (!body.name || !body.qty || !body.reason) {
       throw new BadRequestException('name, qty and reason are required');
     }
@@ -679,7 +704,7 @@ export class AdminController {
       throw new BadRequestException('reason must be Брак or Поломка');
     }
 
-    const result = this.authService.addWriteOff(
+    const result = this.authService.requestWriteOffApproval(
       body.name,
       body.qty,
       body.reason,
@@ -687,7 +712,7 @@ export class AdminController {
     );
     if (!result) {
       throw new BadRequestException(
-        'Не удалось списать: проверьте товар, количество и остаток на точке (списание только для администратора магазина).',
+        'Не удалось отправить заявку: проверьте товар, количество и остаток на точке. После согласования директора списание будет выполнено.',
       );
     }
     return result as unknown;

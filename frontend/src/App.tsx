@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent, ReactNode, TouchEvent } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import './App.css';
@@ -293,6 +293,17 @@ type AdminSale = {
   goodsCost?: number;
   /** Локальная очередь без сети — отправится при восстановлении связи */
   pendingSync?: boolean;
+};
+
+type DirectorControlRequest = {
+  id: string;
+  createdAt: string;
+  kind: 'SALE_DELETE' | 'WRITE_OFF';
+  state: string;
+  requestedByNickname: string;
+  storeName: string;
+  payload: Record<string, unknown>;
+  summary: string;
 };
 
 function offlineQueueToAdminSales(queue: OfflineQueuedSale[], sellers: SellerProfile[]): AdminSale[] {
@@ -628,6 +639,7 @@ function App() {
   const [thresholds, setThresholds] = useState<ThresholdNotification[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([]);
   const [adminError, setAdminError] = useState('');
+  const [salesNotice, setSalesNotice] = useState('');
   const [acquiringPercent, setAcquiringPercent] = useState('1.8');
   const [acquiringPercentDetkov, setAcquiringPercentDetkov] = useState('1.8');
   const [acquiringPercentPutintsevSber, setAcquiringPercentPutintsevSber] = useState('1.8');
@@ -1288,12 +1300,48 @@ function App() {
       body: JSON.stringify({ name, qty, reason }),
     });
     if (!response.ok) {
-      throw new Error('write-off error');
+      let message = 'Не удалось отправить заявку на списание';
+      try {
+        const parsed = (await response.json()) as { message?: string | string[] };
+        if (typeof parsed.message === 'string') {
+          message = parsed.message;
+        }
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
     }
     await loadDashboard(token);
     if (session?.user.role === 'ADMIN') {
       await loadStoreInventory(token);
     }
+  };
+
+  const requestSaleDelete = async (token: string, saleId: string) => {
+    setSalesNotice('');
+    const response = await fetch(`${API_BASE_URL}/admin/sales/delete-request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ saleId }),
+    });
+    if (!response.ok) {
+      let message = 'Не удалось отправить запрос';
+      try {
+        const parsed = (await response.json()) as { message?: string | string[] };
+        if (typeof parsed.message === 'string') {
+          message = parsed.message;
+        }
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
+    }
+    await loadSales(token);
+    await loadDashboard(token);
+    setSalesNotice('Запрос на отмену продажи отправлен директору.');
   };
 
   const openShift = async (token: string, assignedSellerIds: number[]) => {
@@ -1529,6 +1577,7 @@ function App() {
   };
 
   const handleLogout = () => {
+    setSalesNotice('');
     setSession(null);
     setDashboard(null);
     setSellers([]);
@@ -1785,6 +1834,14 @@ function App() {
                             <p className="notice">Данные продавца заполняет администратор точки.</p>
                           )}
                           <h3 className="homePanelTitle">{homeDashboard.title}</h3>
+                          {homeDashboard.role === 'DIRECTOR' && session ? (
+                            <DirectorHomeApprovalsCarousel
+                              token={session.token}
+                              onDecided={() => {
+                                void loadDashboard(session.token);
+                              }}
+                            />
+                          ) : null}
                           {homeDashboard.role !== 'ADMIN' ? (
                             <div className="metrics homeMetricsTight">
                               {homeDashboard.metrics
@@ -2018,6 +2075,7 @@ function App() {
                       <>
                         <section className="sectionCard">
                           <div className="salesLog">
+                            {salesNotice ? <p className="notice saleRequestNotice">{salesNotice}</p> : null}
                             <button
                               type="button"
                               className={`salesToggle ${salesExpanded ? 'salesToggleOpen' : ''}`}
@@ -2063,6 +2121,28 @@ function App() {
                                           </li>
                                         ))}
                                       </ul>
+                                      {role === 'ADMIN' && !sale.pendingSync ? (
+                                        <div className="saleItemFooter">
+                                          <button
+                                            type="button"
+                                            className="saleDeleteRequestBtn"
+                                            title="Отправить директору запрос на удаление этой продажи"
+                                            onClick={() => {
+                                              void (async () => {
+                                                try {
+                                                  await requestSaleDelete(session.token, sale.id);
+                                                } catch (e) {
+                                                  setSalesNotice(
+                                                    e instanceof Error ? e.message : 'Не удалось отправить запрос',
+                                                  );
+                                                }
+                                              })();
+                                            }}
+                                          >
+                                            Запросить удаление
+                                          </button>
+                                        </div>
+                                      ) : null}
                                     </article>
                                   ))}
                                 </div>
@@ -2384,6 +2464,169 @@ function AddSaleForm({
   );
 }
 
+function DirectorHomeApprovalsCarousel({
+  token,
+  onDecided,
+}: {
+  token: string;
+  onDecided: () => void;
+}) {
+  const [items, setItems] = useState<DirectorControlRequest[]>([]);
+  const [index, setIndex] = useState(0);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [banner, setBanner] = useState('');
+  const touchStartX = useRef<number | null>(null);
+
+  const load = useCallback(async () => {
+    const response = await fetch(`${API_BASE_URL}/director/control-requests`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      return;
+    }
+    const data = (await response.json()) as DirectorControlRequest[];
+    setItems(data);
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => void load(), 15000);
+    return () => window.clearInterval(timer);
+  }, [load]);
+
+  useEffect(() => {
+    if (items.length === 0) {
+      setIndex(0);
+      return;
+    }
+    setIndex((current) => Math.min(current, items.length - 1));
+  }, [items.length]);
+
+  const decide = async (id: string, decision: 'APPROVE' | 'REJECT') => {
+    setBanner('');
+    setBusyId(id);
+    try {
+      const response = await fetch(`${API_BASE_URL}/director/control-requests/${id}/decision`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ decision }),
+      });
+      if (!response.ok) {
+        let message = 'Не удалось применить решение';
+        try {
+          const parsed = (await response.json()) as { message?: string | string[] };
+          if (typeof parsed.message === 'string') {
+            message = parsed.message;
+          }
+        } catch {
+          // ignore
+        }
+        throw new Error(message);
+      }
+      await load();
+      onDecided();
+      setBanner(decision === 'APPROVE' ? 'Согласовано' : 'Отклонено');
+      window.setTimeout(() => setBanner(''), 4000);
+    } catch (e) {
+      setBanner(e instanceof Error ? e.message : 'Ошибка');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const onTouchStart = (e: TouchEvent) => {
+    touchStartX.current = e.changedTouches[0]?.clientX ?? null;
+  };
+
+  const onTouchEnd = (e: TouchEvent) => {
+    const start = touchStartX.current;
+    touchStartX.current = null;
+    if (start == null || items.length < 2) {
+      return;
+    }
+    const end = e.changedTouches[0]?.clientX ?? start;
+    const dx = end - start;
+    const threshold = 48;
+    if (dx > threshold) {
+      setIndex((i) => Math.max(0, i - 1));
+    } else if (dx < -threshold) {
+      setIndex((i) => Math.min(items.length - 1, i + 1));
+    }
+  };
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  const current = items[index] ?? items[0];
+  const at = new Date(current.createdAt).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return (
+    <div className="directorApprovalsCarousel" aria-label="Запросы на согласование">
+      <div className="directorApprovalsCarouselHeader">
+        <h4 className="directorApprovalsCarouselTitle">Согласования</h4>
+        <span className="directorApprovalsCarouselBadge">{items.length}</span>
+      </div>
+      {banner ? <p className="notice directorApprovalsCarouselBanner">{banner}</p> : null}
+      <div
+        className="directorApprovalsCarouselViewport"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        role="region"
+        aria-roledescription="carousel"
+      >
+        <article className="directorApprovalsCarouselCard" key={current.id}>
+          <p className="directorApprovalsCarouselKind">
+            {current.kind === 'SALE_DELETE' ? 'Отмена продажи' : 'Списание товара'}
+          </p>
+          <p className="directorApprovalsCarouselSummary">{current.summary}</p>
+          <p className="directorApprovalsCarouselMeta">{at}</p>
+          <div className="directorApprovalsCarouselActions">
+            <button
+              type="button"
+              className="directorApprovalsCarouselBtn directorApprovalsCarouselBtnReject"
+              disabled={busyId === current.id}
+              onClick={() => void decide(current.id, 'REJECT')}
+            >
+              Отклонить
+            </button>
+            <button
+              type="button"
+              className="directorApprovalsCarouselBtn directorApprovalsCarouselBtnApprove"
+              disabled={busyId === current.id}
+              onClick={() => void decide(current.id, 'APPROVE')}
+            >
+              {busyId === current.id ? '…' : 'Согласовать'}
+            </button>
+          </div>
+        </article>
+      </div>
+      {items.length > 1 ? (
+        <div className="directorApprovalsCarouselDots" role="tablist" aria-label="Выбор заявки">
+          {items.map((item, i) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`directorApprovalsCarouselDot ${i === index ? 'directorApprovalsCarouselDotActive' : ''}`}
+              aria-label={`Заявка ${i + 1}`}
+              aria-current={i === index}
+              onClick={() => setIndex(i)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function WriteOffForm({
   products,
   token,
@@ -2403,6 +2646,7 @@ function WriteOffForm({
   const [reason, setReason] = useState<'Брак' | 'Поломка'>('Брак');
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
+  const [formOk, setFormOk] = useState('');
 
   const submit = async () => {
     if (!name) {
@@ -2416,12 +2660,14 @@ function WriteOffForm({
     }
 
     setFormError('');
+    setFormOk('');
     setBusy(true);
     try {
       await onAddWriteOff(token, name, parsedQty, reason);
       setQty('1');
-    } catch {
-      setFormError('Не удалось сохранить списание');
+      setFormOk('Заявка отправлена директору. Списание выполнится после согласования.');
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Не удалось отправить заявку');
     } finally {
       setBusy(false);
     }
@@ -2430,6 +2676,10 @@ function WriteOffForm({
   return (
     <div className="writeOffForm">
       <h4>Списание товара (поштучно)</h4>
+      <p className="muted writeOffPolicyHint">
+        Списание со склада точки возможно только после согласования директора.
+      </p>
+      {formOk ? <p className="notice writeOffOk">{formOk}</p> : null}
       <div className="writeOffRow">
         <label>
           Товар
@@ -3938,15 +4188,6 @@ function DirectorWarehousePanel({
   const [status, setStatus] = useState('');
 
   const rows = overview?.products ?? [];
-  const totals = useMemo(() => {
-    let w = 0;
-    let s = 0;
-    for (const r of rows) {
-      w += r.qtyWarehouse;
-      s += r.qtyInStores;
-    }
-    return { warehouse: w, inStores: s, grand: w + s };
-  }, [rows]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -3992,21 +4233,6 @@ function DirectorWarehousePanel({
           </button>
         </header>
 
-        <div className="invSummaryChips directorWarehouseSummary" aria-label="Сводка по остаткам">
-          <div className="invChip directorWarehouseSummaryCell">
-            <span className="invChipLabel">На складе</span>
-            <span className="invChipValue">{totals.warehouse}</span>
-          </div>
-          <div className="invChip directorWarehouseSummaryCell">
-            <span className="invChipLabel">В точках</span>
-            <span className="invChipValue">{totals.inStores}</span>
-          </div>
-          <div className="invChip invChipAccent directorWarehouseSummaryCell directorWarehouseSummaryTotal">
-            <span className="invChipLabel">Всего</span>
-            <span className="invChipValue">{totals.grand}</span>
-          </div>
-        </div>
-
         {error ? (
           <p className="invInlineError" role="alert">
             {error}
@@ -4019,19 +4245,17 @@ function DirectorWarehousePanel({
             <thead>
               <tr>
                 <th scope="col">Товар</th>
-                <th className="invThNum" scope="col" title="Центральный склад">
+                <th className="invThNum dwThNum" scope="col" title="Центральный склад">
                   Склад
                 </th>
-                <th className="invThNum" scope="col" title="Сумма по всем точкам">
+                <th className="invThNum dwThNum" scope="col" title="Сумма по всем точкам">
                   Точки
                 </th>
-                <th className="invThNum" scope="col">
+                <th className="invThNum dwThNum" scope="col">
                   Всего
                 </th>
-                <th className="invThAction" scope="col" title="Пополнить склад" aria-label="Добавить на склад">
-                  <span className="invThGlyph directorWarehouseThGlyph" aria-hidden>
-                    +
-                  </span>
+                <th className="invThAction dwThAction" scope="col" title="Количество и подтверждение пополнения">
+                  Кол-во
                 </th>
               </tr>
             </thead>
@@ -4046,35 +4270,36 @@ function DirectorWarehousePanel({
                 rows.map((row) => (
                   <tr key={row.name}>
                     <td className="invTdName">{row.name}</td>
-                    <td className="invTdNum">
+                    <td className="invTdNum dwTdNum">
                       <span className="dwQty">{row.qtyWarehouse}</span>
                     </td>
-                    <td className="invTdNum">
+                    <td className="invTdNum dwTdNum">
                       <span className="dwQty dwQtyMuted">{row.qtyInStores}</span>
                     </td>
-                    <td className="invTdNum">
+                    <td className="invTdNum dwTdNum">
                       <span className="dwQty dwQtyTotal">{row.qtyGrandTotal}</span>
                     </td>
-                    <td className="invTdAction">
-                      <div className="invActionRow invActionRowTight directorWarehouseActions">
+                    <td className="invTdAction dwTdAction">
+                      <div className="dwReplenish" role="group" aria-label={`Пополнить склад: ${row.name}`}>
                         <input
-                          className="invQtyInput invQtyInputTight dwQtyInput"
+                          className="dwReplenishInput"
                           inputMode="numeric"
-                          placeholder="шт"
+                          placeholder="0"
                           value={draft[row.name] ?? ''}
                           onChange={(event) =>
                             setDraft((current) => ({ ...current, [row.name]: event.target.value }))
                           }
-                          aria-label={`Количество пополнения для ${row.name}`}
+                          aria-label={`Штук для пополнения: ${row.name}`}
                         />
                         <button
                           type="button"
-                          className="invPrimaryMini invPrimaryMiniTight dwApplyBtn"
+                          className="dwReplenishBtn"
                           disabled={busyName === row.name}
                           title="Пополнить склад"
+                          aria-label="Подтвердить пополнение"
                           onClick={() => void handleReplenish(row.name)}
                         >
-                          {busyName === row.name ? '…' : 'Ок'}
+                          {busyName === row.name ? '…' : '✓'}
                         </button>
                       </div>
                     </td>

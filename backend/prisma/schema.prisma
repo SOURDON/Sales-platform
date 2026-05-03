@@ -26,6 +26,17 @@ enum CommissionRequestStatus {
   REJECTED
 }
 
+enum DirectorApprovalKind {
+  SALE_DELETE
+  WRITE_OFF
+}
+
+enum DirectorApprovalState {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum WriteOffReason {
   BRAK
   POLOMKA
@@ -231,6 +242,18 @@ model CommissionChangeRequest {
   previousPercent    Float
   status             CommissionRequestStatus
   comment            String?
+}
+
+model DirectorApprovalRequest {
+  id                   String               @id
+  createdAt            DateTime             @default(now())
+  kind                 DirectorApprovalKind
+  state                DirectorApprovalState @default(PENDING)
+  requestedByNickname  String
+  storeName            String
+  payload              Json
+  resolvedAt           DateTime?
+  resolvedBy           String?
 }
 
 model AuditLogItem {

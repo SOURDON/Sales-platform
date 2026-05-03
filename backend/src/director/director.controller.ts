@@ -41,6 +41,38 @@ export class DirectorController {
     return result as unknown;
   }
 
+  @Get('control-requests')
+  listControlRequests(@Headers('authorization') authorization?: string) {
+    this.requireDirector(authorization);
+    return this.authService.getDirectorControlRequestsSnapshot() as unknown;
+  }
+
+  @Post('control-requests/:id/decision')
+  async decideControlRequest(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: DecisionBody,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireDirector(authorization);
+    if (!body.decision || (body.decision !== 'APPROVE' && body.decision !== 'REJECT')) {
+      throw new BadRequestException('decision must be APPROVE or REJECT');
+    }
+    const result = await this.authService.decideDirectorControlRequest(id, body.decision, session.nickname);
+    if (!result.ok) {
+      if (result.error === 'not_found') {
+        throw new BadRequestException('Заявка не найдена или уже обработана');
+      }
+      if (result.error === 'sale_missing') {
+        throw new BadRequestException('Продажа уже удалена или недоступна');
+      }
+      if (result.error === 'writeoff_failed') {
+        throw new BadRequestException('Не удалось выполнить списание (остаток или данные)');
+      }
+      throw new BadRequestException('Не удалось применить решение');
+    }
+    return { ok: true } as unknown;
+  }
+
   private requireDirector(authorization?: string) {
     const token = authorization?.replace('Bearer ', '').trim();
     if (!token) {
