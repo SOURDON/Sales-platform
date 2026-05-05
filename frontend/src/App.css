@@ -3239,6 +3239,17 @@ button.financeRangePresetBtn {
   gap: 6px;
 }
 
+/* Зарезервированная высота под fixed .mobileDock: padding 8+8 + ряд кнопок (50px, на ≤560px — 56px) + safe-area */
+:root {
+  --app-mobile-dock-clearance: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 560px) {
+  :root {
+    --app-mobile-dock-clearance: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 .mobileDock {
   position: fixed;
   left: 0;
@@ -7796,7 +7807,7 @@ body:has(.appWorkspace--messengerChrome) {
 /* Один инсет под нижний док (мобилка); на десктопе — компактный отступ */
 @media (max-width: 860px) {
   .appWorkspace .dashboardMessengerPage .messengerHub {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: var(--app-mobile-dock-clearance);
   }
 }
 
@@ -7816,6 +7827,7 @@ body:has(.appWorkspace--messengerChrome) {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  scroll-padding-bottom: 12px;
 }
 
 /* Пустое место под коротким списком совпадает по тону с карточкой чата */
@@ -7840,7 +7852,8 @@ body:has(.appWorkspace--messengerChrome) {
 
 .appWorkspace .messengerHubThread .orgChatComposer--tg {
   flex-shrink: 0;
-  padding: 4px 10px 6px !important;
+  /* Отступ над полем + зазор от нижней границы карточки (clearance дока задаётся на .messengerHub) */
+  padding: 8px 10px 12px !important;
 }
 
 /* Окно переписки: не даём скроллить всю страницу — только ленту сообщений */
