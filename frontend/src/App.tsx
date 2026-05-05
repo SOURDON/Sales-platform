@@ -753,6 +753,63 @@ function App() {
       .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ru-RU'));
   }, [salesMerged, sellers, session]);
 
+  const directorCashflowRows = useMemo(() => {
+    if (session?.user.role !== 'DIRECTOR') {
+      return [] as Array<{ storeName: string; cashNow: number; toBankNet: number }>;
+    }
+    const todayKey = todayKeyMoscow();
+    const storeNames = Array.from(new Set(sellers.map((seller) => seller.storeName))).sort((a, b) =>
+      a.localeCompare(b, 'ru-RU'),
+    );
+    const sellerIdsByStore = new Map<string, Set<number>>();
+    for (const sn of storeNames) {
+      sellerIdsByStore.set(
+        sn,
+        new Set(sellers.filter((seller) => seller.storeName === sn).map((seller) => seller.id)),
+      );
+    }
+
+    const acquiringRateDefault = Math.max(0, Number(acquiringPercent) || 0);
+    const acquiringRateDetkov = Math.max(0, Number(acquiringPercentDetkov) || 0);
+    const acquiringRatePutintsevSber = Math.max(0, Number(acquiringPercentPutintsevSber) || 0);
+
+    return storeNames.map((storeName) => {
+      const sellerIds = sellerIdsByStore.get(storeName) ?? new Set<number>();
+      const storeSalesToday = salesMerged.filter(
+        (sale) => sellerIds.has(sale.sellerId) && calendarDayKeyMoscow(sale.createdAt) === todayKey,
+      );
+      const cashNow = storeSalesToday
+        .filter((sale) => sale.paymentType !== 'NON_CASH' && sale.paymentType !== 'TRANSFER')
+        .reduce((sum, sale) => sum + sale.totalAmount, 0);
+      const nonCash = storeSalesToday
+        .filter((sale) => sale.paymentType === 'NON_CASH')
+        .reduce((sum, sale) => sum + sale.totalAmount, 0);
+      const transfer = storeSalesToday
+        .filter((sale) => sale.paymentType === 'TRANSFER')
+        .reduce((sum, sale) => sum + sale.totalAmount, 0);
+      const acquiringRateForStore = isDetkovAcquiringStore(storeName)
+        ? acquiringRateDetkov
+        : isPutintsevSberAcquiringStore(storeName)
+          ? acquiringRatePutintsevSber
+          : acquiringRateDefault;
+      const nonCashNet = nonCash - (nonCash * acquiringRateForStore) / 100;
+      const toBankNet = Math.round((nonCashNet + transfer) * 100) / 100;
+
+      return {
+        storeName,
+        cashNow: Math.round(cashNow * 100) / 100,
+        toBankNet,
+      };
+    });
+  }, [
+    acquiringPercent,
+    acquiringPercentDetkov,
+    acquiringPercentPutintsevSber,
+    salesMerged,
+    sellers,
+    session?.user.role,
+  ]);
+
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
     try {
@@ -1530,6 +1587,21 @@ function App() {
     setLoading(true);
 
     try {
+      const loadDashboardWithRetry = async (token: string) => {
+        try {
+          await loadDashboard(token);
+          return true;
+        } catch {
+          await new Promise((resolve) => window.setTimeout(resolve, 350));
+          try {
+            await loadDashboard(token);
+            return true;
+          } catch {
+            return false;
+          }
+        }
+      };
+
       const loginRequest = async (path = '/auth/login') => {
         const controller = new AbortController();
         const timeoutId = window.setTimeout(() => controller.abort(), 15000);
@@ -1577,7 +1649,10 @@ function App() {
       setSession(data);
       setPassword('');
       navigate('/home', { replace: true });
-      await loadDashboard(data.token);
+      const dashboardLoaded = await loadDashboardWithRetry(data.token);
+      if (!dashboardLoaded) {
+        setAdminError('Вход выполнен, но сводка загрузится с задержкой. Обновите страницу через пару секунд.');
+      }
       if (
         data.user.role === 'ADMIN' ||
         data.user.role === 'DIRECTOR' ||
@@ -1666,7 +1741,7 @@ function App() {
         setInventoryOverview(null);
         setStoreInventory(null);
       }
-    } catch {
+    } catch (e) {
       setSession(null);
       setDashboard(null);
       setSellers([]);
@@ -1684,8 +1759,12 @@ function App() {
       setAcquiringPercentPutintsevSber('1.8');
       setInventoryOverview(null);
       setStoreInventory(null);
+      const errorText =
+        e instanceof Error && e.message
+          ? e.message
+          : 'Не удалось войти. Проверьте логин/пароль, что backend запущен, в Vercel задан VITE_API_URL (https://…), в Render у backend в CORS_ORIGIN — адрес фронта.';
       setError(
-        'Не удалось войти. Проверьте логин/пароль, что backend запущен, в Vercel задан VITE_API_URL (https://…), в Render у backend в CORS_ORIGIN — адрес фронта.',
+        errorText,
       );
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
@@ -1764,30 +1843,39 @@ function App() {
       return;
     }
     void (async () => {
-      await loadDashboard(session.token);
-      if (
-        session.user.role === 'ADMIN' ||
-        session.user.role === 'DIRECTOR' ||
-        session.user.role === 'ACCOUNTANT' ||
-        session.user.role === 'MANAGER'
-      ) {
-        await Promise.allSettled([
-          loadSellers(session.token),
-          loadProducts(session.token),
-          loadProductProcurementCosts(session.token),
-          loadSales(session.token),
-          loadCommissionRequests(session.token),
-          loadShifts(session.token),
-          loadStaff(session.token),
-          loadGlobalEmployees(session.token),
-          loadManagerIssues(session.token),
-        ]);
-        await Promise.allSettled([
-          ...(session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT'
-            ? [loadInventoryOverview(session.token)]
-            : []),
-          ...(session.user.role === 'ADMIN' ? [loadStoreInventory(session.token)] : []),
-        ]);
+      try {
+        try {
+          await loadDashboard(session.token);
+        } catch {
+          await new Promise((resolve) => window.setTimeout(resolve, 350));
+          await loadDashboard(session.token);
+        }
+        if (
+          session.user.role === 'ADMIN' ||
+          session.user.role === 'DIRECTOR' ||
+          session.user.role === 'ACCOUNTANT' ||
+          session.user.role === 'MANAGER'
+        ) {
+          await Promise.allSettled([
+            loadSellers(session.token),
+            loadProducts(session.token),
+            loadProductProcurementCosts(session.token),
+            loadSales(session.token),
+            loadCommissionRequests(session.token),
+            loadShifts(session.token),
+            loadStaff(session.token),
+            loadGlobalEmployees(session.token),
+            loadManagerIssues(session.token),
+          ]);
+          await Promise.allSettled([
+            ...(session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT'
+              ? [loadInventoryOverview(session.token)]
+              : []),
+            ...(session.user.role === 'ADMIN' ? [loadStoreInventory(session.token)] : []),
+          ]);
+        }
+      } catch {
+        setAdminError('Сессия восстановлена, но часть данных загрузится с задержкой.');
       }
     })();
   }, [loadInventoryOverview, loadProductProcurementCosts, loadStoreInventory, restoredSession, session]);
@@ -1994,31 +2082,60 @@ function App() {
                             />
                           ) : null}
                           {homeDashboard.role !== 'ADMIN' ? (
-                            <div className="metrics homeMetricsTight">
-                              {homeDashboard.metrics
-                                .filter((metric) => {
-                                  const l = metric.label.toLowerCase().trim();
-                                  if (l.includes('чистая прибыль')) {
-                                    return false;
-                                  }
-                                  if (l.includes('закупки') && l.includes('оценка')) {
-                                    return false;
-                                  }
-                                  if (l === 'открытые смены') {
-                                    return false;
-                                  }
-                                  if (homeDashboard.role === 'MANAGER' && l.includes('ставка')) {
-                                    return false;
-                                  }
-                                  return true;
-                                })
-                                .map((metric) => (
-                                  <article key={metric.label} className="metricCard">
-                                    <p>{metric.label}</p>
-                                    <strong>{metric.value}</strong>
-                                  </article>
-                                ))}
-                            </div>
+                            (() => {
+                              const visibleMetrics = homeDashboard.metrics.filter((metric) => {
+                                const l = metric.label.toLowerCase().trim();
+                                if (l.includes('чистая прибыль')) {
+                                  return false;
+                                }
+                                if (l.includes('закупки') && l.includes('оценка')) {
+                                  return false;
+                                }
+                                if (l === 'открытые смены') {
+                                  return false;
+                                }
+                                if (homeDashboard.role === 'MANAGER' && l.includes('ставка')) {
+                                  return false;
+                                }
+                                return true;
+                              });
+                              if (homeDashboard.role === 'DIRECTOR' && visibleMetrics.length >= 2) {
+                                const topLine = visibleMetrics.slice(0, 2);
+                                const rest = visibleMetrics.slice(2);
+                                return (
+                                  <>
+                                    <div className="metrics homeMetricsTopLine">
+                                      {topLine.map((metric) => (
+                                        <article key={metric.label} className="metricCard">
+                                          <p>{metric.label}</p>
+                                          <strong>{metric.value}</strong>
+                                        </article>
+                                      ))}
+                                    </div>
+                                    {rest.length > 0 ? (
+                                      <div className="metrics homeMetricsTight">
+                                        {rest.map((metric) => (
+                                          <article key={metric.label} className="metricCard">
+                                            <p>{metric.label}</p>
+                                            <strong>{metric.value}</strong>
+                                          </article>
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                  </>
+                                );
+                              }
+                              return (
+                                <div className="metrics homeMetricsTight">
+                                  {visibleMetrics.map((metric) => (
+                                    <article key={metric.label} className="metricCard">
+                                      <p>{metric.label}</p>
+                                      <strong>{metric.value}</strong>
+                                    </article>
+                                  ))}
+                                </div>
+                              );
+                            })()
                           ) : null}
 
                           {homeDashboard.role === 'ADMIN' ? (
@@ -2080,6 +2197,10 @@ function App() {
                               items={managerIssues}
                               onStart={startManagerIssue}
                             />
+                          ) : null}
+
+                          {homeDashboard.role === 'DIRECTOR' ? (
+                            <DirectorCashflowCarousel rows={directorCashflowRows} />
                           ) : null}
 
                           {homeDashboard.role === 'ADMIN' ? (
@@ -2147,7 +2268,7 @@ function App() {
               element={
                 <div className="dashboard">
                   <section className="sectionCard">
-                    {isFinanceViewer || isManager ? (
+                    {isManager ? null : isFinanceViewer ? (
                       <FinanceOpsPanel
                         token={session.token}
                         isDirector={role === 'DIRECTOR'}
@@ -2819,6 +2940,92 @@ function DirectorHomeApprovalsCarousel({
               type="button"
               className={`directorApprovalsCarouselDot ${i === index ? 'directorApprovalsCarouselDotActive' : ''}`}
               aria-label={`Заявка ${i + 1}`}
+              aria-current={i === index}
+              onClick={() => setIndex(i)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DirectorCashflowCarousel({
+  rows,
+}: {
+  rows: Array<{ storeName: string; cashNow: number; toBankNet: number }>;
+}) {
+  const [index, setIndex] = useState(0);
+  const touchStartX = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (rows.length === 0) {
+      setIndex(0);
+      return;
+    }
+    setIndex((current) => Math.min(current, rows.length - 1));
+  }, [rows.length]);
+
+  const onTouchStart = (e: TouchEvent) => {
+    touchStartX.current = e.changedTouches[0]?.clientX ?? null;
+  };
+
+  const onTouchEnd = (e: TouchEvent) => {
+    const start = touchStartX.current;
+    touchStartX.current = null;
+    if (start == null || rows.length < 2) {
+      return;
+    }
+    const end = e.changedTouches[0]?.clientX ?? start;
+    const dx = end - start;
+    const threshold = 48;
+    if (dx > threshold) {
+      setIndex((i) => Math.max(0, i - 1));
+    } else if (dx < -threshold) {
+      setIndex((i) => Math.min(rows.length - 1, i + 1));
+    }
+  };
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const current = rows[index] ?? rows[0];
+  return (
+    <div className="directorCashflowCarousel" aria-label="Наличные и поступления по точкам">
+      <div className="directorCashflowCarouselHeader">
+        <h4 className="directorCashflowCarouselTitle">Точки: наличные и поступления</h4>
+        <span className="directorCashflowCarouselBadge">{rows.length}</span>
+      </div>
+      <div
+        className="directorCashflowCarouselViewport"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        role="region"
+        aria-roledescription="carousel"
+      >
+        <article className="directorCashflowCarouselCard">
+          <p className="directorCashflowStoreName">{current.storeName}</p>
+          <div className="directorCashflowGrid">
+            <div className="directorCashflowCell">
+              <span>Наличные сейчас</span>
+              <strong>{formatRub(current.cashNow)}</strong>
+            </div>
+            <div className="directorCashflowCell">
+              <span>Поступит на счёт (нетто)</span>
+              <strong>{formatRub(current.toBankNet)}</strong>
+            </div>
+          </div>
+        </article>
+      </div>
+      {rows.length > 1 ? (
+        <div className="directorCashflowCarouselDots" role="tablist" aria-label="Выбор точки">
+          {rows.map((row, i) => (
+            <button
+              key={row.storeName}
+              type="button"
+              className={`directorCashflowCarouselDot ${i === index ? 'directorCashflowCarouselDotActive' : ''}`}
+              aria-label={row.storeName}
               aria-current={i === index}
               onClick={() => setIndex(i)}
             />

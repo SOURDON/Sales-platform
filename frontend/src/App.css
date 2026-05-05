@@ -3767,6 +3767,13 @@ h1 {
   margin-bottom: 0 !important;
 }
 
+.homeDashboardDirectorSkin .homeMetricsTopLine {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px !important;
+  margin-bottom: 8px !important;
+}
+
 .homeDashboardDirectorSkin .metrics {
   gap: 8px !important;
 }
@@ -3777,7 +3784,8 @@ h1 {
   }
 }
 
-.homeDashboardDirectorSkin .homeMetricsTight .metricCard {
+.homeDashboardDirectorSkin .homeMetricsTight .metricCard,
+.homeDashboardDirectorSkin .homeMetricsTopLine .metricCard {
   position: relative !important;
   display: flex !important;
   flex-direction: column !important;
@@ -3795,11 +3803,13 @@ h1 {
     0 6px 16px rgba(2, 8, 6, 0.2) !important;
 }
 
-.homeDashboardDirectorSkin .homeMetricsTight .metricCard::before {
+.homeDashboardDirectorSkin .homeMetricsTight .metricCard::before,
+.homeDashboardDirectorSkin .homeMetricsTopLine .metricCard::before {
   display: none !important;
 }
 
-.homeDashboardDirectorSkin .homeMetricsTight .metricCard p {
+.homeDashboardDirectorSkin .homeMetricsTight .metricCard p,
+.homeDashboardDirectorSkin .homeMetricsTopLine .metricCard p {
   margin: 0 !important;
   max-width: 100% !important;
   font-size: 8.5px !important;
@@ -3812,7 +3822,8 @@ h1 {
   hyphens: auto !important;
 }
 
-.homeDashboardDirectorSkin .homeMetricsTight .metricCard strong {
+.homeDashboardDirectorSkin .homeMetricsTight .metricCard strong,
+.homeDashboardDirectorSkin .homeMetricsTopLine .metricCard strong {
   display: block !important;
   margin-top: 6px !important;
   max-width: 100% !important;
@@ -3907,6 +3918,120 @@ h1 {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     var(--dh-glow) !important;
+}
+
+.homeDashboardDirectorSkin .directorCashflowCarousel {
+  margin-top: 14px !important;
+  padding: 12px 12px 10px !important;
+  border-radius: 14px !important;
+  background: var(--dh-field) !important;
+  border: 1px solid var(--dh-edge-soft) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    var(--dh-glow) !important;
+}
+
+.homeDashboardDirectorSkin .directorCashflowCarouselHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.homeDashboardDirectorSkin .directorCashflowCarouselTitle {
+  margin: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dh-muted);
+}
+
+.homeDashboardDirectorSkin .directorCashflowCarouselBadge {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--dh-gold);
+  border: 1px solid rgba(212, 182, 123, 0.34);
+  background: rgba(212, 182, 123, 0.12);
+}
+
+.homeDashboardDirectorSkin .directorCashflowCarouselViewport {
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.homeDashboardDirectorSkin .directorCashflowCarouselCard {
+  margin: 0;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(4, 14, 11, 0.34);
+}
+
+.homeDashboardDirectorSkin .directorCashflowStoreName {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dh-text);
+}
+
+.homeDashboardDirectorSkin .directorCashflowGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.homeDashboardDirectorSkin .directorCashflowCell {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 8px 9px;
+  display: grid;
+  gap: 3px;
+}
+
+.homeDashboardDirectorSkin .directorCashflowCell span {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dh-dim);
+}
+
+.homeDashboardDirectorSkin .directorCashflowCell strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dh-gold);
+}
+
+.homeDashboardDirectorSkin .directorCashflowCarouselDots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.homeDashboardDirectorSkin .directorCashflowCarouselDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: 0;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+}
+
+.homeDashboardDirectorSkin .directorCashflowCarouselDotActive {
+  background: var(--dh-gold);
+  transform: scale(1.15);
 }
 
 .homeDashboardDirectorSkin .homeStoresAggregateTitle {
