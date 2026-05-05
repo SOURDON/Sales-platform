@@ -339,13 +339,35 @@ type ManagerIssue = {
   completedBy?: string;
 };
 
-type OrgChatMessageRow = {
+type MessengerThreadPreview = {
+  threadKey: string;
+  kind: 'general' | 'dm';
+  title: string;
+  peerNickname?: string;
+  lastMessageBody: string;
+  lastMessageAt: string;
+  lastOutgoing: boolean;
+  unreadCount: number;
+};
+
+type MessengerInboxResponse = {
+  threads: MessengerThreadPreview[];
+  totalUnread: number;
+};
+
+type MessengerLine = {
   id: string;
   createdAt: string;
   body: string;
-  senderRole: 'ADMIN' | 'DIRECTOR' | 'MANAGER';
-  senderDisplay: string;
+  senderLabel: string;
   authorNickname: string;
+  outgoing: boolean;
+};
+
+type MessengerPeer = {
+  nickname: string;
+  displayName: string;
+  role: string;
 };
 
 function offlineQueueToAdminSales(queue: OfflineQueuedSale[], sellers: SellerProfile[]): AdminSale[] {
@@ -507,6 +529,7 @@ type MobileNavItem = {
   label: string;
   icon: ReactNode;
   end?: boolean;
+  badge?: number;
 };
 
 const SESSION_STORAGE_KEY = 'sales-platform-session-v1';
@@ -703,6 +726,58 @@ function App() {
   });
   const [inventoryOverview, setInventoryOverview] = useState<InventoryOverviewResponse | null>(null);
   const [storeInventory, setStoreInventory] = useState<StoreInventoryDetailResponse | null>(null);
+  const [messengerInbox, setMessengerInbox] = useState<MessengerInboxResponse | null>(null);
+  const [messengerUnreadTotal, setMessengerUnreadTotal] = useState(0);
+
+  const refreshMessengerInbox = useCallback(async () => {
+    const token = session?.token;
+    const r = session?.user?.role;
+    if (!token || (r !== 'ADMIN' && r !== 'DIRECTOR' && r !== 'MANAGER')) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/chat/inbox`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        return;
+      }
+      const data = (await res.json()) as MessengerInboxResponse;
+      setMessengerInbox(data);
+      setMessengerUnreadTotal(typeof data.totalUnread === 'number' ? data.totalUnread : 0);
+    } catch {
+      /* ignore */
+    }
+  }, [session?.token, session?.user?.role]);
+
+  useEffect(() => {
+    if (!session?.token) {
+      return;
+    }
+    const r = session.user.role;
+    if (r !== 'ADMIN' && r !== 'DIRECTOR' && r !== 'MANAGER') {
+      return;
+    }
+    void refreshMessengerInbox();
+    const arm = () => {
+      const ms =
+        typeof document !== 'undefined' && document.visibilityState === 'hidden' ? 45000 : 5500;
+      return window.setInterval(() => void refreshMessengerInbox(), ms);
+    };
+    let intervalId = arm();
+    const onVis = () => {
+      window.clearInterval(intervalId);
+      intervalId = arm();
+      if (document.visibilityState === 'visible') {
+        void refreshMessengerInbox();
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.clearInterval(intervalId);
+    };
+  }, [session?.token, session?.user?.role, refreshMessengerInbox]);
 
   const pendingOfflineSales = useMemo(() => {
     if (!session?.user?.id) {
@@ -1788,6 +1863,8 @@ function App() {
     });
     setInventoryOverview(null);
     setStoreInventory(null);
+    setMessengerInbox(null);
+    setMessengerUnreadTotal(0);
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
     window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     window.localStorage.removeItem(SESSION_PERSISTENCE_KEY);
@@ -1890,6 +1967,8 @@ function App() {
     const shiftL = financeViewer ? 'Оперативка' : 'Смена';
     const usesOrgChat = r === 'ADMIN' || r === 'DIRECTOR' || r === 'MANAGER';
     const controlL = usesOrgChat ? 'Чат' : readOnlyObserver ? 'Отчёт' : 'Контроль';
+    const chatBadge =
+      usesOrgChat && messengerUnreadTotal > 0 ? messengerUnreadTotal : undefined;
     if (retoucher) {
       return [{ to: '/home', label: 'Главная', icon: <HomeIcon />, end: true }];
     }
@@ -1904,9 +1983,14 @@ function App() {
       { to: '/shift', label: shiftL, icon: <ShiftIcon /> },
       { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
       { to: '/team', label: 'Команда', icon: <TeamIcon /> },
-      { to: '/control', label: controlL, icon: usesOrgChat ? <OrgChatDockIcon /> : <ControlIcon /> },
+      {
+        to: '/control',
+        label: controlL,
+        icon: usesOrgChat ? <OrgChatDockIcon /> : <ControlIcon />,
+        badge: chatBadge,
+      },
     ];
-  }, [session]);
+  }, [session, messengerUnreadTotal]);
 
   if (!session) {
     return (
@@ -2025,6 +2109,11 @@ function App() {
               </NavLink>
               <NavLink to="/control" className={navTabClass}>
                 {controlLabel}
+                {usesOrgChat && messengerUnreadTotal > 0 ? (
+                  <span className="desktopChatBadge">
+                    {messengerUnreadTotal > 99 ? '99+' : messengerUnreadTotal}
+                  </span>
+                ) : null}
               </NavLink>
             </>
           )}
@@ -2575,9 +2664,14 @@ function App() {
                 isSellerOnly ? (
                   <Navigate to="/home" replace />
                 ) : (
-                  <div className="dashboard">
+                  <div className={usesOrgChat ? 'dashboard dashboardMessengerPage' : 'dashboard'}>
                     {usesOrgChat ? (
-                      <OrgChatPanel token={session.token} myNickname={session.user.nickname} />
+                      <MessengerHub
+                        token={session.token}
+                        user={session.user}
+                        inbox={messengerInbox}
+                        refreshInbox={refreshMessengerInbox}
+                      />
                     ) : role === 'ACCOUNTANT' ? (
                       <section className="sectionCard">
                         <FinanceReportPanel
@@ -2618,7 +2712,12 @@ function App() {
             aria-label={item.label}
             title={item.label}
           >
-            {item.icon}
+            <span className="dockNavCell">
+              {item.icon}
+              {item.badge !== undefined && item.badge > 0 ? (
+                <span className="dockUnreadBadge">{item.badge >= 99 ? '99+' : item.badge}</span>
+              ) : null}
+            </span>
           </NavLink>
         ))}
       </nav>
@@ -2991,18 +3090,77 @@ async function parseOrgChatErrorResponse(response: Response): Promise<string> {
   return (await response.text().catch(() => '')) || `Ошибка ${response.status}`;
 }
 
-const ORG_CHAT_POLL_VISIBLE_MS = 3500;
-const ORG_CHAT_POLL_HIDDEN_MS = 60000;
+function dmThreadKey(a: string, b: string): string {
+  const [x, y] = [a, b].sort((p, q) => p.localeCompare(q, 'ru-RU'));
+  return `dm:${x}:${y}`;
+}
 
-function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string }) {
-  const [messages, setMessages] = useState<OrgChatMessageRow[]>([]);
+function formatMessengerInboxTime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    if (calendarDayKeyMoscow(iso) === todayKeyMoscow()) {
+      return new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(d);
+    }
+    const diffMs = now.getTime() - d.getTime();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    if (diffMs >= 0 && diffMs < weekMs) {
+      return new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        weekday: 'short',
+      }).format(d);
+    }
+    return new Intl.DateTimeFormat('ru-RU', {
+      timeZone: 'Europe/Moscow',
+      day: 'numeric',
+      month: 'short',
+    }).format(d);
+  } catch {
+    return '';
+  }
+}
+
+function messengerSnippetPreview(t: MessengerThreadPreview): string {
+  const body = (t.lastMessageBody ?? '').trim();
+  if (!body) {
+    return 'Нет сообщений';
+  }
+  if (t.kind === 'general') {
+    return t.lastOutgoing ? `Вы: ${body}` : body;
+  }
+  return t.lastOutgoing ? `Вы: ${body}` : body;
+}
+
+function MessengerHub({
+  token,
+  user,
+  inbox,
+  refreshInbox,
+}: {
+  token: string;
+  user: LoginResponse['user'];
+  inbox: MessengerInboxResponse | null;
+  refreshInbox: () => Promise<void>;
+}) {
+  const myNickname = user.nickname;
+  const [threadKey, setThreadKey] = useState<string | null>(null);
+  const [threadTitle, setThreadTitle] = useState('');
+  const [messages, setMessages] = useState<MessengerLine[]>([]);
   const [draft, setDraft] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loadingThread, setLoadingThread] = useState(false);
   const [sendBusy, setSendBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [threadError, setThreadError] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [peers, setPeers] = useState<MessengerPeer[]>([]);
+  const [peersBusy, setPeersBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  /** Если пользователь не листал историю вверх — при новых сообщениях остаёмся внизу. */
   const stickToBottomRef = useRef(true);
+
+  const threads = inbox?.threads ?? [];
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
@@ -3023,59 +3181,72 @@ function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string
     stickToBottomRef.current = gap < 100;
   };
 
-  const load = useCallback(async () => {
+  const loadThreadMessages = useCallback(async () => {
+    if (!threadKey) {
+      return;
+    }
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/org-chat/messages`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/admin/chat/messages?threadKey=${encodeURIComponent(threadKey)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
       if (!response.ok) {
         throw new Error(await parseOrgChatErrorResponse(response));
       }
-      const data = (await response.json()) as { messages?: OrgChatMessageRow[] };
+      const data = (await response.json()) as { messages?: MessengerLine[] };
       setMessages(Array.isArray(data.messages) ? data.messages : []);
-      setError('');
+      setThreadError('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось загрузить чат');
+      setThreadError(e instanceof Error ? e.message : 'Не удалось загрузить переписку');
     } finally {
-      setLoading(false);
+      setLoadingThread(false);
     }
-  }, [token]);
+  }, [token, threadKey]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!threadKey) {
+      setMessages([]);
+      setThreadError('');
+      setLoadingThread(false);
+      return;
+    }
+    setLoadingThread(true);
+    stickToBottomRef.current = true;
+    void loadThreadMessages();
 
-  useEffect(() => {
-    let intervalId = 0;
-    const armInterval = () => {
-      window.clearInterval(intervalId);
-      const ms =
-        typeof document !== 'undefined' && document.visibilityState === 'hidden'
-          ? ORG_CHAT_POLL_HIDDEN_MS
-          : ORG_CHAT_POLL_VISIBLE_MS;
-      intervalId = window.setInterval(() => void load(), ms);
-    };
-
-    armInterval();
-
-    const onVisibility = () => {
-      armInterval();
-      if (document.visibilityState === 'visible') {
-        void load();
+    const markReadOnce = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/admin/chat/read`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ threadKey }),
+        });
+        if (response.ok) {
+          void refreshInbox();
+        }
+      } catch {
+        /* ignore */
       }
     };
+    void markReadOnce();
 
-    const onFocus = () => void load();
-
+    const pollMs =
+      typeof document !== 'undefined' && document.visibilityState === 'hidden' ? 45000 : 5500;
+    const intervalId = window.setInterval(() => void loadThreadMessages(), pollMs);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void loadThreadMessages();
+      }
+    };
     document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('focus', onFocus);
-
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('focus', onFocus);
       window.clearInterval(intervalId);
     };
-  }, [load]);
+  }, [threadKey, loadThreadMessages, refreshInbox, token]);
 
   useEffect(() => {
     if (stickToBottomRef.current) {
@@ -3083,61 +3254,205 @@ function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string
     }
   }, [messages]);
 
-  const handleSubmit = async (event: FormEvent) => {
+  const openList = () => {
+    setThreadKey(null);
+    setThreadTitle('');
+    void refreshInbox();
+  };
+
+  const openThread = (key: string, title: string) => {
+    setThreadKey(key);
+    setThreadTitle(title);
+    setDraft('');
+    setThreadError('');
+  };
+
+  const openPeerPicker = async () => {
+    setPickerOpen(true);
+    setPeersBusy(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/chat/peers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error(await parseOrgChatErrorResponse(response));
+      }
+      const data = (await response.json()) as { peers?: MessengerPeer[] };
+      setPeers(Array.isArray(data.peers) ? data.peers : []);
+    } catch {
+      setPeers([]);
+    } finally {
+      setPeersBusy(false);
+    }
+  };
+
+  const handleThreadSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const text = draft.trim();
-    if (!text || sendBusy) {
+    if (!text || sendBusy || !threadKey) {
       return;
     }
     setSendBusy(true);
-    setError('');
+    setThreadError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/org-chat/messages`, {
+      const response = await fetch(`${API_BASE_URL}/admin/chat/messages`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ body: text }),
+        body: JSON.stringify({ threadKey, body: text }),
       });
       if (!response.ok) {
         throw new Error(await parseOrgChatErrorResponse(response));
       }
       setDraft('');
       stickToBottomRef.current = true;
-      await load();
+      await loadThreadMessages();
+      void refreshInbox();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не отправлено');
+      setThreadError(e instanceof Error ? e.message : 'Не отправлено');
     } finally {
       setSendBusy(false);
     }
   };
 
+  if (!threadKey) {
+    return (
+      <section className="sectionCard messengerHub" aria-label="Сообщения">
+        <header className="messengerHubHeader">
+          <div>
+            <h3 className="messengerHubTitle">Сообщения</h3>
+            <p className="messengerHubSubtitle">
+              Общий чат сети и личные переписки. Список обновляется на фоне.
+            </p>
+          </div>
+          <button type="button" className="ghost messengerNewDmBtn" onClick={() => void openPeerPicker()}>
+            Написать
+          </button>
+        </header>
+
+        <ul className="messengerThreadList" aria-label="Чаты">
+          {threads.map((t) => {
+            const initial = (t.title.trim()[0] ?? '?').toUpperCase();
+            const unread = t.unreadCount > 0;
+            return (
+              <li key={t.threadKey}>
+                <button
+                  type="button"
+                  className="messengerThreadRow"
+                  onClick={() => openThread(t.threadKey, t.title)}
+                >
+                  <span className="messengerAvatar" aria-hidden>
+                    {initial}
+                  </span>
+                  <span className="messengerThreadMain">
+                    <span className="messengerThreadTop">
+                      <span className="messengerThreadName">{t.title}</span>
+                      <span className="messengerThreadTime">{formatMessengerInboxTime(t.lastMessageAt)}</span>
+                    </span>
+                    <span className="messengerThreadPreview">{messengerSnippetPreview(t)}</span>
+                  </span>
+                  {unread ? (
+                    <span className="messengerUnreadBadge">
+                      {t.unreadCount > 999 ? '999+' : t.unreadCount}
+                    </span>
+                  ) : (
+                    <span className="messengerUnreadSpacer" aria-hidden />
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        {pickerOpen ? (
+          <div
+            className="messengerModalBackdrop"
+            role="presentation"
+            onClick={() => setPickerOpen(false)}
+          >
+            <div
+              className="messengerModal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Выберите собеседника"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <header className="messengerModalHeader">
+                <h4>Личное сообщение</h4>
+                <button type="button" className="ghost" onClick={() => setPickerOpen(false)}>
+                  Закрыть
+                </button>
+              </header>
+              {peersBusy ? (
+                <p className="muted messengerModalHint">Загружаем контакты…</p>
+              ) : peers.length === 0 ? (
+                <p className="muted messengerModalHint">Нет доступных контактов.</p>
+              ) : (
+                <ul className="messengerPeerList">
+                  {peers.map((p) => (
+                    <li key={p.nickname}>
+                      <button
+                        type="button"
+                        className="messengerPeerRow"
+                        onClick={() => {
+                          openThread(dmThreadKey(myNickname, p.nickname), p.displayName);
+                          setPickerOpen(false);
+                        }}
+                      >
+                        <span className="messengerAvatar messengerAvatar--sm" aria-hidden>
+                          {(p.displayName.trim()[0] ?? '?').toUpperCase()}
+                        </span>
+                        <span className="messengerPeerMeta">
+                          <span className="messengerPeerName">{p.displayName}</span>
+                          <span className="messengerPeerRole muted">{p.role}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
+  const placeholder =
+    threadKey === 'general'
+      ? 'Сообщение для всех точек и руководства…'
+      : 'Личное сообщение…';
+
   return (
-    <section className="sectionCard orgChatSection" aria-label="Общий чат сети">
-      <header className="orgChatHeader">
-        <div>
-          <h3 className="orgChatTitle">Общий чат</h3>
-          <p className="orgChatSubtitle">
-            Все точки, директор и управляющий. Лента обновляется автоматически; кнопка ниже — если нужно принудительно.
+    <section className="sectionCard messengerHub messengerHubThread" aria-label={threadTitle}>
+      <header className="messengerThreadScreenHeader">
+        <button type="button" className="ghost messengerBackBtn" onClick={openList}>
+          ← Назад
+        </button>
+        <div className="messengerThreadScreenTitles">
+          <h3 className="messengerHubTitle">{threadTitle}</h3>
+          <p className="messengerHubSubtitle">
+            {threadKey === 'general' ? 'Общий чат сети' : 'Личные сообщения'}
           </p>
         </div>
         <button
           type="button"
-          className="ghost orgChatRefreshBtn"
+          className="ghost messengerThreadRefresh"
           onClick={() => {
             stickToBottomRef.current = true;
-            void load();
+            void loadThreadMessages();
           }}
-          disabled={loading}
+          disabled={loadingThread && messages.length === 0}
         >
           Обновить
         </button>
       </header>
 
-      {error ? (
+      {threadError ? (
         <p className="error orgChatError" role="alert">
-          {error}
+          {threadError}
         </p>
       ) : null}
 
@@ -3147,41 +3462,38 @@ function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string
         aria-live="polite"
         onScroll={updateStickToBottomFromScroll}
       >
-        {loading && messages.length === 0 ? (
+        {loadingThread && messages.length === 0 ? (
           <p className="muted orgChatEmpty">Загрузка сообщений…</p>
         ) : messages.length === 0 ? (
           <p className="muted orgChatEmpty">Пока нет сообщений — напишите первым.</p>
         ) : (
           <ul className="orgChatList">
-            {messages.map((m) => {
-              const mine = m.authorNickname === myNickname;
-              return (
-                <li
-                  key={m.id}
-                  className={`orgChatBubbleWrap ${mine ? 'orgChatBubbleWrap--mine' : ''}`}
-                >
-                  <article className={`orgChatBubble ${mine ? 'orgChatBubble--mine' : ''}`}>
-                    <div className="orgChatBubbleMeta">
-                      <span className="orgChatSender">{m.senderDisplay}</span>
-                      <time className="orgChatTime" dateTime={m.createdAt}>
-                        {formatOrgChatTimeLabel(m.createdAt)}
-                      </time>
-                    </div>
-                    <p className="orgChatBody">{m.body}</p>
-                  </article>
-                </li>
-              );
-            })}
+            {messages.map((m) => (
+              <li
+                key={m.id}
+                className={`orgChatBubbleWrap ${m.outgoing ? 'orgChatBubbleWrap--mine' : ''}`}
+              >
+                <article className={`orgChatBubble ${m.outgoing ? 'orgChatBubble--mine' : ''}`}>
+                  <div className="orgChatBubbleMeta">
+                    <span className="orgChatSender">{m.senderLabel}</span>
+                    <time className="orgChatTime" dateTime={m.createdAt}>
+                      {formatOrgChatTimeLabel(m.createdAt)}
+                    </time>
+                  </div>
+                  <p className="orgChatBody">{m.body}</p>
+                </article>
+              </li>
+            ))}
           </ul>
         )}
       </div>
 
-      <form className="orgChatComposer" onSubmit={(e) => void handleSubmit(e)}>
+      <form className="orgChatComposer" onSubmit={(e) => void handleThreadSubmit(e)}>
         <textarea
           className="orgChatInput"
           rows={2}
           maxLength={4000}
-          placeholder="Сообщение для всех точек и руководства…"
+          placeholder={placeholder}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           disabled={sendBusy}

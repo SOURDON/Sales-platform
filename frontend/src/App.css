@@ -7174,3 +7174,373 @@ h1 {
   }
 }
 
+/* Dock badge + desktop chat badge */
+.dockNavCell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.dockUnreadBadge {
+  position: absolute;
+  top: -2px;
+  right: 12%;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #64748b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+}
+
+.desktopChatBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  min-width: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #c4a56d;
+  color: #10231c;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  vertical-align: middle;
+}
+
+/* Messenger hub (Telegram-like thread list) */
+.messengerHub {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.messengerHubHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e8eef5;
+  background: #fafbfc;
+}
+
+.messengerHubTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.messengerHubSubtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.messengerNewDmBtn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.messengerThreadList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.messengerThreadRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 1px solid #eef2f7;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.messengerThreadRow:hover {
+  background: #f6f8fb;
+}
+
+.messengerAvatar {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #94a3b8 0%, #64748b 100%);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.messengerAvatar--sm {
+  width: 40px;
+  height: 40px;
+  font-size: 15px;
+}
+
+.messengerThreadMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.messengerThreadTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.messengerThreadName {
+  font-weight: 700;
+  font-size: 16px;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messengerThreadTime {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.messengerThreadPreview {
+  font-size: 14px;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messengerUnreadBadge {
+  flex-shrink: 0;
+  min-width: 24px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: #94a3b8;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.messengerUnreadSpacer {
+  width: 36px;
+  flex-shrink: 0;
+}
+
+/* Мессенджер на всю высоту окна: скролл только список/лента, композер всегда снизу */
+.appWorkspace .cardWorkspace:has(.dashboardMessengerPage) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  min-height: 100vh;
+}
+
+@media (min-width: 861px) {
+  .appWorkspace .cardWorkspace:has(.dashboardMessengerPage) {
+    min-height: calc(100dvh - 48px);
+  }
+}
+
+.appWorkspace .pageOutlet:has(.dashboardMessengerPage) {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboardMessengerPage {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.appWorkspace .dashboardMessengerPage .messengerHub {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.appWorkspace .messengerHubHeader {
+  flex-shrink: 0;
+}
+
+.appWorkspace .messengerThreadList {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.appWorkspace .messengerHubThread .messengerThreadScreenHeader {
+  flex-shrink: 0;
+}
+
+.appWorkspace .messengerHubThread > .error.orgChatError {
+  flex-shrink: 0;
+}
+
+.appWorkspace .messengerHubThread .orgChatScroll {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none !important;
+  overscroll-behavior: contain;
+}
+
+.appWorkspace .messengerHubThread .orgChatComposer {
+  flex-shrink: 0;
+}
+
+.appWorkspace .messengerHubThread .orgChatInput {
+  resize: none;
+  max-height: 140px;
+}
+
+.messengerThreadScreenHeader {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e8eef5;
+  background: #fafbfc;
+}
+
+.messengerBackBtn {
+  white-space: nowrap;
+}
+
+.messengerThreadScreenTitles {
+  min-width: 0;
+}
+
+.messengerThreadScreenTitles .messengerHubTitle {
+  font-size: 17px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messengerThreadScreenTitles .messengerHubSubtitle {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.messengerThreadRefresh {
+  white-space: nowrap;
+}
+
+.messengerModalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+}
+
+@media (min-width: 560px) {
+  .messengerModalBackdrop {
+    align-items: center;
+  }
+}
+
+.messengerModal {
+  width: 100%;
+  max-width: 420px;
+  max-height: 72vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.2);
+}
+
+.messengerModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e8eef5;
+}
+
+.messengerModalHeader h4 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.messengerModalHint {
+  padding: 16px;
+  margin: 0;
+}
+
+.messengerPeerList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.messengerPeerRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.messengerPeerRow:hover {
+  background: #f8fafc;
+}
+
+.messengerPeerMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.messengerPeerName {
+  font-weight: 600;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.messengerPeerRole {
+  font-size: 12px;
+}
+

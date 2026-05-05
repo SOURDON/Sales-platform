@@ -124,6 +124,20 @@ interface OrgChatPostBody {
   body?: string;
 }
 
+interface ChatThreadMessageBody {
+  threadKey?: string;
+  body?: string;
+}
+
+interface ChatReadBody {
+  threadKey?: string;
+}
+
+interface ChatDmBody {
+  toNickname?: string;
+  body?: string;
+}
+
 @Controller('admin')
 export class AdminController {
   constructor(private readonly authService: AuthService) {}
@@ -607,6 +621,105 @@ export class AdminController {
     const msg = await this.authService.postOrgChatMessage(session.nickname, session.role, String(body.body ?? ''));
     if (!msg) {
       throw new BadRequestException('Сообщение не отправлено: проверьте текст (до 4000 символов)');
+    }
+    return msg as unknown;
+  }
+
+  @Get('chat/peers')
+  getChatPeers(@Headers('authorization') authorization?: string) {
+    const session = this.requireOrgChatParticipant(authorization);
+    const peers = this.authService.getMessengerPeers(session.nickname, session.role);
+    if (!peers) {
+      throw new ForbiddenException('Нет доступа');
+    }
+    return { peers };
+  }
+
+  @Get('chat/inbox')
+  async getChatInbox(@Headers('authorization') authorization?: string) {
+    const session = this.requireOrgChatParticipant(authorization);
+    const inbox = await this.authService.getMessengerInbox(session.nickname, session.role);
+    if (!inbox) {
+      throw new BadRequestException('Не удалось загрузить инбокс');
+    }
+    return inbox as unknown;
+  }
+
+  @Get('chat/messages')
+  async getChatMessages(
+    @Headers('authorization') authorization?: string,
+    @Query('threadKey') threadKey?: string,
+  ) {
+    const session = this.requireOrgChatParticipant(authorization);
+    const key = String(threadKey ?? '').trim();
+    if (!key) {
+      throw new BadRequestException('Нужен параметр threadKey');
+    }
+    const messages = await this.authService.getMessengerThreadMessages(
+      session.nickname,
+      session.role,
+      key,
+    );
+    if (!messages) {
+      throw new BadRequestException('Нет доступа к переписке');
+    }
+    return { messages } as unknown;
+  }
+
+  @Post('chat/messages')
+  async postChatThreadMessage(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: ChatThreadMessageBody,
+  ) {
+    const session = this.requireOrgChatParticipant(authorization);
+    const key = String(body.threadKey ?? '').trim();
+    if (!key) {
+      throw new BadRequestException('Нужен threadKey');
+    }
+    const msg = await this.authService.postMessengerThreadMessage(
+      session.nickname,
+      session.role,
+      key,
+      String(body.body ?? ''),
+    );
+    if (!msg) {
+      throw new BadRequestException('Сообщение не отправлено');
+    }
+    return msg as unknown;
+  }
+
+  @Post('chat/read')
+  async postChatRead(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: ChatReadBody,
+  ) {
+    const session = this.requireOrgChatParticipant(authorization);
+    const key = String(body.threadKey ?? '').trim();
+    if (!key) {
+      throw new BadRequestException('Нужен threadKey');
+    }
+    const ok = await this.authService.markMessengerThreadRead(session.nickname, session.role, key);
+    if (!ok) {
+      throw new BadRequestException('Не удалось отметить прочитанным');
+    }
+    return { ok: true };
+  }
+
+  @Post('chat/dm')
+  async postChatDm(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: ChatDmBody,
+  ) {
+    const session = this.requireOrgChatParticipant(authorization);
+    const to = String(body.toNickname ?? '').trim();
+    const msg = await this.authService.postDirectMessage(
+      session.nickname,
+      session.role,
+      to,
+      String(body.body ?? ''),
+    );
+    if (!msg) {
+      throw new BadRequestException('Не удалось отправить личное сообщение');
     }
     return msg as unknown;
   }

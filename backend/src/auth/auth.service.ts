@@ -2276,6 +2276,353 @@ export class AuthService implements OnModuleInit {
     };
   }
 
+  messengerEligibleRole(role: UserRole): boolean {
+    return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER';
+  }
+
+  messengerPeerDisplay(user: DemoUser): string {
+    if (user.role === 'ADMIN') {
+      return user.storeName?.trim() || user.nickname;
+    }
+    if (user.role === 'DIRECTOR') {
+      return 'Директор';
+    }
+    if (user.role === 'MANAGER') {
+      return 'Управляющий';
+    }
+    return user.fullName || user.nickname;
+  }
+
+  dmThreadKey(a: string, b: string): string {
+    const [x, y] = [a, b].sort((p, q) => p.localeCompare(q, 'ru-RU'));
+    return `dm:${x}:${y}`;
+  }
+
+  parseDmThreadKey(threadKey: string): [string, string] | null {
+    if (!threadKey.startsWith('dm:')) {
+      return null;
+    }
+    const inner = threadKey.slice(3);
+    const idx = inner.indexOf(':');
+    if (idx <= 0 || idx >= inner.length - 1) {
+      return null;
+    }
+    const x = inner.slice(0, idx);
+    const y = inner.slice(idx + 1);
+    if (!x || !y || inner.includes(':', idx + 1)) {
+      return null;
+    }
+    return [x, y];
+  }
+
+  async bootstrapMessengerInbox(actorNickname: string) {
+    const existing = await this.prisma.userMessengerBootstrap.findUnique({
+      where: { userNickname: actorNickname },
+    });
+    if (existing) {
+      return;
+    }
+    await this.prisma.userMessengerBootstrap.create({
+      data: { userNickname: actorNickname },
+    });
+    await this.prisma.userChatReadState.upsert({
+      where: {
+        userNickname_threadKey: { userNickname: actorNickname, threadKey: 'general' },
+      },
+      create: {
+        userNickname: actorNickname,
+        threadKey: 'general',
+        lastReadAt: new Date(),
+      },
+      update: {},
+    });
+  }
+
+  getMessengerPeers(actorNickname: string, actorRole: UserRole) {
+    if (!this.messengerEligibleRole(actorRole)) {
+      return null;
+    }
+    return this.demoUsers
+      .filter(
+        (u) =>
+          u.isActive && this.messengerEligibleRole(u.role) && u.nickname !== actorNickname,
+      )
+      .map((u) => ({
+        nickname: u.nickname,
+        displayName: this.messengerPeerDisplay(u),
+        role: u.role,
+      }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru-RU'));
+  }
+
+  async getMessengerInbox(actorNickname: string, actorRole: UserRole) {
+    if (!this.messengerEligibleRole(actorRole)) {
+      return null;
+    }
+    await this.bootstrapMessengerInbox(actorNickname);
+
+    type ThreadRow = {
+      threadKey: string;
+      kind: 'general' | 'dm';
+      title: string;
+      peerNickname?: string;
+      lastMessageBody: string;
+      lastMessageAt: string;
+      lastOutgoing: boolean;
+      unreadCount: number;
+    };
+
+    const threads: ThreadRow[] = [];
+
+    const lastGeneral = await this.prisma.orgChatMessage.findFirst({
+      orderBy: { createdAt: 'desc' },
+    });
+    const genState = await this.prisma.userChatReadState.findUnique({
+      where: {
+        userNickname_threadKey: { userNickname: actorNickname, threadKey: 'general' },
+      },
+    });
+    const genLastRead = genState?.lastReadAt ?? new Date(0);
+    const genUnread = await this.prisma.orgChatMessage.count({
+      where: {
+        authorNickname: { not: actorNickname },
+        createdAt: { gt: genLastRead },
+      },
+    });
+    threads.push({
+      threadKey: 'general',
+      kind: 'general',
+      title: 'Общий чат',
+      lastMessageBody: lastGeneral?.body ?? '',
+      lastMessageAt: lastGeneral?.createdAt.toISOString() ?? new Date(0).toISOString(),
+      lastOutgoing: lastGeneral ? lastGeneral.authorNickname === actorNickname : false,
+      unreadCount: genUnread,
+    });
+
+    const dmPartners = new Set<string>();
+    const sentDistinct = await this.prisma.directMessage.findMany({
+      where: { senderNickname: actorNickname },
+      distinct: ['recipientNickname'],
+      select: { recipientNickname: true },
+    });
+    const recvDistinct = await this.prisma.directMessage.findMany({
+      where: { recipientNickname: actorNickname },
+      distinct: ['senderNickname'],
+      select: { senderNickname: true },
+    });
+    for (const row of sentDistinct) {
+      dmPartners.add(row.recipientNickname);
+    }
+    for (const row of recvDistinct) {
+      dmPartners.add(row.senderNickname);
+    }
+
+    for (const partner of dmPartners) {
+      const tk = this.dmThreadKey(actorNickname, partner);
+      const lastDm = await this.prisma.directMessage.findFirst({
+        where: {
+          OR: [
+            { senderNickname: actorNickname, recipientNickname: partner },
+            { senderNickname: partner, recipientNickname: actorNickname },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!lastDm) {
+        continue;
+      }
+      const peerUser = this.demoUsers.find((u) => u.nickname === partner);
+      const dmState = await this.prisma.userChatReadState.findUnique({
+        where: {
+          userNickname_threadKey: { userNickname: actorNickname, threadKey: tk },
+        },
+      });
+      const dmLastRead = dmState?.lastReadAt ?? new Date(0);
+      const dmUnread = await this.prisma.directMessage.count({
+        where: {
+          senderNickname: partner,
+          recipientNickname: actorNickname,
+          createdAt: { gt: dmLastRead },
+        },
+      });
+      threads.push({
+        threadKey: tk,
+        kind: 'dm',
+        title: peerUser ? this.messengerPeerDisplay(peerUser) : partner,
+        peerNickname: partner,
+        lastMessageBody: lastDm.body,
+        lastMessageAt: lastDm.createdAt.toISOString(),
+        lastOutgoing: lastDm.senderNickname === actorNickname,
+        unreadCount: dmUnread,
+      });
+    }
+
+    threads.sort(
+      (a, b) =>
+        new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
+    );
+
+    const totalUnread = threads.reduce((sum, t) => sum + t.unreadCount, 0);
+    return { threads, totalUnread };
+  }
+
+  async getMessengerThreadMessages(
+    actorNickname: string,
+    actorRole: UserRole,
+    threadKey: string,
+    limit = 400,
+  ) {
+    if (!this.messengerEligibleRole(actorRole)) {
+      return null;
+    }
+    const take = Math.max(1, Math.min(limit, 600));
+
+    if (threadKey === 'general') {
+      const rows = await this.prisma.orgChatMessage.findMany({
+        orderBy: { createdAt: 'desc' },
+        take,
+      });
+      rows.reverse();
+      return rows.map((m) => ({
+        id: m.id,
+        createdAt: m.createdAt.toISOString(),
+        body: m.body,
+        senderLabel: m.senderDisplay,
+        authorNickname: m.authorNickname,
+        outgoing: m.authorNickname === actorNickname,
+      }));
+    }
+
+    const pair = this.parseDmThreadKey(threadKey);
+    if (!pair || (pair[0] !== actorNickname && pair[1] !== actorNickname)) {
+      return null;
+    }
+
+    const [x, y] = pair;
+    const rows = await this.prisma.directMessage.findMany({
+      where: {
+        OR: [
+          { senderNickname: x, recipientNickname: y },
+          { senderNickname: y, recipientNickname: x },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+    rows.reverse();
+    return rows.map((m) => {
+      const senderUser = this.demoUsers.find((u) => u.nickname === m.senderNickname);
+      const senderLabel = senderUser
+        ? this.messengerPeerDisplay(senderUser)
+        : m.senderNickname;
+      return {
+        id: m.id,
+        createdAt: m.createdAt.toISOString(),
+        body: m.body,
+        senderLabel,
+        authorNickname: m.senderNickname,
+        outgoing: m.senderNickname === actorNickname,
+      };
+    });
+  }
+
+  async postDirectMessage(
+    actorNickname: string,
+    actorRole: UserRole,
+    recipientNickname: string,
+    rawBody: string,
+  ) {
+    if (!this.messengerEligibleRole(actorRole)) {
+      return null;
+    }
+    const body = rawBody.trim();
+    if (!body || body.length > 4000) {
+      return null;
+    }
+    if (recipientNickname === actorNickname) {
+      return null;
+    }
+    const fromUser = this.demoUsers.find((u) => u.nickname === actorNickname);
+    const toUser = this.demoUsers.find((u) => u.nickname === recipientNickname);
+    if (
+      !fromUser ||
+      !toUser ||
+      fromUser.role !== actorRole ||
+      !this.messengerEligibleRole(toUser.role)
+    ) {
+      return null;
+    }
+
+    const row = await this.prisma.directMessage.create({
+      data: {
+        body,
+        senderNickname: actorNickname,
+        recipientNickname,
+      },
+    });
+    this.pushAudit(actorNickname, 'DIRECT_MESSAGE', recipientNickname);
+    void this.queuePersist();
+    const senderLabel = this.messengerPeerDisplay(fromUser);
+    return {
+      id: row.id,
+      createdAt: row.createdAt.toISOString(),
+      body: row.body,
+      senderLabel,
+      authorNickname: actorNickname,
+      outgoing: true,
+    };
+  }
+
+  async postMessengerThreadMessage(
+    actorNickname: string,
+    actorRole: UserRole,
+    threadKey: string,
+    rawBody: string,
+  ) {
+    if (threadKey === 'general') {
+      const msg = await this.postOrgChatMessage(actorNickname, actorRole, rawBody);
+      if (!msg) {
+        return null;
+      }
+      return {
+        id: msg.id,
+        createdAt: msg.createdAt,
+        body: msg.body,
+        senderLabel: msg.senderDisplay,
+        authorNickname: msg.authorNickname,
+        outgoing: true,
+      };
+    }
+    const pair = this.parseDmThreadKey(threadKey);
+    if (!pair || (pair[0] !== actorNickname && pair[1] !== actorNickname)) {
+      return null;
+    }
+    const recipient = pair[0] === actorNickname ? pair[1] : pair[0];
+    return this.postDirectMessage(actorNickname, actorRole, recipient, rawBody);
+  }
+
+  async markMessengerThreadRead(actorNickname: string, actorRole: UserRole, threadKey: string) {
+    if (!this.messengerEligibleRole(actorRole)) {
+      return false;
+    }
+    if (threadKey !== 'general') {
+      const pair = this.parseDmThreadKey(threadKey);
+      if (!pair || (pair[0] !== actorNickname && pair[1] !== actorNickname)) {
+        return false;
+      }
+    }
+
+    const now = new Date();
+    await this.prisma.userChatReadState.upsert({
+      where: {
+        userNickname_threadKey: { userNickname: actorNickname, threadKey },
+      },
+      create: { userNickname: actorNickname, threadKey, lastReadAt: now },
+      update: { lastReadAt: now },
+    });
+    return true;
+  }
+
   getThresholdNotifications() {
     const notifications: ThresholdNotification[] = [];
     const now = Date.now();

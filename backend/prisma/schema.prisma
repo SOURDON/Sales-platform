@@ -304,3 +304,30 @@ model OrgChatMessage {
 
   @@index([createdAt])
 }
+
+model DirectMessage {
+  id                String   @id @default(cuid())
+  createdAt         DateTime @default(now())
+  body              String   @db.Text
+  senderNickname    String
+  recipientNickname String
+
+  @@index([senderNickname, recipientNickname, createdAt])
+  @@index([recipientNickname, createdAt])
+}
+
+/// lastReadAt: сообщения строго позже этой отметки считаются непрочитанными (для входящих от собеседников).
+model UserChatReadState {
+  userNickname String
+  threadKey    String
+  lastReadAt   DateTime
+
+  @@id([userNickname, threadKey])
+  @@index([userNickname])
+}
+
+/// Один раз при первом открытии инбокса: общий чат не помечается сотнями старых непрочитанных.
+model UserMessengerBootstrap {
+  userNickname String   @id
+  createdAt    DateTime @default(now())
+}
