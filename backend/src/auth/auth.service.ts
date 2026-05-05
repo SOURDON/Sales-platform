@@ -6,6 +6,7 @@ import {
   DirectorApprovalState as PrismaDirectorApprovalState,
   FinanceAccountKind as PrismaFinanceAccountKind,
   ManagerIssueCategory as PrismaManagerIssueCategory,
+  ManagerIssueStatus as PrismaManagerIssueStatus,
   PaymentType as PrismaPaymentType,
   StaffPosition,
   ShiftStatus,
@@ -193,6 +194,7 @@ interface AuditLogItem {
 }
 
 type ManagerIssueCategoryMem = 'PERSONNEL' | 'INSPECTION' | 'GOODS' | 'EQUIPMENT_BREAKDOWN' | 'NEEDS';
+type ManagerIssueStatusMem = 'NEW' | 'IN_PROGRESS' | 'DONE';
 
 interface ManagerIssue {
   id: string;
@@ -201,6 +203,11 @@ interface ManagerIssue {
   createdByNickname: string;
   category: ManagerIssueCategoryMem;
   message: string;
+  status: ManagerIssueStatusMem;
+  startedAt?: string;
+  startedBy?: string;
+  completedAt?: string;
+  completedBy?: string;
 }
 
 type FinanceAccountKind = 'CASH' | 'BANK';
@@ -2151,6 +2158,7 @@ export class AuthService implements OnModuleInit {
       createdByNickname: user.nickname,
       category,
       message: trimmed,
+      status: 'NEW',
     };
     this.managerIssues.unshift(issue);
     this.pushAudit(user.nickname, 'MANAGER_ISSUE_CREATED', `${issue.storeName} · ${issue.category}`);
@@ -2174,6 +2182,40 @@ export class AuthService implements OnModuleInit {
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
     return [];
+  }
+
+  startManagerIssue(issueId: string, requesterNickname: string) {
+    const user = this.demoUsers.find((item) => item.nickname === requesterNickname);
+    if (!user || (user.role !== 'MANAGER' && user.role !== 'DIRECTOR')) {
+      return null;
+    }
+    const issue = this.managerIssues.find((item) => item.id === issueId);
+    if (!issue || issue.status !== 'NEW') {
+      return null;
+    }
+    issue.status = 'IN_PROGRESS';
+    issue.startedAt = new Date().toISOString();
+    issue.startedBy = requesterNickname;
+    this.pushAudit(requesterNickname, 'MANAGER_ISSUE_STARTED', `${issue.storeName} · ${issue.category}`);
+    this.queuePersist();
+    return issue;
+  }
+
+  completeManagerIssue(issueId: string, requesterNickname: string) {
+    const user = this.demoUsers.find((item) => item.nickname === requesterNickname);
+    if (!user || (user.role !== 'MANAGER' && user.role !== 'DIRECTOR')) {
+      return null;
+    }
+    const issue = this.managerIssues.find((item) => item.id === issueId);
+    if (!issue || issue.status !== 'IN_PROGRESS') {
+      return null;
+    }
+    issue.status = 'DONE';
+    issue.completedAt = new Date().toISOString();
+    issue.completedBy = requesterNickname;
+    this.pushAudit(requesterNickname, 'MANAGER_ISSUE_COMPLETED', `${issue.storeName} · ${issue.category}`);
+    this.queuePersist();
+    return issue;
   }
 
   getThresholdNotifications() {
@@ -2722,6 +2764,11 @@ export class AuthService implements OnModuleInit {
       createdByNickname: item.createdByNickname,
       category: item.category as ManagerIssueCategoryMem,
       message: item.message,
+      status: item.status as ManagerIssueStatusMem,
+      startedAt: item.startedAt?.toISOString(),
+      startedBy: item.startedBy ?? undefined,
+      completedAt: item.completedAt?.toISOString(),
+      completedBy: item.completedBy ?? undefined,
     }));
     this.auditLog = audit.map((item) => ({
       id: item.id,
@@ -3019,6 +3066,11 @@ export class AuthService implements OnModuleInit {
             createdByNickname: item.createdByNickname,
             category: item.category as PrismaManagerIssueCategory,
             message: item.message,
+            status: item.status as PrismaManagerIssueStatus,
+            startedAt: item.startedAt ? new Date(item.startedAt) : null,
+            startedBy: item.startedBy ?? null,
+            completedAt: item.completedAt ? new Date(item.completedAt) : null,
+            completedBy: item.completedBy ?? null,
           })),
         });
       }

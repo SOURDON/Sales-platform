@@ -618,6 +618,38 @@ export class AdminController {
     return this.authService.getManagerIssuesForSession(session.nickname) as unknown;
   }
 
+  @Post('manager-issues/:id/start')
+  startManagerIssue(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'MANAGER' && session.role !== 'DIRECTOR') {
+      throw new ForbiddenException('Только управляющий или директор могут взять обращение в работу');
+    }
+    const issue = this.authService.startManagerIssue(id, session.nickname);
+    if (!issue) {
+      throw new BadRequestException('Не удалось перевести обращение в работу');
+    }
+    return issue as unknown;
+  }
+
+  @Post('manager-issues/:id/complete')
+  completeManagerIssue(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'MANAGER' && session.role !== 'DIRECTOR') {
+      throw new ForbiddenException('Только управляющий или директор могут завершить обращение');
+    }
+    const issue = this.authService.completeManagerIssue(id, session.nickname);
+    if (!issue) {
+      throw new BadRequestException('Не удалось завершить обращение');
+    }
+    return issue as unknown;
+  }
+
   @Get('write-offs/export')
   exportWriteOffsCsv(
     @Headers('authorization') authorization: string | undefined,

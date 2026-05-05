@@ -46,6 +46,12 @@ enum ManagerIssueCategory {
   NEEDS
 }
 
+enum ManagerIssueStatus {
+  NEW
+  IN_PROGRESS
+  DONE
+}
+
 enum WriteOffReason {
   BRAK
   POLOMKA
@@ -272,6 +278,11 @@ model ManagerIssue {
   createdByNickname String
   category         ManagerIssueCategory
   message          String
+  status           ManagerIssueStatus   @default(NEW)
+  startedAt        DateTime?
+  startedBy        String?
+  completedAt      DateTime?
+  completedBy      String?
 }
 
 model AuditLogItem {

@@ -332,6 +332,11 @@ type ManagerIssue = {
   createdByNickname: string;
   category: ManagerIssueCategory;
   message: string;
+  status: 'NEW' | 'IN_PROGRESS' | 'DONE';
+  startedAt?: string;
+  startedBy?: string;
+  completedAt?: string;
+  completedBy?: string;
 };
 
 function offlineQueueToAdminSales(queue: OfflineQueuedSale[], sellers: SellerProfile[]): AdminSale[] {
@@ -1254,6 +1259,46 @@ function App() {
     await loadManagerIssues(token);
   };
 
+  const startManagerIssue = async (token: string, issueId: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/manager-issues/${issueId}/start`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      let message = 'Не удалось взять обращение в работу';
+      try {
+        const parsed = (await response.json()) as { message?: string | string[] };
+        if (typeof parsed.message === 'string') {
+          message = parsed.message;
+        }
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
+    }
+    await loadManagerIssues(token);
+  };
+
+  const completeManagerIssue = async (token: string, issueId: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/manager-issues/${issueId}/complete`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      let message = 'Не удалось завершить обращение';
+      try {
+        const parsed = (await response.json()) as { message?: string | string[] };
+        if (typeof parsed.message === 'string') {
+          message = parsed.message;
+        }
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
+    }
+    await loadManagerIssues(token);
+  };
+
 
   const setDirectorPercent = async (token: string, sellerId: number, ratePercent: number) => {
     const response = await fetch(`${API_BASE_URL}/admin/sellers/percent`, {
@@ -1962,6 +2007,9 @@ function App() {
                                   if (l === 'открытые смены') {
                                     return false;
                                   }
+                                  if (homeDashboard.role === 'MANAGER' && l.includes('ставка')) {
+                                    return false;
+                                  }
                                   return true;
                                 })
                                 .map((metric) => (
@@ -1999,8 +2047,7 @@ function App() {
                               ))}
                             </div>
                           ) : homeDashboard.role === 'DIRECTOR' ||
-                            homeDashboard.role === 'ACCOUNTANT' ||
-                            homeDashboard.role === 'MANAGER' ? (
+                            homeDashboard.role === 'ACCOUNTANT' ? (
                             <div className="homeStoresAggregateCard">
                               <h4 className="homeStoresAggregateTitle">Выручка по точкам</h4>
                               <ul className="homeStoresMiniList">
@@ -2012,7 +2059,7 @@ function App() {
                                 ))}
                               </ul>
                             </div>
-                          ) : (
+                          ) : homeDashboard.role === 'MANAGER' ? null : (
                             <div className="homeStoresList">
                               {homeDashboard.stores.map((store) => (
                                 <article key={store.name} className="homeStoreCard">
@@ -2026,6 +2073,14 @@ function App() {
                               ))}
                             </div>
                           )}
+
+                          {homeDashboard.role === 'MANAGER' && session ? (
+                            <ManagerHomeIssuesPanel
+                              token={session.token}
+                              items={managerIssues}
+                              onStart={startManagerIssue}
+                            />
+                          ) : null}
 
                           {homeDashboard.role === 'ADMIN' ? (
                             <>
@@ -2372,7 +2427,11 @@ function App() {
                       </>
                     ) : isManager ? (
                       <section className="sectionCard">
-                        <ManagerIssuesInbox issues={managerIssues} />
+                        <ManagerIssuesInbox
+                          token={session.token}
+                          issues={managerIssues}
+                          onComplete={completeManagerIssue}
+                        />
                       </section>
                     ) : (
                       <>
@@ -2943,30 +3002,190 @@ function ManagerIssueMiniForm({
   );
 }
 
-function ManagerIssuesInbox({ issues }: { issues: ManagerIssue[] }) {
+function ManagerIssueCarousel({
+  title,
+  items,
+  actionLabel,
+  onAction,
+  emptyText,
+  kind,
+}: {
+  title: string;
+  items: ManagerIssue[];
+  actionLabel?: string;
+  onAction?: (issueId: string) => Promise<void>;
+  emptyText: string;
+  kind: 'inbox' | 'active' | 'done';
+}) {
+  const [index, setIndex] = useState(0);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [banner, setBanner] = useState('');
+  const touchStartX = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (items.length === 0) {
+      setIndex(0);
+      return;
+    }
+    setIndex((current) => Math.min(current, items.length - 1));
+  }, [items.length]);
+
+  const onTouchStart = (e: TouchEvent) => {
+    touchStartX.current = e.changedTouches[0]?.clientX ?? null;
+  };
+
+  const onTouchEnd = (e: TouchEvent) => {
+    const start = touchStartX.current;
+    touchStartX.current = null;
+    if (start == null || items.length < 2) {
+      return;
+    }
+    const end = e.changedTouches[0]?.clientX ?? start;
+    const dx = end - start;
+    const threshold = 48;
+    if (dx > threshold) {
+      setIndex((i) => Math.max(0, i - 1));
+    } else if (dx < -threshold) {
+      setIndex((i) => Math.min(items.length - 1, i + 1));
+    }
+  };
+
+  if (items.length === 0) {
+    return (
+      <div className={`managerIssueFlowCard managerIssueFlowCard--${kind}`}>
+        <div className="managerIssueFlowHead">
+          <h4>{title}</h4>
+          <span className="managerIssueFlowBadge">0</span>
+        </div>
+        <p className="muted">{emptyText}</p>
+      </div>
+    );
+  }
+
+  const current = items[index] ?? items[0];
+  const at = new Date(current.createdAt).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
   return (
-    <div className="opsCard managerIssuesInbox">
-      <h4>Оперативка: обращения магазинов</h4>
-      {issues.length === 0 ? (
-        <p className="muted">Пока обращений нет.</p>
-      ) : (
-        <div className="managerIssuesList">
-          {issues.map((item) => (
-            <article key={item.id} className="managerIssueCard">
-              <p className="managerIssueMeta">
-                <strong>{item.storeName}</strong> · {managerIssueCategoryLabel(item.category)} ·{' '}
-                {new Date(item.createdAt).toLocaleString('ru-RU', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </p>
-              <p className="managerIssueMessage">{item.message}</p>
-            </article>
+    <div className={`managerIssueFlowCard managerIssueFlowCard--${kind}`}>
+      <div className="managerIssueFlowHead">
+        <h4>{title}</h4>
+        <span className="managerIssueFlowBadge">{items.length}</span>
+      </div>
+      {banner ? <p className="notice managerIssueFlowBanner">{banner}</p> : null}
+      <div
+        className="managerIssueFlowViewport"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        role="region"
+        aria-roledescription="carousel"
+      >
+        <article className="managerIssueFlowSlide" key={current.id}>
+          <p className="managerIssueFlowKind">{managerIssueCategoryLabel(current.category)}</p>
+          <p className="managerIssueFlowSummary">
+            <strong>{current.storeName}</strong>: {current.message}
+          </p>
+          <p className="managerIssueFlowMeta">{at}</p>
+          {actionLabel && onAction ? (
+            <div className="managerIssueFlowActions">
+              <button
+                type="button"
+                className="managerIssueFlowBtn"
+                disabled={busyId === current.id}
+                onClick={() => {
+                  void (async () => {
+                    setBanner('');
+                    setBusyId(current.id);
+                    try {
+                      await onAction(current.id);
+                      setBanner(actionLabel === 'Выполнено' ? 'Перенесено в выполнено' : 'Передано в работу');
+                      window.setTimeout(() => setBanner(''), 3000);
+                    } catch (e) {
+                      setBanner(e instanceof Error ? e.message : 'Ошибка');
+                    } finally {
+                      setBusyId(null);
+                    }
+                  })();
+                }}
+              >
+                {busyId === current.id ? '…' : actionLabel}
+              </button>
+            </div>
+          ) : null}
+        </article>
+      </div>
+      {items.length > 1 ? (
+        <div className="managerIssueFlowDots" role="tablist" aria-label={`Слайды: ${title}`}>
+          {items.map((item, i) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`managerIssueFlowDot ${i === index ? 'managerIssueFlowDotActive' : ''}`}
+              aria-label={`Заявка ${i + 1}`}
+              aria-current={i === index}
+              onClick={() => setIndex(i)}
+            />
           ))}
         </div>
-      )}
+      ) : null}
+    </div>
+  );
+}
+
+function ManagerHomeIssuesPanel({
+  token,
+  items,
+  onStart,
+}: {
+  token: string;
+  items: ManagerIssue[];
+  onStart: (token: string, issueId: string) => Promise<void>;
+}) {
+  const inboxItems = items.filter((item) => item.status === 'NEW');
+  return (
+    <ManagerIssueCarousel
+      title="Согласования"
+      items={inboxItems}
+      actionLabel="В работу"
+      onAction={(issueId) => onStart(token, issueId)}
+      emptyText="Новых обращений нет."
+      kind="inbox"
+    />
+  );
+}
+
+function ManagerIssuesInbox({
+  token,
+  issues,
+  onComplete,
+}: {
+  token: string;
+  issues: ManagerIssue[];
+  onComplete: (token: string, issueId: string) => Promise<void>;
+}) {
+  const inProgress = issues.filter((item) => item.status === 'IN_PROGRESS');
+  const done = issues.filter((item) => item.status === 'DONE');
+
+  return (
+    <div className="opsCard managerIssuesInbox">
+      <ManagerIssueCarousel
+        title="В работе"
+        items={inProgress}
+        actionLabel="Выполнено"
+        onAction={(issueId) => onComplete(token, issueId)}
+        emptyText="Активных обращений пока нет."
+        kind="active"
+      />
+      <ManagerIssueCarousel
+        title="Выполнено"
+        items={done}
+        emptyText="Выполненных обращений пока нет."
+        kind="done"
+      />
     </div>
   );
 }
