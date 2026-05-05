@@ -1567,6 +1567,48 @@ button.ghost.navActive:hover {
   color: #d4b67b;
 }
 
+.teamReportDateBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 18px;
+  padding: 12px 14px;
+  margin: 0 0 4px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.42);
+  border: 1px solid rgba(212, 182, 123, 0.38);
+}
+
+.teamReportDateLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d4b67b;
+}
+
+.teamReportDateLabel input[type='date'] {
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 182, 123, 0.45);
+  background: rgba(2, 6, 23, 0.55);
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.teamReportDateHint {
+  margin: 0;
+  flex: 1 1 220px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(248, 250, 252, 0.72);
+}
+
 .staffPanelTitle {
   margin: 0;
   font-size: 18px;

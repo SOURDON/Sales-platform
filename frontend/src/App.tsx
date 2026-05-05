@@ -2092,7 +2092,7 @@ function App() {
               element={
                 <div className="dashboard">
                   <section className="sectionCard">
-                    {isFinanceViewer ? (
+                    {isFinanceViewer || isManager ? (
                       <FinanceOpsPanel
                         token={session.token}
                         isDirector={role === 'DIRECTOR'}
@@ -2299,7 +2299,7 @@ function App() {
                 ) : (
                   <div className="dashboard teamPage">
                     <section className="sectionCard teamPanelCard">
-                      {isFinanceViewer ? (
+                      {isFinanceViewer || isManager ? (
                         <TeamStoresOverview
                           token={session.token}
                           staff={staff}
@@ -2310,14 +2310,10 @@ function App() {
                           onDirectorSetPercent={setDirectorPercent}
                           onRemoveFromStore={removeStaffFromStore}
                           onRestoreStaffToStore={restoreStaffToStore}
-                        />
-                      ) : isManager ? (
-                        <ManagerPayrollPanel
-                          dayKey={teamDayKey}
-                          onDayKeyChange={setTeamDayKey}
-                          staff={staff}
-                          sellers={sellers}
-                          sales={salesMerged}
+                          reportDayKey={isManager ? teamDayKey : undefined}
+                          onReportDayKeyChange={isManager ? setTeamDayKey : undefined}
+                          hideRemovedStaff={isManager}
+                          readOnlyTeamActions={isManager}
                         />
                       ) : (
                         <StaffPanel
@@ -2971,125 +2967,6 @@ function ManagerIssuesInbox({ issues }: { issues: ManagerIssue[] }) {
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function ManagerPayrollPanel({
-  dayKey,
-  onDayKeyChange,
-  staff,
-  sellers,
-  sales,
-}: {
-  dayKey: string;
-  onDayKeyChange: (value: string) => void;
-  staff: StaffMember[];
-  sellers: SellerProfile[];
-  sales: AdminSale[];
-}) {
-  const rows = useMemo(() => {
-    const sellerById = new Map(sellers.map((s) => [s.id, s]));
-    const byStore = new Map<string, Array<{ key: string; name: string; salaryRub: number; subtitle: string }>>();
-    const addRow = (store: string, row: { key: string; name: string; salaryRub: number; subtitle: string }) => {
-      const current = byStore.get(store) ?? [];
-      current.push(row);
-      byStore.set(store, current);
-    };
-
-    const revenueByStore = new Map<string, number>();
-    const revenueBySeller = new Map<number, number>();
-    for (const sale of sales) {
-      if (calendarDayKeyMoscow(sale.createdAt) !== dayKey) {
-        continue;
-      }
-      const seller = sellerById.get(sale.sellerId);
-      if (!seller) {
-        continue;
-      }
-      revenueByStore.set(seller.storeName, (revenueByStore.get(seller.storeName) ?? 0) + sale.totalAmount);
-      revenueBySeller.set(seller.id, (revenueBySeller.get(seller.id) ?? 0) + sale.totalAmount);
-    }
-
-    for (const [sellerId, revenue] of revenueBySeller.entries()) {
-      const seller = sellerById.get(sellerId);
-      if (!seller) {
-        continue;
-      }
-      const salaryRub = Math.round((revenue * seller.ratePercent) / 100);
-      addRow(seller.storeName, {
-        key: `${seller.id}`,
-        name: seller.fullName,
-        salaryRub,
-        subtitle: `Продавец · ${seller.ratePercent}%`,
-      });
-    }
-
-    for (const member of staff) {
-      if (!member.isActive || member.staffPosition !== 'RETOUCHER') {
-        continue;
-      }
-      const store = member.storeName;
-      const rate = Number.isFinite(member.retoucherRatePercent) ? Number(member.retoucherRatePercent) : 5;
-      const storeRevenue = revenueByStore.get(store) ?? 0;
-      const salaryRub = Math.round((storeRevenue * rate) / 100);
-      addRow(store, {
-        key: `r-${member.id}`,
-        name: member.fullName,
-        salaryRub,
-        subtitle: `Ретушёр · ${rate}%`,
-      });
-    }
-
-    return [...byStore.entries()]
-      .map(([storeName, items]) => ({
-        storeName,
-        totalRub: items.reduce((sum, item) => sum + item.salaryRub, 0),
-        items: items.sort((a, b) => b.salaryRub - a.salaryRub || a.name.localeCompare(b.name, 'ru-RU')),
-      }))
-      .sort((a, b) => a.storeName.localeCompare(b.storeName, 'ru-RU'));
-  }, [dayKey, sales, sellers, staff]);
-
-  return (
-    <div className="staffPanelRoot managerPayrollPanel">
-      <h4 className="staffPanelTitle">Команда по магазинам</h4>
-      <div className="managerPayrollToolbar">
-        <label>
-          Дата расчёта
-          <input type="date" value={dayKey} onChange={(e) => onDayKeyChange(e.target.value)} />
-        </label>
-        <p className="muted managerPayrollHint">
-          Показывает начисления сотрудников за выбранный день по каждой точке.
-        </p>
-      </div>
-      {rows.length === 0 ? (
-        <p className="muted">За выбранный день продаж нет.</p>
-      ) : (
-        <div className="managerPayrollStores">
-          {rows.map((store) => (
-            <section key={store.storeName} className="managerPayrollStoreCard">
-              <header className="managerPayrollStoreHead">
-                <strong>{store.storeName}</strong>
-                <span>{formatRub(store.totalRub)}</span>
-              </header>
-              <div className="managerPayrollList">
-                {store.items.map((item) => (
-                  <article key={item.key} className="managerPayrollItem">
-                    <div>
-                      <p>{item.name}</p>
-                      <small>{item.subtitle}</small>
-                    </div>
-                    <strong>{formatRub(item.salaryRub)}</strong>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      )}
-      <p className="muted managerPayrollManagerSalary">
-        Зарплата управляющего: 5% с каждой точки, кроме «Сады морей тех зона» и «Метрополь».
-      </p>
     </div>
   );
 }
@@ -3910,6 +3787,10 @@ function TeamStoresOverview({
   onDirectorSetPercent,
   onRemoveFromStore,
   onRestoreStaffToStore,
+  reportDayKey,
+  onReportDayKeyChange,
+  hideRemovedStaff,
+  readOnlyTeamActions,
 }: {
   token: string;
   staff: StaffMember[];
@@ -3920,12 +3801,18 @@ function TeamStoresOverview({
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
   onRemoveFromStore: (token: string, id: number, storeName?: string) => Promise<void>;
   onRestoreStaffToStore: (token: string, staffId: number, storeName: string) => Promise<void>;
+  reportDayKey?: string;
+  onReportDayKeyChange?: (dayKey: string) => void;
+  hideRemovedStaff?: boolean;
+  readOnlyTeamActions?: boolean;
 }) {
   const openShift = shifts.find((item) => item.status === 'OPEN');
   const openShiftId = openShift?.id;
   const canEditPercent = role === 'DIRECTOR' || role === 'ACCOUNTANT';
   const sellerById = new Map(sellers.map((item) => [item.id, item]));
-  const todayKey = todayKeyMoscow();
+  const todayActual = todayKeyMoscow();
+  const calendarReportKey = reportDayKey ?? todayActual;
+  const reportIsToday = calendarReportKey === todayActual;
   const todaySalesBySellerId = new Map<number, number>();
   const [draftPercent, setDraftPercent] = useState<Record<number, string>>({});
   const [busyPercentMemberId, setBusyPercentMemberId] = useState<number | null>(null);
@@ -3965,7 +3852,7 @@ function TeamStoresOverview({
   const [removedStaffAccordionOpen, setRemovedStaffAccordionOpen] = useState(false);
 
   for (const sale of sales) {
-    if (calendarDayKeyMoscow(sale.createdAt) !== todayKey) {
+    if (calendarDayKeyMoscow(sale.createdAt) !== calendarReportKey) {
       continue;
     }
     todaySalesBySellerId.set(sale.sellerId, (todaySalesBySellerId.get(sale.sellerId) ?? 0) + sale.totalAmount);
@@ -3993,6 +3880,21 @@ function TeamStoresOverview({
   return (
     <div className="staffPanelRoot staffPanelStoresOverview">
       <h4 className="staffPanelTitle">Команда по магазинам</h4>
+      {onReportDayKeyChange ? (
+        <div className="teamReportDateBar">
+          <label className="teamReportDateLabel">
+            <span>Дата отчётности</span>
+            <input
+              type="date"
+              value={reportDayKey ?? todayActual}
+              onChange={(event) => onReportDayKeyChange(event.target.value)}
+            />
+          </label>
+          <p className="muted teamReportDateHint">
+            Продажи и заработок ретушёра считаются за выбранный календарный день (Москва).
+          </p>
+        </div>
+      ) : null}
       <div className="teamStoresBoard">
         {storesSorted.map((storeName) => {
           const members = staff.filter(
@@ -4033,11 +3935,17 @@ function TeamStoresOverview({
                   const isShiftOpen = Boolean(openShiftId && member.assignedShiftId === openShiftId);
                   const ratePctRetoucher = member.retoucherRatePercent ?? 5;
                   const retoucherEarn = isRetoucher
-                    ? retoucherEarnRubSnapshot(storeName, sellers, sales, ratePctRetoucher, todayKey)
+                    ? retoucherEarnRubSnapshot(storeName, sellers, sales, ratePctRetoucher, calendarReportKey)
                     : null;
                   const todaySales = todaySalesBySellerId.get(member.id) ?? 0;
                   const lifetimeSalesSeller = sellerLifetimeSalesRub(seller, sales);
-                  const statPrimaryLabel = isRetoucher ? 'Заработок за сегодня' : 'Продажи за сегодня';
+                  const statPrimaryLabel = isRetoucher
+                    ? reportIsToday
+                      ? 'Заработок за сегодня'
+                      : 'Заработок за выбранный день'
+                    : reportIsToday
+                      ? 'Продажи за сегодня'
+                      : 'Продажи за выбранный день';
                   const statPrimaryRub = isRetoucher ? retoucherEarn!.todayRub : todaySales;
                   const statSecondaryLabel = isRetoucher ? 'Заработок за всё время' : 'Продажи за всё время';
                   const statSecondaryRub = isRetoucher ? retoucherEarn!.lifetimeRub : lifetimeSalesSeller;
@@ -4063,40 +3971,42 @@ function TeamStoresOverview({
                             {isShiftOpen ? 'Смена открыта' : 'Смена закрыта'}
                           </p>
                         </div>
-                        <div className="teamMemberTopActions">
-                          <button
-                            type="button"
-                            className="teamMemberDeletePill"
-                            aria-label="Убрать из магазина"
-                            disabled={removingMemberId === member.id}
-                            title="Убрать сотрудника из этого магазина"
-                            onClick={async () => {
-                              const ok = window.confirm(
-                                `Убрать «${member.fullName}» из точки «${storeName}»?`,
-                              );
-                              if (!ok) {
-                                return;
-                              }
-                              setRemovingMemberId(member.id);
-                              try {
-                                await onRemoveFromStore(token, member.id, storeName);
-                              } finally {
-                                setRemovingMemberId(null);
-                              }
-                            }}
-                          >
-                            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
-                              <path
-                                d="M4 7h16M9 3h6M10 11v6M14 11v6M6.5 7l1 13h9l1-13"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.8"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </button>
-                        </div>
+                        {!readOnlyTeamActions ? (
+                          <div className="teamMemberTopActions">
+                            <button
+                              type="button"
+                              className="teamMemberDeletePill"
+                              aria-label="Убрать из магазина"
+                              disabled={removingMemberId === member.id}
+                              title="Убрать сотрудника из этого магазина"
+                              onClick={async () => {
+                                const ok = window.confirm(
+                                  `Убрать «${member.fullName}» из точки «${storeName}»?`,
+                                );
+                                if (!ok) {
+                                  return;
+                                }
+                                setRemovingMemberId(member.id);
+                                try {
+                                  await onRemoveFromStore(token, member.id, storeName);
+                                } finally {
+                                  setRemovingMemberId(null);
+                                }
+                              }}
+                            >
+                              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
+                                <path
+                                  d="M4 7h16M9 3h6M10 11v6M14 11v6M6.5 7l1 13h9l1-13"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="teamMemberStats">
@@ -4205,6 +4115,7 @@ function TeamStoresOverview({
         })}
       </div>
 
+      {!hideRemovedStaff ? (
       <section
         className={`teamStoresRemovedWrap ${removedStaffAccordionOpen ? '' : 'teamStoresRemovedWrap--collapsed'}`}
       >
@@ -4314,6 +4225,7 @@ function TeamStoresOverview({
           </div>
         </div>
       </section>
+      ) : null}
     </div>
   );
 }
