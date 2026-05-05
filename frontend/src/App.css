@@ -6912,3 +6912,12 @@ h1 {
   cursor: not-allowed;
 }
 
+/* Prevent iOS focus zoom: keep form controls at >=16px on mobile. */
+@media (max-width: 900px) {
+  .appWorkspace input,
+  .appWorkspace select,
+  .appWorkspace textarea {
+    font-size: 16px !important;
+  }
+}
+
