@@ -347,6 +347,8 @@ type MessengerThreadPreview = {
   lastMessageBody: string;
   lastMessageAt: string;
   lastOutgoing: boolean;
+  /** Кто отправил последнее сообщение (для второй строки, в стиле Telegram). */
+  lastSenderLabel: string;
   unreadCount: number;
 };
 
@@ -362,12 +364,6 @@ type MessengerLine = {
   senderLabel: string;
   authorNickname: string;
   outgoing: boolean;
-};
-
-type MessengerPeer = {
-  nickname: string;
-  displayName: string;
-  role: string;
 };
 
 function offlineQueueToAdminSales(queue: OfflineQueuedSale[], sellers: SellerProfile[]): AdminSale[] {
@@ -2668,7 +2664,6 @@ function App() {
                     {usesOrgChat ? (
                       <MessengerHub
                         token={session.token}
-                        user={session.user}
                         inbox={messengerInbox}
                         refreshInbox={refreshMessengerInbox}
                       />
@@ -3090,11 +3085,6 @@ async function parseOrgChatErrorResponse(response: Response): Promise<string> {
   return (await response.text().catch(() => '')) || `Ошибка ${response.status}`;
 }
 
-function dmThreadKey(a: string, b: string): string {
-  const [x, y] = [a, b].sort((p, q) => p.localeCompare(q, 'ru-RU'));
-  return `dm:${x}:${y}`;
-}
-
 function formatMessengerInboxTime(iso: string): string {
   try {
     const d = new Date(iso);
@@ -3124,29 +3114,49 @@ function formatMessengerInboxTime(iso: string): string {
   }
 }
 
-function messengerSnippetPreview(t: MessengerThreadPreview): string {
+/** Нижняя строка превью: только текст сообщения (имя — отдельной строкой, как в Telegram). */
+function messengerPreviewBodyLine(t: MessengerThreadPreview): string {
   const body = (t.lastMessageBody ?? '').trim();
   if (!body) {
     return 'Нет сообщений';
   }
-  if (t.kind === 'general') {
-    return t.lastOutgoing ? `Вы: ${body}` : body;
+  return body;
+}
+
+/** Вторая строка: имя отправителя последнего сообщения. */
+function messengerListSenderLine(t: MessengerThreadPreview): string {
+  const body = (t.lastMessageBody ?? '').trim();
+  if (!body) {
+    return '';
   }
-  return t.lastOutgoing ? `Вы: ${body}` : body;
+  return (t.lastSenderLabel ?? '').trim();
+}
+
+function messengerAvatarToneClass(seed: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i += 1) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return `messengerAvatar--tone${Math.abs(h) % 8}`;
+}
+
+function formatMessengerUnreadCount(n: number): string {
+  if (n >= 1000) {
+    return `${(n / 1000).toFixed(1).replace('.', ',')}K`;
+  }
+  return String(n);
 }
 
 function MessengerHub({
   token,
-  user,
   inbox,
   refreshInbox,
 }: {
   token: string;
-  user: LoginResponse['user'];
   inbox: MessengerInboxResponse | null;
   refreshInbox: () => Promise<void>;
 }) {
-  const myNickname = user.nickname;
   const [threadKey, setThreadKey] = useState<string | null>(null);
   const [threadTitle, setThreadTitle] = useState('');
   const [messages, setMessages] = useState<MessengerLine[]>([]);
@@ -3154,9 +3164,6 @@ function MessengerHub({
   const [loadingThread, setLoadingThread] = useState(false);
   const [sendBusy, setSendBusy] = useState(false);
   const [threadError, setThreadError] = useState('');
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [peers, setPeers] = useState<MessengerPeer[]>([]);
-  const [peersBusy, setPeersBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
 
@@ -3267,25 +3274,6 @@ function MessengerHub({
     setThreadError('');
   };
 
-  const openPeerPicker = async () => {
-    setPickerOpen(true);
-    setPeersBusy(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/chat/peers`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        throw new Error(await parseOrgChatErrorResponse(response));
-      }
-      const data = (await response.json()) as { peers?: MessengerPeer[] };
-      setPeers(Array.isArray(data.peers) ? data.peers : []);
-    } catch {
-      setPeers([]);
-    } finally {
-      setPeersBusy(false);
-    }
-  };
-
   const handleThreadSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const text = draft.trim();
@@ -3323,19 +3311,17 @@ function MessengerHub({
         <header className="messengerHubHeader">
           <div>
             <h3 className="messengerHubTitle">Сообщения</h3>
-            <p className="messengerHubSubtitle">
-              Общий чат сети и личные переписки. Список обновляется на фоне.
-            </p>
+            <p className="messengerHubSubtitle">Общий чат и личные диалоги со всеми участниками сети.</p>
           </div>
-          <button type="button" className="ghost messengerNewDmBtn" onClick={() => void openPeerPicker()}>
-            Написать
-          </button>
         </header>
 
         <ul className="messengerThreadList" aria-label="Чаты">
           {threads.map((t) => {
             const initial = (t.title.trim()[0] ?? '?').toUpperCase();
             const unread = t.unreadCount > 0;
+            const senderLine = messengerListSenderLine(t);
+            const previewLine = messengerPreviewBodyLine(t);
+            const hasMsg = Boolean((t.lastMessageBody ?? '').trim());
             return (
               <li key={t.threadKey}>
                 <button
@@ -3343,79 +3329,32 @@ function MessengerHub({
                   className="messengerThreadRow"
                   onClick={() => openThread(t.threadKey, t.title)}
                 >
-                  <span className="messengerAvatar" aria-hidden>
+                  <span
+                    className={`messengerAvatar ${messengerAvatarToneClass(t.threadKey)}`}
+                    aria-hidden
+                  >
                     {initial}
                   </span>
-                  <span className="messengerThreadMain">
-                    <span className="messengerThreadTop">
+                  <span className="messengerThreadTextCol">
+                    <span className="messengerTgTitleRow">
                       <span className="messengerThreadName">{t.title}</span>
-                      <span className="messengerThreadTime">{formatMessengerInboxTime(t.lastMessageAt)}</span>
                     </span>
-                    <span className="messengerThreadPreview">{messengerSnippetPreview(t)}</span>
+                    {senderLine ? <span className="messengerThreadSender">{senderLine}</span> : null}
+                    <span className="messengerThreadPreview">{previewLine}</span>
                   </span>
-                  {unread ? (
-                    <span className="messengerUnreadBadge">
-                      {t.unreadCount > 999 ? '999+' : t.unreadCount}
-                    </span>
-                  ) : (
-                    <span className="messengerUnreadSpacer" aria-hidden />
-                  )}
+                  <span className="messengerThreadRightCol">
+                    {hasMsg ? (
+                      <span className="messengerThreadTime">{formatMessengerInboxTime(t.lastMessageAt)}</span>
+                    ) : null}
+                    {unread ? (
+                      <span className="messengerUnreadBadge">{formatMessengerUnreadCount(t.unreadCount)}</span>
+                    ) : null}
+                  </span>
                 </button>
               </li>
             );
           })}
         </ul>
-
-        {pickerOpen ? (
-          <div
-            className="messengerModalBackdrop"
-            role="presentation"
-            onClick={() => setPickerOpen(false)}
-          >
-            <div
-              className="messengerModal"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Выберите собеседника"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <header className="messengerModalHeader">
-                <h4>Личное сообщение</h4>
-                <button type="button" className="ghost" onClick={() => setPickerOpen(false)}>
-                  Закрыть
-                </button>
-              </header>
-              {peersBusy ? (
-                <p className="muted messengerModalHint">Загружаем контакты…</p>
-              ) : peers.length === 0 ? (
-                <p className="muted messengerModalHint">Нет доступных контактов.</p>
-              ) : (
-                <ul className="messengerPeerList">
-                  {peers.map((p) => (
-                    <li key={p.nickname}>
-                      <button
-                        type="button"
-                        className="messengerPeerRow"
-                        onClick={() => {
-                          openThread(dmThreadKey(myNickname, p.nickname), p.displayName);
-                          setPickerOpen(false);
-                        }}
-                      >
-                        <span className="messengerAvatar messengerAvatar--sm" aria-hidden>
-                          {(p.displayName.trim()[0] ?? '?').toUpperCase()}
-                        </span>
-                        <span className="messengerPeerMeta">
-                          <span className="messengerPeerName">{p.displayName}</span>
-                          <span className="messengerPeerRole muted">{p.role}</span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        ) : null}
       </section>
     );
   }

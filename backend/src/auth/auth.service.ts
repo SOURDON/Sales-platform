@@ -2369,10 +2369,15 @@ export class AuthService implements OnModuleInit {
       lastMessageBody: string;
       lastMessageAt: string;
       lastOutgoing: boolean;
+      /** Подпись «кто написал» для строки как в Telegram (Вы / имя / display). */
+      lastSenderLabel: string;
       unreadCount: number;
     };
 
-    const threads: ThreadRow[] = [];
+    const peers = this.getMessengerPeers(actorNickname, actorRole);
+    if (!peers) {
+      return null;
+    }
 
     const lastGeneral = await this.prisma.orgChatMessage.findFirst({
       orderBy: { createdAt: 'desc' },
@@ -2389,36 +2394,30 @@ export class AuthService implements OnModuleInit {
         createdAt: { gt: genLastRead },
       },
     });
-    threads.push({
+    const generalLastSenderLabel =
+      lastGeneral == null
+        ? ''
+        : lastGeneral.authorNickname === actorNickname
+          ? 'Вы'
+          : lastGeneral.senderDisplay;
+    const generalThread: ThreadRow = {
       threadKey: 'general',
       kind: 'general',
       title: 'Общий чат',
       lastMessageBody: lastGeneral?.body ?? '',
       lastMessageAt: lastGeneral?.createdAt.toISOString() ?? new Date(0).toISOString(),
       lastOutgoing: lastGeneral ? lastGeneral.authorNickname === actorNickname : false,
+      lastSenderLabel: generalLastSenderLabel,
       unreadCount: genUnread,
-    });
+    };
 
-    const dmPartners = new Set<string>();
-    const sentDistinct = await this.prisma.directMessage.findMany({
-      where: { senderNickname: actorNickname },
-      distinct: ['recipientNickname'],
-      select: { recipientNickname: true },
-    });
-    const recvDistinct = await this.prisma.directMessage.findMany({
-      where: { recipientNickname: actorNickname },
-      distinct: ['senderNickname'],
-      select: { senderNickname: true },
-    });
-    for (const row of sentDistinct) {
-      dmPartners.add(row.recipientNickname);
-    }
-    for (const row of recvDistinct) {
-      dmPartners.add(row.senderNickname);
-    }
-
-    for (const partner of dmPartners) {
+    const dmThreads: ThreadRow[] = [];
+    for (const peer of peers) {
+      const partner = peer.nickname;
       const tk = this.dmThreadKey(actorNickname, partner);
+      const peerUser = this.demoUsers.find((u) => u.nickname === partner);
+      const title = peer.displayName;
+
       const lastDm = await this.prisma.directMessage.findFirst({
         where: {
           OR: [
@@ -2428,10 +2427,7 @@ export class AuthService implements OnModuleInit {
         },
         orderBy: { createdAt: 'desc' },
       });
-      if (!lastDm) {
-        continue;
-      }
-      const peerUser = this.demoUsers.find((u) => u.nickname === partner);
+
       const dmState = await this.prisma.userChatReadState.findUnique({
         where: {
           userNickname_threadKey: { userNickname: actorNickname, threadKey: tk },
@@ -2445,23 +2441,50 @@ export class AuthService implements OnModuleInit {
           createdAt: { gt: dmLastRead },
         },
       });
-      threads.push({
-        threadKey: tk,
-        kind: 'dm',
-        title: peerUser ? this.messengerPeerDisplay(peerUser) : partner,
-        peerNickname: partner,
-        lastMessageBody: lastDm.body,
-        lastMessageAt: lastDm.createdAt.toISOString(),
-        lastOutgoing: lastDm.senderNickname === actorNickname,
-        unreadCount: dmUnread,
-      });
+
+      if (lastDm) {
+        const lastSenderLabel =
+          lastDm.senderNickname === actorNickname
+            ? 'Вы'
+            : peerUser
+              ? this.messengerPeerDisplay(peerUser)
+              : partner;
+        dmThreads.push({
+          threadKey: tk,
+          kind: 'dm',
+          title,
+          peerNickname: partner,
+          lastMessageBody: lastDm.body,
+          lastMessageAt: lastDm.createdAt.toISOString(),
+          lastOutgoing: lastDm.senderNickname === actorNickname,
+          lastSenderLabel,
+          unreadCount: dmUnread,
+        });
+      } else {
+        dmThreads.push({
+          threadKey: tk,
+          kind: 'dm',
+          title,
+          peerNickname: partner,
+          lastMessageBody: '',
+          lastMessageAt: new Date(0).toISOString(),
+          lastOutgoing: false,
+          lastSenderLabel: '',
+          unreadCount: 0,
+        });
+      }
     }
 
-    threads.sort(
-      (a, b) =>
-        new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
-    );
+    dmThreads.sort((a, b) => {
+      const tb = new Date(b.lastMessageAt).getTime();
+      const ta = new Date(a.lastMessageAt).getTime();
+      if (tb !== ta) {
+        return tb - ta;
+      }
+      return a.title.localeCompare(b.title, 'ru-RU');
+    });
 
+    const threads = [generalThread, ...dmThreads];
     const totalUnread = threads.reduce((sum, t) => sum + t.unreadCount, 0);
     return { threads, totalUnread };
   }

@@ -7245,25 +7245,22 @@ h1 {
   line-height: 1.35;
 }
 
-.messengerNewDmBtn {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
 .messengerThreadList {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
+/* Строка списка как в Telegram: аватар | название + отправитель + превью | время + бейдж */
 .messengerThreadRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px 12px;
   width: 100%;
-  padding: 10px 16px;
+  padding: 11px 14px 11px 12px;
   border: 0;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid #e8ecf1;
   background: #fff;
   text-align: left;
   cursor: pointer;
@@ -7271,42 +7268,66 @@ h1 {
 }
 
 .messengerThreadRow:hover {
-  background: #f6f8fb;
+  background: #f3f5f8;
 }
 
 .messengerAvatar {
   flex-shrink: 0;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #94a3b8 0%, #64748b 100%);
   color: #fff;
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
 
-.messengerAvatar--sm {
-  width: 40px;
-  height: 40px;
-  font-size: 15px;
+.messengerAvatar--tone0 {
+  background: linear-gradient(145deg, #7eb6ff, #4f8fd9);
 }
 
-.messengerThreadMain {
-  flex: 1;
-  min-width: 0;
+.messengerAvatar--tone1 {
+  background: linear-gradient(145deg, #9d8cff, #6c5ce7);
+}
+
+.messengerAvatar--tone2 {
+  background: linear-gradient(145deg, #6ee7d8, #2bb8a8);
+}
+
+.messengerAvatar--tone3 {
+  background: linear-gradient(145deg, #f6b683, #e09045);
+}
+
+.messengerAvatar--tone4 {
+  background: linear-gradient(145deg, #f293b8, #d9578c);
+}
+
+.messengerAvatar--tone5 {
+  background: linear-gradient(145deg, #a8d46a, #6fab3d);
+}
+
+.messengerAvatar--tone6 {
+  background: linear-gradient(145deg, #8bd3ff, #4895d9);
+}
+
+.messengerAvatar--tone7 {
+  background: linear-gradient(145deg, #c9b28a, #9a7b52);
+}
+
+.messengerThreadTextCol {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 
-.messengerThreadTop {
+.messengerTgTitleRow {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+  min-width: 0;
 }
 
 .messengerThreadName {
@@ -7318,10 +7339,13 @@ h1 {
   white-space: nowrap;
 }
 
-.messengerThreadTime {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: #94a3b8;
+.messengerThreadSender {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .messengerThreadPreview {
@@ -7332,21 +7356,87 @@ h1 {
   white-space: nowrap;
 }
 
+.messengerThreadRightCol {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 40px;
+  padding-top: 2px;
+}
+
+.messengerThreadTime {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
 .messengerUnreadBadge {
   flex-shrink: 0;
-  min-width: 24px;
-  padding: 3px 8px;
-  border-radius: 12px;
-  background: #94a3b8;
+  min-width: 22px;
+  padding: 3px 7px;
+  border-radius: 11px;
+  background: #c5ccd6;
   color: #fff;
   font-size: 13px;
   font-weight: 700;
   text-align: center;
+  line-height: 1.15;
 }
 
-.messengerUnreadSpacer {
-  width: 36px;
-  flex-shrink: 0;
+/* Тёмная тема рабочего приложения — список как отдельная «плашка» */
+.appWorkspace .messengerHub {
+  border-radius: 14px;
+  border: 1px solid var(--ui-edge-soft);
+  background: rgba(8, 22, 17, 0.55);
+}
+
+.appWorkspace .messengerHubHeader {
+  background: rgba(6, 18, 14, 0.72);
+  border-bottom-color: var(--ui-edge-soft);
+}
+
+.appWorkspace .messengerHubTitle {
+  color: var(--ui-text);
+}
+
+.appWorkspace .messengerHubSubtitle {
+  color: var(--ui-muted);
+}
+
+.appWorkspace .messengerThreadRow {
+  background: transparent;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.appWorkspace .messengerThreadRow:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.appWorkspace .messengerThreadName {
+  color: var(--ui-text);
+}
+
+.appWorkspace .messengerThreadSender {
+  color: rgba(236, 232, 223, 0.94);
+}
+
+.appWorkspace .messengerThreadPreview {
+  color: var(--ui-muted);
+}
+
+.appWorkspace .messengerThreadTime {
+  color: var(--ui-dim);
+}
+
+.appWorkspace .messengerUnreadBadge {
+  background: rgba(148, 163, 184, 0.38);
+  color: #f8fafc;
+}
+
+.appWorkspace .messengerAvatar {
+  box-shadow: 0 2px 6px rgba(2, 8, 6, 0.45);
 }
 
 /* Мессенджер на всю высоту окна: скролл только список/лента, композер всегда снизу */
