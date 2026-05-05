@@ -2304,6 +2304,23 @@ function App() {
                           onDirectorSetPercent={setDirectorPercent}
                           showOnlyCards
                         />
+                        {role === 'ADMIN' ? (
+                          <StaffPanel
+                            token={session.token}
+                            staff={staff}
+                            sellers={sellers}
+                            globalEmployees={globalEmployees}
+                            shifts={shifts}
+                            role={role}
+                            readOnly={isReadOnlyObserver}
+                            onAdd={addStaffMember}
+                            onAddFromBase={addStaffFromBase}
+                            onRemoveFromStore={removeStaffFromStore}
+                            onDirectorSetPercent={setDirectorPercent}
+                            hideCards
+                            managementAccordion
+                          />
+                        ) : null}
                       </>
                     )}
                   </section>
@@ -2340,34 +2357,60 @@ function App() {
                         )}
                       </>
                     )}
-                    {isFinanceViewer ? (
-                      <>
-                        <section className="sectionCard inventorySectionCard">
-                          <DirectorWarehousePanel
-                            token={session.token}
-                            overview={inventoryOverview}
-                            onReload={() => loadInventoryOverview(session.token)}
-                            onReplenish={replenishWarehouse}
-                          />
-                        </section>
+                    {isManager ? (
+                      <section className="sectionCard">
+                        <ManagerIssuesInbox
+                          token={session.token}
+                          issues={managerIssues}
+                          onComplete={completeManagerIssue}
+                        />
+                      </section>
+                    ) : isFinanceViewer ? (
+                      role === 'DIRECTOR' ? (
                         <section className="sectionCard">
-                          <AccountantProcurementPanel
+                          <FinanceReportPanel
                             token={session.token}
-                            products={products}
+                            sales={salesMerged}
+                            sellers={sellers}
                             procurementCosts={productProcurementCosts}
+                            role={role}
                             acquiringPercent={acquiringPercent}
                             acquiringPercentDetkov={acquiringPercentDetkov}
                             acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
-                            onAcquiringPercentChange={setAcquiringPercent}
-                            onAcquiringPercentDetkovChange={setAcquiringPercentDetkov}
-                            onAcquiringPercentPutintsevSberChange={setAcquiringPercentPutintsevSber}
-                            onSaveAcquiringPercent={saveAcquiringPercent}
-                            onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
-                            onSaveAcquiringPercentPutintsevSber={saveAcquiringPercentPutintsevSber}
-                            onSave={saveProductProcurementCosts}
+                            onRefreshFinanceInputs={refreshFinanceInputs}
+                            onLoadPlans={loadRevenuePlans}
+                            onSavePlans={saveRevenuePlans}
                           />
                         </section>
-                      </>
+                      ) : (
+                        <>
+                          <section className="sectionCard inventorySectionCard">
+                            <DirectorWarehousePanel
+                              token={session.token}
+                              overview={inventoryOverview}
+                              onReload={() => loadInventoryOverview(session.token)}
+                              onReplenish={replenishWarehouse}
+                            />
+                          </section>
+                          <section className="sectionCard">
+                            <AccountantProcurementPanel
+                              token={session.token}
+                              products={products}
+                              procurementCosts={productProcurementCosts}
+                              acquiringPercent={acquiringPercent}
+                              acquiringPercentDetkov={acquiringPercentDetkov}
+                              acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
+                              onAcquiringPercentChange={setAcquiringPercent}
+                              onAcquiringPercentDetkovChange={setAcquiringPercentDetkov}
+                              onAcquiringPercentPutintsevSberChange={setAcquiringPercentPutintsevSber}
+                              onSaveAcquiringPercent={saveAcquiringPercent}
+                              onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
+                              onSaveAcquiringPercentPutintsevSber={saveAcquiringPercentPutintsevSber}
+                              onSave={saveProductProcurementCosts}
+                            />
+                          </section>
+                        </>
+                      )
                     ) : (
                       <>
                         <section className="sectionCard">
@@ -2494,20 +2537,41 @@ function App() {
                           readOnlyTeamActions={isManager}
                         />
                       ) : (
-                        <StaffPanel
-                          token={session.token}
-                          staff={staff}
-                          sellers={sellers}
-                          globalEmployees={globalEmployees}
-                          shifts={shifts}
-                          role={role}
-                          readOnly={isReadOnlyObserver}
-                          onAdd={addStaffMember}
-                          onAddFromBase={addStaffFromBase}
-                          onRemoveFromStore={removeStaffFromStore}
-                          onDirectorSetPercent={setDirectorPercent}
-                          hideCards
-                        />
+                        role === 'ADMIN' ? (
+                          <>
+                            <div className="inventorySectionCard">
+                              <StoreInventoryControlPanel
+                                token={session.token}
+                                detail={storeInventory}
+                                storeName={session.user.storeName}
+                                onReload={() => loadStoreInventory(session.token)}
+                                onReceiveFromWarehouse={transferFromWarehouseToStore}
+                              />
+                            </div>
+                            <div>
+                              <WriteOffForm
+                                products={products}
+                                token={session.token}
+                                onAddWriteOff={addWriteOff}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <StaffPanel
+                            token={session.token}
+                            staff={staff}
+                            sellers={sellers}
+                            globalEmployees={globalEmployees}
+                            shifts={shifts}
+                            role={role}
+                            readOnly={isReadOnlyObserver}
+                            onAdd={addStaffMember}
+                            onAddFromBase={addStaffFromBase}
+                            onRemoveFromStore={removeStaffFromStore}
+                            onDirectorSetPercent={setDirectorPercent}
+                            hideCards
+                          />
+                        )
                       )}
                     </section>
                     {role === 'DIRECTOR' && (
@@ -2531,51 +2595,36 @@ function App() {
                 ) : (
                   <div className="dashboard">
                     {isFinanceViewer ? (
-                      <>
-                        <section className="sectionCard">
-                          <FinanceReportPanel
-                            token={session.token}
-                            sales={salesMerged}
-                            sellers={sellers}
-                            procurementCosts={productProcurementCosts}
-                            role={role}
-                            acquiringPercent={acquiringPercent}
-                            acquiringPercentDetkov={acquiringPercentDetkov}
-                            acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
-                            onRefreshFinanceInputs={refreshFinanceInputs}
-                            onLoadPlans={loadRevenuePlans}
-                            onSavePlans={saveRevenuePlans}
-                          />
-                        </section>
-                      </>
-                    ) : isManager ? (
-                      <section className="sectionCard">
-                        <ManagerIssuesInbox
-                          token={session.token}
-                          issues={managerIssues}
-                          onComplete={completeManagerIssue}
-                        />
-                      </section>
-                    ) : (
-                      <>
-                        {role === 'ADMIN' && (
-                          <section className="sectionCard inventorySectionCard">
-                            <StoreInventoryControlPanel
+                      role === 'DIRECTOR' ? null : (
+                        <>
+                          <section className="sectionCard">
+                            <FinanceReportPanel
                               token={session.token}
-                              detail={storeInventory}
-                              storeName={session.user.storeName}
-                              onReload={() => loadStoreInventory(session.token)}
-                              onReceiveFromWarehouse={transferFromWarehouseToStore}
+                              sales={salesMerged}
+                              sellers={sellers}
+                              procurementCosts={productProcurementCosts}
+                              role={role}
+                              acquiringPercent={acquiringPercent}
+                              acquiringPercentDetkov={acquiringPercentDetkov}
+                              acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
+                              onRefreshFinanceInputs={refreshFinanceInputs}
+                              onLoadPlans={loadRevenuePlans}
+                              onSavePlans={saveRevenuePlans}
+                            />
+                          </section>
+                        </>
+                      )
+                    ) : isManager ? null : (
+                      <>
+                        {role === 'ADMIN' ? null : (
+                          <section className="sectionCard">
+                            <WriteOffForm
+                              products={products}
+                              token={session.token}
+                              onAddWriteOff={addWriteOff}
                             />
                           </section>
                         )}
-                        <section className="sectionCard">
-                          <WriteOffForm
-                            products={products}
-                            token={session.token}
-                            onAddWriteOff={addWriteOff}
-                          />
-                        </section>
                         {role !== 'ADMIN' && (
                           <section className="sectionCard">
                             <ThresholdPanel notifications={thresholds} />
@@ -4687,6 +4736,7 @@ function StaffPanel({
   readOnly,
   showOnlyCards,
   hideCards,
+  managementAccordion,
   onAdd,
   onAddFromBase,
   onRemoveFromStore,
@@ -4701,6 +4751,7 @@ function StaffPanel({
   readOnly?: boolean;
   showOnlyCards?: boolean;
   hideCards?: boolean;
+  managementAccordion?: boolean;
   onAdd: (token: string, fullName: string, nickname: string) => Promise<void>;
   onAddFromBase: (token: string, employeeId: number) => Promise<void>;
   onRemoveFromStore: (token: string, id: number, storeName?: string) => Promise<void>;
@@ -4731,6 +4782,8 @@ function StaffPanel({
       : firstRemovableStaffId;
   const selectedRemovalStaff = removableSalesStaff.find((member) => member.id === selectedRemovalStaffId);
   const shouldRenderCards = !hideCards || showOnlyCards;
+  const [cardsAccordionOpenById, setCardsAccordionOpenById] = useState<Record<number, boolean>>({});
+  const [managementAccordionOpen, setManagementAccordionOpen] = useState(false);
 
   if (showOnlyCards) {
     return (
@@ -4739,8 +4792,9 @@ function StaffPanel({
         <div className="opsList teamRoster">
           {staff.map((member) => {
             const seller = sellers.find((item) => item.id === member.id);
+            const cardOpen = cardsAccordionOpenById[member.id] === true;
             return (
-              <TeamMemberCard
+              <section
                 key={
                   member.staffPosition === 'RETOUCHER'
                     ? `reto-${member.id}`
@@ -4748,13 +4802,42 @@ function StaffPanel({
                       ? `${member.id}-${seller.ratePercent}`
                       : String(member.id)
                 }
-                token={token}
-                member={member}
-                seller={seller}
-                role={role}
-                openShiftId={openShift?.id}
-                onDirectorSetPercent={onDirectorSetPercent}
-              />
+                className={`staffCardAccordion ${cardOpen ? '' : 'staffCardAccordion--collapsed'}`}
+              >
+                <button
+                  type="button"
+                  className="staffCardAccordionTrigger"
+                  aria-expanded={cardOpen}
+                  onClick={() =>
+                    setCardsAccordionOpenById((prev) => ({
+                      ...prev,
+                      [member.id]: !(prev[member.id] === true),
+                    }))
+                  }
+                >
+                  <span className="staffCardAccordionTitle">
+                    {member.fullName}{' '}
+                    <span className="teamMemberNick">({member.nickname})</span>
+                  </span>
+                  <span className="staffCardAccordionChevron" aria-hidden>
+                    <svg viewBox="0 0 24 24" width="16" height="16">
+                      <path fill="currentColor" d="M7 10l5 5 5-5z" />
+                    </svg>
+                  </span>
+                </button>
+                <div className="staffCardAccordionPanel">
+                  <div className="staffCardAccordionPanelInner">
+                    <TeamMemberCard
+                      token={token}
+                      member={member}
+                      seller={seller}
+                      role={role}
+                      openShiftId={openShift?.id}
+                      onDirectorSetPercent={onDirectorSetPercent}
+                    />
+                  </div>
+                </div>
+              </section>
             );
           })}
         </div>
@@ -4764,98 +4847,217 @@ function StaffPanel({
 
   return (
     <div className="opsCard staffPanelRoot">
-      <h4 className="staffPanelTitle">Управление персоналом</h4>
-      <p className="staffPanelIntro">
-        {readOnly
-          ? 'Просмотр персонала и показателей (роль «Бухгалтер»).'
-          : 'Добавьте сотрудника вручную или из общей базы. Ниже — карточки с действиями и показателями.'}
-      </p>
-      {!readOnly && (
+      {managementAccordion ? (
+        <section
+          className={`staffManagementAccordion ${managementAccordionOpen ? '' : 'staffManagementAccordion--collapsed'}`}
+        >
+          <button
+            type="button"
+            className="staffManagementAccordionTrigger"
+            aria-expanded={managementAccordionOpen}
+            onClick={() => setManagementAccordionOpen((open) => !open)}
+          >
+            <span className="staffManagementAccordionTitle">Управление персоналом</span>
+            <span className="staffManagementAccordionChevron" aria-hidden>
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M7 10l5 5 5-5z" />
+              </svg>
+            </span>
+          </button>
+          <div className="staffManagementAccordionPanel">
+            <div className="staffManagementAccordionPanelInner">
+              <p className="staffPanelIntro">
+                {readOnly
+                  ? 'Просмотр персонала и показателей (роль «Бухгалтер»).'
+                  : 'Добавьте сотрудника вручную или из общей базы. Ниже — карточки с действиями и показателями.'}
+              </p>
+              {!readOnly && (
+                <>
+                  <div className="inlineGrid staffPanelAddRow">
+                    <label className="staffPanelAddField">
+                      <span>ФИО</span>
+                      <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
+                    </label>
+                    <label className="staffPanelAddField">
+                      <span>Ник</span>
+                      <input value={nickname} onChange={(event) => setNickname(event.target.value)} />
+                    </label>
+                    <button
+                      className="primaryAction"
+                      type="button"
+                      onClick={async () => {
+                        await onAdd(token, fullName, nickname);
+                        setFullName('');
+                        setNickname('');
+                      }}
+                    >
+                      Добавить сотрудника
+                    </button>
+                  </div>
+                  <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
+                    <label>
+                      Сотрудник из общей базы
+                      <select
+                        value={selectedEmployeeId}
+                        onChange={(event) => setPickedEmployeeId(Number(event.target.value))}
+                      >
+                        {baseCandidates.map((employee) => (
+                          <option key={employee.id} value={employee.id}>
+                            {employee.fullName} ({employee.nickname}) - {employee.homeStore}
+                            {staffIds.has(employee.id) ? ' [уже в этой точке]' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="primaryAction"
+                      type="button"
+                      disabled={!selectedEmployeeId || alreadyInStore}
+                      onClick={() => selectedEmployeeId && onAddFromBase(token, selectedEmployeeId)}
+                    >
+                      Добавить из общей базы
+                    </button>
+                    <p className="inlineStatus">
+                      {baseCandidates.length === 0
+                        ? 'Доступных продавцов в общей базе нет'
+                        : alreadyInStore
+                          ? 'Уже добавлен в эту точку'
+                          : ''}
+                    </p>
+                  </div>
+                  <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
+                    <label>
+                      Убрать продавца из магазина
+                      <select
+                        value={selectedRemovalStaffId}
+                        onChange={(event) => setPickedRemovalStaffId(Number(event.target.value))}
+                      >
+                        {removableSalesStaff.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.fullName} ({member.nickname}) - {member.storeName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="ghost"
+                      type="button"
+                      disabled={!selectedRemovalStaffId}
+                      onClick={async () => {
+                        if (!selectedRemovalStaff) {
+                          return;
+                        }
+                        await onRemoveFromStore(token, selectedRemovalStaff.id, selectedRemovalStaff.storeName);
+                        setPickedRemovalStaffId(null);
+                      }}
+                    >
+                      Убрать из магазина
+                    </button>
+                    <p className="inlineStatus">
+                      {removableSalesStaff.length === 0 ? 'Нет продавцов для удаления из точки' : ''}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : (
         <>
-          <div className="inlineGrid staffPanelAddRow">
-            <label className="staffPanelAddField">
-              <span>ФИО</span>
-              <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
-            </label>
-            <label className="staffPanelAddField">
-              <span>Ник</span>
-              <input value={nickname} onChange={(event) => setNickname(event.target.value)} />
-            </label>
-            <button
-              className="primaryAction"
-              type="button"
-              onClick={async () => {
-                await onAdd(token, fullName, nickname);
-                setFullName('');
-                setNickname('');
-              }}
-            >
-              Добавить сотрудника
-            </button>
-          </div>
-          <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
-            <label>
-              Сотрудник из общей базы
-              <select
-                value={selectedEmployeeId}
-                onChange={(event) => setPickedEmployeeId(Number(event.target.value))}
-              >
-                {baseCandidates.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.fullName} ({employee.nickname}) - {employee.homeStore}
-                    {staffIds.has(employee.id) ? ' [уже в этой точке]' : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              className="primaryAction"
-              type="button"
-              disabled={!selectedEmployeeId || alreadyInStore}
-              onClick={() => selectedEmployeeId && onAddFromBase(token, selectedEmployeeId)}
-            >
-              Добавить из общей базы
-            </button>
-            <p className="inlineStatus">
-              {baseCandidates.length === 0
-                ? 'Доступных продавцов в общей базе нет'
-                : alreadyInStore
-                  ? 'Уже добавлен в эту точку'
-                  : ''}
-            </p>
-          </div>
-          <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
-            <label>
-              Убрать продавца из магазина
-              <select
-                value={selectedRemovalStaffId}
-                onChange={(event) => setPickedRemovalStaffId(Number(event.target.value))}
-              >
-                {removableSalesStaff.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.fullName} ({member.nickname}) - {member.storeName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              className="ghost"
-              type="button"
-              disabled={!selectedRemovalStaffId}
-              onClick={async () => {
-                if (!selectedRemovalStaff) {
-                  return;
-                }
-                await onRemoveFromStore(token, selectedRemovalStaff.id, selectedRemovalStaff.storeName);
-                setPickedRemovalStaffId(null);
-              }}
-            >
-              Убрать из магазина
-            </button>
-            <p className="inlineStatus">
-              {removableSalesStaff.length === 0 ? 'Нет продавцов для удаления из точки' : ''}
-            </p>
-          </div>
+          <h4 className="staffPanelTitle">Управление персоналом</h4>
+          <p className="staffPanelIntro">
+            {readOnly
+              ? 'Просмотр персонала и показателей (роль «Бухгалтер»).'
+              : 'Добавьте сотрудника вручную или из общей базы. Ниже — карточки с действиями и показателями.'}
+          </p>
+          {!readOnly && (
+            <>
+              <div className="inlineGrid staffPanelAddRow">
+                <label className="staffPanelAddField">
+                  <span>ФИО</span>
+                  <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
+                </label>
+                <label className="staffPanelAddField">
+                  <span>Ник</span>
+                  <input value={nickname} onChange={(event) => setNickname(event.target.value)} />
+                </label>
+                <button
+                  className="primaryAction"
+                  type="button"
+                  onClick={async () => {
+                    await onAdd(token, fullName, nickname);
+                    setFullName('');
+                    setNickname('');
+                  }}
+                >
+                  Добавить сотрудника
+                </button>
+              </div>
+              <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
+                <label>
+                  Сотрудник из общей базы
+                  <select
+                    value={selectedEmployeeId}
+                    onChange={(event) => setPickedEmployeeId(Number(event.target.value))}
+                  >
+                    {baseCandidates.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.fullName} ({employee.nickname}) - {employee.homeStore}
+                        {staffIds.has(employee.id) ? ' [уже в этой точке]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  className="primaryAction"
+                  type="button"
+                  disabled={!selectedEmployeeId || alreadyInStore}
+                  onClick={() => selectedEmployeeId && onAddFromBase(token, selectedEmployeeId)}
+                >
+                  Добавить из общей базы
+                </button>
+                <p className="inlineStatus">
+                  {baseCandidates.length === 0
+                    ? 'Доступных продавцов в общей базе нет'
+                    : alreadyInStore
+                      ? 'Уже добавлен в эту точку'
+                      : ''}
+                </p>
+              </div>
+              <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
+                <label>
+                  Убрать продавца из магазина
+                  <select
+                    value={selectedRemovalStaffId}
+                    onChange={(event) => setPickedRemovalStaffId(Number(event.target.value))}
+                  >
+                    {removableSalesStaff.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.fullName} ({member.nickname}) - {member.storeName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  className="ghost"
+                  type="button"
+                  disabled={!selectedRemovalStaffId}
+                  onClick={async () => {
+                    if (!selectedRemovalStaff) {
+                      return;
+                    }
+                    await onRemoveFromStore(token, selectedRemovalStaff.id, selectedRemovalStaff.storeName);
+                    setPickedRemovalStaffId(null);
+                  }}
+                >
+                  Убрать из магазина
+                </button>
+                <p className="inlineStatus">
+                  {removableSalesStaff.length === 0 ? 'Нет продавцов для удаления из точки' : ''}
+                </p>
+              </div>
+            </>
+          )}
         </>
       )}
       {shouldRenderCards && (

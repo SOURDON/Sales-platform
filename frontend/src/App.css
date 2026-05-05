@@ -1729,6 +1729,114 @@ button.ghost.navActive:hover {
   width: 100%;
 }
 
+.staffCardAccordion {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(4, 14, 11, 0.28);
+}
+
+.staffCardAccordionTrigger {
+  width: 100%;
+  border: 0;
+  margin: 0;
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(4, 14, 11, 0.36);
+  color: inherit;
+  cursor: pointer;
+}
+
+.staffCardAccordionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ui-text, #f8fafc);
+}
+
+.staffCardAccordionChevron {
+  display: inline-flex;
+  opacity: 0.9;
+  transition: transform 0.25s ease;
+}
+
+.staffCardAccordion--collapsed .staffCardAccordionChevron {
+  transform: rotate(-90deg);
+}
+
+.staffCardAccordionPanel {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.25s ease;
+}
+
+.staffCardAccordion--collapsed .staffCardAccordionPanel {
+  grid-template-rows: 0fr;
+}
+
+.staffCardAccordionPanelInner {
+  min-height: 0;
+  overflow: hidden;
+  padding: 6px;
+}
+
+.staffManagementAccordion {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(4, 14, 11, 0.28);
+}
+
+.staffManagementAccordionTrigger {
+  width: 100%;
+  border: 0;
+  margin: 0;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(4, 14, 11, 0.36);
+  color: inherit;
+  cursor: pointer;
+}
+
+.staffManagementAccordionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ui-gold-soft, #d4b67b);
+}
+
+.staffManagementAccordionChevron {
+  display: inline-flex;
+  opacity: 0.9;
+  transition: transform 0.25s ease;
+}
+
+.staffManagementAccordion--collapsed .staffManagementAccordionChevron {
+  transform: rotate(-90deg);
+}
+
+.staffManagementAccordionPanel {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.25s ease;
+}
+
+.staffManagementAccordion--collapsed .staffManagementAccordionPanel {
+  grid-template-rows: 0fr;
+}
+
+.staffManagementAccordionPanelInner {
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px;
+}
+
 .staffBaseBlock {
   grid-template-columns: minmax(0, 1.8fr) auto minmax(160px, 1fr);
   gap: 10px;
@@ -3922,8 +4030,8 @@ h1 {
 
 .homeDashboardDirectorSkin .directorCashflowCarousel {
   margin-top: 14px !important;
-  padding: 12px 12px 10px !important;
-  border-radius: 14px !important;
+  padding: 9px 10px 8px !important;
+  border-radius: 12px !important;
   background: var(--dh-field) !important;
   border: 1px solid var(--dh-edge-soft) !important;
   box-shadow:
@@ -3936,27 +4044,27 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .homeDashboardDirectorSkin .directorCashflowCarouselTitle {
   margin: 0;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--dh-muted);
 }
 
 .homeDashboardDirectorSkin .directorCashflowCarouselBadge {
-  min-width: 24px;
-  height: 24px;
-  padding: 0 7px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--dh-gold);
   border: 1px solid rgba(212, 182, 123, 0.34);
@@ -3970,15 +4078,15 @@ h1 {
 
 .homeDashboardDirectorSkin .directorCashflowCarouselCard {
   margin: 0;
-  padding: 10px;
-  border-radius: 12px;
+  padding: 8px;
+  border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(4, 14, 11, 0.34);
 }
 
 .homeDashboardDirectorSkin .directorCashflowStoreName {
-  margin: 0 0 8px;
-  font-size: 13px;
+  margin: 0 0 6px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--dh-text);
 }
@@ -3986,7 +4094,7 @@ h1 {
 .homeDashboardDirectorSkin .directorCashflowGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .homeDashboardDirectorSkin .directorCashflowGrid.directorCashflowGridSingle {
@@ -3994,16 +4102,16 @@ h1 {
 }
 
 .homeDashboardDirectorSkin .directorCashflowCell {
-  border-radius: 10px;
+  border-radius: 9px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.02);
-  padding: 8px 9px;
+  padding: 7px 8px;
   display: grid;
-  gap: 3px;
+  gap: 2px;
 }
 
 .homeDashboardDirectorSkin .directorCashflowCell span {
-  font-size: 8.5px;
+  font-size: 7.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -4011,7 +4119,7 @@ h1 {
 }
 
 .homeDashboardDirectorSkin .directorCashflowCell strong {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--dh-gold);
 }
@@ -4019,23 +4127,24 @@ h1 {
 .homeDashboardDirectorSkin .directorCashflowCarouselDots {
   display: flex;
   justify-content: center;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 5px;
+  margin-top: 8px;
 }
 
 .homeDashboardDirectorSkin .directorCashflowCarouselDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  border: 0;
+  width: 5px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   padding: 0;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
   cursor: pointer;
 }
 
 .homeDashboardDirectorSkin .directorCashflowCarouselDotActive {
   background: var(--dh-gold);
-  transform: scale(1.15);
+  border-color: rgba(212, 182, 123, 0.42);
+  box-shadow: 0 0 0 1px rgba(212, 182, 123, 0.18);
 }
 
 .homeDashboardDirectorSkin .homeStoresAggregateTitle {
