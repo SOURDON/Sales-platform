@@ -4779,7 +4779,7 @@ function StaffPanel({
       : firstRemovableStaffId;
   const selectedRemovalStaff = removableSalesStaff.find((member) => member.id === selectedRemovalStaffId);
   const shouldRenderCards = !hideCards || showOnlyCards;
-  const [staffCardsBlockOpen, setStaffCardsBlockOpen] = useState(true);
+  const [staffCardsBlockOpen, setStaffCardsBlockOpen] = useState(false);
   const [managementAccordionOpen, setManagementAccordionOpen] = useState(false);
 
   if (showOnlyCards) {
@@ -4853,11 +4853,9 @@ function StaffPanel({
           </button>
           <div className="staffManagementAccordionPanel">
             <div className="staffManagementAccordionPanelInner">
-              <p className="staffPanelIntro">
-                {readOnly
-                  ? 'Просмотр персонала и показателей (роль «Бухгалтер»).'
-                  : 'Добавьте сотрудника вручную или из общей базы. Ниже — карточки с действиями и показателями.'}
-              </p>
+              {readOnly ? (
+                <p className="staffPanelIntro">Просмотр персонала (бухгалтер).</p>
+              ) : null}
               {!readOnly && (
                 <>
                   <div className="inlineGrid staffPanelAddRow">
