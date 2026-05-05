@@ -4497,9 +4497,27 @@ h1 {
   box-shadow: 0 0 0 3px rgba(212, 182, 123, 0.12) !important;
 }
 
+/* Поле в мессенджере — без «внутреннего прямоугольника» поверх капсулы */
+.appWorkspace textarea.orgChatInput--tg {
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.appWorkspace textarea.orgChatInput--tg:focus {
+  border: none !important;
+  box-shadow: none !important;
+}
+
 .appWorkspace input::placeholder,
 .appWorkspace textarea::placeholder {
   color: rgba(212, 182, 123, 0.32) !important;
+}
+
+.appWorkspace textarea.orgChatInput--tg::placeholder {
+  color: var(--ui-dim) !important;
 }
 
 .appWorkspace .homeDashboard:not(.homeDashboardDirectorSkin) .homePanelTitle {
@@ -7253,7 +7271,6 @@ h1 {
 
 .orgChatSendFabSvg {
   display: block;
-  transform: translate(-1px, 1px);
 }
 
 /* Плавающая шапка переписки (как в Telegram): отдельные «пилюли» */
@@ -7274,9 +7291,10 @@ h1 {
 
 .messengerTgPillBack {
   width: 38px;
-  height: 34px;
+  height: 38px;
+  min-width: 38px;
   padding: 0;
-  border-radius: 999px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -7289,6 +7307,7 @@ h1 {
 
 .messengerTgBackSvg {
   display: block;
+  flex-shrink: 0;
 }
 
 .messengerTgPillTitle {
@@ -7650,6 +7669,42 @@ h1 {
   }
 }
 
+/* Раздел «Чат»: без заголовка «Фотографы», без скролла всей страницы */
+.appWorkspace.appWorkspace--messengerChrome {
+  overflow: hidden;
+  box-sizing: border-box;
+  min-height: 100vh;
+  max-height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  .appWorkspace.appWorkspace--messengerChrome {
+    min-height: 100dvh;
+    max-height: 100dvh;
+  }
+}
+
+@media (min-width: 861px) {
+  .appWorkspace.appWorkspace--messengerChrome {
+    min-height: calc(100dvh - 32px);
+    max-height: calc(100dvh - 32px);
+  }
+}
+
+.appWorkspace .cardWorkspace--messengerChrome {
+  padding-top: 6px !important;
+  flex: 1 1 auto;
+  min-height: 0 !important;
+  display: flex;
+  flex-direction: column;
+}
+
+html:has(.appWorkspace--messengerChrome),
+body:has(.appWorkspace--messengerChrome) {
+  overflow: hidden;
+  overscroll-behavior-y: none;
+}
+
 .appWorkspace .pageOutlet:has(.dashboardMessengerPage) {
   flex: 1 1 0;
   min-height: 0;
@@ -7717,30 +7772,63 @@ h1 {
   min-height: 0;
 }
 
-.appWorkspace .messengerTgPillBack {
-  background: rgba(130, 190, 165, 0.28);
-  border-color: rgba(255, 255, 255, 0.16);
+/* Одна визуальная система: шапка + поле ввода (тёмное стекло + золотая кайма) */
+.appWorkspace .messengerHubThread {
+  --msg-chrome-surface: rgba(6, 20, 15, 0.88);
+  --msg-chrome-border: rgba(212, 182, 123, 0.34);
+  --msg-chrome-inset: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.appWorkspace .messengerHubThread .messengerTgFloatingHeader {
+  gap: 8px;
+  padding: 4px 4px 8px;
+}
+
+.appWorkspace .messengerHubThread .messengerTgPillBack {
+  background: var(--msg-chrome-surface);
+  border: 1px solid var(--msg-chrome-border);
+  box-shadow: var(--msg-chrome-inset), 0 2px 14px rgba(2, 8, 6, 0.45);
+  color: var(--ui-gold-soft);
+}
+
+.appWorkspace .messengerHubThread .messengerTgPillTitle {
+  background: var(--msg-chrome-surface);
+  border: 1px solid var(--msg-chrome-border);
+  box-shadow: var(--msg-chrome-inset), 0 2px 14px rgba(2, 8, 6, 0.42);
+  padding: 6px 14px 7px;
+}
+
+.appWorkspace .messengerHubThread .messengerThreadNavTitle {
   color: var(--ui-text);
-  box-shadow: 0 2px 12px rgba(2, 8, 6, 0.35);
 }
 
-.appWorkspace .messengerTgPillTitle {
-  background: rgba(236, 232, 223, 0.94);
-  border-color: rgba(212, 182, 123, 0.35);
-  box-shadow: 0 4px 18px rgba(2, 8, 6, 0.35);
+.appWorkspace .messengerHubThread .messengerThreadNavSubtitle {
+  color: var(--ui-muted);
 }
 
-.appWorkspace .messengerThreadNavTitle {
-  color: #10231c;
-}
-
-.appWorkspace .messengerThreadNavSubtitle {
-  color: #5c6b62;
+.appWorkspace .messengerHubThread .messengerTgNavAvatar {
+  border-color: var(--msg-chrome-border);
+  box-shadow: var(--msg-chrome-inset), 0 2px 12px rgba(2, 8, 6, 0.4);
 }
 
 .appWorkspace .messengerHubThread .orgChatComposerShell {
-  background: rgba(4, 14, 11, 0.72);
-  border-color: var(--ui-edge-soft);
+  background: var(--msg-chrome-surface);
+  border: 1px solid var(--msg-chrome-border);
+  box-shadow: var(--msg-chrome-inset);
+  padding: 2px 4px 2px 11px;
+  min-height: 36px;
+}
+
+.appWorkspace .messengerHubThread .orgChatSendFab {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(165deg, #e8cf94 0%, #c4a56d 48%, #a6844a 100%);
+  color: #10231c;
+  box-shadow: 0 2px 8px rgba(2, 8, 6, 0.35);
+}
+
+.appWorkspace .messengerHubThread .orgChatSendFabSvg {
+  margin-left: 1px;
 }
 
 .messengerModalBackdrop {

@@ -2083,13 +2083,18 @@ function App() {
   const shiftLabel = isFinanceViewer || isManager ? 'Оперативка' : 'Смена';
   const usesOrgChat = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER';
   const controlLabel = usesOrgChat ? 'Чат' : isReadOnlyObserver ? 'Отчёт' : 'Контроль';
+  const messengerChromeLayout = usesOrgChat && location.pathname === '/control';
 
   return (
-    <main className="app appWorkspace">
-      <section className="card cardWorkspace">
-        <header className="brandHeader">
-          <h1>Фотографы</h1>
-        </header>
+    <main className={`app appWorkspace${messengerChromeLayout ? ' appWorkspace--messengerChrome' : ''}`}>
+      <section
+        className={`card cardWorkspace${messengerChromeLayout ? ' cardWorkspace--messengerChrome' : ''}`}
+      >
+        {!messengerChromeLayout ? (
+          <header className="brandHeader">
+            <h1>Фотографы</h1>
+          </header>
+        ) : null}
 
         <div className="quickNav desktopNav" role="tablist" aria-label="Разделы">
           <NavLink to="/home" className={navTabClass} end>
@@ -3400,14 +3405,10 @@ function MessengerHub({
     <section className="sectionCard messengerHub messengerHubThread" aria-label={threadTitleResolved}>
       <header className="messengerTgFloatingHeader">
         <button type="button" className="messengerTgPill messengerTgPillBack" onClick={openList} aria-label="Назад">
-          <svg className="messengerTgBackSvg" viewBox="0 0 24 24" aria-hidden>
+          <svg className="messengerTgBackSvg" viewBox="0 0 24 24" width="20" height="20" aria-hidden>
             <path
-              d="M15 6l-6 6 6 6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              fill="currentColor"
+              d="M15.5 19.5 8 12l7.5-7.5 1.4 1.4L10.8 12l6.1 6.1-1.4 1.4z"
             />
           </svg>
         </button>
@@ -3479,14 +3480,10 @@ function MessengerHub({
             disabled={sendBusy || !draft.trim()}
             aria-label={sendBusy ? 'Отправка' : 'Отправить'}
           >
-            <svg className="orgChatSendFabSvg" viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+            <svg className="orgChatSendFabSvg" viewBox="0 0 24 24" width="20" height="20" aria-hidden>
               <path
-                d="M22 2 11 13M22 2 15 22l-4-9-9-4 18-7z"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                fill="currentColor"
+                d="M3 18v-4.6l11.5-2.2L3 9V5l18 7-18 6z"
               />
             </svg>
           </button>
