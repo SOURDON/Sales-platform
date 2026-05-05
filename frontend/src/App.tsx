@@ -482,22 +482,6 @@ type MobileNavItem = {
   end?: boolean;
 };
 
-function findWorkspaceTabIndex(pathname: string, items: MobileNavItem[]): number {
-  const path = pathname.replace(/\/+$/, '') || '/';
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const raw = item.to.replace(/\/+$/, '') || '/';
-    if (item.end) {
-      if (path === raw) {
-        return i;
-      }
-    } else if (path === raw || path.startsWith(`${raw}/`)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
 const SESSION_STORAGE_KEY = 'sales-platform-session-v1';
 const SESSION_PERSISTENCE_KEY = 'sales-platform-session-persistence-v1';
 
@@ -668,7 +652,6 @@ function App() {
   });
   const [inventoryOverview, setInventoryOverview] = useState<InventoryOverviewResponse | null>(null);
   const [storeInventory, setStoreInventory] = useState<StoreInventoryDetailResponse | null>(null);
-  const workspaceSwipeRef = useRef<{ x: number; y: number } | null>(null);
 
   const pendingOfflineSales = useMemo(() => {
     if (!session?.user?.id) {
@@ -1724,54 +1707,6 @@ function App() {
     ];
   }, [session]);
 
-  const onWorkspaceSwipeTouchStart = useCallback((e: TouchEvent) => {
-    const t = e.targetTouches[0];
-    if (!t) {
-      return;
-    }
-    workspaceSwipeRef.current = { x: t.clientX, y: t.clientY };
-  }, []);
-
-  const onWorkspaceSwipeTouchEnd = useCallback(
-    (e: TouchEvent) => {
-      const start = workspaceSwipeRef.current;
-      workspaceSwipeRef.current = null;
-      if (!start || mobileNavItems.length <= 1) {
-        return;
-      }
-      const target = e.target;
-      if (target instanceof Element) {
-        if (target.closest('[data-no-swipe-nav], input, textarea, select, [contenteditable="true"]')) {
-          return;
-        }
-      }
-      const t = e.changedTouches[0];
-      if (!t) {
-        return;
-      }
-      const dx = t.clientX - start.x;
-      const dy = t.clientY - start.y;
-      const minTravel = 56;
-      const verticalSlop = 52;
-      if (Math.abs(dx) < minTravel) {
-        return;
-      }
-      if (Math.abs(dy) > verticalSlop && Math.abs(dy) > Math.abs(dx) * 0.85) {
-        return;
-      }
-      const idx = findWorkspaceTabIndex(location.pathname, mobileNavItems);
-      if (idx < 0) {
-        return;
-      }
-      if (dx < 0 && idx < mobileNavItems.length - 1) {
-        navigate(mobileNavItems[idx + 1].to);
-      } else if (dx > 0 && idx > 0) {
-        navigate(mobileNavItems[idx - 1].to);
-      }
-    },
-    [location.pathname, mobileNavItems, navigate],
-  );
-
   if (!session) {
     return (
       <main className="app">
@@ -1891,11 +1826,7 @@ function App() {
 
         {adminError && <p className="error">{adminError}</p>}
 
-        <div
-          className="pageOutlet pageOutletSwipeNav"
-          onTouchStart={onWorkspaceSwipeTouchStart}
-          onTouchEnd={onWorkspaceSwipeTouchEnd}
-        >
+        <div className="pageOutlet">
           <Routes>
             <Route path="/" element={<Navigate to="/home" replace />} />
             <Route
@@ -2333,13 +2264,6 @@ function App() {
                       </>
                     ) : (
                       <>
-                        <section className="sectionCard">
-                          <WriteOffForm
-                            products={products}
-                            token={session.token}
-                            onAddWriteOff={addWriteOff}
-                          />
-                        </section>
                         {role === 'ADMIN' && (
                           <section className="sectionCard inventorySectionCard">
                             <StoreInventoryControlPanel
@@ -2351,6 +2275,13 @@ function App() {
                             />
                           </section>
                         )}
+                        <section className="sectionCard">
+                          <WriteOffForm
+                            products={products}
+                            token={session.token}
+                            onAddWriteOff={addWriteOff}
+                          />
+                        </section>
                         {role !== 'ADMIN' && (
                           <section className="sectionCard">
                             <ThresholdPanel notifications={thresholds} />
@@ -2678,7 +2609,6 @@ function DirectorHomeApprovalsCarousel({
       {banner ? <p className="notice directorApprovalsCarouselBanner">{banner}</p> : null}
       <div
         className="directorApprovalsCarouselViewport"
-        data-no-swipe-nav
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         role="region"
@@ -2745,6 +2675,7 @@ function WriteOffForm({
   const [name, setName] = useState(products[0]?.name ?? '');
   const [qty, setQty] = useState('1');
   const [reason, setReason] = useState<'Брак' | 'Поломка'>('Брак');
+  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
   const [formOk, setFormOk] = useState('');
@@ -2775,46 +2706,62 @@ function WriteOffForm({
   };
 
   return (
-    <div className="writeOffForm">
-      <h4>Списание товара (поштучно)</h4>
-      <p className="muted writeOffPolicyHint">
-        Списание со склада точки возможно только после согласования директора.
-      </p>
-      {formOk ? <p className="notice writeOffOk">{formOk}</p> : null}
-      <div className="writeOffRow">
-        <label>
-          Товар
-          <select value={name} onChange={(event) => setName(event.target.value)}>
-            {products.map((item) => (
-              <option key={item.name} value={item.name}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Количество (шт.)
-          <input
-            inputMode="numeric"
-            value={qty}
-            onChange={(event) => setQty(event.target.value)}
-          />
-        </label>
-        <label>
-          Причина
-          <select
-            value={reason}
-            onChange={(event) => setReason(event.target.value as 'Брак' | 'Поломка')}
-          >
-            <option value="Брак">Брак</option>
-            <option value="Поломка">Поломка</option>
-          </select>
-        </label>
-        <button className="primaryAction" type="button" onClick={submit} disabled={busy}>
-          Списать
-        </button>
+    <div className={`writeOffForm writeOffFormCarousel ${expanded ? 'writeOffFormCarouselOpen' : ''}`}>
+      <button
+        type="button"
+        className={`writeOffCarouselToggle ${expanded ? 'writeOffCarouselToggleOpen' : ''}`}
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+        aria-controls="write-off-carousel-body"
+      >
+        <span className="writeOffCarouselToggleTitle">Списание товара (поштучно)</span>
+        <span className="writeOffCarouselToggleIcon" aria-hidden>
+          ▾
+        </span>
+      </button>
+      <div
+        id="write-off-carousel-body"
+        className={`writeOffCarouselBody ${expanded ? 'writeOffCarouselBodyOpen' : ''}`}
+      >
+        <p className="muted writeOffPolicyHint">
+          Списание со склада точки возможно только после согласования директора.
+        </p>
+        {formOk ? <p className="notice writeOffOk">{formOk}</p> : null}
+        <div className="writeOffRow">
+          <label>
+            Товар
+            <select value={name} onChange={(event) => setName(event.target.value)}>
+              {products.map((item) => (
+                <option key={item.name} value={item.name}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Количество (шт.)
+            <input
+              inputMode="numeric"
+              value={qty}
+              onChange={(event) => setQty(event.target.value)}
+            />
+          </label>
+          <label>
+            Причина
+            <select
+              value={reason}
+              onChange={(event) => setReason(event.target.value as 'Брак' | 'Поломка')}
+            >
+              <option value="Брак">Брак</option>
+              <option value="Поломка">Поломка</option>
+            </select>
+          </label>
+          <button className="primaryAction" type="button" onClick={submit} disabled={busy}>
+            Списать
+          </button>
+        </div>
+        {formError && <p className="error">{formError}</p>}
       </div>
-      {formError && <p className="error">{formError}</p>}
     </div>
   );
 }

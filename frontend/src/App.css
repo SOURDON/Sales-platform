@@ -1549,7 +1549,8 @@ button.ghost.navActive:hover {
 }
 
 .staffPanelRoot {
-  gap: 16px;
+  gap: 12px;
+  padding: 2px;
 }
 
 .staffPanelStoresOverview {
@@ -1568,37 +1569,37 @@ button.ghost.navActive:hover {
 
 .staffPanelTitle {
   margin: 0;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
   color: #0f172a;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .staffPanelIntro {
-  margin: 0 0 4px;
+  margin: 0 0 2px;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--ui-text-secondary);
 }
 
 .staffPanelAddRow {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 10px;
-  padding: 12px;
+  padding: 10px;
   border: 1px solid var(--ui-border);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--ui-bg-soft);
 }
 
 .staffPanelAddField {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-columns: 38px minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .staffPanelAddField span {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: #253e34;
 }
@@ -1610,9 +1611,9 @@ button.ghost.navActive:hover {
 .staffBaseBlock {
   grid-template-columns: minmax(0, 1.8fr) auto minmax(160px, 1fr);
   gap: 10px;
-  padding: 12px;
+  padding: 10px;
   border: 1px solid var(--ui-border);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--ui-bg-soft);
 }
 
@@ -1711,6 +1712,61 @@ select {
 .writeOffForm h4 {
   margin: 0;
   color: #0b4f82;
+}
+
+.writeOffFormCarousel {
+  padding: 10px;
+  gap: 8px;
+}
+
+.writeOffCarouselToggle {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: transparent;
+  color: #0b4f82;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.writeOffCarouselToggleTitle {
+  font-size: 16px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.writeOffCarouselToggleIcon {
+  display: inline-flex;
+  transition: transform 220ms ease;
+  font-size: 14px;
+  opacity: 0.75;
+}
+
+.writeOffCarouselToggleOpen .writeOffCarouselToggleIcon {
+  transform: rotate(180deg);
+}
+
+.writeOffCarouselBody {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    max-height 280ms ease,
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.writeOffCarouselBodyOpen {
+  max-height: 520px;
+  opacity: 1;
+  transform: translateY(0);
+  padding: 0 4px 4px;
 }
 
 .writeOffRow {
@@ -2578,9 +2634,10 @@ button.financeRangePresetBtn {
   margin: 0;
   justify-self: end;
   align-self: center;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--ui-text-secondary);
   text-align: right;
+  line-height: 1.35;
 }
 
 .opsList {
@@ -3009,12 +3066,18 @@ button.financeRangePresetBtn {
   .staffPanelAddRow,
   .staffBaseBlock {
     grid-template-columns: 1fr;
-    padding: 10px;
+    padding: 9px;
+    gap: 8px;
   }
 
   .staffPanelAddField {
     grid-template-columns: 42px minmax(0, 1fr);
     gap: 6px;
+  }
+
+  .staffPanelAddRow button,
+  .staffBaseBlock button {
+    width: 100%;
   }
 
   .staffBaseBlock .inlineStatus {
@@ -3252,6 +3315,23 @@ h1 {
 .appWorkspace .writeOffManager h4 {
   color: var(--ui-gold-soft) !important;
   font-weight: 700 !important;
+}
+
+.appWorkspace .writeOffCarouselToggle {
+  color: var(--ui-gold-soft) !important;
+  background: rgba(4, 14, 11, 0.28) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  border-radius: 12px !important;
+}
+
+.appWorkspace .writeOffCarouselToggleTitle {
+  font-size: 12px !important;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.appWorkspace .writeOffCarouselBodyOpen {
+  padding-top: 8px;
 }
 
 .homePanelTitle {
@@ -4029,6 +4109,68 @@ h1 {
 .appWorkspace .inlineGridStaffBase input {
   background-color: var(--ui-field) !important;
   color: var(--ui-text) !important;
+}
+
+.appWorkspace .staffPanelRoot {
+  gap: 10px;
+}
+
+.appWorkspace .staffPanelTitle {
+  color: var(--ui-gold) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+}
+
+.appWorkspace .staffPanelIntro {
+  color: var(--ui-dim) !important;
+  margin-bottom: 4px;
+}
+
+.appWorkspace .staffPanelAddRow,
+.appWorkspace .staffBaseBlock {
+  background: rgba(4, 14, 11, 0.4) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  border-radius: 14px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: 10px !important;
+}
+
+.appWorkspace .staffPanelAddField span,
+.appWorkspace .staffBaseBlock label {
+  color: var(--ui-muted) !important;
+  font-size: 12px !important;
+}
+
+.appWorkspace .staffPanelRoot input,
+.appWorkspace .staffPanelRoot select {
+  min-height: 38px !important;
+  border-radius: 10px !important;
+}
+
+.appWorkspace .staffPanelRoot .primaryAction,
+.appWorkspace .staffPanelRoot .ghost {
+  min-height: 38px !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  padding: 8px 12px !important;
+  box-shadow: none !important;
+}
+
+.appWorkspace .staffPanelRoot .ghost {
+  border: 1px solid var(--ui-edge-soft) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .staffPanelRoot .ghost:hover:not(:disabled) {
+  border-color: rgba(212, 182, 123, 0.34) !important;
+  color: var(--ui-gold-soft) !important;
+}
+
+.appWorkspace .staffBaseBlock .inlineStatus {
+  color: var(--ui-dim) !important;
+  font-size: 11px !important;
 }
 
 .appWorkspace .homeLogoutSection:not(.directorHomeLogoutStrip) {
