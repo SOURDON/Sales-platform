@@ -3056,12 +3056,9 @@ function DirectorCashflowCarousel({
         aria-roledescription="carousel"
       >
         <article className="directorCashflowCarouselCard">
-          <p className="directorCashflowStoreName">{current.title}</p>
-          <div className="directorCashflowGrid directorCashflowGridSingle">
-            <div className="directorCashflowCell">
-              <span>Сумма по всем точкам</span>
-              <strong>{formatRub(current.amount)}</strong>
-            </div>
+          <div className="directorCashflowMainRow">
+            <span className="directorCashflowAccountTitle">{current.title}</span>
+            <strong className="directorCashflowAccountValue">{formatRub(current.amount)}</strong>
           </div>
         </article>
       </div>
@@ -4782,52 +4779,42 @@ function StaffPanel({
       : firstRemovableStaffId;
   const selectedRemovalStaff = removableSalesStaff.find((member) => member.id === selectedRemovalStaffId);
   const shouldRenderCards = !hideCards || showOnlyCards;
-  const [cardsAccordionOpenById, setCardsAccordionOpenById] = useState<Record<number, boolean>>({});
+  const [staffCardsBlockOpen, setStaffCardsBlockOpen] = useState(true);
   const [managementAccordionOpen, setManagementAccordionOpen] = useState(false);
 
   if (showOnlyCards) {
     return (
       <div className="opsCard staffPanelRoot">
-        <h4 className="staffPanelTitle">Карточки сотрудников</h4>
-        <div className="opsList teamRoster">
-          {staff.map((member) => {
-            const seller = sellers.find((item) => item.id === member.id);
-            const cardOpen = cardsAccordionOpenById[member.id] === true;
-            return (
-              <section
-                key={
-                  member.staffPosition === 'RETOUCHER'
-                    ? `reto-${member.id}`
-                    : seller
-                      ? `${member.id}-${seller.ratePercent}`
-                      : String(member.id)
-                }
-                className={`staffCardAccordion ${cardOpen ? '' : 'staffCardAccordion--collapsed'}`}
-              >
-                <button
-                  type="button"
-                  className="staffCardAccordionTrigger"
-                  aria-expanded={cardOpen}
-                  onClick={() =>
-                    setCardsAccordionOpenById((prev) => ({
-                      ...prev,
-                      [member.id]: !(prev[member.id] === true),
-                    }))
-                  }
-                >
-                  <span className="staffCardAccordionTitle">
-                    {member.fullName}{' '}
-                    <span className="teamMemberNick">({member.nickname})</span>
-                  </span>
-                  <span className="staffCardAccordionChevron" aria-hidden>
-                    <svg viewBox="0 0 24 24" width="16" height="16">
-                      <path fill="currentColor" d="M7 10l5 5 5-5z" />
-                    </svg>
-                  </span>
-                </button>
-                <div className="staffCardAccordionPanel">
-                  <div className="staffCardAccordionPanelInner">
+        <section
+          className={`staffCardsBlockAccordion ${staffCardsBlockOpen ? '' : 'staffCardsBlockAccordion--collapsed'}`}
+        >
+          <button
+            type="button"
+            className="staffCardsBlockAccordionTrigger"
+            aria-expanded={staffCardsBlockOpen}
+            onClick={() => setStaffCardsBlockOpen((open) => !open)}
+          >
+            <span className="staffCardsBlockAccordionTitle">Карточки сотрудников</span>
+            <span className="staffCardsBlockAccordionChevron" aria-hidden>
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M7 10l5 5 5-5z" />
+              </svg>
+            </span>
+          </button>
+          <div className="staffCardsBlockAccordionPanel">
+            <div className="staffCardsBlockAccordionPanelInner">
+              <div className="opsList teamRoster">
+                {staff.map((member) => {
+                  const seller = sellers.find((item) => item.id === member.id);
+                  return (
                     <TeamMemberCard
+                      key={
+                        member.staffPosition === 'RETOUCHER'
+                          ? `reto-${member.id}`
+                          : seller
+                            ? `${member.id}-${seller.ratePercent}`
+                            : String(member.id)
+                      }
                       token={token}
                       member={member}
                       seller={seller}
@@ -4835,12 +4822,12 @@ function StaffPanel({
                       openShiftId={openShift?.id}
                       onDirectorSetPercent={onDirectorSetPercent}
                     />
-                  </div>
-                </div>
-              </section>
-            );
-          })}
-        </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     );
   }
