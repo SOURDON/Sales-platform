@@ -3480,10 +3480,17 @@ function MessengerHub({
             disabled={sendBusy || !draft.trim()}
             aria-label={sendBusy ? 'Отправка' : 'Отправить'}
           >
-            <svg className="orgChatSendFabSvg" viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+            <svg
+              className="orgChatSendFabSvg"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden
+              focusable="false"
+            >
               <path
                 fill="currentColor"
-                d="M3 18v-4.6l11.5-2.2L3 9V5l18 7-18 6z"
+                d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"
               />
             </svg>
           </button>

@@ -3426,6 +3426,14 @@ button.financeRangePresetBtn {
     font-size: 16px;
   }
 
+  /* Иначе круглые кнопки чата ломаются правилом min-height: 46px */
+  button.messengerTgPillBack,
+  button.orgChatSendFab {
+    min-height: 0 !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+  }
+
   label {
     font-size: 13px;
   }
@@ -7250,6 +7258,7 @@ h1 {
   flex-shrink: 0;
   width: 34px;
   height: 34px;
+  aspect-ratio: 1;
   padding: 0;
   margin: 0;
   display: inline-flex;
@@ -7271,6 +7280,7 @@ h1 {
 
 .orgChatSendFabSvg {
   display: block;
+  flex-shrink: 0;
 }
 
 /* Плавающая шапка переписки (как в Telegram): отдельные «пилюли» */
@@ -7290,14 +7300,20 @@ h1 {
 }
 
 .messengerTgPillBack {
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  aspect-ratio: 1;
   padding: 0;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
   cursor: pointer;
   background: rgba(186, 228, 208, 0.55);
   border: 1px solid rgba(46, 125, 95, 0.22);
@@ -7313,6 +7329,7 @@ h1 {
 .messengerTgPillTitle {
   flex: 1;
   min-width: 0;
+  align-self: center;
   padding: 5px 14px 6px;
   border-radius: 999px;
   text-align: center;
@@ -7344,15 +7361,23 @@ h1 {
 }
 
 .messengerTgNavAvatar {
+  box-sizing: border-box;
   flex-shrink: 0;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  aspect-ratio: 1;
+  align-self: center;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 15px;
   font-weight: 700;
+  line-height: 1;
   color: #fff;
   border: 2px solid rgba(255, 255, 255, 0.85);
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.12);
@@ -7693,10 +7718,18 @@ h1 {
 
 .appWorkspace .cardWorkspace--messengerChrome {
   padding-top: 6px !important;
+  /* Ровно под фиксированный док (~66px + safe area), без лишней «полки» под полем ввода */
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
   flex: 1 1 auto;
   min-height: 0 !important;
   display: flex;
   flex-direction: column;
+}
+
+@media (min-width: 861px) {
+  .appWorkspace .cardWorkspace--messengerChrome {
+    padding-bottom: 24px !important;
+  }
 }
 
 html:has(.appWorkspace--messengerChrome),
@@ -7756,6 +7789,8 @@ body:has(.appWorkspace--messengerChrome) {
 
 .appWorkspace .messengerHubThread .orgChatComposer--tg {
   flex-shrink: 0;
+  padding: 4px 10px 6px;
+  padding-bottom: 6px;
 }
 
 /* Окно переписки: не даём скроллить всю страницу — только ленту сообщений */
@@ -7822,13 +7857,18 @@ body:has(.appWorkspace--messengerChrome) {
 .appWorkspace .messengerHubThread .orgChatSendFab {
   width: 32px;
   height: 32px;
+  min-width: 32px;
+  max-width: 32px;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  aspect-ratio: 1;
   background: linear-gradient(165deg, #e8cf94 0%, #c4a56d 48%, #a6844a 100%);
   color: #10231c;
   box-shadow: 0 2px 8px rgba(2, 8, 6, 0.35);
 }
 
 .appWorkspace .messengerHubThread .orgChatSendFabSvg {
-  margin-left: 1px;
+  transform: translateX(0.5px);
 }
 
 .messengerModalBackdrop {
