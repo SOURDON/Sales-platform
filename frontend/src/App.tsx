@@ -753,54 +753,56 @@ function App() {
       .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ru-RU'));
   }, [salesMerged, sellers, session]);
 
-  const directorCashflowRows = useMemo(() => {
+  const directorCashflowPages = useMemo(() => {
     if (session?.user.role !== 'DIRECTOR') {
-      return [] as Array<{ storeName: string; cashNow: number; toBankNet: number }>;
+      return [] as Array<{ key: string; title: string; amount: number }>;
     }
     const todayKey = todayKeyMoscow();
-    const storeNames = Array.from(new Set(sellers.map((seller) => seller.storeName))).sort((a, b) =>
-      a.localeCompare(b, 'ru-RU'),
-    );
-    const sellerIdsByStore = new Map<string, Set<number>>();
-    for (const sn of storeNames) {
-      sellerIdsByStore.set(
-        sn,
-        new Set(sellers.filter((seller) => seller.storeName === sn).map((seller) => seller.id)),
-      );
-    }
+    const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
 
     const acquiringRateDefault = Math.max(0, Number(acquiringPercent) || 0);
     const acquiringRateDetkov = Math.max(0, Number(acquiringPercentDetkov) || 0);
     const acquiringRatePutintsevSber = Math.max(0, Number(acquiringPercentPutintsevSber) || 0);
 
-    return storeNames.map((storeName) => {
-      const sellerIds = sellerIdsByStore.get(storeName) ?? new Set<number>();
-      const storeSalesToday = salesMerged.filter(
-        (sale) => sellerIds.has(sale.sellerId) && calendarDayKeyMoscow(sale.createdAt) === todayKey,
-      );
-      const cashNow = storeSalesToday
-        .filter((sale) => sale.paymentType !== 'NON_CASH' && sale.paymentType !== 'TRANSFER')
-        .reduce((sum, sale) => sum + sale.totalAmount, 0);
-      const nonCash = storeSalesToday
-        .filter((sale) => sale.paymentType === 'NON_CASH')
-        .reduce((sum, sale) => sum + sale.totalAmount, 0);
-      const transfer = storeSalesToday
-        .filter((sale) => sale.paymentType === 'TRANSFER')
-        .reduce((sum, sale) => sum + sale.totalAmount, 0);
-      const acquiringRateForStore = isDetkovAcquiringStore(storeName)
-        ? acquiringRateDetkov
-        : isPutintsevSberAcquiringStore(storeName)
-          ? acquiringRatePutintsevSber
-          : acquiringRateDefault;
-      const nonCashNet = nonCash - (nonCash * acquiringRateForStore) / 100;
-      const toBankNet = Math.round((nonCashNet + transfer) * 100) / 100;
+    let rsDvtb = 0;
+    let rsPvtb = 0;
+    let rsPsber = 0;
+    let cashTotal = 0;
 
-      return {
-        storeName,
-        cashNow: Math.round(cashNow * 100) / 100,
-        toBankNet,
-      };
-    });
+    for (const sale of salesMerged) {
+      if (calendarDayKeyMoscow(sale.createdAt) !== todayKey) {
+        continue;
+      }
+      const storeName = sellerStoreById.get(sale.sellerId);
+      if (!storeName) {
+        continue;
+      }
+      if (sale.paymentType !== 'NON_CASH' && sale.paymentType !== 'TRANSFER') {
+        cashTotal += sale.totalAmount;
+        continue;
+      }
+
+      const isDetkov = isDetkovAcquiringStore(storeName);
+      const isPutintsevSber = isPutintsevSberAcquiringStore(storeName);
+      const rate = isDetkov ? acquiringRateDetkov : isPutintsevSber ? acquiringRatePutintsevSber : acquiringRateDefault;
+      const netAmount =
+        sale.paymentType === 'NON_CASH' ? sale.totalAmount - (sale.totalAmount * rate) / 100 : sale.totalAmount;
+
+      if (isDetkov) {
+        rsDvtb += netAmount;
+      } else if (isPutintsevSber) {
+        rsPsber += netAmount;
+      } else {
+        rsPvtb += netAmount;
+      }
+    }
+
+    return [
+      { key: 'rs-d-vtb', title: 'Р/с Д ВТБ', amount: Math.round(rsDvtb * 100) / 100 },
+      { key: 'rs-p-vtb', title: 'Р/С П ВТБ', amount: Math.round(rsPvtb * 100) / 100 },
+      { key: 'rs-p-sber', title: 'Р/с П СБЕР', amount: Math.round(rsPsber * 100) / 100 },
+      { key: 'cash', title: 'Наличные', amount: Math.round(cashTotal * 100) / 100 },
+    ];
   }, [
     acquiringPercent,
     acquiringPercentDetkov,
@@ -2200,7 +2202,7 @@ function App() {
                           ) : null}
 
                           {homeDashboard.role === 'DIRECTOR' ? (
-                            <DirectorCashflowCarousel rows={directorCashflowRows} />
+                            <DirectorCashflowCarousel pages={directorCashflowPages} />
                           ) : null}
 
                           {homeDashboard.role === 'ADMIN' ? (
@@ -2951,20 +2953,20 @@ function DirectorHomeApprovalsCarousel({
 }
 
 function DirectorCashflowCarousel({
-  rows,
+  pages,
 }: {
-  rows: Array<{ storeName: string; cashNow: number; toBankNet: number }>;
+  pages: Array<{ key: string; title: string; amount: number }>;
 }) {
   const [index, setIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
-    if (rows.length === 0) {
+    if (pages.length === 0) {
       setIndex(0);
       return;
     }
-    setIndex((current) => Math.min(current, rows.length - 1));
-  }, [rows.length]);
+    setIndex((current) => Math.min(current, pages.length - 1));
+  }, [pages.length]);
 
   const onTouchStart = (e: TouchEvent) => {
     touchStartX.current = e.changedTouches[0]?.clientX ?? null;
@@ -2973,7 +2975,7 @@ function DirectorCashflowCarousel({
   const onTouchEnd = (e: TouchEvent) => {
     const start = touchStartX.current;
     touchStartX.current = null;
-    if (start == null || rows.length < 2) {
+    if (start == null || pages.length < 2) {
       return;
     }
     const end = e.changedTouches[0]?.clientX ?? start;
@@ -2982,20 +2984,20 @@ function DirectorCashflowCarousel({
     if (dx > threshold) {
       setIndex((i) => Math.max(0, i - 1));
     } else if (dx < -threshold) {
-      setIndex((i) => Math.min(rows.length - 1, i + 1));
+      setIndex((i) => Math.min(pages.length - 1, i + 1));
     }
   };
 
-  if (rows.length === 0) {
+  if (pages.length === 0) {
     return null;
   }
 
-  const current = rows[index] ?? rows[0];
+  const current = pages[index] ?? pages[0];
   return (
     <div className="directorCashflowCarousel" aria-label="Наличные и поступления по точкам">
       <div className="directorCashflowCarouselHeader">
-        <h4 className="directorCashflowCarouselTitle">Точки: наличные и поступления</h4>
-        <span className="directorCashflowCarouselBadge">{rows.length}</span>
+        <h4 className="directorCashflowCarouselTitle">Итоги по всем точкам</h4>
+        <span className="directorCashflowCarouselBadge">{pages.length}</span>
       </div>
       <div
         className="directorCashflowCarouselViewport"
@@ -3005,27 +3007,23 @@ function DirectorCashflowCarousel({
         aria-roledescription="carousel"
       >
         <article className="directorCashflowCarouselCard">
-          <p className="directorCashflowStoreName">{current.storeName}</p>
-          <div className="directorCashflowGrid">
+          <p className="directorCashflowStoreName">{current.title}</p>
+          <div className="directorCashflowGrid directorCashflowGridSingle">
             <div className="directorCashflowCell">
-              <span>Наличные сейчас</span>
-              <strong>{formatRub(current.cashNow)}</strong>
-            </div>
-            <div className="directorCashflowCell">
-              <span>Поступит на счёт (нетто)</span>
-              <strong>{formatRub(current.toBankNet)}</strong>
+              <span>Сумма по всем точкам</span>
+              <strong>{formatRub(current.amount)}</strong>
             </div>
           </div>
         </article>
       </div>
-      {rows.length > 1 ? (
+      {pages.length > 1 ? (
         <div className="directorCashflowCarouselDots" role="tablist" aria-label="Выбор точки">
-          {rows.map((row, i) => (
+          {pages.map((page, i) => (
             <button
-              key={row.storeName}
+              key={page.key}
               type="button"
               className={`directorCashflowCarouselDot ${i === index ? 'directorCashflowCarouselDotActive' : ''}`}
-              aria-label={row.storeName}
+              aria-label={page.title}
               aria-current={i === index}
               onClick={() => setIndex(i)}
             />
@@ -3586,7 +3584,7 @@ function FinanceOpsPanel({
   };
 
   return (
-    <div className="opsCard financeOpsCard">
+    <div className={`opsCard financeOpsCard ${isDirector ? 'financeOpsCardDirector' : ''}`}>
       <div className="financeOpsShell">
       <h4>Оперативные финансы</h4>
       <div className="financeOpsBankTotalCallout" role="note">

@@ -3989,6 +3989,10 @@ h1 {
   gap: 8px;
 }
 
+.homeDashboardDirectorSkin .directorCashflowGrid.directorCashflowGridSingle {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .homeDashboardDirectorSkin .directorCashflowCell {
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -5684,6 +5688,36 @@ h1 {
 
 .financeOpsCard .financeOpsExpenseAmountRow input::placeholder {
   color: rgba(212, 182, 123, 0.28) !important;
+}
+
+.financeOpsCard.financeOpsCardDirector .financeOpsExpensePickRow {
+  flex-wrap: nowrap !important;
+  gap: 6px !important;
+  margin-bottom: 6px !important;
+}
+
+.financeOpsCard.financeOpsCardDirector .financeOpsExpenseUnifiedPick {
+  flex: 1 1 0 !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  padding: 6px 8px 7px !important;
+  border-radius: 10px !important;
+  gap: 2px !important;
+}
+
+.financeOpsCard.financeOpsCardDirector .financeOpsExpenseUnifiedPickCaption {
+  font-size: 8px !important;
+  letter-spacing: 0.06em !important;
+  line-height: 1.2 !important;
+}
+
+.financeOpsCard.financeOpsCardDirector .financeOpsExpenseUnifiedSelect {
+  min-height: 22px !important;
+  font-size: 11px !important;
+  padding-left: 4px !important;
+  padding-right: 20px !important;
+  background-size: 12px 12px !important;
+  background-position: right 4px center !important;
 }
 
 .financeOpsCard .financeOpsExpenseAmountRow input:focus {
