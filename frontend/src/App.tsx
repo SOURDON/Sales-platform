@@ -3813,6 +3813,7 @@ function TeamStoresOverview({
   const todayActual = todayKeyMoscow();
   const calendarReportKey = reportDayKey ?? todayActual;
   const reportIsToday = calendarReportKey === todayActual;
+  const managerPayrollView = role === 'MANAGER';
   const todaySalesBySellerId = new Map<number, number>();
   const [draftPercent, setDraftPercent] = useState<Record<number, string>>({});
   const [busyPercentMemberId, setBusyPercentMemberId] = useState<number | null>(null);
@@ -3891,7 +3892,9 @@ function TeamStoresOverview({
             />
           </label>
           <p className="muted teamReportDateHint">
-            Продажи и заработок ретушёра считаются за выбранный календарный день (Москва).
+            {managerPayrollView
+              ? 'Зарплата за выбранный календарный день (Москва): продавец — % от своих продаж, ретушёр — % от выручки точки.'
+              : 'Продажи и заработок ретушёра считаются за выбранный календарный день (Москва).'}
           </p>
         </div>
       ) : null}
@@ -3925,7 +3928,7 @@ function TeamStoresOverview({
             </button>
             <div className="teamStoreAccordionPanel">
               <div className="teamStoreAccordionPanelInner">
-                <div className="teamStoreGrid">
+                <div className={managerPayrollView ? 'teamManagerPayrollList' : 'teamStoreGrid'}>
               {members
                 .slice()
                 .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'))
@@ -3937,6 +3940,21 @@ function TeamStoresOverview({
                   const retoucherEarn = isRetoucher
                     ? retoucherEarnRubSnapshot(storeName, sellers, sales, ratePctRetoucher, calendarReportKey)
                     : null;
+                  if (managerPayrollView) {
+                    const salaryDayRub = isRetoucher
+                      ? (retoucherEarn?.todayRub ?? 0)
+                      : Math.round(
+                          ((todaySalesBySellerId.get(member.id) ?? 0) * (seller?.ratePercent ?? 0)) / 100,
+                        );
+                    return (
+                      <div key={`${storeName}-${member.id}`} className="teamManagerPayrollRow">
+                        <span className="teamManagerPayrollName">{member.fullName}</span>
+                        <span className="teamManagerPayrollSalary">
+                          {salaryDayRub.toLocaleString('ru-RU')} ₽
+                        </span>
+                      </div>
+                    );
+                  }
                   const todaySales = todaySalesBySellerId.get(member.id) ?? 0;
                   const lifetimeSalesSeller = sellerLifetimeSalesRub(seller, sales);
                   const statPrimaryLabel = isRetoucher
