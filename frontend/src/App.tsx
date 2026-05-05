@@ -3891,11 +3891,6 @@ function TeamStoresOverview({
               onChange={(event) => onReportDayKeyChange(event.target.value)}
             />
           </label>
-          <p className="muted teamReportDateHint">
-            {managerPayrollView
-              ? 'Зарплата за выбранный календарный день (Москва): продавец — % от своих продаж, ретушёр — % от выручки точки.'
-              : 'Продажи и заработок ретушёра считаются за выбранный календарный день (Москва).'}
-          </p>
         </div>
       ) : null}
       <div className="teamStoresBoard">
@@ -3952,9 +3947,13 @@ function TeamStoresOverview({
                       : Math.round(
                           ((todaySalesBySellerId.get(member.id) ?? 0) * (seller?.ratePercent ?? 0)) / 100,
                         );
+                    const compactName = member.fullName
+                      .replace(` — ${storeName}`, '')
+                      .replace(` - ${storeName}`, '')
+                      .trim();
                     return (
                       <div key={`${storeName}-${member.id}`} className="teamManagerPayrollRow">
-                        <span className="teamManagerPayrollName">{member.fullName}</span>
+                        <span className="teamManagerPayrollName">{compactName || member.fullName}</span>
                         <span className="teamManagerPayrollSalary">
                           {salaryDayRub.toLocaleString('ru-RU')} ₽
                         </span>

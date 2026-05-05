@@ -1627,45 +1627,41 @@ button.ghost.navActive:hover {
 }
 
 .teamReportDateBar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px 18px;
-  padding: 12px 14px;
-  margin: 0 0 4px;
-  border-radius: 14px;
-  background: rgba(15, 23, 42, 0.42);
-  border: 1px solid rgba(212, 182, 123, 0.38);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 0 0 6px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(7, 16, 29, 0.78) 0%, rgba(8, 22, 33, 0.62) 100%);
+  border: 1px solid rgba(212, 182, 123, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 18px rgba(2, 8, 23, 0.22);
 }
 
 .teamReportDateLabel {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 11px;
+  gap: 5px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
-  color: #d4b67b;
+  color: rgba(212, 182, 123, 0.96);
 }
 
 .teamReportDateLabel input[type='date'] {
-  min-height: 40px;
+  min-height: 38px;
+  min-width: 164px;
   padding: 6px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(212, 182, 123, 0.45);
-  background: rgba(2, 6, 23, 0.55);
-  color: #f8fafc;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.teamReportDateHint {
-  margin: 0;
-  flex: 1 1 220px;
-  font-size: 12px;
-  line-height: 1.4;
-  color: rgba(248, 250, 252, 0.72);
+  border: 1px solid rgba(212, 182, 123, 0.42);
+  background: rgba(3, 10, 19, 0.7);
+  color: #f5f8fb;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .staffPanelTitle {
