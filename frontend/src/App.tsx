@@ -727,6 +727,8 @@ function App() {
   /** Открытый чат сохраняется при переходах по разделам; закрывается только «Назад» или выход. */
   const [messengerPersistThreadKey, setMessengerPersistThreadKey] = useState<string | null>(null);
   const [messengerPersistThreadTitle, setMessengerPersistThreadTitle] = useState('');
+  /** Снимок unread по потокам для детекта новых сообщений (desktop Notification). */
+  const messengerUnreadSnapshotRef = useRef<Map<string, number> | null>(null);
 
   const refreshMessengerInbox = useCallback(async () => {
     const token = session?.token;
@@ -742,6 +744,38 @@ function App() {
         return;
       }
       const data = (await res.json()) as MessengerInboxResponse;
+      const prev = messengerUnreadSnapshotRef.current;
+      if (
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'granted' &&
+        prev !== null
+      ) {
+        const path = typeof window !== 'undefined' ? window.location.pathname : '';
+        const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+        const notifyAllowed = hidden || path !== '/control';
+        if (notifyAllowed) {
+          for (const t of data.threads) {
+            const was = prev.get(t.threadKey) ?? 0;
+            if (t.unreadCount > was) {
+              const preview = messengerPreviewBodyLine(t).slice(0, 120);
+              const body = preview === 'Нет сообщений' ? 'Новое сообщение' : preview;
+              try {
+                new Notification(t.title, {
+                  body,
+                  tag: `messenger-${t.threadKey}`,
+                  icon: '/icon-192.png',
+                });
+              } catch {
+                /* ignore */
+              }
+              break;
+            }
+          }
+        }
+      }
+      messengerUnreadSnapshotRef.current = new Map(
+        data.threads.map((x) => [x.threadKey, x.unreadCount]),
+      );
       setMessengerInbox(data);
       setMessengerUnreadTotal(typeof data.totalUnread === 'number' ? data.totalUnread : 0);
     } catch {
@@ -1864,6 +1898,7 @@ function App() {
     setStoreInventory(null);
     setMessengerInbox(null);
     setMessengerUnreadTotal(0);
+    messengerUnreadSnapshotRef.current = null;
     setMessengerPersistThreadKey(null);
     setMessengerPersistThreadTitle('');
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -3168,6 +3203,47 @@ function formatMessengerUnreadCount(n: number): string {
   return String(n);
 }
 
+/** Запрос разрешения на desktop-уведомления о новых сообщениях (поллинг inbox). */
+function MessengerDesktopNotifyToggle() {
+  const [perm, setPerm] = useState<NotificationPermission>(() =>
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied',
+  );
+  useEffect(() => {
+    if (typeof Notification === 'undefined') {
+      return;
+    }
+    setPerm(Notification.permission);
+  }, []);
+  if (typeof Notification === 'undefined') {
+    return null;
+  }
+  if (perm === 'granted') {
+    return (
+      <p className="messengerNotifyStatus messengerNotifyStatus--ok" role="status">
+        Уведомления о новых сообщениях включены.
+      </p>
+    );
+  }
+  if (perm === 'denied') {
+    return (
+      <p className="messengerNotifyStatus messengerNotifyStatus--denied" role="status">
+        Браузер запретил уведомления для этого сайта — разрешите в настройках сайта.
+      </p>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="messengerNotifyEnable"
+      onClick={() => {
+        void Notification.requestPermission().then((p) => setPerm(p));
+      }}
+    >
+      Включить уведомления о новых сообщениях
+    </button>
+  );
+}
+
 function MessengerHub({
   token,
   inbox,
@@ -3345,6 +3421,7 @@ function MessengerHub({
           <div>
             <h3 className="messengerHubTitle">Сообщения</h3>
             <p className="messengerHubSubtitle">Общий чат и личные диалоги со всеми участниками сети.</p>
+            <MessengerDesktopNotifyToggle />
           </div>
         </header>
 

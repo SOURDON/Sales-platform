@@ -7486,6 +7486,38 @@ h1 {
   line-height: 1.35;
 }
 
+.messengerNotifyEnable {
+  margin-top: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  background: #e8f4fc;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.messengerNotifyEnable:hover {
+  background: #dbeafe;
+}
+
+.messengerNotifyStatus {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.messengerNotifyStatus--ok {
+  margin-top: 10px;
+  color: #15803d;
+}
+
+.messengerNotifyStatus--denied {
+  margin-top: 10px;
+  color: #b45309;
+}
+
 .messengerThreadList {
   list-style: none;
   margin: 0;
@@ -7718,8 +7750,8 @@ h1 {
 
 .appWorkspace .cardWorkspace--messengerChrome {
   padding-top: 6px !important;
-  /* Ровно под фиксированный док (~66px + safe area), без лишней «полки» под полем ввода */
-  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+  /* Отступ под док только внутри messengerHub — иначе двойная «полка» на списке и в переписке */
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   flex: 1 1 auto;
   min-height: 0 !important;
   display: flex;
@@ -7728,7 +7760,7 @@ h1 {
 
 @media (min-width: 861px) {
   .appWorkspace .cardWorkspace--messengerChrome {
-    padding-bottom: 24px !important;
+    padding-bottom: 20px !important;
   }
 }
 
@@ -7758,6 +7790,20 @@ body:has(.appWorkspace--messengerChrome) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Один инсет под нижний док (мобилка); на десктопе — компактный отступ */
+@media (max-width: 860px) {
+  .appWorkspace .dashboardMessengerPage .messengerHub {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (min-width: 861px) {
+  .appWorkspace .dashboardMessengerPage .messengerHub {
+    padding-bottom: 12px;
+  }
 }
 
 .appWorkspace .messengerHubHeader {
@@ -7770,6 +7816,11 @@ body:has(.appWorkspace--messengerChrome) {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Пустое место под коротким списком совпадает по тону с карточкой чата */
+.appWorkspace .messengerHub:not(.messengerHubThread) .messengerThreadList {
+  background: rgba(8, 22, 17, 0.55);
 }
 
 .appWorkspace .messengerHubThread .messengerTgFloatingHeader {
@@ -7789,8 +7840,7 @@ body:has(.appWorkspace--messengerChrome) {
 
 .appWorkspace .messengerHubThread .orgChatComposer--tg {
   flex-shrink: 0;
-  padding: 4px 10px 6px;
-  padding-bottom: 6px;
+  padding: 4px 10px 6px !important;
 }
 
 /* Окно переписки: не даём скроллить всю страницу — только ленту сообщений */
@@ -7815,6 +7865,7 @@ body:has(.appWorkspace--messengerChrome) {
 }
 
 .appWorkspace .messengerHubThread .messengerTgFloatingHeader {
+  align-items: center;
   gap: 8px;
   padding: 4px 4px 8px;
 }
@@ -7830,7 +7881,13 @@ body:has(.appWorkspace--messengerChrome) {
   background: var(--msg-chrome-surface);
   border: 1px solid var(--msg-chrome-border);
   box-shadow: var(--msg-chrome-inset), 0 2px 14px rgba(2, 8, 6, 0.42);
-  padding: 6px 14px 7px;
+  padding: 5px 12px 6px;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 40px;
+  box-sizing: border-box;
 }
 
 .appWorkspace .messengerHubThread .messengerThreadNavTitle {
@@ -7852,23 +7909,27 @@ body:has(.appWorkspace--messengerChrome) {
   box-shadow: var(--msg-chrome-inset);
   padding: 2px 4px 2px 11px;
   min-height: 36px;
+  align-items: center;
 }
 
 .appWorkspace .messengerHubThread .orgChatSendFab {
   width: 32px;
   height: 32px;
-  min-width: 32px;
-  max-width: 32px;
+  min-width: 32px !important;
+  max-width: 32px !important;
   min-height: 32px !important;
   max-height: 32px !important;
   aspect-ratio: 1;
+  align-self: center;
+  flex-shrink: 0;
   background: linear-gradient(165deg, #e8cf94 0%, #c4a56d 48%, #a6844a 100%);
   color: #10231c;
   box-shadow: 0 2px 8px rgba(2, 8, 6, 0.35);
 }
 
 .appWorkspace .messengerHubThread .orgChatSendFabSvg {
-  transform: translateX(0.5px);
+  display: block;
+  transform: translate(1px, 0);
 }
 
 .messengerModalBackdrop {
