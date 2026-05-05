@@ -2991,6 +2991,9 @@ async function parseOrgChatErrorResponse(response: Response): Promise<string> {
   return (await response.text().catch(() => '')) || `Ошибка ${response.status}`;
 }
 
+const ORG_CHAT_POLL_VISIBLE_MS = 3500;
+const ORG_CHAT_POLL_HIDDEN_MS = 60000;
+
 function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string }) {
   const [messages, setMessages] = useState<OrgChatMessageRow[]>([]);
   const [draft, setDraft] = useState('');
@@ -2998,6 +3001,8 @@ function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string
   const [sendBusy, setSendBusy] = useState(false);
   const [error, setError] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** Если пользователь не листал историю вверх — при новых сообщениях остаёмся внизу. */
+  const stickToBottomRef = useRef(true);
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
@@ -3007,6 +3012,15 @@ function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string
       }
       el.scrollTop = el.scrollHeight;
     });
+  };
+
+  const updateStickToBottomFromScroll = () => {
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = gap < 100;
   };
 
   const load = useCallback(async () => {
@@ -3032,12 +3046,41 @@ function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string
   }, [load]);
 
   useEffect(() => {
-    const id = window.setInterval(() => void load(), 12000);
-    return () => window.clearInterval(id);
+    let intervalId = 0;
+    const armInterval = () => {
+      window.clearInterval(intervalId);
+      const ms =
+        typeof document !== 'undefined' && document.visibilityState === 'hidden'
+          ? ORG_CHAT_POLL_HIDDEN_MS
+          : ORG_CHAT_POLL_VISIBLE_MS;
+      intervalId = window.setInterval(() => void load(), ms);
+    };
+
+    armInterval();
+
+    const onVisibility = () => {
+      armInterval();
+      if (document.visibilityState === 'visible') {
+        void load();
+      }
+    };
+
+    const onFocus = () => void load();
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(intervalId);
+    };
   }, [load]);
 
   useEffect(() => {
-    scrollToBottom();
+    if (stickToBottomRef.current) {
+      scrollToBottom();
+    }
   }, [messages]);
 
   const handleSubmit = async (event: FormEvent) => {
@@ -3061,6 +3104,7 @@ function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string
         throw new Error(await parseOrgChatErrorResponse(response));
       }
       setDraft('');
+      stickToBottomRef.current = true;
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не отправлено');
@@ -3075,10 +3119,18 @@ function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string
         <div>
           <h3 className="orgChatTitle">Общий чат</h3>
           <p className="orgChatSubtitle">
-            Все точки, директор и управляющий. История сообщений сохраняется.
+            Все точки, директор и управляющий. Лента обновляется автоматически; кнопка ниже — если нужно принудительно.
           </p>
         </div>
-        <button type="button" className="ghost orgChatRefreshBtn" onClick={() => void load()} disabled={loading}>
+        <button
+          type="button"
+          className="ghost orgChatRefreshBtn"
+          onClick={() => {
+            stickToBottomRef.current = true;
+            void load();
+          }}
+          disabled={loading}
+        >
           Обновить
         </button>
       </header>
@@ -3089,7 +3141,12 @@ function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string
         </p>
       ) : null}
 
-      <div ref={scrollRef} className="orgChatScroll" aria-live="polite">
+      <div
+        ref={scrollRef}
+        className="orgChatScroll"
+        aria-live="polite"
+        onScroll={updateStickToBottomFromScroll}
+      >
         {loading && messages.length === 0 ? (
           <p className="muted orgChatEmpty">Загрузка сообщений…</p>
         ) : messages.length === 0 ? (
