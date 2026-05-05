@@ -724,6 +724,9 @@ function App() {
   const [storeInventory, setStoreInventory] = useState<StoreInventoryDetailResponse | null>(null);
   const [messengerInbox, setMessengerInbox] = useState<MessengerInboxResponse | null>(null);
   const [messengerUnreadTotal, setMessengerUnreadTotal] = useState(0);
+  /** Открытый чат сохраняется при переходах по разделам; закрывается только «Назад» или выход. */
+  const [messengerPersistThreadKey, setMessengerPersistThreadKey] = useState<string | null>(null);
+  const [messengerPersistThreadTitle, setMessengerPersistThreadTitle] = useState('');
 
   const refreshMessengerInbox = useCallback(async () => {
     const token = session?.token;
@@ -1861,6 +1864,8 @@ function App() {
     setStoreInventory(null);
     setMessengerInbox(null);
     setMessengerUnreadTotal(0);
+    setMessengerPersistThreadKey(null);
+    setMessengerPersistThreadTitle('');
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
     window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     window.localStorage.removeItem(SESSION_PERSISTENCE_KEY);
@@ -2666,6 +2671,16 @@ function App() {
                         token={session.token}
                         inbox={messengerInbox}
                         refreshInbox={refreshMessengerInbox}
+                        persistedThreadKey={messengerPersistThreadKey}
+                        persistedThreadTitle={messengerPersistThreadTitle}
+                        onPersistThreadOpen={(key, title) => {
+                          setMessengerPersistThreadKey(key);
+                          setMessengerPersistThreadTitle(title);
+                        }}
+                        onPersistThreadClose={() => {
+                          setMessengerPersistThreadKey(null);
+                          setMessengerPersistThreadTitle('');
+                        }}
                       />
                     ) : role === 'ACCOUNTANT' ? (
                       <section className="sectionCard">
@@ -3152,13 +3167,28 @@ function MessengerHub({
   token,
   inbox,
   refreshInbox,
+  persistedThreadKey,
+  persistedThreadTitle,
+  onPersistThreadOpen,
+  onPersistThreadClose,
 }: {
   token: string;
   inbox: MessengerInboxResponse | null;
   refreshInbox: () => Promise<void>;
+  persistedThreadKey: string | null;
+  persistedThreadTitle: string;
+  onPersistThreadOpen: (threadKey: string, title: string) => void;
+  onPersistThreadClose: () => void;
 }) {
-  const [threadKey, setThreadKey] = useState<string | null>(null);
-  const [threadTitle, setThreadTitle] = useState('');
+  const threadKey = persistedThreadKey;
+  const threadTitleResolved = useMemo(() => {
+    if (!threadKey) {
+      return '';
+    }
+    const fromInbox = inbox?.threads?.find((t) => t.threadKey === threadKey)?.title?.trim();
+    return fromInbox || persistedThreadTitle.trim() || threadKey;
+  }, [threadKey, persistedThreadTitle, inbox?.threads]);
+
   const [messages, setMessages] = useState<MessengerLine[]>([]);
   const [draft, setDraft] = useState('');
   const [loadingThread, setLoadingThread] = useState(false);
@@ -3262,14 +3292,12 @@ function MessengerHub({
   }, [messages]);
 
   const openList = () => {
-    setThreadKey(null);
-    setThreadTitle('');
+    onPersistThreadClose();
     void refreshInbox();
   };
 
   const openThread = (key: string, title: string) => {
-    setThreadKey(key);
-    setThreadTitle(title);
+    onPersistThreadOpen(key, title);
     setDraft('');
     setThreadError('');
   };
@@ -3364,29 +3392,35 @@ function MessengerHub({
       ? 'Сообщение для всех точек и руководства…'
       : 'Личное сообщение…';
 
+  const threadSubtitle =
+    threadKey === 'general' ? 'Общий чат сети' : 'Личные сообщения';
+  const navAvatarLetter = (threadTitleResolved.trim()[0] ?? '?').toUpperCase();
+
   return (
-    <section className="sectionCard messengerHub messengerHubThread" aria-label={threadTitle}>
-      <header className="messengerThreadScreenHeader">
-        <button type="button" className="ghost messengerBackBtn" onClick={openList}>
-          ← Назад
+    <section className="sectionCard messengerHub messengerHubThread" aria-label={threadTitleResolved}>
+      <header className="messengerTgFloatingHeader">
+        <button type="button" className="messengerTgPill messengerTgPillBack" onClick={openList} aria-label="Назад">
+          <svg className="messengerTgBackSvg" viewBox="0 0 24 24" aria-hidden>
+            <path
+              d="M15 6l-6 6 6 6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
-        <div className="messengerThreadScreenTitles">
-          <h3 className="messengerHubTitle">{threadTitle}</h3>
-          <p className="messengerHubSubtitle">
-            {threadKey === 'general' ? 'Общий чат сети' : 'Личные сообщения'}
-          </p>
+        <div className="messengerTgPill messengerTgPillTitle">
+          <h3 className="messengerThreadNavTitle">{threadTitleResolved}</h3>
+          <p className="messengerThreadNavSubtitle">{threadSubtitle}</p>
         </div>
-        <button
-          type="button"
-          className="ghost messengerThreadRefresh"
-          onClick={() => {
-            stickToBottomRef.current = true;
-            void loadThreadMessages();
-          }}
-          disabled={loadingThread && messages.length === 0}
+        <div
+          className={`messengerTgNavAvatar ${messengerAvatarToneClass(threadKey)}`}
+          aria-hidden
         >
-          Обновить
-        </button>
+          {navAvatarLetter}
+        </div>
       </header>
 
       {threadError ? (
@@ -3397,7 +3431,7 @@ function MessengerHub({
 
       <div
         ref={scrollRef}
-        className="orgChatScroll"
+        className="orgChatScroll orgChatScroll--thread"
         aria-live="polite"
         onScroll={updateStickToBottomFromScroll}
       >
@@ -3427,20 +3461,36 @@ function MessengerHub({
         )}
       </div>
 
-      <form className="orgChatComposer" onSubmit={(e) => void handleThreadSubmit(e)}>
-        <textarea
-          className="orgChatInput"
-          rows={2}
-          maxLength={4000}
-          placeholder={placeholder}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          disabled={sendBusy}
-          aria-label="Текст сообщения"
-        />
-        <button type="submit" className="primaryAction orgChatSend" disabled={sendBusy || !draft.trim()}>
-          {sendBusy ? 'Отправка…' : 'Отправить'}
-        </button>
+      <form className="orgChatComposer orgChatComposer--tg" onSubmit={(e) => void handleThreadSubmit(e)}>
+        <div className="orgChatComposerShell">
+          <textarea
+            className="orgChatInput orgChatInput--tg"
+            rows={1}
+            maxLength={4000}
+            placeholder={placeholder}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            disabled={sendBusy}
+            aria-label="Текст сообщения"
+          />
+          <button
+            type="submit"
+            className="orgChatSendFab"
+            disabled={sendBusy || !draft.trim()}
+            aria-label={sendBusy ? 'Отправка' : 'Отправить'}
+          >
+            <svg className="orgChatSendFabSvg" viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+              <path
+                d="M22 2 11 13M22 2 15 22l-4-9-9-4 18-7z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
       </form>
     </section>
   );

@@ -7057,10 +7057,18 @@ h1 {
   scroll-behavior: smooth;
 }
 
+.orgChatScroll--thread {
+  min-height: 0;
+}
+
 .orgChatEmpty {
   margin: 0;
   padding: 28px 12px;
   text-align: center;
+}
+
+.messengerHubThread .orgChatEmpty {
+  padding: 16px 10px;
 }
 
 .orgChatList {
@@ -7165,13 +7173,202 @@ h1 {
 }
 
 @media (max-width: 520px) {
-  .orgChatComposer {
+  .orgChatComposer:not(.orgChatComposer--tg) {
     grid-template-columns: 1fr;
   }
 
-  .orgChatSend {
+  .orgChatComposer:not(.orgChatComposer--tg) .orgChatSend {
     width: 100%;
   }
+}
+
+/* Композер как в Telegram: «капсула» + круглая кнопка отправки внутри */
+.orgChatComposer--tg {
+  display: block;
+  flex-shrink: 0;
+  padding: 6px 10px 10px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+}
+
+.orgChatComposerShell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 4px 5px 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-edge-soft);
+  background: var(--ui-field);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.orgChatInput--tg {
+  flex: 1;
+  min-width: 0;
+  min-height: 26px;
+  max-height: 72px;
+  padding: 6px 4px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  resize: none;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--ui-text);
+}
+
+.orgChatInput--tg:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.orgChatInput--tg::placeholder {
+  color: var(--ui-dim);
+}
+
+.orgChatSendFab {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: linear-gradient(160deg, #d4b67b 0%, #b48f53 100%);
+  color: #10231c;
+  box-shadow: 0 2px 8px rgba(8, 22, 17, 0.35);
+}
+
+.orgChatSendFab:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.orgChatSendFabSvg {
+  display: block;
+  transform: translate(-1px, 1px);
+}
+
+/* Плавающая шапка переписки (как в Telegram): отдельные «пилюли» */
+.messengerTgFloatingHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 10px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+}
+
+.messengerTgPill {
+  border: 0;
+  flex-shrink: 0;
+}
+
+.messengerTgPillBack {
+  width: 38px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: rgba(186, 228, 208, 0.55);
+  border: 1px solid rgba(46, 125, 95, 0.22);
+  color: #0f241c;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+}
+
+.messengerTgBackSvg {
+  display: block;
+}
+
+.messengerTgPillTitle {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 14px 6px;
+  border-radius: 999px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07);
+}
+
+.messengerThreadNavTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messengerThreadNavSubtitle {
+  margin: 1px 0 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messengerTgNavAvatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.12);
+}
+
+.messengerTgNavAvatar.messengerAvatar--tone0 {
+  background: linear-gradient(145deg, #7eb6ff, #4f8fd9);
+}
+
+.messengerTgNavAvatar.messengerAvatar--tone1 {
+  background: linear-gradient(145deg, #9d8cff, #6c5ce7);
+}
+
+.messengerTgNavAvatar.messengerAvatar--tone2 {
+  background: linear-gradient(145deg, #6ee7d8, #2bb8a8);
+}
+
+.messengerTgNavAvatar.messengerAvatar--tone3 {
+  background: linear-gradient(145deg, #f6b683, #e09045);
+}
+
+.messengerTgNavAvatar.messengerAvatar--tone4 {
+  background: linear-gradient(145deg, #f293b8, #d9578c);
+}
+
+.messengerTgNavAvatar.messengerAvatar--tone5 {
+  background: linear-gradient(145deg, #a8d46a, #6fab3d);
+}
+
+.messengerTgNavAvatar.messengerAvatar--tone6 {
+  background: linear-gradient(145deg, #8bd3ff, #4895d9);
+}
+
+.messengerTgNavAvatar.messengerAvatar--tone7 {
+  background: linear-gradient(145deg, #c9b28a, #9a7b52);
 }
 
 /* Dock badge + desktop chat badge */
@@ -7487,7 +7684,7 @@ h1 {
   -webkit-overflow-scrolling: touch;
 }
 
-.appWorkspace .messengerHubThread .messengerThreadScreenHeader {
+.appWorkspace .messengerHubThread .messengerTgFloatingHeader {
   flex-shrink: 0;
 }
 
@@ -7502,47 +7699,48 @@ h1 {
   overscroll-behavior: contain;
 }
 
-.appWorkspace .messengerHubThread .orgChatComposer {
+.appWorkspace .messengerHubThread .orgChatComposer--tg {
   flex-shrink: 0;
 }
 
-.appWorkspace .messengerHubThread .orgChatInput {
-  resize: none;
-  max-height: 140px;
-}
-
-.messengerThreadScreenHeader {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid #e8eef5;
-  background: #fafbfc;
-}
-
-.messengerBackBtn {
-  white-space: nowrap;
-}
-
-.messengerThreadScreenTitles {
-  min-width: 0;
-}
-
-.messengerThreadScreenTitles .messengerHubTitle {
-  font-size: 17px;
+/* Окно переписки: не даём скроллить всю страницу — только ленту сообщений */
+.appWorkspace .cardWorkspace:has(.messengerHubThread) {
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overscroll-behavior: none;
+  max-height: 100dvh;
+  max-height: 100vh;
 }
 
-.messengerThreadScreenTitles .messengerHubSubtitle {
-  margin-top: 2px;
-  font-size: 12px;
+.appWorkspace .pageOutlet:has(.messengerHubThread),
+.appWorkspace .dashboardMessengerPage:has(.messengerHubThread) {
+  overflow: hidden;
+  min-height: 0;
 }
 
-.messengerThreadRefresh {
-  white-space: nowrap;
+.appWorkspace .messengerTgPillBack {
+  background: rgba(130, 190, 165, 0.28);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--ui-text);
+  box-shadow: 0 2px 12px rgba(2, 8, 6, 0.35);
+}
+
+.appWorkspace .messengerTgPillTitle {
+  background: rgba(236, 232, 223, 0.94);
+  border-color: rgba(212, 182, 123, 0.35);
+  box-shadow: 0 4px 18px rgba(2, 8, 6, 0.35);
+}
+
+.appWorkspace .messengerThreadNavTitle {
+  color: #10231c;
+}
+
+.appWorkspace .messengerThreadNavSubtitle {
+  color: #5c6b62;
+}
+
+.appWorkspace .messengerHubThread .orgChatComposerShell {
+  background: rgba(4, 14, 11, 0.72);
+  border-color: var(--ui-edge-soft);
 }
 
 .messengerModalBackdrop {
