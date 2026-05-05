@@ -3929,6 +3929,12 @@ function TeamStoresOverview({
             <div className="teamStoreAccordionPanel">
               <div className="teamStoreAccordionPanelInner">
                 <div className={managerPayrollView ? 'teamManagerPayrollList' : 'teamStoreGrid'}>
+                    {managerPayrollView ? (
+                      <div className="teamManagerPayrollHeader">
+                        <span>Имя</span>
+                        <span>Зарплата за день</span>
+                      </div>
+                    ) : null}
               {members
                 .slice()
                 .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'))

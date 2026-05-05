@@ -1418,6 +1418,19 @@ button.ghost.navActive:hover {
   padding-top: 2px;
 }
 
+.teamManagerPayrollHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 4px 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(212, 182, 123, 0.95);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .teamManagerPayrollRow {
   display: flex;
   align-items: center;
