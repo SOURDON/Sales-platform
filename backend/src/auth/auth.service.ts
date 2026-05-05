@@ -12,7 +12,7 @@ import {
   UserRole as PrismaUserRole,
   WriteOffReason,
 } from '@prisma/client';
-import { ensureDemoData, ensureRetoucherUsersIfMissing } from '../database/ensure-demo-data';
+import { ensureDemoData, ensureManagerUserIfMissing, ensureRetoucherUsersIfMissing } from '../database/ensure-demo-data';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildDefaultDemoUserRows, buildDefaultSellerProfileRows, buildDefaultStaffRows } from './build-demo-entities';
 import { CENTRAL_WAREHOUSE_LOCATION_KEY, DEMO_STORE_NAMES } from './demo-stores';
@@ -2409,6 +2409,7 @@ export class AuthService implements OnModuleInit {
     const usersCount = await this.prisma.user.count();
     if (usersCount > 0) {
       await ensureRetoucherUsersIfMissing(this.prisma);
+      await ensureManagerUserIfMissing(this.prisma);
       return;
     }
     await ensureDemoData(this.prisma);

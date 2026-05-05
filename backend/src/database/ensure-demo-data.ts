@@ -256,11 +256,50 @@ export async function ensureRetoucherUsersIfMissing(prisma: PrismaClient) {
 }
 
 /**
+ * Добавляет учётку управляющего, если БД была создана до появления этой роли.
+ */
+export async function ensureManagerUserIfMissing(prisma: PrismaClient) {
+  const nickname = 'manager';
+  const existing = await prisma.user.findUnique({ where: { nickname } });
+  if (existing) {
+    await prisma.user.update({
+      where: { nickname },
+      data: {
+        fullName: 'Управляющий',
+        password: '123456',
+        role: UserRole.MANAGER,
+        storeName: 'Все точки',
+        isActive: true,
+      },
+    });
+    return;
+  }
+  let id = 27;
+  const idTaken = await prisma.user.findUnique({ where: { id } });
+  if (idTaken) {
+    const m = await prisma.user.aggregate({ _max: { id: true } });
+    id = (m._max.id ?? 0) + 1;
+  }
+  await prisma.user.create({
+    data: {
+      id,
+      nickname,
+      password: '123456',
+      fullName: 'Управляющий',
+      role: UserRole.MANAGER,
+      storeName: 'Все точки',
+      isActive: true,
+    },
+  });
+}
+
+/**
  * Идемпотентно приводит демо-пользователей и справочники к актуальному виду.
  * Не удаляет продажи, смены и прочие операционные данные.
  */
 export async function ensureDemoData(prisma: PrismaClient) {
   await ensureDemoUsers(prisma);
+  await ensureManagerUserIfMissing(prisma);
   await ensureSellerProfiles(prisma);
   await ensureStaffMembers(prisma);
   await ensureProductCatalog(prisma);
