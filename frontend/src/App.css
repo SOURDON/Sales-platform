@@ -2026,6 +2026,128 @@ select {
   margin: 0 0 10px;
 }
 
+.managerIssueMini {
+  margin-top: 10px;
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.managerIssueMini h4 {
+  margin: 0;
+  font-size: 13px;
+  color: #0b4f82;
+}
+
+.managerIssueMiniNotice {
+  margin: 0;
+}
+
+.managerIssueMiniRow {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(0, 1.6fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.managerIssueMiniBtn {
+  min-height: 38px;
+  border-radius: 10px;
+}
+
+.managerIssuesInbox {
+  display: grid;
+  gap: 10px;
+}
+
+.managerIssuesList {
+  display: grid;
+  gap: 8px;
+}
+
+.managerIssueCard {
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.managerIssueMeta {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.managerIssueMessage {
+  margin: 0;
+  color: #0f172a;
+}
+
+.managerPayrollPanel {
+  display: grid;
+  gap: 10px;
+}
+
+.managerPayrollToolbar {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.managerPayrollHint {
+  margin: 0;
+}
+
+.managerPayrollStores {
+  display: grid;
+  gap: 10px;
+}
+
+.managerPayrollStoreCard {
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.managerPayrollStoreHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: #0b4f82;
+}
+
+.managerPayrollList {
+  display: grid;
+  gap: 6px;
+}
+
+.managerPayrollItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 6px;
+}
+
+.managerPayrollItem p {
+  margin: 0;
+}
+
+.managerPayrollItem small {
+  color: #64748b;
+}
+
+.managerPayrollManagerSalary {
+  margin: 2px 0 0;
+}
+
 .directorApprovalsCarousel {
   margin: 0 0 16px;
   padding: 12px 12px 10px;
@@ -3073,6 +3195,11 @@ button.financeRangePresetBtn {
   .staffPanelAddField {
     grid-template-columns: 42px minmax(0, 1fr);
     gap: 6px;
+  }
+
+  .managerIssueMiniRow,
+  .managerPayrollToolbar {
+    grid-template-columns: 1fr;
   }
 
   .staffPanelAddRow button,
@@ -4171,6 +4298,36 @@ h1 {
 .appWorkspace .staffBaseBlock .inlineStatus {
   color: var(--ui-dim) !important;
   font-size: 11px !important;
+}
+
+.appWorkspace .managerIssueMini,
+.appWorkspace .managerIssueCard,
+.appWorkspace .managerPayrollStoreCard {
+  background: rgba(4, 14, 11, 0.4) !important;
+  border: 1px solid var(--ui-edge-soft) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.appWorkspace .managerIssueMini h4,
+.appWorkspace .managerPayrollStoreHead {
+  color: var(--ui-gold-soft) !important;
+}
+
+.appWorkspace .managerIssueMeta,
+.appWorkspace .managerPayrollItem small,
+.appWorkspace .managerPayrollHint,
+.appWorkspace .managerPayrollManagerSalary {
+  color: var(--ui-dim) !important;
+}
+
+.appWorkspace .managerIssueMessage,
+.appWorkspace .managerPayrollItem p,
+.appWorkspace .managerPayrollItem strong {
+  color: var(--ui-text) !important;
+}
+
+.appWorkspace .managerPayrollItem {
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 .appWorkspace .homeLogoutSection:not(.directorHomeLogoutStrip) {

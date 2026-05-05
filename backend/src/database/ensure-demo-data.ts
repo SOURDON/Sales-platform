@@ -11,6 +11,8 @@ function toPrismaUserRole(role: ReturnType<typeof buildDefaultDemoUserRows>[0]['
   switch (role) {
     case 'DIRECTOR':
       return UserRole.DIRECTOR;
+    case 'MANAGER':
+      return UserRole.MANAGER;
     case 'ADMIN':
       return UserRole.ADMIN;
     case 'SELLER':

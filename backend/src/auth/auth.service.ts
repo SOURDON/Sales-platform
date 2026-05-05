@@ -5,6 +5,7 @@ import {
   DirectorApprovalKind as PrismaDirectorApprovalKind,
   DirectorApprovalState as PrismaDirectorApprovalState,
   FinanceAccountKind as PrismaFinanceAccountKind,
+  ManagerIssueCategory as PrismaManagerIssueCategory,
   PaymentType as PrismaPaymentType,
   StaffPosition,
   ShiftStatus,
@@ -16,7 +17,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { buildDefaultDemoUserRows, buildDefaultSellerProfileRows, buildDefaultStaffRows } from './build-demo-entities';
 import { CENTRAL_WAREHOUSE_LOCATION_KEY, DEMO_STORE_NAMES } from './demo-stores';
 
-export type UserRole = 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+export type UserRole = 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
 
 type CommissionRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -191,6 +192,17 @@ interface AuditLogItem {
   details: string;
 }
 
+type ManagerIssueCategoryMem = 'PERSONNEL' | 'INSPECTION' | 'GOODS' | 'EQUIPMENT_BREAKDOWN' | 'NEEDS';
+
+interface ManagerIssue {
+  id: string;
+  createdAt: string;
+  storeName: string;
+  createdByNickname: string;
+  category: ManagerIssueCategoryMem;
+  message: string;
+}
+
 type FinanceAccountKind = 'CASH' | 'BANK';
 
 interface FinanceAccount {
@@ -222,6 +234,8 @@ interface FinanceIncome {
   accountName: string;
 }
 
+const MANAGER_EXCLUDED_SALARY_STORES = new Set(['Сады морей тех зона', 'Метрополь']);
+
 @Injectable()
 export class AuthService implements OnModuleInit {
   public productCatalog: Array<{ name: string; price: number }> = [];
@@ -232,6 +246,7 @@ export class AuthService implements OnModuleInit {
 
   private commissionChangeRequests: CommissionChangeRequest[] = [];
   private directorApprovalRequests: DirectorApprovalRequestMem[] = [];
+  private managerIssues: ManagerIssue[] = [];
   private currentShiftId: string | null = null;
   private lastSaleAt: string | null = null;
   private acquiringPercent = 1.8;
@@ -738,6 +753,33 @@ export class AuthService implements OnModuleInit {
     }
   }
 
+  private getStoreRevenueForDay(storeName: string, dayKey: string): number {
+    let revenue = 0;
+    for (const p of this.sellerProfiles) {
+      if (p.storeName !== storeName) {
+        continue;
+      }
+      for (const sale of p.sales) {
+        if (this.getStoreBusinessDayKey(sale.createdAt) !== dayKey) {
+          continue;
+        }
+        revenue += sale.totalAmount;
+      }
+    }
+    return revenue;
+  }
+
+  private managerSalaryForDay(dayKey: string): number {
+    let total = 0;
+    for (const store of DEMO_STORE_NAMES) {
+      if (MANAGER_EXCLUDED_SALARY_STORES.has(store)) {
+        continue;
+      }
+      total += this.getStoreRevenueForDay(store, dayKey);
+    }
+    return Math.round((total * 5) / 100);
+  }
+
   getDashboardOverview(nickname: string) {
     const user = this.demoUsers.find((item) => item.nickname === nickname);
     if (!user) {
@@ -801,6 +843,33 @@ export class AuthService implements OnModuleInit {
           { label: 'Выручка (все точки)', value: this.formatCurrency(Math.round(totalRevenue)) },
           { label: 'Чистая прибыль (оценка)', value: this.formatCurrency(netCompany) },
           { label: 'Выплаты персоналу', value: this.formatCurrency(Math.round(totalCommission)) },
+        ],
+        stores: storeRows,
+      };
+    }
+
+    if (user.role === 'MANAGER') {
+      const today = this.getStoreBusinessDayKey(new Date().toISOString());
+      const salaryToday = this.managerSalaryForDay(today);
+      const storeRows = DEMO_STORE_NAMES.map((name) => {
+        const revenue = this.getStoreRevenueForDay(name, today);
+        const excluded = MANAGER_EXCLUDED_SALARY_STORES.has(name);
+        const salary = excluded ? 0 : Math.round((revenue * 5) / 100);
+        return {
+          name,
+          revenue: this.formatCurrency(Math.round(revenue)),
+          salaries: excluded
+            ? `${this.formatCurrency(0)} (исключена)`
+            : this.formatCurrency(salary),
+        };
+      });
+      return {
+        role: user.role,
+        sellerDataManagedByAdmin: true,
+        title: 'Сводка управляющего',
+        metrics: [
+          { label: 'Зарплата управляющего (сегодня)', value: this.formatCurrency(salaryToday) },
+          { label: 'Ставка', value: '5% от продаж точек' },
         ],
         stores: storeRows,
       };
@@ -1036,7 +1105,7 @@ export class AuthService implements OnModuleInit {
     if (!user) {
       return [];
     }
-    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT') {
+    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT' || user.role === 'MANAGER') {
       return this.getSalesSnapshot();
     }
     if (user.role === 'ADMIN') {
@@ -1118,7 +1187,7 @@ export class AuthService implements OnModuleInit {
     if (!user) {
       return [];
     }
-    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT') {
+    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT' || user.role === 'MANAGER') {
       return this.getSellerProfiles();
     }
     if (user.role === 'ADMIN') {
@@ -1136,7 +1205,7 @@ export class AuthService implements OnModuleInit {
     if (!user) {
       return [];
     }
-    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT') {
+    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT' || user.role === 'MANAGER') {
       return all;
     }
     if (user.role === 'ADMIN') {
@@ -1156,7 +1225,7 @@ export class AuthService implements OnModuleInit {
     if (!user) {
       return [];
     }
-    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT') {
+    if (user.role === 'DIRECTOR' || user.role === 'ACCOUNTANT' || user.role === 'MANAGER') {
       return all;
     }
     if (user.role === 'ADMIN') {
@@ -2062,6 +2131,51 @@ export class AuthService implements OnModuleInit {
     return member;
   }
 
+  createManagerIssue(
+    requesterNickname: string,
+    category: ManagerIssueCategoryMem,
+    message: string,
+  ) {
+    const user = this.demoUsers.find((item) => item.nickname === requesterNickname);
+    if (!user || user.role !== 'ADMIN') {
+      return null;
+    }
+    const trimmed = message.trim();
+    if (!trimmed || trimmed.length < 5) {
+      return null;
+    }
+    const issue: ManagerIssue = {
+      id: `mgr-issue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+      storeName: user.storeName,
+      createdByNickname: user.nickname,
+      category,
+      message: trimmed,
+    };
+    this.managerIssues.unshift(issue);
+    this.pushAudit(user.nickname, 'MANAGER_ISSUE_CREATED', `${issue.storeName} · ${issue.category}`);
+    this.queuePersist();
+    return issue;
+  }
+
+  getManagerIssuesForSession(requesterNickname: string) {
+    const user = this.demoUsers.find((item) => item.nickname === requesterNickname);
+    if (!user) {
+      return [];
+    }
+    if (user.role === 'MANAGER' || user.role === 'DIRECTOR') {
+      return [...this.managerIssues].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+    }
+    if (user.role === 'ADMIN') {
+      return this.managerIssues
+        .filter((item) => item.storeName === user.storeName)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    return [];
+  }
+
   getThresholdNotifications() {
     const notifications: ThresholdNotification[] = [];
     const now = Date.now();
@@ -2382,6 +2496,7 @@ export class AuthService implements OnModuleInit {
     ];
     this.commissionChangeRequests = [];
     this.directorApprovalRequests = [];
+    this.managerIssues = [];
     this.shiftHistory = [];
     this.cashDisciplineEvents = [];
     this.auditLog = [];
@@ -2417,6 +2532,7 @@ export class AuthService implements OnModuleInit {
       financeIncomes,
       appState,
       directorApprovals,
+      managerIssues,
     ] = await this.prisma.$transaction([
       this.prisma.user.findMany(),
       this.prisma.sellerProfile.findMany(),
@@ -2441,6 +2557,7 @@ export class AuthService implements OnModuleInit {
       this.prisma.financeIncome.findMany(),
       this.prisma.appState.findUnique({ where: { id: 1 } }),
       this.prisma.directorApprovalRequest.findMany({ orderBy: { createdAt: 'desc' } }),
+      this.prisma.managerIssue.findMany({ orderBy: { createdAt: 'desc' } }),
     ]);
 
     const salesBySellerId = new Map<number, SaleRecord[]>();
@@ -2597,6 +2714,14 @@ export class AuthService implements OnModuleInit {
         resolvedBy: item.resolvedBy ?? undefined,
       };
     });
+    this.managerIssues = managerIssues.map((item) => ({
+      id: item.id,
+      createdAt: item.createdAt.toISOString(),
+      storeName: item.storeName,
+      createdByNickname: item.createdByNickname,
+      category: item.category as ManagerIssueCategoryMem,
+      message: item.message,
+    }));
     this.auditLog = audit.map((item) => ({
       id: item.id,
       createdAt: item.createdAt.toISOString(),
@@ -2879,6 +3004,20 @@ export class AuthService implements OnModuleInit {
             payload: item.payload as object,
             resolvedAt: item.resolvedAt ? new Date(item.resolvedAt) : null,
             resolvedBy: item.resolvedBy ?? null,
+          })),
+        });
+      }
+
+      await tx.managerIssue.deleteMany();
+      if (this.managerIssues.length > 0) {
+        await tx.managerIssue.createMany({
+          data: this.managerIssues.map((item) => ({
+            id: item.id,
+            createdAt: new Date(item.createdAt),
+            storeName: item.storeName,
+            createdByNickname: item.createdByNickname,
+            category: item.category as PrismaManagerIssueCategory,
+            message: item.message,
           })),
         });
       }

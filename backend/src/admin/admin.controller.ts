@@ -115,6 +115,11 @@ interface FinanceIncomeBody {
   comment?: string;
 }
 
+interface ManagerIssueBody {
+  category?: 'PERSONNEL' | 'INSPECTION' | 'GOODS' | 'EQUIPMENT_BREAKDOWN' | 'NEEDS';
+  message?: string;
+}
+
 @Controller('admin')
 export class AdminController {
   constructor(private readonly authService: AuthService) {}
@@ -582,6 +587,37 @@ export class AdminController {
     return this.authService.getAuditLog() as unknown;
   }
 
+  @Post('manager-issues')
+  createManagerIssue(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: ManagerIssueBody,
+  ) {
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'ADMIN') {
+      throw new ForbiddenException('Обращение управляющему может создать только администратор точки');
+    }
+    if (
+      !body.category ||
+      !['PERSONNEL', 'INSPECTION', 'GOODS', 'EQUIPMENT_BREAKDOWN', 'NEEDS'].includes(body.category)
+    ) {
+      throw new BadRequestException('category is required');
+    }
+    if (!body.message?.trim()) {
+      throw new BadRequestException('message is required');
+    }
+    const issue = this.authService.createManagerIssue(session.nickname, body.category, body.message);
+    if (!issue) {
+      throw new BadRequestException('Не удалось создать обращение');
+    }
+    return issue as unknown;
+  }
+
+  @Get('manager-issues')
+  getManagerIssues(@Headers('authorization') authorization?: string) {
+    const session = this.requireFinanceRead(authorization);
+    return this.authService.getManagerIssuesForSession(session.nickname) as unknown;
+  }
+
   @Get('write-offs/export')
   exportWriteOffsCsv(
     @Headers('authorization') authorization: string | undefined,
@@ -767,9 +803,10 @@ export class AdminController {
       !session ||
       (session.role !== 'DIRECTOR' &&
         session.role !== 'ADMIN' &&
-        session.role !== 'ACCOUNTANT')
+        session.role !== 'ACCOUNTANT' &&
+        session.role !== 'MANAGER')
     ) {
-      throw new UnauthorizedException('Only director, admin, or accountant allowed');
+      throw new UnauthorizedException('Only director, manager, admin, or accountant allowed');
     }
 
     return session;

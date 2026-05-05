@@ -9,6 +9,7 @@ datasource db {
 
 enum UserRole {
   DIRECTOR
+  MANAGER
   ADMIN
   SELLER
   ACCOUNTANT
@@ -35,6 +36,14 @@ enum DirectorApprovalState {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum ManagerIssueCategory {
+  PERSONNEL
+  INSPECTION
+  GOODS
+  EQUIPMENT_BREAKDOWN
+  NEEDS
 }
 
 enum WriteOffReason {
@@ -254,6 +263,15 @@ model DirectorApprovalRequest {
   payload              Json
   resolvedAt           DateTime?
   resolvedBy           String?
+}
+
+model ManagerIssue {
+  id               String               @id
+  createdAt        DateTime             @default(now())
+  storeName        String
+  createdByNickname String
+  category         ManagerIssueCategory
+  message          String
 }
 
 model AuditLogItem {

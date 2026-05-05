@@ -75,6 +75,23 @@ function formatRub(value: number): string {
   return `${Math.round(value).toLocaleString('ru-RU')} ₽`;
 }
 
+function managerIssueCategoryLabel(category: ManagerIssueCategory): string {
+  switch (category) {
+    case 'PERSONNEL':
+      return 'Персонал';
+    case 'INSPECTION':
+      return 'Проверка';
+    case 'GOODS':
+      return 'Товар';
+    case 'EQUIPMENT_BREAKDOWN':
+      return 'Поломка техники';
+    case 'NEEDS':
+      return 'Что-то нужно';
+    default:
+      return category;
+  }
+}
+
 type StaffPositionKind = 'SALES' | 'RETOUCHER';
 
 type StaffMember = {
@@ -199,13 +216,13 @@ type LoginResponse = {
     id: number;
     nickname: string;
     fullName: string;
-    role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+    role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
     storeName: string;
   };
 };
 
 type DashboardResponse = {
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+  role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   sellerDataManagedByAdmin: boolean;
   title: string;
   metrics: Array<{ label: string; value: string }>;
@@ -304,6 +321,17 @@ type DirectorControlRequest = {
   storeName: string;
   payload: Record<string, unknown>;
   summary: string;
+};
+
+type ManagerIssueCategory = 'PERSONNEL' | 'INSPECTION' | 'GOODS' | 'EQUIPMENT_BREAKDOWN' | 'NEEDS';
+
+type ManagerIssue = {
+  id: string;
+  createdAt: string;
+  storeName: string;
+  createdByNickname: string;
+  category: ManagerIssueCategory;
+  message: string;
 };
 
 function offlineQueueToAdminSales(queue: OfflineQueuedSale[], sellers: SellerProfile[]): AdminSale[] {
@@ -640,6 +668,9 @@ function App() {
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([]);
   const [adminError, setAdminError] = useState('');
   const [salesNotice, setSalesNotice] = useState('');
+  const [managerIssues, setManagerIssues] = useState<ManagerIssue[]>([]);
+  const [managerIssueNotice, setManagerIssueNotice] = useState('');
+  const [teamDayKey, setTeamDayKey] = useState(todayKeyMoscow());
   const [acquiringPercent, setAcquiringPercent] = useState('1.8');
   const [acquiringPercentDetkov, setAcquiringPercentDetkov] = useState('1.8');
   const [acquiringPercentPutintsevSber, setAcquiringPercentPutintsevSber] = useState('1.8');
@@ -1186,6 +1217,43 @@ function App() {
     setAuditLog((await response.json()) as AuditLogItem[]);
   };
 
+  const loadManagerIssues = async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/manager-issues`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error('manager issues error');
+    }
+    setManagerIssues((await response.json()) as ManagerIssue[]);
+  };
+
+  const createManagerIssue = async (
+    token: string,
+    payload: { category: ManagerIssueCategory; message: string },
+  ) => {
+    const response = await fetch(`${API_BASE_URL}/admin/manager-issues`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      let message = 'Не удалось отправить обращение';
+      try {
+        const parsed = (await response.json()) as { message?: string | string[] };
+        if (typeof parsed.message === 'string') {
+          message = parsed.message;
+        }
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
+    }
+    await loadManagerIssues(token);
+  };
+
 
   const setDirectorPercent = async (token: string, sellerId: number, ratePercent: number) => {
     const response = await fetch(`${API_BASE_URL}/admin/sellers/percent`, {
@@ -1465,7 +1533,12 @@ function App() {
       setPassword('');
       navigate('/home', { replace: true });
       await loadDashboard(data.token);
-      if (data.user.role === 'ADMIN' || data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
+      if (
+        data.user.role === 'ADMIN' ||
+        data.user.role === 'DIRECTOR' ||
+        data.user.role === 'ACCOUNTANT' ||
+        data.user.role === 'MANAGER'
+      ) {
         setAdminError('');
         const baseLoads = await Promise.allSettled([
           loadSellers(data.token),
@@ -1476,6 +1549,7 @@ function App() {
           loadShifts(data.token),
           loadStaff(data.token),
           loadGlobalEmployees(data.token),
+          loadManagerIssues(data.token),
         ]);
 
         await Promise.allSettled([
@@ -1485,7 +1559,7 @@ function App() {
           ...(data.user.role === 'ADMIN' ? [loadStoreInventory(data.token)] : []),
         ]);
 
-        if (data.user.role === 'ADMIN') {
+        if (data.user.role === 'ADMIN' || data.user.role === 'MANAGER') {
           await Promise.allSettled([loadThresholds(data.token), loadAuditLog(data.token)]);
         } else {
           setThresholds([]);
@@ -1578,6 +1652,8 @@ function App() {
 
   const handleLogout = () => {
     setSalesNotice('');
+    setManagerIssues([]);
+    setManagerIssueNotice('');
     setSession(null);
     setDashboard(null);
     setSellers([]);
@@ -1644,7 +1720,12 @@ function App() {
     }
     void (async () => {
       await loadDashboard(session.token);
-      if (session.user.role === 'ADMIN' || session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT') {
+      if (
+        session.user.role === 'ADMIN' ||
+        session.user.role === 'DIRECTOR' ||
+        session.user.role === 'ACCOUNTANT' ||
+        session.user.role === 'MANAGER'
+      ) {
         await Promise.allSettled([
           loadSellers(session.token),
           loadProducts(session.token),
@@ -1654,6 +1735,7 @@ function App() {
           loadShifts(session.token),
           loadStaff(session.token),
           loadGlobalEmployees(session.token),
+          loadManagerIssues(session.token),
         ]);
         await Promise.allSettled([
           ...(session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT'
@@ -1676,7 +1758,10 @@ function App() {
     if (r === 'ADMIN' && location.pathname === '/control') {
       void loadStoreInventory(session.token);
     }
-  }, [loadInventoryOverview, loadStoreInventory, location.pathname, session]);
+    if ((r === 'MANAGER' || r === 'DIRECTOR') && location.pathname === '/control') {
+      void loadManagerIssues(session.token);
+    }
+  }, [loadInventoryOverview, loadManagerIssues, loadStoreInventory, location.pathname, session]);
 
   const mobileNavItems = useMemo((): MobileNavItem[] => {
     if (!session?.user) {
@@ -1685,8 +1770,8 @@ function App() {
     const r = session.user.role;
     const retoucher = r === 'RETOUCHER';
     const sellerOnly = r === 'SELLER';
-    const readOnlyObserver = r === 'ACCOUNTANT';
-    const financeViewer = r === 'ACCOUNTANT' || r === 'DIRECTOR';
+    const readOnlyObserver = r === 'ACCOUNTANT' || r === 'MANAGER';
+    const financeViewer = r === 'ACCOUNTANT' || r === 'DIRECTOR' || r === 'MANAGER';
     const shiftL = financeViewer ? 'Оперативка' : 'Смена';
     const controlL = readOnlyObserver ? 'Отчёт' : 'Контроль';
     if (retoucher) {
@@ -1767,6 +1852,9 @@ function App() {
                 <code>director / 123456</code> — директор, все 8 точек
               </li>
               <li>
+                <code>manager / 123456</code> — управляющий, зарплаты по всем точкам и обращения
+              </li>
+              <li>
                 <code>buh / 123456</code> — бухгалтер, просмотр по всем точкам
               </li>
               <li>
@@ -1788,9 +1876,10 @@ function App() {
   const role = session.user.role;
   const isRetoucher = role === 'RETOUCHER';
   const isSellerOnly = role === 'SELLER';
-  const isReadOnlyObserver = role === 'ACCOUNTANT';
+  const isManager = role === 'MANAGER';
+  const isReadOnlyObserver = role === 'ACCOUNTANT' || role === 'MANAGER';
   const isFinanceViewer = role === 'ACCOUNTANT' || role === 'DIRECTOR';
-  const shiftLabel = isFinanceViewer ? 'Оперативка' : 'Смена';
+  const shiftLabel = isFinanceViewer || isManager ? 'Оперативка' : 'Смена';
   const controlLabel = isReadOnlyObserver ? 'Отчёт' : 'Контроль';
 
   return (
@@ -1834,7 +1923,9 @@ function App() {
               element={
                 <div
                   className={`dashboard homeDashboard${
-                    homeDashboard?.role === 'DIRECTOR' || homeDashboard?.role === 'ACCOUNTANT'
+                    homeDashboard?.role === 'DIRECTOR' ||
+                    homeDashboard?.role === 'ACCOUNTANT' ||
+                    homeDashboard?.role === 'MANAGER'
                       ? ' homeDashboardDirectorSkin'
                       : ''
                   }`}
@@ -1907,7 +1998,9 @@ function App() {
                                 </article>
                               ))}
                             </div>
-                          ) : homeDashboard.role === 'DIRECTOR' || homeDashboard.role === 'ACCOUNTANT' ? (
+                          ) : homeDashboard.role === 'DIRECTOR' ||
+                            homeDashboard.role === 'ACCOUNTANT' ||
+                            homeDashboard.role === 'MANAGER' ? (
                             <div className="homeStoresAggregateCard">
                               <h4 className="homeStoresAggregateTitle">Выручка по точкам</h4>
                               <ul className="homeStoresMiniList">
@@ -1965,6 +2058,15 @@ function App() {
                                   ))}
                                 </ul>
                               </div>
+                              <ManagerIssueMiniForm
+                                token={session.token}
+                                notice={managerIssueNotice}
+                                onSubmit={async (payload) => {
+                                  await createManagerIssue(session.token, payload);
+                                  setManagerIssueNotice('Обращение отправлено управляющему');
+                                  window.setTimeout(() => setManagerIssueNotice(''), 3500);
+                                }}
+                              />
                             </>
                           ) : null}
                         </>
@@ -1973,7 +2075,9 @@ function App() {
                   </section>
                   <section
                     className={`sectionCard homeLogoutSection${
-                      role === 'DIRECTOR' || role === 'ACCOUNTANT' ? ' directorHomeLogoutStrip' : ''
+                      role === 'DIRECTOR' || role === 'ACCOUNTANT' || role === 'MANAGER'
+                        ? ' directorHomeLogoutStrip'
+                        : ''
                     }`}
                   >
                     <button type="button" className="ghost homeLogoutButton" onClick={handleLogout}>
@@ -2207,6 +2311,14 @@ function App() {
                           onRemoveFromStore={removeStaffFromStore}
                           onRestoreStaffToStore={restoreStaffToStore}
                         />
+                      ) : isManager ? (
+                        <ManagerPayrollPanel
+                          dayKey={teamDayKey}
+                          onDayKeyChange={setTeamDayKey}
+                          staff={staff}
+                          sellers={sellers}
+                          sales={salesMerged}
+                        />
                       ) : (
                         <StaffPanel
                           token={session.token}
@@ -2262,6 +2374,10 @@ function App() {
                           />
                         </section>
                       </>
+                    ) : isManager ? (
+                      <section className="sectionCard">
+                        <ManagerIssuesInbox issues={managerIssues} />
+                      </section>
                     ) : (
                       <>
                         {role === 'ADMIN' && (
@@ -2762,6 +2878,218 @@ function WriteOffForm({
         </div>
         {formError && <p className="error">{formError}</p>}
       </div>
+    </div>
+  );
+}
+
+function ManagerIssueMiniForm({
+  token,
+  notice,
+  onSubmit,
+}: {
+  token: string;
+  notice: string;
+  onSubmit: (payload: { category: ManagerIssueCategory; message: string }) => Promise<void>;
+}) {
+  void token;
+  const [category, setCategory] = useState<ManagerIssueCategory>('NEEDS');
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    const trimmed = message.trim();
+    if (trimmed.length < 5) {
+      setError('Опишите обращение хотя бы в 5 символов');
+      return;
+    }
+    setError('');
+    setBusy(true);
+    try {
+      await onSubmit({ category, message: trimmed });
+      setMessage('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось отправить обращение');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="managerIssueMini">
+      <h4>Обращение управляющему</h4>
+      {notice ? <p className="notice managerIssueMiniNotice">{notice}</p> : null}
+      <div className="managerIssueMiniRow">
+        <label>
+          Категория
+          <select value={category} onChange={(e) => setCategory(e.target.value as ManagerIssueCategory)}>
+            <option value="PERSONNEL">Персонал</option>
+            <option value="INSPECTION">Проверка</option>
+            <option value="GOODS">Товар</option>
+            <option value="EQUIPMENT_BREAKDOWN">Поломка техники</option>
+            <option value="NEEDS">Что-то нужно</option>
+          </select>
+        </label>
+        <label>
+          Сообщение
+          <input
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Коротко опишите проблему"
+          />
+        </label>
+        <button type="button" className="ghost managerIssueMiniBtn" onClick={submit} disabled={busy}>
+          {busy ? '…' : 'Отправить'}
+        </button>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+    </div>
+  );
+}
+
+function ManagerIssuesInbox({ issues }: { issues: ManagerIssue[] }) {
+  return (
+    <div className="opsCard managerIssuesInbox">
+      <h4>Оперативка: обращения магазинов</h4>
+      {issues.length === 0 ? (
+        <p className="muted">Пока обращений нет.</p>
+      ) : (
+        <div className="managerIssuesList">
+          {issues.map((item) => (
+            <article key={item.id} className="managerIssueCard">
+              <p className="managerIssueMeta">
+                <strong>{item.storeName}</strong> · {managerIssueCategoryLabel(item.category)} ·{' '}
+                {new Date(item.createdAt).toLocaleString('ru-RU', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+              <p className="managerIssueMessage">{item.message}</p>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ManagerPayrollPanel({
+  dayKey,
+  onDayKeyChange,
+  staff,
+  sellers,
+  sales,
+}: {
+  dayKey: string;
+  onDayKeyChange: (value: string) => void;
+  staff: StaffMember[];
+  sellers: SellerProfile[];
+  sales: AdminSale[];
+}) {
+  const rows = useMemo(() => {
+    const sellerById = new Map(sellers.map((s) => [s.id, s]));
+    const byStore = new Map<string, Array<{ key: string; name: string; salaryRub: number; subtitle: string }>>();
+    const addRow = (store: string, row: { key: string; name: string; salaryRub: number; subtitle: string }) => {
+      const current = byStore.get(store) ?? [];
+      current.push(row);
+      byStore.set(store, current);
+    };
+
+    const revenueByStore = new Map<string, number>();
+    const revenueBySeller = new Map<number, number>();
+    for (const sale of sales) {
+      if (calendarDayKeyMoscow(sale.createdAt) !== dayKey) {
+        continue;
+      }
+      const seller = sellerById.get(sale.sellerId);
+      if (!seller) {
+        continue;
+      }
+      revenueByStore.set(seller.storeName, (revenueByStore.get(seller.storeName) ?? 0) + sale.totalAmount);
+      revenueBySeller.set(seller.id, (revenueBySeller.get(seller.id) ?? 0) + sale.totalAmount);
+    }
+
+    for (const [sellerId, revenue] of revenueBySeller.entries()) {
+      const seller = sellerById.get(sellerId);
+      if (!seller) {
+        continue;
+      }
+      const salaryRub = Math.round((revenue * seller.ratePercent) / 100);
+      addRow(seller.storeName, {
+        key: `${seller.id}`,
+        name: seller.fullName,
+        salaryRub,
+        subtitle: `Продавец · ${seller.ratePercent}%`,
+      });
+    }
+
+    for (const member of staff) {
+      if (!member.isActive || member.staffPosition !== 'RETOUCHER') {
+        continue;
+      }
+      const store = member.storeName;
+      const rate = Number.isFinite(member.retoucherRatePercent) ? Number(member.retoucherRatePercent) : 5;
+      const storeRevenue = revenueByStore.get(store) ?? 0;
+      const salaryRub = Math.round((storeRevenue * rate) / 100);
+      addRow(store, {
+        key: `r-${member.id}`,
+        name: member.fullName,
+        salaryRub,
+        subtitle: `Ретушёр · ${rate}%`,
+      });
+    }
+
+    return [...byStore.entries()]
+      .map(([storeName, items]) => ({
+        storeName,
+        totalRub: items.reduce((sum, item) => sum + item.salaryRub, 0),
+        items: items.sort((a, b) => b.salaryRub - a.salaryRub || a.name.localeCompare(b.name, 'ru-RU')),
+      }))
+      .sort((a, b) => a.storeName.localeCompare(b.storeName, 'ru-RU'));
+  }, [dayKey, sales, sellers, staff]);
+
+  return (
+    <div className="staffPanelRoot managerPayrollPanel">
+      <h4 className="staffPanelTitle">Команда по магазинам</h4>
+      <div className="managerPayrollToolbar">
+        <label>
+          Дата расчёта
+          <input type="date" value={dayKey} onChange={(e) => onDayKeyChange(e.target.value)} />
+        </label>
+        <p className="muted managerPayrollHint">
+          Показывает начисления сотрудников за выбранный день по каждой точке.
+        </p>
+      </div>
+      {rows.length === 0 ? (
+        <p className="muted">За выбранный день продаж нет.</p>
+      ) : (
+        <div className="managerPayrollStores">
+          {rows.map((store) => (
+            <section key={store.storeName} className="managerPayrollStoreCard">
+              <header className="managerPayrollStoreHead">
+                <strong>{store.storeName}</strong>
+                <span>{formatRub(store.totalRub)}</span>
+              </header>
+              <div className="managerPayrollList">
+                {store.items.map((item) => (
+                  <article key={item.key} className="managerPayrollItem">
+                    <div>
+                      <p>{item.name}</p>
+                      <small>{item.subtitle}</small>
+                    </div>
+                    <strong>{formatRub(item.salaryRub)}</strong>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+      <p className="muted managerPayrollManagerSalary">
+        Зарплата управляющего: 5% с каждой точки, кроме «Сады морей тех зона» и «Метрополь».
+      </p>
     </div>
   );
 }
@@ -3351,7 +3679,7 @@ function ShiftPanel({
   token: string;
   staff: StaffMember[];
   shifts: ShiftInfo[];
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+  role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   readOnly?: boolean;
   onOpen: (token: string, assignedSellerIds: number[]) => Promise<void>;
   onClose: (token: string, assignedSellerIds: number[]) => Promise<void>;
@@ -3463,7 +3791,7 @@ function TeamMemberCard({
   token: string;
   member: StaffMember;
   seller?: SellerProfile;
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+  role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   openShiftId?: string;
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
 }) {
@@ -3588,7 +3916,7 @@ function TeamStoresOverview({
   sellers: SellerProfile[];
   sales: AdminSale[];
   shifts: ShiftInfo[];
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+  role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
   onRemoveFromStore: (token: string, id: number, storeName?: string) => Promise<void>;
   onRestoreStaffToStore: (token: string, staffId: number, storeName: string) => Promise<void>;
@@ -4010,7 +4338,7 @@ function StaffPanel({
   sellers: SellerProfile[];
   globalEmployees: GlobalEmployee[];
   shifts: ShiftInfo[];
-  role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+  role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   readOnly?: boolean;
   showOnlyCards?: boolean;
   hideCards?: boolean;

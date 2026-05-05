@@ -6,7 +6,7 @@ export function buildDefaultDemoUserRows() {
     nickname: string;
     password: string;
     fullName: string;
-    role: 'DIRECTOR' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+    role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
     storeName: string;
     isActive: boolean;
   }> = [
@@ -25,6 +25,15 @@ export function buildDefaultDemoUserRows() {
       password: '123456',
       fullName: 'Бухгалтер',
       role: 'ACCOUNTANT',
+      storeName: 'Все точки',
+      isActive: true,
+    },
+    {
+      id: 27,
+      nickname: 'manager',
+      password: '123456',
+      fullName: 'Управляющий',
+      role: 'MANAGER',
       storeName: 'Все точки',
       isActive: true,
     },
