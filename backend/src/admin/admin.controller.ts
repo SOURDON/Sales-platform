@@ -120,6 +120,10 @@ interface ManagerIssueBody {
   message?: string;
 }
 
+interface OrgChatPostBody {
+  body?: string;
+}
+
 @Controller('admin')
 export class AdminController {
   constructor(private readonly authService: AuthService) {}
@@ -587,6 +591,26 @@ export class AdminController {
     return this.authService.getAuditLog() as unknown;
   }
 
+  @Get('org-chat/messages')
+  async listOrgChatMessages(@Headers('authorization') authorization?: string) {
+    this.requireOrgChatParticipant(authorization);
+    const messages = await this.authService.listOrgChatMessages(500);
+    return { messages } as unknown;
+  }
+
+  @Post('org-chat/messages')
+  async createOrgChatMessage(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: OrgChatPostBody,
+  ) {
+    const session = this.requireOrgChatParticipant(authorization);
+    const msg = await this.authService.postOrgChatMessage(session.nickname, session.role, String(body.body ?? ''));
+    if (!msg) {
+      throw new BadRequestException('Сообщение не отправлено: проверьте текст (до 4000 символов)');
+    }
+    return msg as unknown;
+  }
+
   @Post('manager-issues')
   createManagerIssue(
     @Headers('authorization') authorization: string | undefined,
@@ -822,6 +846,22 @@ export class AdminController {
       throw new BadRequestException('Write-off not found');
     }
     return { ok: true };
+  }
+
+  /** Общий чат сети: только точки, директор и управляющий (не бухгалтер). */
+  private requireOrgChatParticipant(authorization?: string) {
+    const token = authorization?.replace('Bearer ', '').trim();
+    if (!token) {
+      throw new UnauthorizedException('Missing token');
+    }
+    const session = this.authService.parseToken(token);
+    if (
+      !session ||
+      (session.role !== 'ADMIN' && session.role !== 'DIRECTOR' && session.role !== 'MANAGER')
+    ) {
+      throw new UnauthorizedException('Чат доступен только точкам, директору и управляющему');
+    }
+    return session;
   }
 
   private requireFinanceRead(authorization?: string) {

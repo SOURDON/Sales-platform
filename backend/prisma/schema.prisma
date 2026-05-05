@@ -292,3 +292,15 @@ model AuditLogItem {
   action    String
   details   String
 }
+
+/// Общий чат сети: магазины (ADMIN), директор и управляющий.
+model OrgChatMessage {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  body           String   @db.Text
+  senderRole     UserRole
+  senderDisplay  String
+  authorNickname String
+
+  @@index([createdAt])
+}

@@ -2218,6 +2218,64 @@ export class AuthService implements OnModuleInit {
     return issue;
   }
 
+  async listOrgChatMessages(limit = 500) {
+    const take = Math.max(1, Math.min(limit, 800));
+    const rows = await this.prisma.orgChatMessage.findMany({
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+    rows.reverse();
+    return rows.map((m) => ({
+      id: m.id,
+      createdAt: m.createdAt.toISOString(),
+      body: m.body,
+      senderRole: m.senderRole as UserRole,
+      senderDisplay: m.senderDisplay,
+      authorNickname: m.authorNickname,
+    }));
+  }
+
+  async postOrgChatMessage(actorNickname: string, actorRole: UserRole, rawBody: string) {
+    if (actorRole !== 'ADMIN' && actorRole !== 'DIRECTOR' && actorRole !== 'MANAGER') {
+      return null;
+    }
+    const body = rawBody.trim();
+    if (!body || body.length > 4000) {
+      return null;
+    }
+    const user = this.demoUsers.find((u) => u.nickname === actorNickname);
+    if (!user || user.role !== actorRole) {
+      return null;
+    }
+    let senderDisplay: string;
+    if (actorRole === 'ADMIN') {
+      senderDisplay = user.storeName?.trim() || 'Точка';
+    } else if (actorRole === 'DIRECTOR') {
+      senderDisplay = 'Директор';
+    } else {
+      senderDisplay = 'Управляющий';
+    }
+
+    const row = await this.prisma.orgChatMessage.create({
+      data: {
+        body,
+        senderRole: actorRole as PrismaUserRole,
+        senderDisplay,
+        authorNickname: actorNickname,
+      },
+    });
+    this.pushAudit(actorNickname, 'ORG_CHAT_MESSAGE', senderDisplay);
+    void this.queuePersist();
+    return {
+      id: row.id,
+      createdAt: row.createdAt.toISOString(),
+      body: row.body,
+      senderRole: row.senderRole as UserRole,
+      senderDisplay: row.senderDisplay,
+      authorNickname: row.authorNickname,
+    };
+  }
+
   getThresholdNotifications() {
     const notifications: ThresholdNotification[] = [];
     const now = Date.now();

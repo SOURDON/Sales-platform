@@ -339,6 +339,15 @@ type ManagerIssue = {
   completedBy?: string;
 };
 
+type OrgChatMessageRow = {
+  id: string;
+  createdAt: string;
+  body: string;
+  senderRole: 'ADMIN' | 'DIRECTOR' | 'MANAGER';
+  senderDisplay: string;
+  authorNickname: string;
+};
+
 function offlineQueueToAdminSales(queue: OfflineQueuedSale[], sellers: SellerProfile[]): AdminSale[] {
   return queue.map((q) => {
     const seller = sellers.find((s) => s.id === q.sellerId);
@@ -425,21 +434,6 @@ type GlobalEmployee = {
   nickname: string;
   homeStore: string;
   isActive: boolean;
-};
-
-type ThresholdNotification = {
-  id: string;
-  type: 'LOW_STOCK' | 'HIGH_DAMAGE_WRITE_OFF' | 'NO_SALES';
-  message: string;
-  createdAt: string;
-};
-
-type AuditLogItem = {
-  id: string;
-  createdAt: string;
-  actor: string;
-  action: string;
-  details: string;
 };
 
 type FinanceAccount = {
@@ -647,6 +641,29 @@ function ControlIcon() {
   );
 }
 
+/** Иконка «конверт» для вкладки общего чата (точки, директор, управляющий). */
+function OrgChatDockIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
+        <path
+          d="M4 7.4h16v10.2H4V7.4z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M4.4 7.8L12 12.9l7.6-5.1"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </DockIcon>
+  );
+}
+
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -669,8 +686,6 @@ function App() {
   const [shifts, setShifts] = useState<ShiftInfo[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [globalEmployees, setGlobalEmployees] = useState<GlobalEmployee[]>([]);
-  const [thresholds, setThresholds] = useState<ThresholdNotification[]>([]);
-  const [auditLog, setAuditLog] = useState<AuditLogItem[]>([]);
   const [adminError, setAdminError] = useState('');
   const [salesNotice, setSalesNotice] = useState('');
   const [managerIssues, setManagerIssues] = useState<ManagerIssue[]>([]);
@@ -1265,22 +1280,6 @@ function App() {
     setGlobalEmployees((await response.json()) as GlobalEmployee[]);
   };
 
-  const loadThresholds = async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/notifications/thresholds`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error('thresholds error');
-    setThresholds((await response.json()) as ThresholdNotification[]);
-  };
-
-  const loadAuditLog = async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/audit-log`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error('audit log error');
-    setAuditLog((await response.json()) as AuditLogItem[]);
-  };
-
   const loadManagerIssues = async (token: string) => {
     const response = await fetch(`${API_BASE_URL}/admin/manager-issues`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1681,13 +1680,6 @@ function App() {
           ...(data.user.role === 'ADMIN' ? [loadStoreInventory(data.token)] : []),
         ]);
 
-        if (data.user.role === 'ADMIN' || data.user.role === 'MANAGER') {
-          await Promise.allSettled([loadThresholds(data.token), loadAuditLog(data.token)]);
-        } else {
-          setThresholds([]);
-          setAuditLog([]);
-        }
-
         if (data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
           const financeLoads = await Promise.allSettled([
             loadAcquiringPercent(data.token),
@@ -1729,8 +1721,6 @@ function App() {
         setCommissionRequests([]);
         setShifts([]);
         setStaff([]);
-        setThresholds([]);
-        setAuditLog([]);
         setAcquiringPercent('1.8');
         setAcquiringPercentDetkov('1.8');
         setAcquiringPercentPutintsevSber('1.8');
@@ -1754,8 +1744,6 @@ function App() {
       setShifts([]);
       setStaff([]);
       setGlobalEmployees([]);
-      setThresholds([]);
-      setAuditLog([]);
       setAcquiringPercent('1.8');
       setAcquiringPercentDetkov('1.8');
       setAcquiringPercentPutintsevSber('1.8');
@@ -1789,8 +1777,6 @@ function App() {
     setCommissionRequests([]);
     setShifts([]);
     setStaff([]);
-    setThresholds([]);
-    setAuditLog([]);
     setAcquiringPercent('1.8');
     setAcquiringPercentDetkov('1.8');
     setAcquiringPercentPutintsevSber('1.8');
@@ -1890,13 +1876,7 @@ function App() {
     if ((r === 'DIRECTOR' || r === 'ACCOUNTANT') && location.pathname === '/sales') {
       void loadInventoryOverview(session.token);
     }
-    if (r === 'ADMIN' && location.pathname === '/control') {
-      void loadStoreInventory(session.token);
-    }
-    if ((r === 'MANAGER' || r === 'DIRECTOR') && location.pathname === '/control') {
-      void loadManagerIssues(session.token);
-    }
-  }, [loadInventoryOverview, loadManagerIssues, loadStoreInventory, location.pathname, session]);
+  }, [loadInventoryOverview, location.pathname, session]);
 
   const mobileNavItems = useMemo((): MobileNavItem[] => {
     if (!session?.user) {
@@ -1908,7 +1888,8 @@ function App() {
     const readOnlyObserver = r === 'ACCOUNTANT' || r === 'MANAGER';
     const financeViewer = r === 'ACCOUNTANT' || r === 'DIRECTOR' || r === 'MANAGER';
     const shiftL = financeViewer ? 'Оперативка' : 'Смена';
-    const controlL = readOnlyObserver ? 'Отчёт' : 'Контроль';
+    const usesOrgChat = r === 'ADMIN' || r === 'DIRECTOR' || r === 'MANAGER';
+    const controlL = usesOrgChat ? 'Чат' : readOnlyObserver ? 'Отчёт' : 'Контроль';
     if (retoucher) {
       return [{ to: '/home', label: 'Главная', icon: <HomeIcon />, end: true }];
     }
@@ -1923,7 +1904,7 @@ function App() {
       { to: '/shift', label: shiftL, icon: <ShiftIcon /> },
       { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
       { to: '/team', label: 'Команда', icon: <TeamIcon /> },
-      { to: '/control', label: controlL, icon: <ControlIcon /> },
+      { to: '/control', label: controlL, icon: usesOrgChat ? <OrgChatDockIcon /> : <ControlIcon /> },
     ];
   }, [session]);
 
@@ -2015,7 +1996,8 @@ function App() {
   const isReadOnlyObserver = role === 'ACCOUNTANT' || role === 'MANAGER';
   const isFinanceViewer = role === 'ACCOUNTANT' || role === 'DIRECTOR';
   const shiftLabel = isFinanceViewer || isManager ? 'Оперативка' : 'Смена';
-  const controlLabel = isReadOnlyObserver ? 'Отчёт' : 'Контроль';
+  const usesOrgChat = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER';
+  const controlLabel = usesOrgChat ? 'Чат' : isReadOnlyObserver ? 'Отчёт' : 'Контроль';
 
   return (
     <main className="app appWorkspace">
@@ -2594,49 +2576,25 @@ function App() {
                   <Navigate to="/home" replace />
                 ) : (
                   <div className="dashboard">
-                    {isFinanceViewer ? (
-                      role === 'DIRECTOR' ? null : (
-                        <>
-                          <section className="sectionCard">
-                            <FinanceReportPanel
-                              token={session.token}
-                              sales={salesMerged}
-                              sellers={sellers}
-                              procurementCosts={productProcurementCosts}
-                              role={role}
-                              acquiringPercent={acquiringPercent}
-                              acquiringPercentDetkov={acquiringPercentDetkov}
-                              acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
-                              onRefreshFinanceInputs={refreshFinanceInputs}
-                              onLoadPlans={loadRevenuePlans}
-                              onSavePlans={saveRevenuePlans}
-                            />
-                          </section>
-                        </>
-                      )
-                    ) : isManager ? null : (
-                      <>
-                        {role === 'ADMIN' ? null : (
-                          <section className="sectionCard">
-                            <WriteOffForm
-                              products={products}
-                              token={session.token}
-                              onAddWriteOff={addWriteOff}
-                            />
-                          </section>
-                        )}
-                        {role !== 'ADMIN' && (
-                          <section className="sectionCard">
-                            <ThresholdPanel notifications={thresholds} />
-                          </section>
-                        )}
-                        {role !== 'ADMIN' && (
-                          <section className="sectionCard">
-                            <AuditLogPanel items={auditLog} />
-                          </section>
-                        )}
-                      </>
-                    )}
+                    {usesOrgChat ? (
+                      <OrgChatPanel token={session.token} myNickname={session.user.nickname} />
+                    ) : role === 'ACCOUNTANT' ? (
+                      <section className="sectionCard">
+                        <FinanceReportPanel
+                          token={session.token}
+                          sales={salesMerged}
+                          sellers={sellers}
+                          procurementCosts={productProcurementCosts}
+                          role={role}
+                          acquiringPercent={acquiringPercent}
+                          acquiringPercentDetkov={acquiringPercentDetkov}
+                          acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
+                          onRefreshFinanceInputs={refreshFinanceInputs}
+                          onLoadPlans={loadRevenuePlans}
+                          onSavePlans={saveRevenuePlans}
+                        />
+                      </section>
+                    ) : null}
                   </div>
                 )
               }
@@ -2998,6 +2956,185 @@ function DirectorHomeApprovalsCarousel({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function formatOrgChatTimeLabel(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('ru-RU', {
+      timeZone: 'Europe/Moscow',
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(iso));
+  } catch {
+    return '';
+  }
+}
+
+async function parseOrgChatErrorResponse(response: Response): Promise<string> {
+  try {
+    const data: unknown = await response.json();
+    if (data && typeof data === 'object' && 'message' in data) {
+      const m = (data as { message: unknown }).message;
+      if (typeof m === 'string') {
+        return m;
+      }
+      if (Array.isArray(m)) {
+        return m.map(String).join(', ');
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return (await response.text().catch(() => '')) || `Ошибка ${response.status}`;
+}
+
+function OrgChatPanel({ token, myNickname }: { token: string; myNickname: string }) {
+  const [messages, setMessages] = useState<OrgChatMessageRow[]>([]);
+  const [draft, setDraft] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sendBusy, setSendBusy] = useState(false);
+  const [error, setError] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (!el) {
+        return;
+      }
+      el.scrollTop = el.scrollHeight;
+    });
+  };
+
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/org-chat/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error(await parseOrgChatErrorResponse(response));
+      }
+      const data = (await response.json()) as { messages?: OrgChatMessageRow[] };
+      setMessages(Array.isArray(data.messages) ? data.messages : []);
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось загрузить чат');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => void load(), 12000);
+    return () => window.clearInterval(id);
+  }, [load]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const text = draft.trim();
+    if (!text || sendBusy) {
+      return;
+    }
+    setSendBusy(true);
+    setError('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/org-chat/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ body: text }),
+      });
+      if (!response.ok) {
+        throw new Error(await parseOrgChatErrorResponse(response));
+      }
+      setDraft('');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не отправлено');
+    } finally {
+      setSendBusy(false);
+    }
+  };
+
+  return (
+    <section className="sectionCard orgChatSection" aria-label="Общий чат сети">
+      <header className="orgChatHeader">
+        <div>
+          <h3 className="orgChatTitle">Общий чат</h3>
+          <p className="orgChatSubtitle">
+            Все точки, директор и управляющий. История сообщений сохраняется.
+          </p>
+        </div>
+        <button type="button" className="ghost orgChatRefreshBtn" onClick={() => void load()} disabled={loading}>
+          Обновить
+        </button>
+      </header>
+
+      {error ? (
+        <p className="error orgChatError" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      <div ref={scrollRef} className="orgChatScroll" aria-live="polite">
+        {loading && messages.length === 0 ? (
+          <p className="muted orgChatEmpty">Загрузка сообщений…</p>
+        ) : messages.length === 0 ? (
+          <p className="muted orgChatEmpty">Пока нет сообщений — напишите первым.</p>
+        ) : (
+          <ul className="orgChatList">
+            {messages.map((m) => {
+              const mine = m.authorNickname === myNickname;
+              return (
+                <li
+                  key={m.id}
+                  className={`orgChatBubbleWrap ${mine ? 'orgChatBubbleWrap--mine' : ''}`}
+                >
+                  <article className={`orgChatBubble ${mine ? 'orgChatBubble--mine' : ''}`}>
+                    <div className="orgChatBubbleMeta">
+                      <span className="orgChatSender">{m.senderDisplay}</span>
+                      <time className="orgChatTime" dateTime={m.createdAt}>
+                        {formatOrgChatTimeLabel(m.createdAt)}
+                      </time>
+                    </div>
+                    <p className="orgChatBody">{m.body}</p>
+                  </article>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <form className="orgChatComposer" onSubmit={(e) => void handleSubmit(e)}>
+        <textarea
+          className="orgChatInput"
+          rows={2}
+          maxLength={4000}
+          placeholder="Сообщение для всех точек и руководства…"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          disabled={sendBusy}
+          aria-label="Текст сообщения"
+        />
+        <button type="submit" className="primaryAction orgChatSend" disabled={sendBusy || !draft.trim()}>
+          {sendBusy ? 'Отправка…' : 'Отправить'}
+        </button>
+      </form>
+    </section>
   );
 }
 
@@ -5073,25 +5210,6 @@ function StaffPanel({
   );
 }
 
-function ThresholdPanel({ notifications }: { notifications: ThresholdNotification[] }) {
-  return (
-    <div className="opsCard">
-      <h4>Пороговые уведомления</h4>
-      <div className="opsList">
-        {notifications.length === 0 ? (
-          <p>Нет активных уведомлений</p>
-        ) : (
-          notifications.map((item) => (
-            <p key={item.id}>
-              [{item.type}] {item.message}
-            </p>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
 function DirectorWarehousePanel({
   token,
   overview,
@@ -5988,21 +6106,6 @@ function FinanceReportPanel({
             </tr>
           </tbody>
         </table>
-      </div>
-    </div>
-  );
-}
-
-function AuditLogPanel({ items }: { items: AuditLogItem[] }) {
-  return (
-    <div className="opsCard">
-      <h4>История действий (audit log)</h4>
-      <div className="opsList">
-        {items.map((item) => (
-          <p key={item.id}>
-            {new Date(item.createdAt).toLocaleString('ru-RU')} | {item.actor} | {item.action} | {item.details}
-          </p>
-        ))}
       </div>
     </div>
   );

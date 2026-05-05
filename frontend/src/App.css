@@ -7001,3 +7001,176 @@ h1 {
   }
 }
 
+/* ——— Общий чат сети (точки, директор, управляющий) ——— */
+.orgChatSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: min(78vh, 720px);
+  padding-bottom: 4px;
+}
+
+.orgChatHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.orgChatTitle {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ui-text);
+}
+
+.orgChatSubtitle {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ui-muted);
+  max-width: 42rem;
+}
+
+.orgChatRefreshBtn {
+  flex-shrink: 0;
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+}
+
+.orgChatError {
+  margin: 0;
+}
+
+.orgChatScroll {
+  flex: 1;
+  min-height: 200px;
+  max-height: min(58vh, 520px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 10px 6px 10px 4px;
+  border-radius: 14px;
+  border: 1px solid var(--ui-edge-soft);
+  background: rgba(4, 14, 11, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  scroll-behavior: smooth;
+}
+
+.orgChatEmpty {
+  margin: 0;
+  padding: 28px 12px;
+  text-align: center;
+}
+
+.orgChatList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.orgChatBubbleWrap {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.orgChatBubbleWrap--mine {
+  justify-content: flex-end;
+}
+
+.orgChatBubble {
+  max-width: min(100%, 26rem);
+  padding: 9px 12px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.orgChatBubble--mine {
+  border-color: rgba(212, 182, 123, 0.38);
+  background: linear-gradient(165deg, rgba(212, 182, 123, 0.14), rgba(4, 14, 11, 0.35));
+}
+
+.orgChatBubbleMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.orgChatSender {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ui-gold-soft);
+}
+
+.orgChatBubble--mine .orgChatSender {
+  color: var(--ui-text);
+}
+
+.orgChatTime {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ui-dim);
+  white-space: nowrap;
+}
+
+.orgChatBody {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ui-text);
+}
+
+.orgChatComposer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding-top: 2px;
+}
+
+.orgChatInput {
+  width: 100%;
+  min-height: 52px;
+  resize: vertical;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--ui-edge-soft);
+  background: var(--ui-field);
+  color: var(--ui-text);
+  font: inherit;
+  line-height: 1.4;
+}
+
+.orgChatInput:focus {
+  outline: none;
+  border-color: rgba(212, 182, 123, 0.45);
+  box-shadow: 0 0 0 1px rgba(212, 182, 123, 0.15);
+}
+
+.orgChatSend {
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .orgChatComposer {
+    grid-template-columns: 1fr;
+  }
+
+  .orgChatSend {
+    width: 100%;
+  }
+}
+
