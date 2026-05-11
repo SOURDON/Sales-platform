@@ -2030,8 +2030,8 @@ function App() {
 
   if (!session) {
     return (
-      <main className="app">
-        <section className="card loginCard">
+      <main className="app loginScreen">
+        <section className="loginScreenPanel">
           <header className="brandHeader">
             <h1>Фотографы</h1>
             <p className="subtitle">Авторизация в системе</p>

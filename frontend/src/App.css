@@ -3398,11 +3398,73 @@ button.financeRangePresetBtn {
     box-shadow: none;
   }
 
-  .app:not(.appWorkspace) .loginCard {
-    min-height: auto !important;
-    border-radius: 16px !important;
-    margin: 10px auto 18px !important;
-    padding: 16px 14px 20px !important;
+  .app.loginScreen {
+    align-items: stretch;
+    justify-content: flex-end;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 0 0;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+    background:
+      radial-gradient(ellipse 130% 95% at 50% -28%, rgba(196, 165, 109, 0.22), transparent 56%),
+      radial-gradient(760px 500px at 96% 88%, rgba(44, 96, 79, 0.42), transparent 58%),
+      radial-gradient(560px 400px at 4% 92%, rgba(15, 76, 129, 0.18), transparent 54%),
+      linear-gradient(168deg, #050a08 0%, #0c1a15 44%, #102821 76%, #070d0b 100%) !important;
+  }
+
+  .app.loginScreen .loginScreenPanel {
+    border-radius: 20px 20px 0 0;
+    max-width: none;
+    margin: 0;
+    width: 100%;
+    padding-top: 22px;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    padding-left: max(18px, env(safe-area-inset-left, 0px));
+    padding-right: max(18px, env(safe-area-inset-right, 0px));
+    max-height: min(92dvh, 92vh);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 -12px 48px rgba(0, 0, 0, 0.4);
+  }
+
+  .app.loginScreen .brandHeader {
+    text-align: center;
+    margin-bottom: 14px;
+  }
+
+  .app.loginScreen .subtitle {
+    font-size: 15px;
+    line-height: 1.35;
+  }
+
+  .app.loginScreen .form {
+    gap: 16px;
+  }
+
+  .app.loginScreen label {
+    font-size: 14px;
+  }
+
+  .app.loginScreen input:not([type='checkbox']):not([type='radio']) {
+    min-height: 48px;
+    padding: 14px 16px;
+    font-size: 16px;
+  }
+
+  .app.loginScreen .primaryAction {
+    min-height: 50px;
+    padding: 14px 18px;
+    font-size: 16px;
+    touch-action: manipulation;
+  }
+
+  .app.loginScreen .rememberMeRow {
+    min-height: 44px;
+    padding: 6px 0;
+    font-size: 15px;
   }
 
   .brandHeader {
@@ -3412,6 +3474,11 @@ button.financeRangePresetBtn {
 
   h1 {
     font-size: 28px;
+  }
+
+  .app.loginScreen .brandHeader h1 {
+    font-size: clamp(1.55rem, 5.4vw, 1.95rem);
+    line-height: 1.12;
   }
 
   .desktopNav {
@@ -4403,96 +4470,115 @@ h1 {
   color: #c4a56d !important;
 }
 
-/* Login background matches the app background */
-.app:not(.appWorkspace) {
-  background:
-    radial-gradient(1200px 560px at 0% -12%, rgba(44, 96, 79, 0.36), transparent 58%),
-    radial-gradient(900px 460px at 100% 0%, rgba(15, 45, 37, 0.45), transparent 62%),
-    linear-gradient(180deg, #081611 0%, #0d211a 45%, #11281f 100%) !important;
-}
-
-.app:not(.appWorkspace) .card {
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-}
-
-.app:not(.appWorkspace) .card {
-  background: rgba(234, 238, 229, 0.92) !important;
-  border: 1px solid rgba(126, 104, 65, 0.24) !important;
-  box-shadow:
-    0 16px 36px rgba(4, 16, 12, 0.32),
-    0 1px 0 rgba(255, 255, 255, 0.7) inset !important;
-}
-
-.app:not(.appWorkspace) .loginCard {
-  min-height: auto !important;
-  border-radius: 16px !important;
-}
-
-/* --- Login: современная карточка входа --- */
-.app:not(.appWorkspace) .loginCard {
-  max-width: 440px;
-  padding: 28px 22px 22px !important;
+/* Экран входа: один тёмный холст + стеклянная панель (без светлой «подложки») */
+.app.loginScreen {
+  min-height: 100dvh;
+  min-height: 100vh;
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  position: relative;
-  overflow: hidden;
-  backdrop-filter: blur(10px);
-}
-
-.app:not(.appWorkspace) .loginCard::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
   background:
-    radial-gradient(520px 220px at 20% -10%, rgba(196, 165, 109, 0.45), transparent 60%),
-    radial-gradient(460px 240px at 105% 40%, rgba(15, 76, 129, 0.35), transparent 55%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0));
-  pointer-events: none;
-  z-index: 0;
+    radial-gradient(ellipse 130% 95% at 50% -28%, rgba(196, 165, 109, 0.22), transparent 56%),
+    radial-gradient(760px 500px at 96% 88%, rgba(44, 96, 79, 0.42), transparent 58%),
+    radial-gradient(560px 400px at 4% 92%, rgba(15, 76, 129, 0.18), transparent 54%),
+    linear-gradient(168deg, #050a08 0%, #0c1a15 44%, #102821 76%, #070d0b 100%) !important;
 }
 
-.app:not(.appWorkspace) .loginCard > * {
-  position: relative;
-  z-index: 1;
-}
-
-.app:not(.appWorkspace) .brandHeader {
-  margin-bottom: 12px;
-}
-
-.app:not(.appWorkspace) .form {
-  gap: 12px;
-}
-
-.app:not(.appWorkspace) .form label {
-  font-weight: 700;
-}
-
-.app:not(.appWorkspace) .primaryAction {
+.loginScreenPanel {
   width: 100%;
+  max-width: 400px;
+  padding: 28px 22px 26px;
+  box-sizing: border-box;
+  border-radius: 22px;
+  background: rgba(5, 16, 12, 0.52);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(212, 182, 123, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 20px 50px rgba(0, 0, 0, 0.42);
+}
+
+.app.loginScreen .brandHeader {
+  margin: 0 auto 18px;
+  max-width: 100%;
+}
+
+.app.loginScreen .brandHeader h1 {
+  margin: 0;
+  color: #e8d5b0;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.app.loginScreen .subtitle {
+  color: rgba(220, 212, 192, 0.72);
+  font-weight: 500;
+}
+
+.app.loginScreen .form {
+  gap: 14px;
+}
+
+.app.loginScreen label {
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: rgba(210, 200, 178, 0.9) !important;
+}
+
+.app.loginScreen input:not([type='checkbox']):not([type='radio']) {
+  border-radius: 12px;
   padding: 12px 14px;
+  font-size: 16px;
+  color: #f4f1e8 !important;
+  background: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(212, 182, 123, 0.28) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-.app:not(.appWorkspace) .rememberMeRow {
+.app.loginScreen input::placeholder {
+  color: rgba(220, 212, 192, 0.42);
+}
+
+.app.loginScreen input:focus {
+  outline: none;
+  border-color: rgba(212, 182, 123, 0.55) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 3px rgba(196, 165, 109, 0.22);
+}
+
+.app.loginScreen .rememberMeRow {
   margin-top: 2px;
+  color: rgba(220, 212, 192, 0.88) !important;
 }
 
-.app:not(.appWorkspace) .rememberMeRow span {
+.app.loginScreen .rememberMeRow span {
   cursor: pointer;
 }
 
-.app:not(.appWorkspace) .rememberMeRow input[type='checkbox'] {
-  accent-color: #b48f53;
+.app.loginScreen .rememberMeRow input[type='checkbox'] {
+  accent-color: #c4a56d;
 }
 
-@media (max-width: 560px) {
-  .app:not(.appWorkspace) .loginCard {
-    padding: 16px 14px 20px !important;
-    gap: 12px;
-  }
+.app.loginScreen .primaryAction {
+  width: 100%;
+  padding: 13px 16px;
+  font-weight: 600;
+  border-radius: 12px;
+}
+
+.app.loginScreen .error {
+  margin: 0;
+  border-radius: 12px;
+  background: rgba(72, 20, 16, 0.55) !important;
+  color: #ffe4e1 !important;
+  border: 1px solid rgba(248, 113, 113, 0.38);
 }
 
 .app:not(.appWorkspace) .homeProfileVal,
@@ -4507,16 +4593,16 @@ h1 {
 .app:not(.appWorkspace) .muted,
 .app:not(.appWorkspace) .notice,
 .app:not(.appWorkspace) .hint,
-.app:not(.appWorkspace) label,
-.app:not(.appWorkspace) input:not([type='checkbox']):not([type='radio']),
-.app:not(.appWorkspace) select,
-.app:not(.appWorkspace) textarea {
+.app:not(.appWorkspace):not(.loginScreen) label,
+.app:not(.appWorkspace):not(.loginScreen) input:not([type='checkbox']):not([type='radio']),
+.app:not(.appWorkspace):not(.loginScreen) select,
+.app:not(.appWorkspace):not(.loginScreen) textarea {
   color: #253e34 !important;
 }
 
-.app:not(.appWorkspace) input:not([type='checkbox']):not([type='radio']),
-.app:not(.appWorkspace) select,
-.app:not(.appWorkspace) textarea {
+.app:not(.appWorkspace):not(.loginScreen) input:not([type='checkbox']):not([type='radio']),
+.app:not(.appWorkspace):not(.loginScreen) select,
+.app:not(.appWorkspace):not(.loginScreen) textarea {
   background: #f7f9f4 !important;
   border: 1px solid #c9d5c7 !important;
 }
