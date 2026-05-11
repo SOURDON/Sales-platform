@@ -3524,6 +3524,20 @@ function MessengerHub({
             placeholder={placeholder}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => {
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  window.scrollTo(0, 0);
+                  const vv = window.visualViewport;
+                  if (vv) {
+                    document.documentElement.style.setProperty(
+                      '--app-visual-vh',
+                      `${Math.max(0, Math.round(vv.height))}px`,
+                    );
+                  }
+                });
+              });
+            }}
             disabled={sendBusy}
             aria-label="Текст сообщения"
           />

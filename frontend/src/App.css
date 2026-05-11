@@ -7824,6 +7824,27 @@ h1 {
   }
 }
 
+/* iPhone/iPad: после клавиатуры 100dvh/100vh часто не совпадают с visual viewport */
+@media (max-width: 860px) {
+  .appWorkspace.appWorkspace--messengerChrome {
+    min-height: var(--app-visual-vh, 100dvh);
+    max-height: var(--app-visual-vh, 100dvh);
+    height: var(--app-visual-vh, 100dvh);
+  }
+
+  .appWorkspace .cardWorkspace:has(.dashboardMessengerPage) {
+    min-height: var(--app-visual-vh, 100dvh);
+  }
+
+  .appWorkspace .cardWorkspace:has(.messengerHubThread) {
+    max-height: var(--app-visual-vh, 100dvh);
+  }
+
+  body:has(.appWorkspace--messengerChrome) {
+    background: #081611;
+  }
+}
+
 .appWorkspace .cardWorkspace--messengerChrome {
   padding-top: 6px !important;
   /* Отступ под док только внутри messengerHub — иначе двойная «полка» на списке и в переписке */
