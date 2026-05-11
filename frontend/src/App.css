@@ -4430,6 +4430,71 @@ h1 {
   border-radius: 16px !important;
 }
 
+/* --- Login: современная карточка входа --- */
+.app:not(.appWorkspace) .loginCard {
+  max-width: 440px;
+  padding: 28px 22px 22px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.app:not(.appWorkspace) .loginCard::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background:
+    radial-gradient(520px 220px at 20% -10%, rgba(196, 165, 109, 0.45), transparent 60%),
+    radial-gradient(460px 240px at 105% 40%, rgba(15, 76, 129, 0.35), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0));
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app:not(.appWorkspace) .loginCard > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app:not(.appWorkspace) .brandHeader {
+  margin-bottom: 12px;
+}
+
+.app:not(.appWorkspace) .form {
+  gap: 12px;
+}
+
+.app:not(.appWorkspace) .form label {
+  font-weight: 700;
+}
+
+.app:not(.appWorkspace) .primaryAction {
+  width: 100%;
+  padding: 12px 14px;
+}
+
+.app:not(.appWorkspace) .rememberMeRow {
+  margin-top: 2px;
+}
+
+.app:not(.appWorkspace) .rememberMeRow span {
+  cursor: pointer;
+}
+
+.app:not(.appWorkspace) .rememberMeRow input[type='checkbox'] {
+  accent-color: #b48f53;
+}
+
+@media (max-width: 560px) {
+  .app:not(.appWorkspace) .loginCard {
+    padding: 16px 14px 20px !important;
+    gap: 12px;
+  }
+}
+
 .app:not(.appWorkspace) .homeProfileVal,
 .app:not(.appWorkspace) .homeStoreRow dd,
 .app:not(.appWorkspace) .homeStoresMiniValue,

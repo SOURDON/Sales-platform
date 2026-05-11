@@ -2080,30 +2080,6 @@ function App() {
               {loading ? 'Входим...' : 'Войти'}
             </button>
           </form>
-
-          <div className="help">
-            <p>Тестовые пользователи:</p>
-            <ul>
-              <li>
-                <code>director / 123456</code> — директор, все 8 точек
-              </li>
-              <li>
-                <code>manager / 123456</code> — управляющий, зарплаты по всем точкам и обращения
-              </li>
-              <li>
-                <code>buh / 123456</code> — бухгалтер, просмотр по всем точкам
-              </li>
-              <li>
-                <code>admin1</code>…<code>admin8 / 123456</code> — по одной точке каждый
-              </li>
-              <li>
-                <code>seller1</code>…<code>seller8 / 123456</code> — продавцы
-              </li>
-              <li>
-                <code>reto1</code>…<code>reto8 / 123456</code> — ретушёры (5% от выручки точки)
-              </li>
-            </ul>
-          </div>
         </section>
       </main>
     );
