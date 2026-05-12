@@ -115,11 +115,6 @@ interface FinanceIncomeBody {
   comment?: string;
 }
 
-interface ManagerIssueBody {
-  category?: 'PERSONNEL' | 'INSPECTION' | 'GOODS' | 'EQUIPMENT_BREAKDOWN' | 'NEEDS';
-  message?: string;
-}
-
 interface OrgChatPostBody {
   body?: string;
 }
@@ -722,69 +717,6 @@ export class AdminController {
       throw new BadRequestException('Не удалось отправить личное сообщение');
     }
     return msg as unknown;
-  }
-
-  @Post('manager-issues')
-  createManagerIssue(
-    @Headers('authorization') authorization: string | undefined,
-    @Body() body: ManagerIssueBody,
-  ) {
-    const session = this.requireFinanceRead(authorization);
-    if (session.role !== 'ADMIN') {
-      throw new ForbiddenException('Обращение управляющему может создать только администратор точки');
-    }
-    if (
-      !body.category ||
-      !['PERSONNEL', 'INSPECTION', 'GOODS', 'EQUIPMENT_BREAKDOWN', 'NEEDS'].includes(body.category)
-    ) {
-      throw new BadRequestException('category is required');
-    }
-    if (!body.message?.trim()) {
-      throw new BadRequestException('message is required');
-    }
-    const issue = this.authService.createManagerIssue(session.nickname, body.category, body.message);
-    if (!issue) {
-      throw new BadRequestException('Не удалось создать обращение');
-    }
-    return issue as unknown;
-  }
-
-  @Get('manager-issues')
-  getManagerIssues(@Headers('authorization') authorization?: string) {
-    const session = this.requireFinanceRead(authorization);
-    return this.authService.getManagerIssuesForSession(session.nickname) as unknown;
-  }
-
-  @Post('manager-issues/:id/start')
-  startManagerIssue(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('id') id: string,
-  ) {
-    const session = this.requireFinanceRead(authorization);
-    if (session.role !== 'MANAGER' && session.role !== 'DIRECTOR') {
-      throw new ForbiddenException('Только управляющий или директор могут взять обращение в работу');
-    }
-    const issue = this.authService.startManagerIssue(id, session.nickname);
-    if (!issue) {
-      throw new BadRequestException('Не удалось перевести обращение в работу');
-    }
-    return issue as unknown;
-  }
-
-  @Post('manager-issues/:id/complete')
-  completeManagerIssue(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('id') id: string,
-  ) {
-    const session = this.requireFinanceRead(authorization);
-    if (session.role !== 'MANAGER' && session.role !== 'DIRECTOR') {
-      throw new ForbiddenException('Только управляющий или директор могут завершить обращение');
-    }
-    const issue = this.authService.completeManagerIssue(id, session.nickname);
-    if (!issue) {
-      throw new BadRequestException('Не удалось завершить обращение');
-    }
-    return issue as unknown;
   }
 
   @Get('write-offs/export')

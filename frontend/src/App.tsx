@@ -75,23 +75,6 @@ function formatRub(value: number): string {
   return `${Math.round(value).toLocaleString('ru-RU')} ₽`;
 }
 
-function managerIssueCategoryLabel(category: ManagerIssueCategory): string {
-  switch (category) {
-    case 'PERSONNEL':
-      return 'Персонал';
-    case 'INSPECTION':
-      return 'Проверка';
-    case 'GOODS':
-      return 'Товар';
-    case 'EQUIPMENT_BREAKDOWN':
-      return 'Поломка техники';
-    case 'NEEDS':
-      return 'Что-то нужно';
-    default:
-      return category;
-  }
-}
-
 type StaffPositionKind = 'SALES' | 'RETOUCHER';
 
 type StaffMember = {
@@ -321,22 +304,6 @@ type DirectorControlRequest = {
   storeName: string;
   payload: Record<string, unknown>;
   summary: string;
-};
-
-type ManagerIssueCategory = 'PERSONNEL' | 'INSPECTION' | 'GOODS' | 'EQUIPMENT_BREAKDOWN' | 'NEEDS';
-
-type ManagerIssue = {
-  id: string;
-  createdAt: string;
-  storeName: string;
-  createdByNickname: string;
-  category: ManagerIssueCategory;
-  message: string;
-  status: 'NEW' | 'IN_PROGRESS' | 'DONE';
-  startedAt?: string;
-  startedBy?: string;
-  completedAt?: string;
-  completedBy?: string;
 };
 
 type MessengerThreadPreview = {
@@ -707,8 +674,6 @@ function App() {
   const [globalEmployees, setGlobalEmployees] = useState<GlobalEmployee[]>([]);
   const [adminError, setAdminError] = useState('');
   const [salesNotice, setSalesNotice] = useState('');
-  const [managerIssues, setManagerIssues] = useState<ManagerIssue[]>([]);
-  const [managerIssueNotice, setManagerIssueNotice] = useState('');
   const [teamDayKey, setTeamDayKey] = useState(todayKeyMoscow());
   const [acquiringPercent, setAcquiringPercent] = useState('1.8');
   const [acquiringPercentDetkov, setAcquiringPercentDetkov] = useState('1.8');
@@ -727,9 +692,6 @@ function App() {
   /** Открытый чат сохраняется при переходах по разделам; закрывается только «Назад» или выход. */
   const [messengerPersistThreadKey, setMessengerPersistThreadKey] = useState<string | null>(null);
   const [messengerPersistThreadTitle, setMessengerPersistThreadTitle] = useState('');
-  /** Снимок unread по потокам для детекта новых сообщений (desktop Notification). */
-  const messengerUnreadSnapshotRef = useRef<Map<string, number> | null>(null);
-
   const refreshMessengerInbox = useCallback(async () => {
     const token = session?.token;
     const r = session?.user?.role;
@@ -744,38 +706,6 @@ function App() {
         return;
       }
       const data = (await res.json()) as MessengerInboxResponse;
-      const prev = messengerUnreadSnapshotRef.current;
-      if (
-        typeof Notification !== 'undefined' &&
-        Notification.permission === 'granted' &&
-        prev !== null
-      ) {
-        const path = typeof window !== 'undefined' ? window.location.pathname : '';
-        const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
-        const notifyAllowed = hidden || path !== '/control';
-        if (notifyAllowed) {
-          for (const t of data.threads) {
-            const was = prev.get(t.threadKey) ?? 0;
-            if (t.unreadCount > was) {
-              const preview = messengerPreviewBodyLine(t).slice(0, 120);
-              const body = preview === 'Нет сообщений' ? 'Новое сообщение' : preview;
-              try {
-                new Notification(t.title, {
-                  body,
-                  tag: `messenger-${t.threadKey}`,
-                  icon: '/icon-192.png',
-                });
-              } catch {
-                /* ignore */
-              }
-              break;
-            }
-          }
-        }
-      }
-      messengerUnreadSnapshotRef.current = new Map(
-        data.threads.map((x) => [x.threadKey, x.unreadCount]),
-      );
       setMessengerInbox(data);
       setMessengerUnreadTotal(typeof data.totalUnread === 'number' ? data.totalUnread : 0);
     } catch {
@@ -1388,84 +1318,6 @@ function App() {
     setGlobalEmployees((await response.json()) as GlobalEmployee[]);
   };
 
-  const loadManagerIssues = async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/manager-issues`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      throw new Error('manager issues error');
-    }
-    setManagerIssues((await response.json()) as ManagerIssue[]);
-  };
-
-  const createManagerIssue = async (
-    token: string,
-    payload: { category: ManagerIssueCategory; message: string },
-  ) => {
-    const response = await fetch(`${API_BASE_URL}/admin/manager-issues`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      let message = 'Не удалось отправить обращение';
-      try {
-        const parsed = (await response.json()) as { message?: string | string[] };
-        if (typeof parsed.message === 'string') {
-          message = parsed.message;
-        }
-      } catch {
-        // ignore
-      }
-      throw new Error(message);
-    }
-    await loadManagerIssues(token);
-  };
-
-  const startManagerIssue = async (token: string, issueId: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/manager-issues/${issueId}/start`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      let message = 'Не удалось взять обращение в работу';
-      try {
-        const parsed = (await response.json()) as { message?: string | string[] };
-        if (typeof parsed.message === 'string') {
-          message = parsed.message;
-        }
-      } catch {
-        // ignore
-      }
-      throw new Error(message);
-    }
-    await loadManagerIssues(token);
-  };
-
-  const completeManagerIssue = async (token: string, issueId: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/manager-issues/${issueId}/complete`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      let message = 'Не удалось завершить обращение';
-      try {
-        const parsed = (await response.json()) as { message?: string | string[] };
-        if (typeof parsed.message === 'string') {
-          message = parsed.message;
-        }
-      } catch {
-        // ignore
-      }
-      throw new Error(message);
-    }
-    await loadManagerIssues(token);
-  };
-
-
   const setDirectorPercent = async (token: string, sellerId: number, ratePercent: number) => {
     const response = await fetch(`${API_BASE_URL}/admin/sellers/percent`, {
       method: 'PUT',
@@ -1778,7 +1630,6 @@ function App() {
           loadShifts(data.token),
           loadStaff(data.token),
           loadGlobalEmployees(data.token),
-          loadManagerIssues(data.token),
         ]);
 
         await Promise.allSettled([
@@ -1874,8 +1725,6 @@ function App() {
 
   const handleLogout = () => {
     setSalesNotice('');
-    setManagerIssues([]);
-    setManagerIssueNotice('');
     setSession(null);
     setDashboard(null);
     setSellers([]);
@@ -1898,7 +1747,6 @@ function App() {
     setStoreInventory(null);
     setMessengerInbox(null);
     setMessengerUnreadTotal(0);
-    messengerUnreadSnapshotRef.current = null;
     setMessengerPersistThreadKey(null);
     setMessengerPersistThreadTitle('');
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -1966,7 +1814,6 @@ function App() {
             loadShifts(session.token),
             loadStaff(session.token),
             loadGlobalEmployees(session.token),
-            loadManagerIssues(session.token),
           ]);
           await Promise.allSettled([
             ...(session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT'
@@ -2281,14 +2128,6 @@ function App() {
                             </div>
                           )}
 
-                          {homeDashboard.role === 'MANAGER' && session ? (
-                            <ManagerHomeIssuesPanel
-                              token={session.token}
-                              items={managerIssues}
-                              onStart={startManagerIssue}
-                            />
-                          ) : null}
-
                           {homeDashboard.role === 'DIRECTOR' ? (
                             <DirectorCashflowCarousel pages={directorCashflowPages} />
                           ) : null}
@@ -2324,15 +2163,6 @@ function App() {
                                   ))}
                                 </ul>
                               </div>
-                              <ManagerIssueMiniForm
-                                token={session.token}
-                                notice={managerIssueNotice}
-                                onSubmit={async (payload) => {
-                                  await createManagerIssue(session.token, payload);
-                                  setManagerIssueNotice('Обращение отправлено управляющему');
-                                  window.setTimeout(() => setManagerIssueNotice(''), 3500);
-                                }}
-                              />
                             </>
                           ) : null}
                         </>
@@ -2445,15 +2275,7 @@ function App() {
                         )}
                       </>
                     )}
-                    {isManager ? (
-                      <section className="sectionCard">
-                        <ManagerIssuesInbox
-                          token={session.token}
-                          issues={managerIssues}
-                          onComplete={completeManagerIssue}
-                        />
-                      </section>
-                    ) : isFinanceViewer ? (
+                    {isManager ? null : isFinanceViewer ? (
                       role === 'DIRECTOR' ? (
                         <section className="sectionCard">
                           <FinanceReportPanel
@@ -3179,47 +3001,6 @@ function formatMessengerUnreadCount(n: number): string {
   return String(n);
 }
 
-/** Запрос разрешения на desktop-уведомления о новых сообщениях (поллинг inbox). */
-function MessengerDesktopNotifyToggle() {
-  const [perm, setPerm] = useState<NotificationPermission>(() =>
-    typeof Notification !== 'undefined' ? Notification.permission : 'denied',
-  );
-  useEffect(() => {
-    if (typeof Notification === 'undefined') {
-      return;
-    }
-    setPerm(Notification.permission);
-  }, []);
-  if (typeof Notification === 'undefined') {
-    return null;
-  }
-  if (perm === 'granted') {
-    return (
-      <p className="messengerNotifyStatus messengerNotifyStatus--ok" role="status">
-        Уведомления о новых сообщениях включены.
-      </p>
-    );
-  }
-  if (perm === 'denied') {
-    return (
-      <p className="messengerNotifyStatus messengerNotifyStatus--denied" role="status">
-        Браузер запретил уведомления для этого сайта — разрешите в настройках сайта.
-      </p>
-    );
-  }
-  return (
-    <button
-      type="button"
-      className="messengerNotifyEnable"
-      onClick={() => {
-        void Notification.requestPermission().then((p) => setPerm(p));
-      }}
-    >
-      Включить уведомления о новых сообщениях
-    </button>
-  );
-}
-
 function MessengerHub({
   token,
   inbox,
@@ -3394,10 +3175,11 @@ function MessengerHub({
     return (
       <section className="sectionCard messengerHub" aria-label="Сообщения">
         <header className="messengerHubHeader">
-          <div>
+          <div className="messengerHubHeaderInner">
             <h3 className="messengerHubTitle">Сообщения</h3>
-            <p className="messengerHubSubtitle">Общий чат и личные диалоги со всеми участниками сети.</p>
-            <MessengerDesktopNotifyToggle />
+            <p className="messengerHubSubtitle">
+              Общий чат и личные диалоги со всеми участниками сети.
+            </p>
           </div>
         </header>
 
@@ -3750,259 +3532,6 @@ function WriteOffForm({
         </div>
         {formError && <p className="error">{formError}</p>}
       </div>
-    </div>
-  );
-}
-
-function ManagerIssueMiniForm({
-  token,
-  notice,
-  onSubmit,
-}: {
-  token: string;
-  notice: string;
-  onSubmit: (payload: { category: ManagerIssueCategory; message: string }) => Promise<void>;
-}) {
-  void token;
-  const [category, setCategory] = useState<ManagerIssueCategory>('NEEDS');
-  const [message, setMessage] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  const submit = async () => {
-    const trimmed = message.trim();
-    if (trimmed.length < 5) {
-      setError('Опишите обращение хотя бы в 5 символов');
-      return;
-    }
-    setError('');
-    setBusy(true);
-    try {
-      await onSubmit({ category, message: trimmed });
-      setMessage('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось отправить обращение');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="managerIssueMini">
-      <h4>Обращение управляющему</h4>
-      {notice ? <p className="notice managerIssueMiniNotice">{notice}</p> : null}
-      <div className="managerIssueMiniRow">
-        <label>
-          Категория
-          <select value={category} onChange={(e) => setCategory(e.target.value as ManagerIssueCategory)}>
-            <option value="PERSONNEL">Персонал</option>
-            <option value="INSPECTION">Проверка</option>
-            <option value="GOODS">Товар</option>
-            <option value="EQUIPMENT_BREAKDOWN">Поломка техники</option>
-            <option value="NEEDS">Что-то нужно</option>
-          </select>
-        </label>
-        <label>
-          Сообщение
-          <input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Коротко опишите проблему"
-          />
-        </label>
-        <button type="button" className="ghost managerIssueMiniBtn" onClick={submit} disabled={busy}>
-          {busy ? '…' : 'Отправить'}
-        </button>
-      </div>
-      {error ? <p className="error">{error}</p> : null}
-    </div>
-  );
-}
-
-function ManagerIssueCarousel({
-  title,
-  items,
-  actionLabel,
-  onAction,
-  emptyText,
-  kind,
-}: {
-  title: string;
-  items: ManagerIssue[];
-  actionLabel?: string;
-  onAction?: (issueId: string) => Promise<void>;
-  emptyText: string;
-  kind: 'inbox' | 'active' | 'done';
-}) {
-  const [index, setIndex] = useState(0);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [banner, setBanner] = useState('');
-  const touchStartX = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (items.length === 0) {
-      setIndex(0);
-      return;
-    }
-    setIndex((current) => Math.min(current, items.length - 1));
-  }, [items.length]);
-
-  const onTouchStart = (e: TouchEvent) => {
-    touchStartX.current = e.changedTouches[0]?.clientX ?? null;
-  };
-
-  const onTouchEnd = (e: TouchEvent) => {
-    const start = touchStartX.current;
-    touchStartX.current = null;
-    if (start == null || items.length < 2) {
-      return;
-    }
-    const end = e.changedTouches[0]?.clientX ?? start;
-    const dx = end - start;
-    const threshold = 48;
-    if (dx > threshold) {
-      setIndex((i) => Math.max(0, i - 1));
-    } else if (dx < -threshold) {
-      setIndex((i) => Math.min(items.length - 1, i + 1));
-    }
-  };
-
-  if (items.length === 0) {
-    return (
-      <div className={`managerIssueFlowCard managerIssueFlowCard--${kind}`}>
-        <div className="managerIssueFlowHead">
-          <h4>{title}</h4>
-          <span className="managerIssueFlowBadge">0</span>
-        </div>
-        <p className="muted">{emptyText}</p>
-      </div>
-    );
-  }
-
-  const current = items[index] ?? items[0];
-  const at = new Date(current.createdAt).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  return (
-    <div className={`managerIssueFlowCard managerIssueFlowCard--${kind}`}>
-      <div className="managerIssueFlowHead">
-        <h4>{title}</h4>
-        <span className="managerIssueFlowBadge">{items.length}</span>
-      </div>
-      {banner ? <p className="notice managerIssueFlowBanner">{banner}</p> : null}
-      <div
-        className="managerIssueFlowViewport"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-        role="region"
-        aria-roledescription="carousel"
-      >
-        <article className="managerIssueFlowSlide" key={current.id}>
-          <p className="managerIssueFlowKind">{managerIssueCategoryLabel(current.category)}</p>
-          <p className="managerIssueFlowSummary">
-            <strong>{current.storeName}</strong>: {current.message}
-          </p>
-          <p className="managerIssueFlowMeta">{at}</p>
-          {actionLabel && onAction ? (
-            <div className="managerIssueFlowActions">
-              <button
-                type="button"
-                className="managerIssueFlowBtn"
-                disabled={busyId === current.id}
-                onClick={() => {
-                  void (async () => {
-                    setBanner('');
-                    setBusyId(current.id);
-                    try {
-                      await onAction(current.id);
-                      setBanner(actionLabel === 'Выполнено' ? 'Перенесено в выполнено' : 'Передано в работу');
-                      window.setTimeout(() => setBanner(''), 3000);
-                    } catch (e) {
-                      setBanner(e instanceof Error ? e.message : 'Ошибка');
-                    } finally {
-                      setBusyId(null);
-                    }
-                  })();
-                }}
-              >
-                {busyId === current.id ? '…' : actionLabel}
-              </button>
-            </div>
-          ) : null}
-        </article>
-      </div>
-      {items.length > 1 ? (
-        <div className="managerIssueFlowDots" role="tablist" aria-label={`Слайды: ${title}`}>
-          {items.map((item, i) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`managerIssueFlowDot ${i === index ? 'managerIssueFlowDotActive' : ''}`}
-              aria-label={`Заявка ${i + 1}`}
-              aria-current={i === index}
-              onClick={() => setIndex(i)}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ManagerHomeIssuesPanel({
-  token,
-  items,
-  onStart,
-}: {
-  token: string;
-  items: ManagerIssue[];
-  onStart: (token: string, issueId: string) => Promise<void>;
-}) {
-  const inboxItems = items.filter((item) => item.status === 'NEW');
-  return (
-    <ManagerIssueCarousel
-      title="Согласования"
-      items={inboxItems}
-      actionLabel="В работу"
-      onAction={(issueId) => onStart(token, issueId)}
-      emptyText="Новых обращений нет."
-      kind="inbox"
-    />
-  );
-}
-
-function ManagerIssuesInbox({
-  token,
-  issues,
-  onComplete,
-}: {
-  token: string;
-  issues: ManagerIssue[];
-  onComplete: (token: string, issueId: string) => Promise<void>;
-}) {
-  const inProgress = issues.filter((item) => item.status === 'IN_PROGRESS');
-  const done = issues.filter((item) => item.status === 'DONE');
-
-  return (
-    <div className="opsCard managerIssuesInbox">
-      <ManagerIssueCarousel
-        title="В работе"
-        items={inProgress}
-        actionLabel="Выполнено"
-        onAction={(issueId) => onComplete(token, issueId)}
-        emptyText="Активных обращений пока нет."
-        kind="active"
-      />
-      <ManagerIssueCarousel
-        title="Выполнено"
-        items={done}
-        emptyText="Выполненных обращений пока нет."
-        kind="done"
-      />
     </div>
   );
 }
@@ -4632,6 +4161,7 @@ function ShiftPanel({
           >
             <input
               type="checkbox"
+              className="shiftSellerCheckbox"
               checked={selectedStaffIds.includes(member.id)}
               onChange={() => toggleStaff(member.id)}
               disabled={readOnly}

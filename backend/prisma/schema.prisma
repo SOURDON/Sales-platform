@@ -38,20 +38,6 @@ enum DirectorApprovalState {
   REJECTED
 }
 
-enum ManagerIssueCategory {
-  PERSONNEL
-  INSPECTION
-  GOODS
-  EQUIPMENT_BREAKDOWN
-  NEEDS
-}
-
-enum ManagerIssueStatus {
-  NEW
-  IN_PROGRESS
-  DONE
-}
-
 enum WriteOffReason {
   BRAK
   POLOMKA
@@ -269,20 +255,6 @@ model DirectorApprovalRequest {
   payload              Json
   resolvedAt           DateTime?
   resolvedBy           String?
-}
-
-model ManagerIssue {
-  id               String               @id
-  createdAt        DateTime             @default(now())
-  storeName        String
-  createdByNickname String
-  category         ManagerIssueCategory
-  message          String
-  status           ManagerIssueStatus   @default(NEW)
-  startedAt        DateTime?
-  startedBy        String?
-  completedAt      DateTime?
-  completedBy      String?
 }
 
 model AuditLogItem {

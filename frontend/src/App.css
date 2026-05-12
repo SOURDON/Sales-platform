@@ -1730,38 +1730,38 @@ button.ghost.navActive:hover {
 }
 
 .staffCardsBlockAccordion {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border: 1px solid rgba(212, 182, 123, 0.2);
+  border-radius: 14px;
   overflow: hidden;
-  background: rgba(4, 14, 11, 0.28);
+  background: rgba(4, 14, 11, 0.35);
 }
 
 .staffCardsBlockAccordionTrigger {
   width: 100%;
   border: 0;
   margin: 0;
-  padding: 10px 12px;
+  padding: 7px 34px 7px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  background: rgba(4, 14, 11, 0.36);
+  gap: 8px;
+  background: rgba(6, 18, 14, 0.55);
   color: inherit;
   cursor: pointer;
 }
 
 .staffCardsBlockAccordionTitle {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ui-gold-soft, #d4b67b);
 }
 
 .staffCardsBlockAccordionChevron {
   display: inline-flex;
-  opacity: 0.9;
-  transition: transform 0.25s ease;
+  opacity: 0.85;
+  transition: transform 0.22s ease;
 }
 
 .staffCardsBlockAccordion--collapsed .staffCardsBlockAccordionChevron {
@@ -1772,28 +1772,32 @@ button.ghost.navActive:hover {
   display: grid;
   grid-template-rows: 1fr;
   overflow: hidden;
-  transition: grid-template-rows 0.25s ease;
+  transition: grid-template-rows 0.22s ease;
 }
 
 .staffCardsBlockAccordion--collapsed .staffCardsBlockAccordionPanel {
   grid-template-rows: 0fr;
+  border-top: 0;
 }
 
 .staffCardsBlockAccordionPanelInner {
   min-height: 0;
   overflow: hidden;
-  padding: 10px;
+  padding: 8px 10px 10px;
 }
 
 .staffCardsBlockAccordion--collapsed .staffCardsBlockAccordionPanelInner {
-  padding: 0;
+  padding: 0 !important;
+  max-height: 0;
+  overflow: clip;
+  visibility: hidden;
 }
 
 .staffManagementAccordion {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border: 1px solid rgba(212, 182, 123, 0.2);
+  border-radius: 14px;
   overflow: hidden;
-  background: rgba(4, 14, 11, 0.28);
+  background: rgba(4, 14, 11, 0.35);
 }
 
 .staffManagementAccordionTrigger {
@@ -1801,21 +1805,21 @@ button.ghost.navActive:hover {
   width: 100%;
   border: 0;
   margin: 0;
-  padding: 11px 40px;
+  padding: 7px 34px 7px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  border-radius: 12px;
-  background: rgba(4, 14, 11, 0.48);
+  gap: 8px;
+  border-radius: 0;
+  background: rgba(6, 18, 14, 0.55);
   color: inherit;
   cursor: pointer;
 }
 
 .staffManagementAccordionTitle {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ui-gold-soft, #d4b67b);
 }
@@ -1827,9 +1831,9 @@ button.ghost.navActive:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.9;
+  opacity: 0.85;
   transform: translateY(-50%);
-  transition: transform 0.25s ease;
+  transition: transform 0.22s ease;
 }
 
 .staffManagementAccordion--collapsed .staffManagementAccordionChevron {
@@ -1840,17 +1844,25 @@ button.ghost.navActive:hover {
   display: grid;
   grid-template-rows: 1fr;
   overflow: hidden;
-  transition: grid-template-rows 0.25s ease;
+  transition: grid-template-rows 0.22s ease;
 }
 
 .staffManagementAccordion--collapsed .staffManagementAccordionPanel {
   grid-template-rows: 0fr;
+  border-top: 0;
 }
 
 .staffManagementAccordionPanelInner {
   min-height: 0;
   overflow: hidden;
-  padding: 10px;
+  padding: 8px 10px 10px;
+}
+
+.staffManagementAccordion--collapsed .staffManagementAccordionPanelInner {
+  padding: 0 !important;
+  max-height: 0;
+  overflow: clip;
+  visibility: hidden;
 }
 
 .appWorkspace .staffManagementAccordion {
@@ -1860,10 +1872,22 @@ button.ghost.navActive:hover {
 
 .appWorkspace .staffManagementAccordionTrigger {
   position: relative;
+  padding: 7px 34px 7px 12px !important;
+  border-radius: 14px 14px 0 0;
   border: 1px solid var(--ui-edge-soft) !important;
-  background: rgba(4, 14, 11, 0.48) !important;
+  border-bottom: 1px solid transparent;
+  background: rgba(6, 20, 15, 0.62) !important;
   color: var(--ui-muted) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+.appWorkspace .staffManagementAccordion--collapsed .staffManagementAccordionTrigger {
+  border-radius: 14px !important;
+  border-bottom: 1px solid var(--ui-edge-soft) !important;
+}
+
+.appWorkspace .staffManagementAccordion:not(.staffManagementAccordion--collapsed) .staffManagementAccordionTrigger {
+  border-bottom-color: transparent;
 }
 
 .appWorkspace .staffManagementAccordionTitle {
@@ -1881,12 +1905,23 @@ button.ghost.navActive:hover {
 
 .appWorkspace .staffCardsBlockAccordionTrigger {
   position: relative;
-  padding: 11px 40px !important;
-  border-radius: 12px;
+  padding: 7px 34px 7px 12px !important;
+  border-radius: 14px 14px 0 0;
   border: 1px solid var(--ui-edge-soft) !important;
-  background: rgba(4, 14, 11, 0.48) !important;
+  border-bottom: 1px solid transparent;
+  background: rgba(6, 20, 15, 0.62) !important;
   color: var(--ui-muted) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+.appWorkspace .staffCardsBlockAccordion--collapsed .staffCardsBlockAccordionTrigger {
+  border-radius: 14px !important;
+  border-bottom: 1px solid var(--ui-edge-soft) !important;
+  margin-bottom: 0;
+}
+
+.appWorkspace .staffCardsBlockAccordion:not(.staffCardsBlockAccordion--collapsed) .staffCardsBlockAccordionTrigger {
+  border-bottom-color: transparent;
 }
 
 .appWorkspace .staffCardsBlockAccordionTitle {
@@ -1904,8 +1939,10 @@ button.ghost.navActive:hover {
   transform: translateY(-50%) rotate(-90deg);
 }
 
-.appWorkspace .staffCardsBlockAccordion--collapsed .staffCardsBlockAccordionTrigger {
-  margin-bottom: 0;
+.appWorkspace .staffManagementAccordion:not(.staffManagementAccordion--collapsed) .staffManagementAccordionPanel,
+.appWorkspace .staffCardsBlockAccordion:not(.staffCardsBlockAccordion--collapsed) .staffCardsBlockAccordionPanel {
+  border-top: 1px solid rgba(212, 182, 123, 0.12);
+  background: rgba(5, 16, 12, 0.32);
 }
 
 .staffBaseBlock {
@@ -2324,169 +2361,6 @@ select {
 
 .writeOffOk {
   margin: 0 0 10px;
-}
-
-.managerIssueMini {
-  margin-top: 10px;
-  border: 1px solid #dbe4ee;
-  border-radius: 12px;
-  background: #fff;
-  padding: 10px;
-  display: grid;
-  gap: 8px;
-}
-
-.managerIssueMini h4 {
-  margin: 0;
-  font-size: 13px;
-  color: #0b4f82;
-}
-
-.managerIssueMiniNotice {
-  margin: 0;
-}
-
-.managerIssueMiniRow {
-  display: grid;
-  grid-template-columns: minmax(130px, 0.8fr) minmax(0, 1.6fr) auto;
-  gap: 8px;
-  align-items: end;
-}
-
-.managerIssueMiniBtn {
-  min-height: 38px;
-  border-radius: 10px;
-}
-
-.managerIssuesInbox {
-  display: grid;
-  gap: 12px;
-}
-
-.managerIssueFlowCard {
-  margin: 0;
-  padding: 12px 12px 10px;
-  border-radius: 14px;
-  border: 1px solid rgba(212, 182, 123, 0.28);
-  background: linear-gradient(180deg, rgba(8, 21, 31, 0.76) 0%, rgba(7, 16, 26, 0.66) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.managerIssueFlowHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.managerIssueFlowHead h4 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #d4b67b;
-}
-
-.managerIssueFlowBadge {
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-  color: #d4b67b;
-  border: 1px solid rgba(212, 182, 123, 0.44);
-  background: rgba(212, 182, 123, 0.12);
-}
-
-.managerIssueFlowBanner {
-  margin: 0 0 8px;
-  font-size: 12px;
-}
-
-.managerIssueFlowViewport {
-  overflow: hidden;
-  touch-action: pan-y;
-}
-
-.managerIssueFlowSlide {
-  margin: 0;
-  padding: 10px 10px 8px;
-  border-radius: 12px;
-  border: 1px solid rgba(212, 182, 123, 0.24);
-  background: rgba(2, 10, 18, 0.42);
-}
-
-.managerIssueFlowKind {
-  margin: 0 0 6px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #d4b67b;
-}
-
-.managerIssueFlowSummary {
-  margin: 0 0 8px;
-  font-size: 13px;
-  line-height: 1.35;
-  color: rgba(248, 250, 252, 0.95);
-}
-
-.managerIssueFlowMeta {
-  margin: 0;
-  font-size: 11px;
-  color: rgba(203, 213, 225, 0.8);
-}
-
-.managerIssueFlowActions {
-  margin-top: 10px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.managerIssueFlowBtn {
-  min-height: 42px;
-  padding: 8px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(212, 182, 123, 0.5);
-  background: linear-gradient(165deg, #c4a56d 0%, #b48f53 100%);
-  color: #12241d;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.managerIssueFlowBtn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.managerIssueFlowDots {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.managerIssueFlowDot {
-  width: 8px;
-  height: 8px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.55);
-  cursor: pointer;
-}
-
-.managerIssueFlowDotActive {
-  background: #d4b67b;
-  transform: scale(1.15);
 }
 
 .managerPayrollPanel {
@@ -3686,7 +3560,6 @@ button.financeRangePresetBtn {
     gap: 6px;
   }
 
-  .managerIssueMiniRow,
   .managerPayrollToolbar {
     grid-template-columns: 1fr;
   }
@@ -4746,6 +4619,57 @@ h1 {
   color: var(--ui-dim) !important;
 }
 
+.appWorkspace .shiftSellerCheckbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  border: 1.5px solid rgba(212, 182, 123, 0.42);
+  background: rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.appWorkspace .shiftSellerCheckbox:hover:not(:disabled) {
+  border-color: rgba(212, 182, 123, 0.65);
+}
+
+.appWorkspace .shiftSellerCheckbox:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 3px rgba(196, 165, 109, 0.22);
+}
+
+.appWorkspace .shiftSellerCheckbox:checked {
+  background: linear-gradient(165deg, #e0c992 0%, #b8894a 55%, #8f6a32 100%);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.appWorkspace .shiftSellerCheckbox:checked::after {
+  content: '';
+  display: block;
+  width: 5px;
+  height: 9px;
+  margin: 2px auto 0;
+  border: solid #0d1a14;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.appWorkspace .shiftSellerCheckbox:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .appWorkspace .opsList p {
   color: var(--ui-muted) !important;
 }
@@ -5030,27 +4954,22 @@ h1 {
   font-size: 11px !important;
 }
 
-.appWorkspace .managerIssueMini,
-.appWorkspace .managerIssueCard,
 .appWorkspace .managerPayrollStoreCard {
   background: rgba(4, 14, 11, 0.4) !important;
   border: 1px solid var(--ui-edge-soft) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.appWorkspace .managerIssueMini h4,
 .appWorkspace .managerPayrollStoreHead {
   color: var(--ui-gold-soft) !important;
 }
 
-.appWorkspace .managerIssueMeta,
 .appWorkspace .managerPayrollItem small,
 .appWorkspace .managerPayrollHint,
 .appWorkspace .managerPayrollManagerSalary {
   color: var(--ui-dim) !important;
 }
 
-.appWorkspace .managerIssueMessage,
 .appWorkspace .managerPayrollItem p,
 .appWorkspace .managerPayrollItem strong {
   color: var(--ui-text) !important;
@@ -5328,7 +5247,8 @@ h1 {
   overflow: hidden;
 }
 
-.shiftSellerRow input[type='checkbox'] {
+.shiftSellerRow input.shiftSellerCheckbox,
+.shiftSellerRow .shiftSellerCheckbox {
   width: 22px;
   height: 22px;
   margin: 0;
@@ -7629,55 +7549,30 @@ h1 {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 16px 16px 14px;
   border-bottom: 1px solid #e8eef5;
-  background: #fafbfc;
+  background: linear-gradient(180deg, #fafbfc 0%, #f4f6f9 100%);
+}
+
+.messengerHubHeaderInner {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .messengerHubTitle {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
+  letter-spacing: 0.01em;
   color: #0f172a;
 }
 
 .messengerHubSubtitle {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   font-size: 13px;
   color: #64748b;
-  line-height: 1.35;
-}
-
-.messengerNotifyEnable {
-  margin-top: 10px;
-  padding: 8px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #0f172a;
-  background: #e8f4fc;
-  border: 1px solid #bfdbfe;
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.messengerNotifyEnable:hover {
-  background: #dbeafe;
-}
-
-.messengerNotifyStatus {
-  margin: 10px 0 0;
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.messengerNotifyStatus--ok {
-  margin-top: 10px;
-  color: #15803d;
-}
-
-.messengerNotifyStatus--denied {
-  margin-top: 10px;
-  color: #b45309;
+  line-height: 1.45;
+  max-width: 36rem;
 }
 
 .messengerThreadList {
@@ -7828,16 +7723,28 @@ h1 {
 }
 
 .appWorkspace .messengerHubHeader {
-  background: rgba(6, 18, 14, 0.72);
-  border-bottom-color: var(--ui-edge-soft);
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid rgba(212, 182, 123, 0.22);
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(196, 165, 109, 0.12), transparent 55%),
+    linear-gradient(180deg, rgba(10, 28, 22, 0.92) 0%, rgba(6, 18, 14, 0.78) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
 }
 
 .appWorkspace .messengerHubTitle {
   color: var(--ui-text);
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .appWorkspace .messengerHubSubtitle {
   color: var(--ui-muted);
+  margin-top: 6px;
+  line-height: 1.45;
+  font-size: 13px;
+  max-width: 40rem;
 }
 
 .appWorkspace .messengerThreadRow {
@@ -7987,10 +7894,6 @@ body:has(.appWorkspace--messengerChrome) {
   .appWorkspace .dashboardMessengerPage .messengerHub {
     padding-bottom: 12px;
   }
-}
-
-.appWorkspace .messengerHubHeader {
-  flex-shrink: 0;
 }
 
 .appWorkspace .messengerThreadList {
