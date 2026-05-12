@@ -692,6 +692,8 @@ function App() {
   /** Открытый чат сохраняется при переходах по разделам; закрывается только «Назад» или выход. */
   const [messengerPersistThreadKey, setMessengerPersistThreadKey] = useState<string | null>(null);
   const [messengerPersistThreadTitle, setMessengerPersistThreadTitle] = useState('');
+  /** Пока открыта клавиатура в переписке — прячем нижний док и поджимаем отступы */
+  const [chatComposerSurfaceActive, setChatComposerSurfaceActive] = useState(false);
   const refreshMessengerInbox = useCallback(async () => {
     const token = session?.token;
     const r = session?.user?.role;
@@ -741,6 +743,12 @@ function App() {
       window.clearInterval(intervalId);
     };
   }, [session?.token, session?.user?.role, refreshMessengerInbox]);
+
+  useEffect(() => {
+    if (location.pathname !== '/control') {
+      setChatComposerSurfaceActive(false);
+    }
+  }, [location.pathname]);
 
   const pendingOfflineSales = useMemo(() => {
     if (!session?.user?.id) {
@@ -2511,6 +2519,7 @@ function App() {
                         refreshInbox={refreshMessengerInbox}
                         persistedThreadKey={messengerPersistThreadKey}
                         persistedThreadTitle={messengerPersistThreadTitle}
+                        onComposerFocusChange={setChatComposerSurfaceActive}
                         onPersistThreadOpen={(key, title) => {
                           setMessengerPersistThreadKey(key);
                           setMessengerPersistThreadTitle(title);
@@ -2547,7 +2556,7 @@ function App() {
 
       </section>
       <nav
-        className="mobileDock"
+        className={`mobileDock${chatComposerSurfaceActive ? ' mobileDock--hiddenForChat' : ''}`}
         aria-label="Навигация по разделам"
         style={{ gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))` }}
       >
@@ -3009,6 +3018,7 @@ function MessengerHub({
   persistedThreadTitle,
   onPersistThreadOpen,
   onPersistThreadClose,
+  onComposerFocusChange,
 }: {
   token: string;
   inbox: MessengerInboxResponse | null;
@@ -3017,6 +3027,7 @@ function MessengerHub({
   persistedThreadTitle: string;
   onPersistThreadOpen: (threadKey: string, title: string) => void;
   onPersistThreadClose: () => void;
+  onComposerFocusChange?: (surfaceActive: boolean) => void;
 }) {
   const threadKey = persistedThreadKey;
   const threadTitleResolved = useMemo(() => {
@@ -3034,8 +3045,48 @@ function MessengerHub({
   const [threadError, setThreadError] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
+  const composerBlurTimerRef = useRef<number | null>(null);
+  const [composerFocused, setComposerFocused] = useState(false);
 
   const threads = inbox?.threads ?? [];
+
+  const clearComposerBlurTimer = () => {
+    if (composerBlurTimerRef.current != null) {
+      window.clearTimeout(composerBlurTimerRef.current);
+      composerBlurTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      clearComposerBlurTimer();
+      onComposerFocusChange?.(false);
+      document.documentElement.style.removeProperty('--chat-keyboard-inset');
+    };
+  }, [onComposerFocusChange]);
+
+  useEffect(() => {
+    if (!threadKey || !composerFocused) {
+      return;
+    }
+    const root = document.documentElement;
+    const syncViewport = () => {
+      const vv = window.visualViewport;
+      if (!vv) {
+        return;
+      }
+      const inset = Math.max(0, window.innerHeight - (vv.offsetTop + vv.height));
+      root.style.setProperty('--chat-keyboard-inset', `${inset}px`);
+      root.style.setProperty('--app-visual-vh', `${Math.max(0, Math.round(vv.height))}px`);
+    };
+    syncViewport();
+    window.visualViewport?.addEventListener('resize', syncViewport);
+    window.visualViewport?.addEventListener('scroll', syncViewport);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', syncViewport);
+      window.visualViewport?.removeEventListener('scroll', syncViewport);
+    };
+  }, [threadKey, composerFocused]);
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
@@ -3173,13 +3224,10 @@ function MessengerHub({
 
   if (!threadKey) {
     return (
-      <section className="sectionCard messengerHub" aria-label="Сообщения">
+      <section className="sectionCard messengerHub" aria-label="Чат">
         <header className="messengerHubHeader">
           <div className="messengerHubHeaderInner">
-            <h3 className="messengerHubTitle">Сообщения</h3>
-            <p className="messengerHubSubtitle">
-              Общий чат и личные диалоги со всеми участниками сети.
-            </p>
+            <h3 className="messengerHubTitle messengerHubTitle--chatMark">Чат</h3>
           </div>
         </header>
 
@@ -3237,7 +3285,12 @@ function MessengerHub({
   const navAvatarLetter = (threadTitleResolved.trim()[0] ?? '?').toUpperCase();
 
   return (
-    <section className="sectionCard messengerHub messengerHubThread" aria-label={threadTitleResolved}>
+    <section
+      className={`sectionCard messengerHub messengerHubThread${
+        composerFocused ? ' messengerHubThread--composerFocused' : ''
+      }`}
+      aria-label={threadTitleResolved}
+    >
       <header className="messengerTgFloatingHeader">
         <button type="button" className="messengerTgPill messengerTgPillBack" onClick={openList} aria-label="Назад">
           <svg className="messengerTgBackSvg" viewBox="0 0 24 24" width="20" height="20" aria-hidden>
@@ -3306,19 +3359,26 @@ function MessengerHub({
             placeholder={placeholder}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onFocus={() => {
+              clearComposerBlurTimer();
+              setComposerFocused(true);
+              onComposerFocusChange?.(true);
+            }}
             onBlur={() => {
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  window.scrollTo(0, 0);
-                  const vv = window.visualViewport;
-                  if (vv) {
-                    document.documentElement.style.setProperty(
-                      '--app-visual-vh',
-                      `${Math.max(0, Math.round(vv.height))}px`,
-                    );
-                  }
-                });
-              });
+              clearComposerBlurTimer();
+              composerBlurTimerRef.current = window.setTimeout(() => {
+                composerBlurTimerRef.current = null;
+                setComposerFocused(false);
+                onComposerFocusChange?.(false);
+                document.documentElement.style.removeProperty('--chat-keyboard-inset');
+                const vv = window.visualViewport;
+                if (vv) {
+                  document.documentElement.style.setProperty(
+                    '--app-visual-vh',
+                    `${Math.max(0, Math.round(vv.height))}px`,
+                  );
+                }
+              }, 320);
             }}
             disabled={sendBusy}
             aria-label="Текст сообщения"
@@ -3328,6 +3388,11 @@ function MessengerHub({
             className="orgChatSendFab"
             disabled={sendBusy || !draft.trim()}
             aria-label={sendBusy ? 'Отправка' : 'Отправить'}
+            onMouseDown={(event) => {
+              if (!sendBusy && draft.trim()) {
+                event.preventDefault();
+              }
+            }}
           >
             <svg
               className="orgChatSendFabSvg"
@@ -4892,8 +4957,16 @@ function StaffPanel({
           >
             <span className="staffCardsBlockAccordionTitle">Карточки сотрудников</span>
             <span className="staffCardsBlockAccordionChevron" aria-hidden>
-              <svg viewBox="0 0 24 24" width="16" height="16">
-                <path fill="currentColor" d="M7 10l5 5 5-5z" />
+              <svg className="staffAccordionChevronSvg" viewBox="0 0 24 24" width="20" height="20">
+                <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.28" />
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.85"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9.25 9.5 14.75 12l-5.5 2.5"
+                />
               </svg>
             </span>
           </button>
@@ -4942,8 +5015,16 @@ function StaffPanel({
           >
             <span className="staffManagementAccordionTitle">Управление персоналом</span>
             <span className="staffManagementAccordionChevron" aria-hidden>
-              <svg viewBox="0 0 24 24" width="16" height="16">
-                <path fill="currentColor" d="M7 10l5 5 5-5z" />
+              <svg className="staffAccordionChevronSvg" viewBox="0 0 24 24" width="20" height="20">
+                <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.28" />
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.85"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9.25 9.5 14.75 12l-5.5 2.5"
+                />
               </svg>
             </span>
           </button>
