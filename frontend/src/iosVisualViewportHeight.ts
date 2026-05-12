@@ -3,6 +3,28 @@
  * из‑за чего fixed‑док и flex‑хром чата съезжают. Обновляем CSS‑переменную
  * по window.visualViewport.height (см. --app-visual-vh в App.css).
  */
+function readVisualViewportHeightPx(): number {
+  const vv = window.visualViewport;
+  const lh = window.innerHeight;
+  if (!vv) {
+    return Math.max(0, Math.round(lh));
+  }
+  const vh = vv.height;
+  // После закрытия клавиатуры иногда vv.height отстаёт от innerHeight — берём максимум
+  const merged = Math.max(vh, lh * 0.96);
+  return Math.max(0, Math.round(merged));
+}
+
+export function scheduleIosVisualViewportBumps(): void {
+  const delays = [0, 60, 140, 280, 520, 900, 1400];
+  for (const ms of delays) {
+    window.setTimeout(() => {
+      const root = document.documentElement;
+      root.style.setProperty('--app-visual-vh', `${readVisualViewportHeightPx()}px`);
+    }, ms);
+  }
+}
+
 export function installIosVisualViewportHeightVar(): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return;
@@ -11,9 +33,7 @@ export function installIosVisualViewportHeightVar(): void {
   const root = document.documentElement;
 
   const update = () => {
-    const vv = window.visualViewport;
-    const h = vv ? Math.max(0, Math.round(vv.height)) : Math.max(0, Math.round(window.innerHeight));
-    root.style.setProperty('--app-visual-vh', `${h}px`);
+    root.style.setProperty('--app-visual-vh', `${readVisualViewportHeightPx()}px`);
   };
 
   update();
@@ -23,9 +43,7 @@ export function installIosVisualViewportHeightVar(): void {
   window.addEventListener('resize', update);
 
   const bump = () => {
-    window.setTimeout(update, 0);
-    window.setTimeout(update, 120);
-    window.setTimeout(update, 320);
+    scheduleIosVisualViewportBumps();
   };
 
   document.addEventListener('focusout', bump, true);

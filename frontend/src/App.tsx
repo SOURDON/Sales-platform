@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode, TouchEvent } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import './App.css';
+import { scheduleIosVisualViewportBumps } from './iosVisualViewportHeight';
 import { appendOfflineSale, readOfflineQueue, writeOfflineQueue, type OfflineQueuedSale } from './offlineSalesQueue';
 
 /** Календарный день в Europe/Moscow (как на backend для смен), YYYY-MM-DD */
@@ -1952,7 +1953,11 @@ function App() {
   const messengerChromeLayout = usesOrgChat && location.pathname === '/control';
 
   return (
-    <main className={`app appWorkspace${messengerChromeLayout ? ' appWorkspace--messengerChrome' : ''}`}>
+    <main
+      className={`app appWorkspace${messengerChromeLayout ? ' appWorkspace--messengerChrome' : ''}${
+        messengerChromeLayout && chatComposerSurfaceActive ? ' appWorkspace--messengerComposerGrip' : ''
+      }`}
+    >
       <section
         className={`card cardWorkspace${messengerChromeLayout ? ' cardWorkspace--messengerChrome' : ''}`}
       >
@@ -3363,6 +3368,11 @@ function MessengerHub({
               clearComposerBlurTimer();
               setComposerFocused(true);
               onComposerFocusChange?.(true);
+              scheduleIosVisualViewportBumps();
+              requestAnimationFrame(() => {
+                window.visualViewport?.scrollTo?.(0, 0);
+                document.scrollingElement?.scrollTo?.(0, 0);
+              });
             }}
             onBlur={() => {
               clearComposerBlurTimer();
@@ -3371,13 +3381,7 @@ function MessengerHub({
                 setComposerFocused(false);
                 onComposerFocusChange?.(false);
                 document.documentElement.style.removeProperty('--chat-keyboard-inset');
-                const vv = window.visualViewport;
-                if (vv) {
-                  document.documentElement.style.setProperty(
-                    '--app-visual-vh',
-                    `${Math.max(0, Math.round(vv.height))}px`,
-                  );
-                }
+                scheduleIosVisualViewportBumps();
               }, 320);
             }}
             disabled={sendBusy}
