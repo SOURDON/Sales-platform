@@ -3370,8 +3370,9 @@ function MessengerHub({
               onComposerFocusChange?.(true);
               scheduleIosVisualViewportBumps();
               requestAnimationFrame(() => {
-                window.visualViewport?.scrollTo?.(0, 0);
-                document.scrollingElement?.scrollTo?.(0, 0);
+                const vv = window.visualViewport as unknown as { scrollTo?: (x: number, y: number) => void } | null;
+                vv?.scrollTo?.(0, 0);
+                document.scrollingElement?.scrollTo(0, 0);
               });
             }}
             onBlur={() => {
