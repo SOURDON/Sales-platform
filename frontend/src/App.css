@@ -1870,46 +1870,108 @@ button.ghost.navActive:hover {
   background: transparent;
 }
 
-.appWorkspace .staffManagementAccordionTrigger {
+/* Золотая капсула (как референс «Багамы»): центр, тёмный текст, лёгкий «техно»-блик */
+.appWorkspace .staffManagementAccordionTrigger,
+.appWorkspace .staffCardsBlockAccordionTrigger {
   position: relative;
-  margin: 0 10px 5px;
-  padding: 4px 38px 4px 12px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(100% - 22px);
+  max-width: 420px;
+  margin: 0 auto 10px;
+  padding: 11px 40px 11px 14px !important;
   min-height: 0;
-  border-radius: 999px !important;
-  border: 1px solid rgba(212, 182, 123, 0.14) !important;
-  background: rgba(255, 255, 255, 0.03) !important;
-  color: rgba(236, 232, 223, 0.88) !important;
+  overflow: hidden;
+  border-radius: 14px !important;
+  border: 1px solid var(--ui-gold-bar-edge) !important;
+  background: var(--ui-gold-bar-bg) !important;
+  color: var(--ui-gold-bar-text) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 1px 0 rgba(0, 0, 0, 0.35) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+    0 6px 22px rgba(2, 8, 6, 0.42),
+    0 0 0 1px rgba(0, 0, 0, 0.12) inset,
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.22s ease,
+    filter 0.2s ease;
 }
 
-.appWorkspace .staffManagementAccordion--collapsed .staffManagementAccordionTrigger {
-  border-radius: 999px !important;
-  border-bottom: 1px solid rgba(212, 182, 123, 0.14) !important;
+.appWorkspace .staffManagementAccordionTrigger::before,
+.appWorkspace .staffCardsBlockAccordionTrigger::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 42%,
+    transparent 64%
+  );
+  opacity: 0;
+  transform: translateX(-35%);
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.appWorkspace .staffManagementAccordion:not(.staffManagementAccordion--collapsed) .staffManagementAccordionTrigger {
-  border-bottom-color: rgba(212, 182, 123, 0.22) !important;
-  border-radius: 16px 16px 0 0 !important;
+.appWorkspace .staffManagementAccordionTrigger:hover::before,
+.appWorkspace .staffCardsBlockAccordionTrigger:hover::before {
+  opacity: 1;
+  transform: translateX(35%);
 }
 
-.appWorkspace .staffManagementAccordionTitle {
-  font-size: 9px !important;
+.appWorkspace .staffManagementAccordionTrigger:active,
+.appWorkspace .staffCardsBlockAccordionTrigger:active {
+  transform: scale(0.985);
+  filter: brightness(0.97);
+}
+
+.appWorkspace .staffManagementAccordion--collapsed .staffManagementAccordionTrigger,
+.appWorkspace .staffCardsBlockAccordion--collapsed .staffCardsBlockAccordionTrigger {
+  border-radius: 14px !important;
+}
+
+.appWorkspace .staffManagementAccordion:not(.staffManagementAccordion--collapsed) .staffManagementAccordionTrigger,
+.appWorkspace .staffCardsBlockAccordion:not(.staffCardsBlockAccordion--collapsed) .staffCardsBlockAccordionTrigger {
+  border-radius: 14px 14px 8px 8px !important;
+  background: var(--ui-gold-bar-bg-press) !important;
+  box-shadow:
+    0 4px 16px rgba(2, 8, 6, 0.38),
+    0 0 0 1px rgba(0, 0, 0, 0.1) inset,
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12) !important;
+}
+
+.appWorkspace .staffManagementAccordionTitle,
+.appWorkspace .staffCardsBlockAccordionTitle {
+  flex: 1 1 auto;
+  text-align: center !important;
+  font-size: 9.5px !important;
+  font-weight: 750 !important;
   letter-spacing: 0.16em !important;
-  color: rgba(212, 182, 123, 0.88) !important;
+  text-transform: uppercase !important;
+  color: var(--ui-gold-bar-text) !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .appWorkspace .staffManagementAccordion--collapsed .staffManagementAccordionTrigger {
-  margin-bottom: 5px;
+  margin-bottom: 10px;
+}
+
+.appWorkspace .staffCardsBlockAccordion--collapsed .staffCardsBlockAccordionTrigger {
+  margin-bottom: 10px;
 }
 
 .appWorkspace .staffManagementAccordionChevron {
-  right: 8px;
-  color: rgba(212, 182, 123, 0.72);
-  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  color: rgba(11, 20, 16, 0.72);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .appWorkspace .staffManagementAccordion--collapsed .staffManagementAccordionChevron {
@@ -1925,49 +1987,16 @@ button.ghost.navActive:hover {
   background: transparent;
 }
 
-.appWorkspace .staffCardsBlockAccordionTrigger {
-  position: relative;
-  margin: 0 10px 5px;
-  padding: 4px 38px 4px 12px !important;
-  min-height: 0;
-  border-radius: 999px !important;
-  border: 1px solid rgba(212, 182, 123, 0.14) !important;
-  background: rgba(255, 255, 255, 0.03) !important;
-  color: rgba(236, 232, 223, 0.88) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 1px 0 rgba(0, 0, 0, 0.35) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-.appWorkspace .staffCardsBlockAccordion--collapsed .staffCardsBlockAccordionTrigger {
-  border-radius: 999px !important;
-  border-bottom: 1px solid rgba(212, 182, 123, 0.14) !important;
-  margin-bottom: 5px;
-}
-
-.appWorkspace .staffCardsBlockAccordion:not(.staffCardsBlockAccordion--collapsed) .staffCardsBlockAccordionTrigger {
-  border-bottom-color: rgba(212, 182, 123, 0.22) !important;
-  border-radius: 16px 16px 0 0 !important;
-}
-
-.appWorkspace .staffCardsBlockAccordionTitle {
-  font-size: 9px !important;
-  letter-spacing: 0.16em !important;
-  color: rgba(212, 182, 123, 0.88) !important;
-}
-
 .appWorkspace .staffCardsBlockAccordionChevron {
   position: absolute;
-  right: 8px;
+  right: 11px;
   top: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(212, 182, 123, 0.72);
+  color: rgba(11, 20, 16, 0.72);
   transform: translateY(-50%) rotate(0deg);
-  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .appWorkspace .staffCardsBlockAccordion:not(.staffCardsBlockAccordion--collapsed) .staffCardsBlockAccordionChevron {
@@ -1976,8 +2005,14 @@ button.ghost.navActive:hover {
 
 .appWorkspace .staffAccordionChevronSvg {
   display: block;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
+}
+
+.appWorkspace .staffAccordionChevronSvg circle,
+.appWorkspace .staffAccordionChevronSvg path {
+  stroke: currentColor;
+  fill: none;
 }
 
 .appWorkspace .staffManagementAccordion:not(.staffManagementAccordion--collapsed) .staffManagementAccordionPanel,
@@ -1986,7 +2021,13 @@ button.ghost.navActive:hover {
   background: rgba(5, 16, 12, 0.32);
 }
 
-.staffBaseBlock {
+.appWorkspace .staffManagementAccordionTrigger:focus-visible,
+.appWorkspace .staffCardsBlockAccordionTrigger:focus-visible,
+.appWorkspace .writeOffCarouselToggle:focus-visible,
+.appWorkspace .procurementAccordionTrigger:focus-visible {
+  outline: 2px solid rgba(11, 20, 16, 0.45);
+  outline-offset: 3px;
+}
   grid-template-columns: minmax(0, 1.8fr) auto minmax(160px, 1fr);
   gap: 10px;
   padding: 10px;
@@ -3421,8 +3462,18 @@ button.financeRangePresetBtn {
 
   /* Иначе круглые кнопки чата ломаются правилом min-height: 46px */
   button.messengerTgPillBack,
-  button.orgChatSendFab {
+  button.orgChatSendFab,
+  .appWorkspace button.staffManagementAccordionTrigger,
+  .appWorkspace button.staffCardsBlockAccordionTrigger,
+  .appWorkspace button.writeOffCarouselToggle,
+  .appWorkspace button.procurementAccordionTrigger {
     min-height: 0 !important;
+    font-size: inherit !important;
+    line-height: 1.2 !important;
+  }
+
+  .appWorkspace button.messengerTgPillBack,
+  .appWorkspace button.orgChatSendFab {
     font-size: 0 !important;
     line-height: 0 !important;
   }
@@ -3690,6 +3741,11 @@ body {
   --ui-field: rgba(4, 14, 11, 0.55);
   --ui-chip: rgba(255, 255, 255, 0.07);
   --ui-glow: 0 0 0 1px rgba(212, 182, 123, 0.12);
+  /* Капсулы как «Багамы»: золотой градиент + тёмный текст */
+  --ui-gold-bar-text: #0b1410;
+  --ui-gold-bar-edge: rgba(255, 255, 255, 0.28);
+  --ui-gold-bar-bg: linear-gradient(168deg, #ead8a8 0%, #cfae68 40%, #a67c32 100%);
+  --ui-gold-bar-bg-press: linear-gradient(168deg, #dcc48f 0%, #b8924e 45%, #8f6420 100%);
   font-family:
     'DM Sans',
     ui-sans-serif,
@@ -3848,16 +3904,87 @@ h1 {
 }
 
 .appWorkspace .writeOffCarouselToggle {
-  color: var(--ui-gold-soft) !important;
-  background: rgba(4, 14, 11, 0.28) !important;
-  border: 1px solid var(--ui-edge-soft) !important;
-  border-radius: 12px !important;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(100% - 22px);
+  max-width: 420px;
+  margin: 0 auto 10px;
+  padding: 11px 40px 11px 14px !important;
+  overflow: hidden;
+  color: var(--ui-gold-bar-text) !important;
+  background: var(--ui-gold-bar-bg) !important;
+  border: 1px solid var(--ui-gold-bar-edge) !important;
+  border-radius: 14px !important;
+  box-shadow:
+    0 6px 22px rgba(2, 8, 6, 0.42),
+    0 0 0 1px rgba(0, 0, 0, 0.12) inset,
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.22s ease,
+    filter 0.2s ease;
+}
+
+.appWorkspace .writeOffCarouselToggle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 42%,
+    transparent 64%
+  );
+  opacity: 0;
+  transform: translateX(-35%);
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.appWorkspace .writeOffCarouselToggle:hover::before {
+  opacity: 1;
+  transform: translateX(35%);
+}
+
+.appWorkspace .writeOffCarouselToggle:active {
+  transform: scale(0.985);
+  filter: brightness(0.97);
+}
+
+.appWorkspace .writeOffFormCarouselOpen .writeOffCarouselToggle {
+  border-radius: 14px 14px 8px 8px !important;
+  background: var(--ui-gold-bar-bg-press) !important;
 }
 
 .appWorkspace .writeOffCarouselToggleTitle {
-  font-size: 12px !important;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  flex: 1 1 auto;
+  text-align: center !important;
+  font-size: 9.5px !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: var(--ui-gold-bar-text) !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.appWorkspace .writeOffCarouselToggleIcon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  opacity: 0.72 !important;
+  color: var(--ui-gold-bar-text) !important;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.appWorkspace .writeOffCarouselToggleOpen .writeOffCarouselToggleIcon {
+  transform: translateY(-50%) rotate(180deg);
 }
 
 .appWorkspace .writeOffCarouselBodyOpen {
@@ -4915,19 +5042,78 @@ h1 {
 }
 
 .appWorkspace .procurementAccordionTrigger {
-  border: 1px solid var(--ui-edge-soft) !important;
-  background: rgba(4, 14, 11, 0.48) !important;
-  color: var(--ui-muted) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+  position: relative;
+  display: block;
+  width: calc(100% - 22px);
+  max-width: 420px;
+  margin: 0 auto 10px;
+  padding: 11px 40px 11px 14px !important;
+  overflow: hidden;
+  border-radius: 14px !important;
+  border: 1px solid var(--ui-gold-bar-edge) !important;
+  background: var(--ui-gold-bar-bg) !important;
+  color: var(--ui-gold-bar-text) !important;
+  box-shadow:
+    0 6px 22px rgba(2, 8, 6, 0.42),
+    0 0 0 1px rgba(0, 0, 0, 0.12) inset,
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+  font-weight: 700 !important;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.22s ease,
+    filter 0.2s ease;
+}
+
+.appWorkspace .procurementAccordionTrigger::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 42%,
+    transparent 64%
+  );
+  opacity: 0;
+  transform: translateX(-35%);
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.appWorkspace .procurementAccordionTrigger:hover::before {
+  opacity: 1;
+  transform: translateX(35%);
+}
+
+.appWorkspace .procurementAccordionTrigger:active {
+  transform: scale(0.985);
+  filter: brightness(0.97);
+}
+
+.appWorkspace .procurementAccordion:not(.procurementAccordion--collapsed) .procurementAccordionTrigger {
+  border-radius: 14px 14px 8px 8px !important;
+  background: var(--ui-gold-bar-bg-press) !important;
 }
 
 .appWorkspace .procurementAccordionTriggerTitle {
-  color: var(--ui-gold-soft) !important;
+  color: var(--ui-gold-bar-text) !important;
+  font-size: 9.5px !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.appWorkspace .procurementAccordionChevron {
+  color: rgba(11, 20, 16, 0.72) !important;
+  opacity: 1 !important;
 }
 
 .appWorkspace .procurementAccordion:not(.procurementAccordion--collapsed) .procurementAccordionTrigger:hover {
-  filter: none !important;
-  background: rgba(255, 255, 255, 0.06) !important;
+  filter: brightness(1.03) !important;
+  background: var(--ui-gold-bar-bg-press) !important;
 }
 
 .appWorkspace .financeRangeToolbar {
