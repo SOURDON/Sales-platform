@@ -5709,7 +5709,7 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
 
   return (
     <div className="storeEquipAccountantRoot storeEquipAccountantCarousel">
-      <p className="storeEquipAccountantLead muted">Спецтехника по точкам</p>
+      <p className="storeEquipAccountantLead">Спецтехника по точкам</p>
       {error ? (
         <p className="invInlineError storeInvMessage" role="alert">
           {error}
@@ -5723,7 +5723,7 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
       {stores && stores.length === 0 ? (
         <p className="muted financeOpsHint">Точек для учёта пока нет.</p>
       ) : row && draft ? (
-        <>
+        <div className="storeEquipCarouselShell">
           <div className="storeEquipCarouselNav" role="group" aria-label="Выбор точки">
             <button
               type="button"
@@ -5732,11 +5732,18 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
               disabled={!canNav || storeIndex <= 0}
               aria-label="Предыдущая точка"
             >
-              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-                <path
-                  fill="currentColor"
-                  d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"
-                />
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                aria-hidden
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M14 7.5 9 12l5 4.5" />
               </svg>
             </button>
             <div className="storeEquipCarouselTitleWrap" aria-live="polite">
@@ -5752,11 +5759,18 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
               disabled={!canNav || storeIndex >= total - 1}
               aria-label="Следующая точка"
             >
-              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-                <path
-                  fill="currentColor"
-                  d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"
-                />
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                aria-hidden
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m10 7.5 5 4.5-5 4.5" />
               </svg>
             </button>
           </div>
@@ -5790,7 +5804,7 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
               </button>
             </div>
           </div>
-        </>
+        </div>
       ) : null}
     </div>
   );

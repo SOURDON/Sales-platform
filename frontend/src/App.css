@@ -8860,25 +8860,51 @@ body:has(.appWorkspace--messengerChrome) {
 }
 
 .appWorkspace .storeEquipAccountantCarousel {
-  gap: 10px;
+  gap: 14px;
 }
 
 .appWorkspace .storeEquipAccountantLead {
   margin: 0 0 2px;
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.12em;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   text-align: center;
+  color: rgba(212, 182, 123, 0.5);
+}
+
+/* Карусель бухгалтера: спокойная «плитка», тонкие линии, без тяжёлого золота */
+.appWorkspace .storeEquipCarouselShell {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.055) 0%,
+    rgba(255, 255, 255, 0.02) 48%,
+    rgba(0, 0, 0, 0.12) 100%
+  );
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.35) inset,
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 18px 48px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 14px 14px 12px;
 }
 
 .appWorkspace .storeEquipCarouselNav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   width: 100%;
   min-width: 0;
+  padding-bottom: 13px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .appWorkspace .storeEquipCarouselNavBtn {
@@ -8886,66 +8912,146 @@ body:has(.appWorkspace--messengerChrome) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border-radius: 12px;
-  border: 1px solid var(--ui-gold-bar-edge, rgba(180, 143, 83, 0.45));
-  background: var(--ui-gold-bar-bg, linear-gradient(165deg, #c4a56d 0%, #b48f53 100%));
-  color: rgba(11, 20, 16, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(252, 248, 238, 0.9);
   cursor: pointer;
-  box-shadow:
-    0 4px 14px rgba(2, 8, 6, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow: none;
   transition:
-    transform 0.15s ease,
-    filter 0.15s ease,
-    opacity 0.15s ease;
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.14s ease,
+    opacity 0.18s ease;
 }
 
 .appWorkspace .storeEquipCarouselNavBtn:hover:not(:disabled) {
-  filter: brightness(1.05);
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fffdf8;
+  filter: none;
 }
 
 .appWorkspace .storeEquipCarouselNavBtn:active:not(:disabled) {
-  transform: scale(0.96);
+  transform: scale(0.94);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .appWorkspace .storeEquipCarouselNavBtn:disabled {
-  opacity: 0.38;
+  opacity: 0.28;
   cursor: not-allowed;
-  filter: grayscale(0.2);
+  filter: none;
+}
+
+.appWorkspace .storeEquipCarouselNavBtn:focus-visible {
+  outline: 2px solid rgba(212, 182, 123, 0.45);
+  outline-offset: 2px;
 }
 
 .appWorkspace .storeEquipCarouselTitleWrap {
   flex: 1 1 auto;
   min-width: 0;
   text-align: center;
-  padding: 0 4px;
+  padding: 0 6px;
 }
 
 .appWorkspace .storeEquipCarouselStoreName {
   margin: 0;
-  font-size: 13px;
-  font-weight: 750;
-  line-height: 1.25;
-  color: var(--ui-gold-soft, #c4a56d);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.22;
+  color: rgba(252, 248, 238, 0.96);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .appWorkspace .storeEquipCarouselCounter {
-  margin: 4px 0 0;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ui-muted, #9aab9f);
-  letter-spacing: 0.02em;
+  margin: 5px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
 }
 
 .appWorkspace .storeEquipCarouselSlide {
   touch-action: pan-y;
-  padding-top: 2px;
+  padding-top: 12px;
+}
+
+.appWorkspace .storeEquipCarouselShell .storeEquipGrid {
+  padding: 2px 2px 4px;
+}
+
+.appWorkspace .storeEquipCarouselShell .storeEquipGridRow {
+  padding: 11px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.appWorkspace .storeEquipCarouselShell .storeEquipGridRow:last-child {
+  border-bottom: 0;
+}
+
+.appWorkspace .storeEquipCarouselShell .storeEquipLabel {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: rgba(236, 232, 223, 0.88);
+}
+
+.appWorkspace .storeEquipCarouselShell .storeEquipQtyInput {
+  max-width: 3.5rem;
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  background-color: rgba(0, 0, 0, 0.22) !important;
+  color: rgba(252, 248, 238, 0.96) !important;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.appWorkspace .storeEquipCarouselShell .storeEquipSaveRow {
+  padding: 12px 2px 4px;
+}
+
+.appWorkspace .storeEquipCarouselShell .storeEquipSaveBtn {
+  min-width: 7.5rem;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 12px !important;
+  border: 1px solid rgba(212, 182, 123, 0.42) !important;
+  background: transparent !important;
+  background-image: none !important;
+  color: rgba(252, 244, 220, 0.95) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.appWorkspace .storeEquipCarouselShell .storeEquipSaveBtn:hover:not(:disabled) {
+  background: rgba(212, 182, 123, 0.1) !important;
+  border-color: rgba(212, 182, 123, 0.55) !important;
+}
+
+.appWorkspace .storeEquipCarouselShell .storeEquipSaveBtn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.appWorkspace .storeEquipCarouselShell .storeEquipSaveBtn:focus-visible {
+  outline: 2px solid rgba(212, 182, 123, 0.45);
+  outline-offset: 2px;
 }
 
 .appWorkspace .storeEquipRead .storeEquipGrid,
