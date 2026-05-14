@@ -2,41 +2,51 @@
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1a4538" />
-      <stop offset="100%" stop-color="#0c221c" />
+      <stop offset="52%" stop-color="#102a22" />
+      <stop offset="100%" stop-color="#0a1a15" />
     </linearGradient>
     <linearGradient id="line" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f2e8d4" />
-      <stop offset="45%" stop-color="#d4b67b" />
-      <stop offset="100%" stop-color="#b8945c" />
+      <stop offset="0%" stop-color="#faf4e8" />
+      <stop offset="40%" stop-color="#d4b67b" />
+      <stop offset="100%" stop-color="#a88a52" />
     </linearGradient>
     <clipPath id="arcL">
-      <rect x="0" y="0" width="240" height="512" />
+      <rect x="0" y="0" width="242" height="512" />
     </clipPath>
     <clipPath id="arcR">
-      <rect x="272" y="0" width="240" height="512" />
+      <rect x="270" y="0" width="242" height="512" />
     </clipPath>
   </defs>
 
-  <rect width="512" height="512" rx="114" fill="url(#bg)" />
+  <rect width="512" height="512" rx="116" fill="url(#bg)" />
   <rect
     width="512"
     height="512"
-    rx="114"
+    rx="116"
     fill="none"
-    stroke="rgba(255, 248, 235, 0.12)"
-    stroke-width="1.5"
+    stroke="rgba(255, 250, 240, 0.1)"
+    stroke-width="1.25"
+  />
+
+  <circle
+    cx="256"
+    cy="256"
+    r="182"
+    fill="none"
+    stroke="rgba(212, 182, 123, 0.18)"
+    stroke-width="3.5"
   />
 
   <g
     fill="none"
     stroke="url(#line)"
-    stroke-width="10"
+    stroke-width="9"
     stroke-linecap="round"
     stroke-linejoin="round"
   >
-    <circle cx="256" cy="256" r="116" clip-path="url(#arcL)" />
-    <circle cx="256" cy="256" r="116" clip-path="url(#arcR)" />
-    <path d="M256 118 L256 394" />
-    <path d="M168 256 L344 256" />
+    <circle cx="256" cy="256" r="118" clip-path="url(#arcL)" />
+    <circle cx="256" cy="256" r="118" clip-path="url(#arcR)" />
+    <path d="M256 122 L256 390" />
+    <path d="M174 256 L338 256" />
   </g>
 </svg>
