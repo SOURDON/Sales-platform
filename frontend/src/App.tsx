@@ -2184,6 +2184,10 @@ function App() {
                             <DirectorCashflowCarousel pages={directorCashflowPages} />
                           ) : null}
 
+                          {homeDashboard.role === 'DIRECTOR' && session ? (
+                            <DirectorDemoAccountsPanel token={session.token} />
+                          ) : null}
+
                           {homeDashboard.role === 'ADMIN' ? (
                             <>
                               <div className="adminSellerRegister">
@@ -3532,6 +3536,209 @@ function MessengerHub({
         </div>
       </form>
     </section>
+  );
+}
+
+function directorDemoRoleLabel(role: string): string {
+  switch (role) {
+    case 'DIRECTOR':
+      return 'Директор';
+    case 'MANAGER':
+      return 'Управляющий';
+    case 'ACCOUNTANT':
+      return 'Бухгалтер';
+    case 'ADMIN':
+      return 'Админ точки';
+    case 'SELLER':
+      return 'Продавец';
+    case 'RETOUCHER':
+      return 'Ретушёр';
+    default:
+      return role;
+  }
+}
+
+function DirectorDemoAccountsPanel({ token }: { token: string }) {
+  type Row = { nickname: string; fullName: string; role: string; storeName: string; password: string };
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [idx, setIdx] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const [hint, setHint] = useState('');
+  const [draftPwd, setDraftPwd] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/director/demo-accounts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new Error('http');
+      }
+      const data = (await res.json()) as Row[];
+      setRows(data);
+      setIdx((i) => (data.length === 0 ? 0 : Math.min(i, data.length - 1)));
+    } catch {
+      setErr('Не удалось загрузить учётные записи');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (open) {
+      void load();
+    }
+  }, [open, load]);
+
+  const current = rows.length > 0 ? rows[idx] : undefined;
+  const total = rows.length;
+
+  const goPrev = () => setIdx((i) => Math.max(0, i - 1));
+  const goNext = () => setIdx((i) => Math.min(total - 1, i + 1));
+
+  const copyPassword = async () => {
+    if (!current) {
+      return;
+    }
+    setHint('');
+    try {
+      await navigator.clipboard.writeText(current.password);
+      setHint('Пароль скопирован');
+    } catch {
+      setErr('Не удалось скопировать');
+    }
+  };
+
+  const applyPassword = async () => {
+    if (!current) {
+      return;
+    }
+    const pwd = draftPwd.trim();
+    if (pwd.length < 10) {
+      setErr('Новый пароль: минимум 10 символов');
+      return;
+    }
+    setErr('');
+    setHint('');
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/director/demo-accounts/${encodeURIComponent(current.nickname)}/password`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ password: pwd }),
+        },
+      );
+      if (!res.ok) {
+        throw new Error('http');
+      }
+      setDraftPwd('');
+      setHint('Пароль обновлён');
+      await load();
+    } catch {
+      setErr('Не удалось сохранить пароль');
+    }
+  };
+
+  return (
+    <div className="directorDemoAccountsStrip">
+      <button
+        type="button"
+        className="directorDemoAccountsToggle"
+        onClick={() => {
+          setOpen((v) => !v);
+          setErr('');
+          setHint('');
+        }}
+        aria-expanded={open}
+      >
+        <span>Учётные записи (логин / пароль)</span>
+        <span className="directorDemoAccountsToggleChevron" aria-hidden>
+          {open ? '▾' : '▸'}
+        </span>
+      </button>
+      {open ? (
+        <div className="directorDemoAccountsBody">
+          {err ? (
+            <p className="error directorDemoAccountsMsg" role="alert">
+              {err}
+            </p>
+          ) : null}
+          {hint ? (
+            <p className="notice directorDemoAccountsMsg" role="status">
+              {hint}
+            </p>
+          ) : null}
+          {loading ? <p className="muted directorDemoAccountsMsg">Загрузка…</p> : null}
+          {current ? (
+            <div className="directorDemoAccountsCarousel">
+              <div className="directorDemoAccountsNav">
+                <button
+                  type="button"
+                  className="directorDemoAccountsNavBtn"
+                  onClick={goPrev}
+                  disabled={total <= 1 || idx <= 0}
+                  aria-label="Предыдущая учётная запись"
+                >
+                  ‹
+                </button>
+                <div className="directorDemoAccountsCard">
+                  <p className="directorDemoAccountsNick">{current.nickname}</p>
+                  <p className="directorDemoAccountsRole">
+                    {directorDemoRoleLabel(current.role)} · {current.storeName}
+                  </p>
+                  <p className="directorDemoAccountsFull muted">{current.fullName}</p>
+                  <div className="directorDemoAccountsPwdRow">
+                    <code className="directorDemoAccountsPwd">{current.password}</code>
+                    <button type="button" className="ghost directorDemoAccountsCopyBtn" onClick={() => void copyPassword()}>
+                      Копировать
+                    </button>
+                  </div>
+                  <p className="directorDemoAccountsMeta">
+                    {idx + 1} из {total}
+                  </p>
+                  <label className="directorDemoAccountsNewLabel">
+                    Новый пароль
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={draftPwd}
+                      onChange={(e) => setDraftPwd(e.target.value)}
+                      placeholder="Минимум 10 символов"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="primaryAction directorDemoAccountsSaveBtn"
+                    onClick={() => void applyPassword()}
+                  >
+                    Сохранить пароль
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="directorDemoAccountsNavBtn"
+                  onClick={goNext}
+                  disabled={total <= 1 || idx >= total - 1}
+                  aria-label="Следующая учётная запись"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+          ) : !loading ? (
+            <p className="muted directorDemoAccountsMsg">Записей нет</p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

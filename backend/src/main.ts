@@ -1,8 +1,15 @@
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   const corsOrigins = (process.env.CORS_ORIGIN ?? '')
     .split(',')
     .map((item) => item.trim())

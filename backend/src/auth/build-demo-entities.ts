@@ -1,6 +1,8 @@
 import { DEMO_STORE_NAMES } from './demo-stores';
+import { getDefaultDemoPassword } from './demo-password';
 
 export function buildDefaultDemoUserRows() {
+  const pwd = getDefaultDemoPassword();
   const users: Array<{
     id: number;
     nickname: string;
@@ -13,7 +15,7 @@ export function buildDefaultDemoUserRows() {
     {
       id: 1,
       nickname: 'director',
-      password: '123456',
+      password: pwd,
       fullName: 'Директор',
       role: 'DIRECTOR',
       storeName: 'Все точки',
@@ -22,7 +24,7 @@ export function buildDefaultDemoUserRows() {
     {
       id: 2,
       nickname: 'buh',
-      password: '123456',
+      password: pwd,
       fullName: 'Бухгалтер',
       role: 'ACCOUNTANT',
       storeName: 'Все точки',
@@ -31,7 +33,7 @@ export function buildDefaultDemoUserRows() {
     {
       id: 27,
       nickname: 'manager',
-      password: '123456',
+      password: pwd,
       fullName: 'Управляющий',
       role: 'MANAGER',
       storeName: 'Все точки',
@@ -42,8 +44,8 @@ export function buildDefaultDemoUserRows() {
     const store = DEMO_STORE_NAMES[i];
     users.push({
       id: 3 + i,
-      nickname: `admin${i + 1}`,
-      password: '123456',
+      nickname: `a${i + 1}`,
+      password: pwd,
       fullName: `Админ — ${store}`,
       role: 'ADMIN',
       storeName: store,
@@ -54,8 +56,8 @@ export function buildDefaultDemoUserRows() {
     const store = DEMO_STORE_NAMES[i];
     users.push({
       id: 11 + i,
-      nickname: `seller${i + 1}`,
-      password: '123456',
+      nickname: `s${i + 1}`,
+      password: pwd,
       fullName: `Продавец — ${store}`,
       role: 'SELLER',
       storeName: store,
@@ -66,8 +68,8 @@ export function buildDefaultDemoUserRows() {
     const store = DEMO_STORE_NAMES[i];
     users.push({
       id: 19 + i,
-      nickname: `reto${i + 1}`,
-      password: '123456',
+      nickname: `r${i + 1}`,
+      password: pwd,
       fullName: `Ретушёр — ${store}`,
       role: 'RETOUCHER',
       storeName: store,
@@ -81,7 +83,7 @@ export function buildDefaultSellerProfileRows() {
   return DEMO_STORE_NAMES.map((storeName, i) => ({
     id: 11 + i,
     fullName: `Продавец — ${storeName}`,
-    nickname: `seller${i + 1}`,
+    nickname: `s${i + 1}`,
     storeName,
     ratePercent: 3 + (i % 3) + 2,
   }));
@@ -98,7 +100,7 @@ export function buildDefaultStaffRows() {
   const retouchers = DEMO_STORE_NAMES.map((storeName, i) => ({
     id: 19 + i,
     fullName: `Ретушёр — ${storeName}`,
-    nickname: `reto${i + 1}`,
+    nickname: `r${i + 1}`,
     isActive: true,
     staffPosition: 'RETOUCHER' as const,
   }));

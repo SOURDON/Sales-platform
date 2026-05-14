@@ -5,7 +5,9 @@ import {
   buildDefaultSellerProfileRows,
   buildDefaultStaffRows,
 } from '../auth/build-demo-entities';
+import { getDefaultDemoPassword } from '../auth/demo-password';
 import { CENTRAL_WAREHOUSE_LOCATION_KEY, DEMO_STORE_NAMES } from '../auth/demo-stores';
+import { migrateLegacyDemoNicknames } from './migrate-demo-nicknames';
 
 function toPrismaUserRole(role: ReturnType<typeof buildDefaultDemoUserRows>[0]['role']): UserRole {
   switch (role) {
@@ -38,14 +40,15 @@ async function ensureDemoUsers(prisma: PrismaClient) {
   for (const row of rows) {
     const existing = await prisma.user.findUnique({ where: { nickname: row.nickname } });
     if (existing) {
+      const forcePwd = process.env.FORCE_RESET_DEMO_PASSWORDS === '1';
       await prisma.user.update({
         where: { nickname: row.nickname },
         data: {
           fullName: row.fullName,
           role: toPrismaUserRole(row.role),
           storeName: row.storeName,
-          password: row.password,
           isActive: row.isActive,
+          ...(forcePwd ? { password: row.password } : {}),
         },
       });
     } else {
@@ -213,9 +216,10 @@ async function ensureAppState(prisma: PrismaClient) {
  * Добавляет учётки ретушёров по одной на точку, если их ещё нет (обновление БД с прежним сидом).
  */
 export async function ensureRetoucherUsersIfMissing(prisma: PrismaClient) {
+  const pwd = getDefaultDemoPassword();
   for (let i = 0; i < DEMO_STORE_NAMES.length; i += 1) {
     const storeName = DEMO_STORE_NAMES[i];
-    const nickname = `reto${i + 1}`;
+    const nickname = `r${i + 1}`;
     const existing = await prisma.user.findUnique({ where: { nickname } });
     if (existing) {
       continue;
@@ -231,7 +235,7 @@ export async function ensureRetoucherUsersIfMissing(prisma: PrismaClient) {
       data: {
         id,
         nickname,
-        password: '123456',
+        password: pwd,
         fullName,
         role: UserRole.RETOUCHER,
         storeName,
@@ -259,6 +263,7 @@ export async function ensureRetoucherUsersIfMissing(prisma: PrismaClient) {
  * Добавляет учётку управляющего, если БД была создана до появления этой роли.
  */
 export async function ensureManagerUserIfMissing(prisma: PrismaClient) {
+  const pwd = getDefaultDemoPassword();
   const nickname = 'manager';
   const existing = await prisma.user.findUnique({ where: { nickname } });
   if (existing) {
@@ -266,7 +271,7 @@ export async function ensureManagerUserIfMissing(prisma: PrismaClient) {
       where: { nickname },
       data: {
         fullName: 'Управляющий',
-        password: '123456',
+        password: pwd,
         role: UserRole.MANAGER,
         storeName: 'Все точки',
         isActive: true,
@@ -284,7 +289,7 @@ export async function ensureManagerUserIfMissing(prisma: PrismaClient) {
     data: {
       id,
       nickname,
-      password: '123456',
+      password: pwd,
       fullName: 'Управляющий',
       role: UserRole.MANAGER,
       storeName: 'Все точки',
@@ -298,6 +303,7 @@ export async function ensureManagerUserIfMissing(prisma: PrismaClient) {
  * Не удаляет продажи, смены и прочие операционные данные.
  */
 export async function ensureDemoData(prisma: PrismaClient) {
+  await migrateLegacyDemoNicknames(prisma);
   await ensureDemoUsers(prisma);
   await ensureManagerUserIfMissing(prisma);
   await ensureSellerProfiles(prisma);

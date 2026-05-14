@@ -12,8 +12,10 @@ import {
   WriteOffReason,
 } from '@prisma/client';
 import { ensureDemoData, ensureManagerUserIfMissing, ensureRetoucherUsersIfMissing } from '../database/ensure-demo-data';
+import { migrateLegacyDemoNicknames } from '../database/migrate-demo-nicknames';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildDefaultDemoUserRows, buildDefaultSellerProfileRows, buildDefaultStaffRows } from './build-demo-entities';
+import { getDefaultDemoPassword } from './demo-password';
 import { CENTRAL_WAREHOUSE_LOCATION_KEY, DEMO_STORE_NAMES } from './demo-stores';
 
 export type UserRole = 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
@@ -754,6 +756,61 @@ export class AuthService implements OnModuleInit {
         storeName: user.storeName,
       },
     };
+  }
+
+  directorListDemoAccounts() {
+    const roleRank = (role: UserRole) => {
+      switch (role) {
+        case 'DIRECTOR':
+          return 0;
+        case 'MANAGER':
+          return 1;
+        case 'ACCOUNTANT':
+          return 2;
+        case 'ADMIN':
+          return 3;
+        case 'SELLER':
+          return 4;
+        case 'RETOUCHER':
+          return 5;
+        default:
+          return 9;
+      }
+    };
+    return [...this.demoUsers]
+      .filter((u) => u.isActive)
+      .sort((a, b) => {
+        const byRole = roleRank(a.role) - roleRank(b.role);
+        if (byRole !== 0) {
+          return byRole;
+        }
+        return a.nickname.localeCompare(b.nickname, 'ru-RU');
+      })
+      .map((u) => ({
+        nickname: u.nickname,
+        fullName: u.fullName,
+        role: u.role,
+        storeName: u.storeName,
+        password: u.password,
+      }));
+  }
+
+  directorSetDemoUserPassword(directorNickname: string, targetNickname: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 10 || newPassword.length > 128) {
+      return { ok: false as const, error: 'bad_password' };
+    }
+    const director = this.demoUsers.find((u) => u.nickname === directorNickname);
+    if (!director || director.role !== 'DIRECTOR') {
+      return { ok: false as const, error: 'forbidden' };
+    }
+    const target = this.demoUsers.find((u) => u.nickname === targetNickname);
+    if (!target) {
+      return { ok: false as const, error: 'not_found' };
+    }
+    target.password = newPassword;
+    this.pushAudit(directorNickname, 'DIRECTOR_SET_USER_PASSWORD', `user=${targetNickname}`);
+    this.queuePersist();
+    return { ok: true as const };
   }
 
   getStoreNameForNickname(nickname: string): string | null {
@@ -2023,7 +2080,7 @@ export class AuthService implements OnModuleInit {
     this.demoUsers.push({
       id: member.id,
       nickname: member.nickname,
-      password: '123456',
+      password: getDefaultDemoPassword(),
       fullName: member.fullName,
       role: 'SELLER',
       storeName: storeForActor,
@@ -2110,7 +2167,7 @@ export class AuthService implements OnModuleInit {
       this.demoUsers.push({
         id: seller.id,
         nickname: seller.nickname,
-        password: '123456',
+        password: getDefaultDemoPassword(),
         fullName: seller.fullName,
         role: 'SELLER',
         storeName: seller.storeName,
@@ -2869,6 +2926,7 @@ export class AuthService implements OnModuleInit {
   private async seedIfNeeded() {
     const usersCount = await this.prisma.user.count();
     if (usersCount > 0) {
+      await migrateLegacyDemoNicknames(this.prisma);
       await ensureRetoucherUsersIfMissing(this.prisma);
       await ensureManagerUserIfMissing(this.prisma);
       return;

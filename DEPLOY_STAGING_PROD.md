@@ -47,7 +47,7 @@ Set environment variables:
 
 ## 4) Smoke checks after deploy
 
-1. Login with `director / 123456`.
+1. Login with `director` and the password from `DEMO_DEFAULT_PASSWORD`, or the built-in default `Foto-2026-9kLq` (see backend `.env.example`). Store admins use short logins `a1`…`a8`, sellers `s1`…, retouchers `r1`… (after `npm run db:sync` or first deploy, legacy `admin1`/`seller1`/`reto1` are renamed automatically).
 2. Open shift, add sale, close shift.
 3. Restart backend service in Render.
 4. Reload UI and verify that shift/sale data is still present.
