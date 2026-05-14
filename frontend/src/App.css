@@ -1975,11 +1975,11 @@ button.ghost.navActive:hover {
 }
 
 .appWorkspace .staffManagementAccordion--collapsed .staffManagementAccordionChevron {
-  transform: translateY(-50%) rotate(0deg);
+  transform: translateY(-50%) rotate(-90deg);
 }
 
 .appWorkspace .staffManagementAccordion:not(.staffManagementAccordion--collapsed) .staffManagementAccordionChevron {
-  transform: translateY(-50%) rotate(90deg);
+  transform: translateY(-50%) rotate(0deg);
 }
 
 .appWorkspace .staffCardsBlockAccordion {
@@ -1995,30 +1995,18 @@ button.ghost.navActive:hover {
   align-items: center;
   justify-content: center;
   color: rgba(11, 20, 16, 0.72);
-  transform: translateY(-50%) rotate(0deg);
+  transform: translateY(-50%) rotate(-90deg);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .appWorkspace .staffCardsBlockAccordion:not(.staffCardsBlockAccordion--collapsed) .staffCardsBlockAccordionChevron {
-  transform: translateY(-50%) rotate(90deg);
-}
-
-.appWorkspace .staffAccordionChevronSvg {
-  display: block;
-  width: 14px;
-  height: 14px;
-}
-
-.appWorkspace .staffAccordionChevronSvg circle,
-.appWorkspace .staffAccordionChevronSvg path {
-  stroke: currentColor;
-  fill: none;
+  transform: translateY(-50%) rotate(0deg);
 }
 
 .appWorkspace .staffManagementAccordion:not(.staffManagementAccordion--collapsed) .staffManagementAccordionPanel,
 .appWorkspace .staffCardsBlockAccordion:not(.staffCardsBlockAccordion--collapsed) .staffCardsBlockAccordionPanel {
-  border-top: 1px solid rgba(212, 182, 123, 0.12);
-  background: rgba(5, 16, 12, 0.32);
+  border-top: none !important;
+  background: transparent !important;
 }
 
 .appWorkspace .staffManagementAccordionTrigger:focus-visible,
@@ -3865,6 +3853,28 @@ h1 {
   padding: 14px !important;
 }
 
+/* Карусели списания / спецтехники: без стеклянной рамки вокруг золотой капсулы (как секции закупок). */
+.appWorkspace .writeOffForm.writeOffFormCarousel {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Панель персонала: капсулы сразу на фоне страницы, без второго «стеклянного» opsCard. */
+.appWorkspace .opsCard.staffPanelRoot {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
 .appWorkspace .homeStoreCard {
   padding: 12px 14px !important;
 }
@@ -5031,8 +5041,9 @@ h1 {
   color: var(--ui-dim) !important;
 }
 
-/* Круглый переключатель в духе iOS (не прямоугольник) */
+/* Скруглённый квадрат + галочка по центру */
 .appWorkspace .shiftSellerCheckbox {
+  position: relative !important;
   appearance: none !important;
   -webkit-appearance: none !important;
   display: block !important;
@@ -5044,7 +5055,8 @@ h1 {
   max-height: 17px !important;
   margin: 0 !important;
   flex: 0 0 17px !important;
-  border-radius: 50% !important;
+  box-sizing: border-box !important;
+  border-radius: 4px !important;
   border: 1.5px solid rgba(255, 255, 255, 0.28) !important;
   background: rgba(0, 0, 0, 0.15) !important;
   cursor: pointer !important;
@@ -5076,13 +5088,18 @@ h1 {
 
 .appWorkspace .shiftSellerCheckbox:checked::after {
   content: '' !important;
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
   display: block !important;
   width: 4px !important;
   height: 7px !important;
-  margin: 1px auto 0 !important;
+  margin: 0 !important;
   border: solid rgba(12, 28, 22, 0.92) !important;
   border-width: 0 1.5px 1.5px 0 !important;
-  transform: rotate(45deg) !important;
+  transform: translate(-50%, -58%) rotate(45deg) !important;
+  transform-origin: center !important;
+  pointer-events: none !important;
 }
 
 .appWorkspace .shiftSellerCheckbox:disabled {
@@ -5788,6 +5805,7 @@ h1 {
 
 .shiftSellerRow input.shiftSellerCheckbox,
 .shiftSellerRow .shiftSellerCheckbox {
+  position: relative;
   appearance: none;
   -webkit-appearance: none;
   display: block;
@@ -5799,7 +5817,8 @@ h1 {
   max-height: 17px;
   margin: 0;
   flex: 0 0 17px;
-  border-radius: 50%;
+  box-sizing: border-box;
+  border-radius: 4px;
   border: 1.5px solid rgba(94, 111, 103, 0.45);
   background: rgba(255, 255, 255, 0.85);
   cursor: pointer;
@@ -5817,13 +5836,18 @@ h1 {
 
 .shiftSellerRow .shiftSellerCheckbox:checked::after {
   content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
   display: block;
   width: 4px;
   height: 7px;
-  margin: 1px auto 0;
+  margin: 0;
   border: solid rgba(18, 42, 34, 0.9);
   border-width: 0 1.5px 1.5px 0;
-  transform: rotate(45deg);
+  transform: translate(-50%, -58%) rotate(45deg);
+  transform-origin: center;
+  pointer-events: none;
 }
 
 .shiftSellerRow .shiftSellerCheckbox:focus-visible {
@@ -8835,6 +8859,95 @@ body:has(.appWorkspace--messengerChrome) {
   margin: 0 auto;
 }
 
+.appWorkspace .storeEquipAccountantCarousel {
+  gap: 10px;
+}
+
+.appWorkspace .storeEquipAccountantLead {
+  margin: 0 0 2px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.appWorkspace .storeEquipCarouselNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.appWorkspace .storeEquipCarouselNavBtn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--ui-gold-bar-edge, rgba(180, 143, 83, 0.45));
+  background: var(--ui-gold-bar-bg, linear-gradient(165deg, #c4a56d 0%, #b48f53 100%));
+  color: rgba(11, 20, 16, 0.82);
+  cursor: pointer;
+  box-shadow:
+    0 4px 14px rgba(2, 8, 6, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.appWorkspace .storeEquipCarouselNavBtn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.appWorkspace .storeEquipCarouselNavBtn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.appWorkspace .storeEquipCarouselNavBtn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+}
+
+.appWorkspace .storeEquipCarouselTitleWrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  padding: 0 4px;
+}
+
+.appWorkspace .storeEquipCarouselStoreName {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.25;
+  color: var(--ui-gold-soft, #c4a56d);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appWorkspace .storeEquipCarouselCounter {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-muted, #9aab9f);
+  letter-spacing: 0.02em;
+}
+
+.appWorkspace .storeEquipCarouselSlide {
+  touch-action: pan-y;
+  padding-top: 2px;
+}
+
 .appWorkspace .storeEquipRead .storeEquipGrid,
 .appWorkspace .storeEquipAccountantRoot .storeEquipGrid {
   display: flex;
@@ -8889,9 +9002,5 @@ body:has(.appWorkspace--messengerChrome) {
 .appWorkspace .storeEquipSaveBtn {
   min-width: 5.5rem;
   font-size: 0.72rem;
-}
-
-.appWorkspace .storeEquipAccountantAccordion .writeOffCarouselBodyOpen {
-  max-height: 22rem;
 }
 

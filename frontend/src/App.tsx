@@ -3672,7 +3672,9 @@ function WriteOffForm({
       >
         <span className="writeOffCarouselToggleTitle">Списание товара (поштучно)</span>
         <span className="writeOffCarouselToggleIcon" aria-hidden>
-          ▾
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M7 10l5 5 5-5z" />
+          </svg>
         </span>
       </button>
       <div
@@ -5080,16 +5082,8 @@ function StaffPanel({
           >
             <span className="staffCardsBlockAccordionTitle">Карточки сотрудников</span>
             <span className="staffCardsBlockAccordionChevron" aria-hidden>
-              <svg className="staffAccordionChevronSvg" viewBox="0 0 24 24" width="20" height="20">
-                <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.28" />
-                <path
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.85"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9.25 9.5 14.75 12l-5.5 2.5"
-                />
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path fill="currentColor" d="M7 10l5 5 5-5z" />
               </svg>
             </span>
           </button>
@@ -5138,16 +5132,8 @@ function StaffPanel({
           >
             <span className="staffManagementAccordionTitle">Управление персоналом</span>
             <span className="staffManagementAccordionChevron" aria-hidden>
-              <svg className="staffAccordionChevronSvg" viewBox="0 0 24 24" width="20" height="20">
-                <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.28" />
-                <path
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.85"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9.25 9.5 14.75 12l-5.5 2.5"
-                />
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path fill="currentColor" d="M7 10l5 5 5-5z" />
               </svg>
             </span>
           </button>
@@ -5569,7 +5555,9 @@ function StoreEquipmentReadAccordion({ token }: { token: string }) {
       >
         <span className="writeOffCarouselToggleTitle">Спецтехника на точке</span>
         <span className="writeOffCarouselToggleIcon" aria-hidden>
-          ▾
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M7 10l5 5 5-5z" />
+          </svg>
         </span>
       </button>
       <div
@@ -5598,10 +5586,18 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
   type StoreRow = { storeName: string } & StoreEquipmentCounts;
   const [stores, setStores] = useState<StoreRow[] | null>(null);
   const [draftByStore, setDraftByStore] = useState<Record<string, StoreEquipmentCounts>>({});
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [storeIndex, setStoreIndex] = useState(0);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [busyStore, setBusyStore] = useState<string | null>(null);
+  const swipeStartX = useRef<number | null>(null);
+
+  const sortedStores = useMemo(() => {
+    if (!stores?.length) {
+      return [];
+    }
+    return [...stores].sort((a, b) => a.storeName.localeCompare(b.storeName, 'ru-RU'));
+  }, [stores]);
 
   const load = useCallback(async () => {
     setError('');
@@ -5629,6 +5625,14 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!sortedStores.length) {
+      setStoreIndex(0);
+      return;
+    }
+    setStoreIndex((i) => Math.min(Math.max(0, i), sortedStores.length - 1));
+  }, [sortedStores]);
 
   const updateDraft = (storeName: string, key: keyof StoreEquipmentCounts, raw: string) => {
     const trimmed = raw.trim();
@@ -5673,12 +5677,39 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
     }
   };
 
+  const goPrev = () => setStoreIndex((i) => Math.max(0, i - 1));
+  const goNext = () => setStoreIndex((i) => Math.min(sortedStores.length - 1, i + 1));
+
+  const onSwipeTouchStart = (event: TouchEvent) => {
+    swipeStartX.current = event.touches[0].clientX;
+  };
+
+  const onSwipeTouchEnd = (event: TouchEvent) => {
+    if (swipeStartX.current === null || sortedStores.length < 2) {
+      swipeStartX.current = null;
+      return;
+    }
+    const dx = event.changedTouches[0].clientX - swipeStartX.current;
+    swipeStartX.current = null;
+    if (dx > 48) {
+      goPrev();
+    } else if (dx < -48) {
+      goNext();
+    }
+  };
+
   if (stores === null && !error) {
     return <p className="muted financeOpsHint">Загрузка учёта техники…</p>;
   }
 
+  const row = sortedStores[storeIndex];
+  const total = sortedStores.length;
+  const canNav = total > 1;
+  const draft = row ? (draftByStore[row.storeName] ?? row) : null;
+
   return (
-    <div className="storeEquipAccountantRoot">
+    <div className="storeEquipAccountantRoot storeEquipAccountantCarousel">
+      <p className="storeEquipAccountantLead muted">Спецтехника по точкам</p>
       {error ? (
         <p className="invInlineError storeInvMessage" role="alert">
           {error}
@@ -5689,62 +5720,78 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
           {status}
         </p>
       ) : null}
-      {(stores ?? []).map((row) => {
-        const open = Boolean(expanded[row.storeName]);
-        const draft = draftByStore[row.storeName] ?? row;
-        return (
-          <div
-            key={row.storeName}
-            className={`writeOffForm writeOffFormCarousel storeEquipAccountantAccordion ${
-              open ? 'writeOffFormCarouselOpen' : ''
-            }`}
-          >
+      {stores && stores.length === 0 ? (
+        <p className="muted financeOpsHint">Точек для учёта пока нет.</p>
+      ) : row && draft ? (
+        <>
+          <div className="storeEquipCarouselNav" role="group" aria-label="Выбор точки">
             <button
               type="button"
-              className={`writeOffCarouselToggle ${open ? 'writeOffCarouselToggleOpen' : ''}`}
-              onClick={() =>
-                setExpanded((current) => ({ ...current, [row.storeName]: !current[row.storeName] }))
-              }
-              aria-expanded={open}
-              aria-controls={`store-equipment-edit-${row.storeName}`}
+              className="storeEquipCarouselNavBtn"
+              onClick={goPrev}
+              disabled={!canNav || storeIndex <= 0}
+              aria-label="Предыдущая точка"
             >
-              <span className="writeOffCarouselToggleTitle">{row.storeName}</span>
-              <span className="writeOffCarouselToggleIcon" aria-hidden>
-                ▾
-              </span>
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+                <path
+                  fill="currentColor"
+                  d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"
+                />
+              </svg>
             </button>
-            <div
-              id={`store-equipment-edit-${row.storeName}`}
-              className={`writeOffCarouselBody ${open ? 'writeOffCarouselBodyOpen' : ''}`}
+            <div className="storeEquipCarouselTitleWrap" aria-live="polite">
+              <p className="storeEquipCarouselStoreName">{row.storeName}</p>
+              <p className="storeEquipCarouselCounter">
+                {storeIndex + 1} из {total}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="storeEquipCarouselNavBtn"
+              onClick={goNext}
+              disabled={!canNav || storeIndex >= total - 1}
+              aria-label="Следующая точка"
             >
-              <div className="storeEquipGrid">
-                {STORE_EQUIPMENT_ROWS.map(({ key, label }) => (
-                  <div className="storeEquipGridRow" key={key}>
-                    <span className="storeEquipLabel">{label}</span>
-                    <input
-                      className="invQtyInput invQtyInputTight storeEquipQtyInput"
-                      inputMode="numeric"
-                      aria-label={`${label}, ${row.storeName}`}
-                      value={String(draft[key] ?? 0)}
-                      onChange={(event) => updateDraft(row.storeName, key, event.target.value)}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="storeEquipSaveRow">
-                <button
-                  type="button"
-                  className="invPrimaryMini storeEquipSaveBtn"
-                  disabled={busyStore === row.storeName}
-                  onClick={() => void saveStore(row.storeName)}
-                >
-                  {busyStore === row.storeName ? '…' : 'Сохранить'}
-                </button>
-              </div>
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+                <path
+                  fill="currentColor"
+                  d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"
+                />
+              </svg>
+            </button>
+          </div>
+          <div
+            className="storeEquipCarouselSlide"
+            onTouchStart={onSwipeTouchStart}
+            onTouchEnd={onSwipeTouchEnd}
+          >
+            <div className="storeEquipGrid">
+              {STORE_EQUIPMENT_ROWS.map(({ key, label }) => (
+                <div className="storeEquipGridRow" key={key}>
+                  <span className="storeEquipLabel">{label}</span>
+                  <input
+                    className="invQtyInput invQtyInputTight storeEquipQtyInput"
+                    inputMode="numeric"
+                    aria-label={`${label}, ${row.storeName}`}
+                    value={String(draft[key] ?? 0)}
+                    onChange={(event) => updateDraft(row.storeName, key, event.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="storeEquipSaveRow">
+              <button
+                type="button"
+                className="invPrimaryMini storeEquipSaveBtn"
+                disabled={busyStore === row.storeName}
+                onClick={() => void saveStore(row.storeName)}
+              >
+                {busyStore === row.storeName ? '…' : 'Сохранить'}
+              </button>
             </div>
           </div>
-        );
-      })}
+        </>
+      ) : null}
     </div>
   );
 }
