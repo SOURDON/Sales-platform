@@ -1,69 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <!-- Мягкий изумруд: меньше контраста, «воздух» -->
-    <linearGradient id="bgSurface" x1="12%" y1="0%" x2="88%" y2="100%">
-      <stop offset="0%" stop-color="#2d6f5a" />
-      <stop offset="32%" stop-color="#1a4d3e" />
-      <stop offset="58%" stop-color="#0f2e26" />
-      <stop offset="100%" stop-color="#0a1f1a" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a4538" />
+      <stop offset="100%" stop-color="#0c221c" />
     </linearGradient>
-    <radialGradient id="bgBloom" cx="38%" cy="26%" r="78%">
-      <stop offset="0%" stop-color="rgba(245, 236, 214, 0.2)" />
-      <stop offset="38%" stop-color="rgba(196, 168, 120, 0.12)" />
-      <stop offset="72%" stop-color="rgba(24, 72, 58, 0.08)" />
-      <stop offset="100%" stop-color="rgba(8, 22, 18, 0)" />
-    </radialGradient>
-    <!-- Нежное шампань-золото -->
-    <linearGradient id="phiStroke" x1="18%" y1="12%" x2="82%" y2="88%">
-      <stop offset="0%" stop-color="#faf6ec" />
-      <stop offset="28%" stop-color="#ead8b4" />
-      <stop offset="55%" stop-color="#d4b67b" />
-      <stop offset="82%" stop-color="#b08d55" />
-      <stop offset="100%" stop-color="#8f7348" />
+    <linearGradient id="line" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f2e8d4" />
+      <stop offset="45%" stop-color="#d4b67b" />
+      <stop offset="100%" stop-color="#b8945c" />
     </linearGradient>
-    <linearGradient id="stemBody" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#dcc9a4" />
-      <stop offset="48%" stop-color="#f4ecd8" />
-      <stop offset="100%" stop-color="#c4a574" />
-    </linearGradient>
-    <linearGradient id="stemSheen" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="rgba(255, 255, 255, 0.5)" />
-      <stop offset="45%" stop-color="rgba(255, 255, 255, 0.08)" />
-      <stop offset="100%" stop-color="rgba(40, 32, 20, 0.12)" />
-    </linearGradient>
-    <clipPath id="phiClipLeft">
-      <rect x="0" y="0" width="234" height="512" />
+    <clipPath id="arcL">
+      <rect x="0" y="0" width="240" height="512" />
     </clipPath>
-    <clipPath id="phiClipRight">
-      <rect x="278" y="0" width="234" height="512" />
+    <clipPath id="arcR">
+      <rect x="272" y="0" width="240" height="512" />
     </clipPath>
   </defs>
 
-  <rect width="512" height="512" rx="112" fill="url(#bgSurface)" />
-  <rect width="512" height="512" rx="112" fill="url(#bgBloom)" />
+  <rect width="512" height="512" rx="114" fill="url(#bg)" />
   <rect
     width="512"
     height="512"
-    rx="112"
+    rx="114"
     fill="none"
-    stroke="rgba(232, 214, 180, 0.22)"
-    stroke-width="2"
+    stroke="rgba(255, 248, 235, 0.12)"
+    stroke-width="1.5"
   />
 
-  <!-- Тоньше кольцо, чуть больше «воздуха» -->
-  <g fill="none" stroke="url(#phiStroke)" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="256" cy="256" r="124" stroke-width="34" clip-path="url(#phiClipLeft)" />
-    <circle cx="256" cy="256" r="124" stroke-width="34" clip-path="url(#phiClipRight)" />
+  <!-- Тонкая буква Ф: две дуги + вертикаль + перекладина -->
+  <g
+    fill="none"
+    stroke="url(#line)"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <circle cx="256" cy="256" r="116" clip-path="url(#arcL)" />
+    <circle cx="256" cy="256" r="116" clip-path="url(#arcR)" />
+    <path d="M256 118 L256 394" />
+    <path d="M168 256 L344 256" />
   </g>
-
-  <!-- Узкий стержень с мягкими скруглениями -->
-  <path
-    fill="url(#stemBody)"
-    d="M234,98 h44 a22,22 0 0 1 22,22 v272 a22,22 0 0 1 -22,22 h-44 a22,22 0 0 1 -22,-22 V120 a22,22 0 0 1 22,-22z"
-  />
-  <path
-    fill="url(#stemSheen)"
-    opacity="0.42"
-    d="M238,104 h36 v304 h-36 z"
-  />
 </svg>
