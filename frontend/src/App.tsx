@@ -3671,7 +3671,7 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
       >
         <span className="directorDemoAccountsToggleText">
           <span className="directorDemoAccountsToggleTitle">Пароли доступа</span>
-          <span className="directorDemoAccountsToggleSub">Бухгалтер · Управляющий · Админы точек</span>
+          <span className="directorDemoAccountsToggleSub">Директор · Бухгалтер · Управляющий · Админы точек</span>
         </span>
         <span className="directorDemoAccountsToggleChevron" aria-hidden>
           {open ? '▾' : '▸'}
@@ -3692,7 +3692,7 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
           {loading ? <p className="muted directorDemoAccountsMsg">Загрузка…</p> : null}
           {current && !loading ? (
             <p className="muted directorDemoAccountsScopeHint">
-              Здесь только бухгалтер, управляющий и админы точек; пароли других ролей отсюда не меняются.
+              Только директор, бухгалтер, управляющий и админы точек; продавцы и ретушёры здесь не показываются.
             </p>
           ) : null}
           {current ? (

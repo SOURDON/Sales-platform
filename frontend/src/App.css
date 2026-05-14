@@ -4649,7 +4649,7 @@ h1 {
   box-shadow: 0 0 0 3px rgba(212, 182, 123, 0.18) !important;
 }
 
-/* Директор: карусель паролей (бухгалтер · управляющий · админы) — минималистично */
+/* Директор: карусель паролей (директор · бухгалтер · управляющий · админы) — минималистично */
 .homeDashboardDirectorSkin .directorDemoAccountsStrip {
   margin-top: 12px;
   border-radius: 16px;

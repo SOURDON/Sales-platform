@@ -759,16 +759,19 @@ export class AuthService implements OnModuleInit {
   }
 
   directorListDemoAccounts() {
-    const allowedRoles: UserRole[] = ['ACCOUNTANT', 'MANAGER', 'ADMIN'];
+    const allowedRoles: UserRole[] = ['DIRECTOR', 'ACCOUNTANT', 'MANAGER', 'ADMIN'];
     const roleRank = (role: UserRole) => {
-      if (role === 'ACCOUNTANT') {
+      if (role === 'DIRECTOR') {
         return 0;
       }
-      if (role === 'MANAGER') {
+      if (role === 'ACCOUNTANT') {
         return 1;
       }
-      if (role === 'ADMIN') {
+      if (role === 'MANAGER') {
         return 2;
+      }
+      if (role === 'ADMIN') {
+        return 3;
       }
       return 9;
     };
@@ -802,7 +805,12 @@ export class AuthService implements OnModuleInit {
     if (!target) {
       return { ok: false as const, error: 'not_found' };
     }
-    if (target.role !== 'ACCOUNTANT' && target.role !== 'MANAGER' && target.role !== 'ADMIN') {
+    if (
+      target.role !== 'DIRECTOR' &&
+      target.role !== 'ACCOUNTANT' &&
+      target.role !== 'MANAGER' &&
+      target.role !== 'ADMIN'
+    ) {
       return { ok: false as const, error: 'role_not_allowed' };
     }
     target.password = newPassword;
