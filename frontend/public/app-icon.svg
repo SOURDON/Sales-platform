@@ -1,39 +1,74 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <radialGradient id="bgCore" cx="50%" cy="40%" r="76%">
-      <stop offset="0%" stop-color="#154132" />
-      <stop offset="58%" stop-color="#0b251c" />
-      <stop offset="100%" stop-color="#05120d" />
+    <radialGradient id="bgOuter" cx="42%" cy="36%" r="78%">
+      <stop offset="0%" stop-color="#1a4d3d" />
+      <stop offset="55%" stop-color="#0b251c" />
+      <stop offset="100%" stop-color="#030a08" />
     </radialGradient>
-    <linearGradient id="goldLine" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#c8ad74" />
-      <stop offset="45%" stop-color="#a68752" />
-      <stop offset="100%" stop-color="#d1b882" />
+    <linearGradient id="facetGoldA" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e8d5a8" />
+      <stop offset="40%" stop-color="#c4a56d" />
+      <stop offset="100%" stop-color="#8a6a3a" />
     </linearGradient>
-    <linearGradient id="silverLine" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#eef3f7" />
-      <stop offset="50%" stop-color="#b8c4cd" />
-      <stop offset="100%" stop-color="#f4f7fa" />
+    <linearGradient id="facetGoldB" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d1b882" />
+      <stop offset="55%" stop-color="#a68752" />
+      <stop offset="100%" stop-color="#6d4f2a" />
     </linearGradient>
-    <filter id="markGlow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="2.4" result="b" />
-      <feMerge>
-        <feMergeNode in="b" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
+    <linearGradient id="facetLight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f7f4ec" />
+      <stop offset="45%" stop-color="#dce4e8" />
+      <stop offset="100%" stop-color="#b9c4c8" />
+    </linearGradient>
+    <linearGradient id="facetInk" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0c0c0c" />
+      <stop offset="100%" stop-color="#1a1a1a" />
+    </linearGradient>
+    <filter id="softLift" x="-8%" y="-8%" width="116%" height="116%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.35" />
     </filter>
   </defs>
 
-  <rect width="512" height="512" rx="108" fill="url(#bgCore)" />
+  <!-- Бренд: тёмно-изумрудный сквиркл -->
+  <rect width="512" height="512" rx="108" fill="url(#bgOuter)" />
 
-  <!-- Bold central mark with gold base and silver accents -->
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#markGlow)">
-    <circle cx="256" cy="256" r="116" stroke="url(#goldLine)" stroke-width="24" opacity=".96" />
-    <circle cx="256" cy="256" r="70" stroke="url(#goldLine)" stroke-width="18" opacity=".94" />
-    <path d="M256 138v236" stroke="url(#goldLine)" stroke-width="18" opacity=".95" />
-    <path d="M138 256h236" stroke="url(#goldLine)" stroke-width="18" opacity=".95" />
-    <path d="M182 182l148 148" stroke="url(#silverLine)" stroke-width="14" opacity=".92" />
-    <path d="M330 182L182 330" stroke="url(#silverLine)" stroke-width="14" opacity=".92" />
-    <circle cx="256" cy="256" r="22" stroke="url(#silverLine)" stroke-width="10" opacity=".98" />
+  <!-- «Плёнка» референса: почти чёрное поле внутри зелёной рамки -->
+  <rect x="72" y="72" width="368" height="368" rx="76" fill="url(#facetInk)" opacity="0.97" />
+
+  <!-- Кубистские осколки диафрагмы / объектива (наследие старой иконки) -->
+  <g filter="url(#softLift)" opacity="0.92">
+    <polygon fill="url(#facetGoldB)" points="104,118 188,98 152,198 92,176" />
+    <polygon fill="url(#facetGoldA)" points="420,104 360,132 392,210 448,172" />
+    <polygon fill="url(#facetLight)" points="96,388 168,348 142,292 88,324" />
+    <polygon fill="url(#facetGoldA)" points="424,396 352,368 378,312 432,340" />
+  </g>
+
+  <!-- Гибрид «Ф»: вертикаль + кольцо, разбитые на плоскости с разным наклоном «взгляда» -->
+  <g filter="url(#softLift)">
+    <!-- Правая половина овала (как у Φ), три плоскости -->
+    <polygon fill="url(#facetLight)" points="286,168 392,142 404,214 292,232" />
+    <polygon fill="url(#facetGoldA)" points="292,232 408,228 396,300 284,292" />
+    <polygon fill="url(#facetGoldB)" points="284,292 388,318 372,382 276,352" />
+
+    <!-- Левая половина овала -->
+    <polygon fill="url(#facetGoldB)" points="226,168 120,150 108,218 220,234" />
+    <polygon fill="url(#facetGoldA)" points="220,234 104,224 116,306 228,290" />
+    <polygon fill="url(#facetLight)" points="228,290 124,312 142,378 236,348" />
+
+    <!-- Стержень «Ф»: две соединённые плоскости + контрастная грань (ч/б референс → золото/свет) -->
+    <polygon fill="url(#facetGoldB)" points="236,118 272,108 264,404 228,392" />
+    <polygon fill="url(#facetLight)" points="272,108 302,122 292,404 264,404" />
+    <polygon fill="url(#facetGoldA)" points="248,248 276,242 272,278 246,284" />
+  </g>
+
+  <!-- Тонкая кромка объектива — намёк на круглую диафрагму, но уже не монолит -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.55">
+    <path
+      d="M148 256c0-62 48-112 108-112s108 50 108 112-48 112-108 112-108-50-108-112z"
+      stroke="url(#facetGoldA)"
+      stroke-width="10"
+      stroke-dasharray="42 36"
+      transform="rotate(-8 256 256)"
+    />
   </g>
 </svg>

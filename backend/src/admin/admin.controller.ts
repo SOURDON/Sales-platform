@@ -15,7 +15,7 @@ import {
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AuthService } from '../auth/auth.service';
+import { AuthService, type StoreEquipmentCounts } from '../auth/auth.service';
 import type { Response } from 'express';
 
 interface CreateSaleBody {
@@ -115,6 +115,10 @@ interface FinanceIncomeBody {
   comment?: string;
 }
 
+interface StoreEquipmentPutBody extends Partial<StoreEquipmentCounts> {
+  storeName?: string;
+}
+
 interface OrgChatPostBody {
   body?: string;
 }
@@ -164,6 +168,68 @@ export class AdminController {
       throw new BadRequestException('Неизвестная точка');
     }
     return data;
+  }
+
+  @Get('store-equipment/my-store')
+  getStoreEquipmentMyStore(@Headers('authorization') authorization?: string) {
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'ADMIN') {
+      throw new ForbiddenException('Раздел доступен администратору точки');
+    }
+    const storeName = this.authService.getStoreNameForNickname(session.nickname);
+    if (!storeName) {
+      throw new BadRequestException('Не удалось определить точку');
+    }
+    return { equipment: this.authService.getStoreEquipmentForStore(storeName) };
+  }
+
+  @Get('store-equipment')
+  listStoreEquipmentAll(@Headers('authorization') authorization?: string) {
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'ACCOUNTANT') {
+      throw new ForbiddenException('Свод по технике доступен бухгалтеру');
+    }
+    return { stores: this.authService.getAllStoresEquipmentForAccountant() };
+  }
+
+  @Put('store-equipment')
+  putStoreEquipment(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: StoreEquipmentPutBody,
+  ) {
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'ACCOUNTANT') {
+      throw new ForbiddenException('Редактирование учёта техники доступно бухгалтеру');
+    }
+    const storeName = String(body.storeName ?? '').trim();
+    if (!storeName) {
+      throw new BadRequestException('Укажите точку');
+    }
+    const keys: (keyof StoreEquipmentCounts)[] = [
+      'pc',
+      'camera',
+      'printer',
+      'sdCard',
+      'monitor',
+      'mouse',
+      'keyboard',
+      'cardReader',
+    ];
+    const cur = this.authService.getStoreEquipmentForStore(storeName);
+    const patch: Partial<StoreEquipmentCounts> = {};
+    for (const k of keys) {
+      const v = body[k];
+      if (v !== undefined && v !== null) {
+        patch[k] = Number(v);
+      } else {
+        patch[k] = cur[k];
+      }
+    }
+    const next = this.authService.updateStoreEquipmentByAccountant(storeName, patch, session.nickname);
+    if (!next) {
+      throw new BadRequestException('Неизвестная точка');
+    }
+    return { storeName, equipment: next };
   }
 
   @Post('inventory/warehouse/replenish')

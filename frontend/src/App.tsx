@@ -218,6 +218,18 @@ type DashboardResponse = {
     acquiring?: string;
     transfer?: string;
   }>;
+  /** Сводка по планам выручки (день = бизнес-ключ Москвы), только для роли MANAGER. */
+  managerRevenuePlanCompliance?: {
+    dayKey: string;
+    items: Array<{
+      storeName: string;
+      planRub: number;
+      actualRub: number;
+      hasPlan: boolean;
+      met: boolean;
+      progressPct: number;
+    }>;
+  };
   writeOffs?: Array<{
     id: string;
     createdAt: string;
@@ -277,6 +289,29 @@ type StoreInventoryDetailResponse = {
     qtyOnWarehouse: number;
   }>;
 };
+
+type StoreEquipmentCounts = {
+  pc: number;
+  camera: number;
+  printer: number;
+  sdCard: number;
+  monitor: number;
+  mouse: number;
+  keyboard: number;
+  cardReader: number;
+};
+
+const STORE_EQUIPMENT_ROWS: Array<{ key: keyof StoreEquipmentCounts; label: string }> = [
+  { key: 'pc', label: 'ПК' },
+  { key: 'camera', label: 'Фотоаппарат' },
+  { key: 'printer', label: 'Принтер' },
+  { key: 'sdCard', label: 'SDcard' },
+  { key: 'monitor', label: 'Монитор' },
+  { key: 'mouse', label: 'Мышь' },
+  { key: 'keyboard', label: 'Клавиатура' },
+  { key: 'cardReader', label: 'Картридер' },
+];
+
 type ProductProcurementCost = { name: string; cost: number };
 type StoreRevenuePlan = { dayKey: string; storeName: string; planRevenue: number };
 type AddSalePaymentType = 'CASH' | 'NON_CASH' | 'TRANSFER';
@@ -2088,6 +2123,10 @@ function App() {
                             })()
                           ) : null}
 
+                          {homeDashboard.role === 'MANAGER' && homeDashboard.managerRevenuePlanCompliance ? (
+                            <ManagerRevenuePlanComplianceCard data={homeDashboard.managerRevenuePlanCompliance} />
+                          ) : null}
+
                           {homeDashboard.role === 'ADMIN' ? (
                             <div className="homeStoresList">
                               {homeDashboard.stores.map((store) => (
@@ -2201,7 +2240,9 @@ function App() {
               element={
                 <div className="dashboard">
                   <section className="sectionCard">
-                    {isManager ? null : isFinanceViewer ? (
+                    {isManager ? null : role === 'ACCOUNTANT' ? (
+                      <AccountantStoreEquipmentStoresPanel token={session.token} />
+                    ) : isFinanceViewer ? (
                       <FinanceOpsPanel
                         token={session.token}
                         isDirector={role === 'DIRECTOR'}
@@ -2470,6 +2511,9 @@ function App() {
                                 onReload={() => loadStoreInventory(session.token)}
                                 onReceiveFromWarehouse={transferFromWarehouseToStore}
                               />
+                            </div>
+                            <div className="inventorySectionCard storeEquipReadWrap">
+                              <StoreEquipmentReadAccordion token={session.token} />
                             </div>
                             <div>
                               <WriteOffForm
@@ -2754,6 +2798,78 @@ function AddSaleForm({
         Сохранить продажу
       </button>
     </div>
+  );
+}
+
+function formatManagerPlanDayTitle(dayKey: string): string {
+  const d = new Date(`${dayKey}T12:00:00`);
+  if (Number.isNaN(d.getTime())) {
+    return dayKey;
+  }
+  return d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function ManagerRevenuePlanComplianceCard({
+  data,
+}: {
+  data: NonNullable<DashboardResponse['managerRevenuePlanCompliance']>;
+}) {
+  const summary = (() => {
+    const withPlan = data.items.filter((i) => i.hasPlan);
+    if (withPlan.length === 0) {
+      return {
+        tone: 'neutral' as const,
+        text: 'На сегодня планы не заданы — при необходимости уточните у директора.',
+      };
+    }
+    if (withPlan.every((i) => i.met)) {
+      return { tone: 'ok' as const, text: 'Все заданные планы по точкам выполнены.' };
+    }
+    return { tone: 'warn' as const, text: 'Есть точки ниже плана на сегодня.' };
+  })();
+
+  return (
+    <section className="homeManagerPlanCard" aria-label="Планы выручки по точкам">
+      <h4 className="homeManagerPlanTitle">План выручки по точкам</h4>
+      <p className="homeManagerPlanSub">
+        {formatManagerPlanDayTitle(data.dayKey)} · бизнес-день (МСК)
+      </p>
+      <div className={`homeManagerPlanSummary homeManagerPlanSummary--${summary.tone}`} role="status">
+        {summary.text}
+      </div>
+      <ul className="homeManagerPlanList">
+        {data.items.map((row) => (
+          <li key={row.storeName} className="homeManagerPlanRow">
+            <div className="homeManagerPlanRowTop">
+              <span className="homeManagerPlanStore" title={row.storeName}>
+                {row.storeName}
+              </span>
+              <span
+                className={`homeManagerPlanBadge homeManagerPlanBadge--${
+                  !row.hasPlan ? 'empty' : row.met ? 'ok' : 'bad'
+                }`}
+              >
+                {!row.hasPlan ? 'Без плана' : row.met ? 'Выполнен' : 'Ниже плана'}
+              </span>
+            </div>
+            {row.hasPlan ? (
+              <>
+                <div className="homeManagerPlanNums">
+                  <span>Факт {formatRub(row.actualRub)}</span>
+                  <span className="homeManagerPlanSep">·</span>
+                  <span>План {formatRub(row.planRub)}</span>
+                </div>
+                <div className="homeManagerPlanBar" aria-hidden>
+                  <span className="homeManagerPlanBarFill" style={{ width: `${row.progressPct}%` }} />
+                </div>
+              </>
+            ) : (
+              <p className="homeManagerPlanMuted">Факт {formatRub(row.actualRub)}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -4212,7 +4328,7 @@ function ShiftPanel({
 
   return (
     <div className="opsCard shiftPanelCard">
-      <h4>Открытие/закрытие смены</h4>
+      <h4 className="shiftPanelHeading">Открытие/закрытие смены</h4>
       {readOnly && (
         <p className="notice">Роль «Бухгалтер»: только просмотр, без открытия и закрытия смен.</p>
       )}
@@ -4222,20 +4338,22 @@ function ShiftPanel({
           останутся на одной смене.
         </p>
       )}
-      <div className="shiftSellerList">
+      <div className="shiftSellerList shiftSellerListGrouped" role="list" aria-label="Сотрудники для смены">
         {shiftAssignableStaff.map((member) => (
           <label
             key={member.id}
             className="shiftSellerRow"
             title={`${member.fullName} (${member.storeName})`}
           >
-            <input
-              type="checkbox"
-              className="shiftSellerCheckbox"
-              checked={selectedStaffIds.includes(member.id)}
-              onChange={() => toggleStaff(member.id)}
-              disabled={readOnly}
-            />
+            <span className="shiftSellerControl">
+              <input
+                type="checkbox"
+                className="shiftSellerCheckbox"
+                checked={selectedStaffIds.includes(member.id)}
+                onChange={() => toggleStaff(member.id)}
+                disabled={readOnly}
+              />
+            </span>
             <span className="shiftSellerText">
               <span className="shiftSellerName">{member.fullName}</span>
               <span className="shiftSellerStore">
@@ -5395,6 +5513,238 @@ function DirectorWarehousePanel({
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+function draftEmptyCounts(): StoreEquipmentCounts {
+  return {
+    pc: 0,
+    camera: 0,
+    printer: 0,
+    sdCard: 0,
+    monitor: 0,
+    mouse: 0,
+    keyboard: 0,
+    cardReader: 0,
+  };
+}
+
+function StoreEquipmentReadAccordion({ token }: { token: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [equipment, setEquipment] = useState<StoreEquipmentCounts | null>(null);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/store-equipment/my-store`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error('load');
+      }
+      const data = (await response.json()) as { equipment: StoreEquipmentCounts };
+      setEquipment(data.equipment);
+    } catch {
+      setEquipment(null);
+      setError('Не удалось загрузить данные');
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <div
+      className={`writeOffForm writeOffFormCarousel storeEquipRead ${expanded ? 'writeOffFormCarouselOpen' : ''}`}
+    >
+      <button
+        type="button"
+        className={`writeOffCarouselToggle ${expanded ? 'writeOffCarouselToggleOpen' : ''}`}
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+        aria-controls="store-equipment-read-body"
+      >
+        <span className="writeOffCarouselToggleTitle">Спецтехника на точке</span>
+        <span className="writeOffCarouselToggleIcon" aria-hidden>
+          ▾
+        </span>
+      </button>
+      <div
+        id="store-equipment-read-body"
+        className={`writeOffCarouselBody ${expanded ? 'writeOffCarouselBodyOpen' : ''}`}
+      >
+        {error ? (
+          <p className="invInlineError storeInvMessage" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="storeEquipGrid">
+          {STORE_EQUIPMENT_ROWS.map(({ key, label }) => (
+            <div className="storeEquipGridRow" key={key}>
+              <span className="storeEquipLabel">{label}</span>
+              <span className="storeEquipVal">{equipment !== null ? equipment[key] : '…'}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
+  type StoreRow = { storeName: string } & StoreEquipmentCounts;
+  const [stores, setStores] = useState<StoreRow[] | null>(null);
+  const [draftByStore, setDraftByStore] = useState<Record<string, StoreEquipmentCounts>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+  const [busyStore, setBusyStore] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/store-equipment`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error('load');
+      }
+      const data = (await response.json()) as { stores: StoreRow[] };
+      setStores(data.stores);
+      const nextDraft: Record<string, StoreEquipmentCounts> = {};
+      for (const row of data.stores) {
+        const { storeName, ...counts } = row;
+        nextDraft[storeName] = { ...counts };
+      }
+      setDraftByStore(nextDraft);
+    } catch {
+      setStores(null);
+      setError('Не удалось загрузить свод по точкам');
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const updateDraft = (storeName: string, key: keyof StoreEquipmentCounts, raw: string) => {
+    const trimmed = raw.trim();
+    const parsed = trimmed === '' ? 0 : Math.floor(Number(trimmed.replace(',', '.')));
+    const n = Number.isFinite(parsed) ? Math.max(0, Math.min(9999, parsed)) : 0;
+    setDraftByStore((current) => ({
+      ...current,
+      [storeName]: { ...(current[storeName] ?? draftEmptyCounts()), [key]: n },
+    }));
+  };
+
+  const saveStore = async (storeName: string) => {
+    const row = draftByStore[storeName];
+    if (!row) {
+      return;
+    }
+    setBusyStore(storeName);
+    setStatus('');
+    setError('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/store-equipment`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          storeName,
+          ...row,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('save');
+      }
+      const data = (await response.json()) as { storeName: string; equipment: StoreEquipmentCounts };
+      setDraftByStore((current) => ({ ...current, [data.storeName]: data.equipment }));
+      setStatus(`Сохранено: ${data.storeName}`);
+    } catch {
+      setError('Не удалось сохранить');
+    } finally {
+      setBusyStore(null);
+    }
+  };
+
+  if (stores === null && !error) {
+    return <p className="muted financeOpsHint">Загрузка учёта техники…</p>;
+  }
+
+  return (
+    <div className="storeEquipAccountantRoot">
+      {error ? (
+        <p className="invInlineError storeInvMessage" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {status ? (
+        <p className="invInlineOk storeInvMessage" title={status}>
+          {status}
+        </p>
+      ) : null}
+      {(stores ?? []).map((row) => {
+        const open = Boolean(expanded[row.storeName]);
+        const draft = draftByStore[row.storeName] ?? row;
+        return (
+          <div
+            key={row.storeName}
+            className={`writeOffForm writeOffFormCarousel storeEquipAccountantAccordion ${
+              open ? 'writeOffFormCarouselOpen' : ''
+            }`}
+          >
+            <button
+              type="button"
+              className={`writeOffCarouselToggle ${open ? 'writeOffCarouselToggleOpen' : ''}`}
+              onClick={() =>
+                setExpanded((current) => ({ ...current, [row.storeName]: !current[row.storeName] }))
+              }
+              aria-expanded={open}
+              aria-controls={`store-equipment-edit-${row.storeName}`}
+            >
+              <span className="writeOffCarouselToggleTitle">{row.storeName}</span>
+              <span className="writeOffCarouselToggleIcon" aria-hidden>
+                ▾
+              </span>
+            </button>
+            <div
+              id={`store-equipment-edit-${row.storeName}`}
+              className={`writeOffCarouselBody ${open ? 'writeOffCarouselBodyOpen' : ''}`}
+            >
+              <div className="storeEquipGrid">
+                {STORE_EQUIPMENT_ROWS.map(({ key, label }) => (
+                  <div className="storeEquipGridRow" key={key}>
+                    <span className="storeEquipLabel">{label}</span>
+                    <input
+                      className="invQtyInput invQtyInputTight storeEquipQtyInput"
+                      inputMode="numeric"
+                      aria-label={`${label}, ${row.storeName}`}
+                      value={String(draft[key] ?? 0)}
+                      onChange={(event) => updateDraft(row.storeName, key, event.target.value)}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="storeEquipSaveRow">
+                <button
+                  type="button"
+                  className="invPrimaryMini storeEquipSaveBtn"
+                  disabled={busyStore === row.storeName}
+                  onClick={() => void saveStore(row.storeName)}
+                >
+                  {busyStore === row.storeName ? '…' : 'Сохранить'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

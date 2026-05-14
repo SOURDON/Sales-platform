@@ -1,0 +1,13 @@
+CREATE TABLE "StoreEquipment" (
+    "storeName" TEXT NOT NULL,
+    "pc" INTEGER NOT NULL DEFAULT 0,
+    "camera" INTEGER NOT NULL DEFAULT 0,
+    "printer" INTEGER NOT NULL DEFAULT 0,
+    "sdCard" INTEGER NOT NULL DEFAULT 0,
+    "monitor" INTEGER NOT NULL DEFAULT 0,
+    "mouse" INTEGER NOT NULL DEFAULT 0,
+    "keyboard" INTEGER NOT NULL DEFAULT 0,
+    "cardReader" INTEGER NOT NULL DEFAULT 0,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "StoreEquipment_pkey" PRIMARY KEY ("storeName")
+);

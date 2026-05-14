@@ -83,6 +83,38 @@ function internalPaymentTypeToPrisma(pt: SalePaymentType): PrismaPaymentType {
   return PrismaPaymentType.CASH;
 }
 
+export type StoreEquipmentCounts = {
+  pc: number;
+  camera: number;
+  printer: number;
+  sdCard: number;
+  monitor: number;
+  mouse: number;
+  keyboard: number;
+  cardReader: number;
+};
+
+function emptyStoreEquipmentCounts(): StoreEquipmentCounts {
+  return {
+    pc: 0,
+    camera: 0,
+    printer: 0,
+    sdCard: 0,
+    monitor: 0,
+    mouse: 0,
+    keyboard: 0,
+    cardReader: 0,
+  };
+}
+
+function clampEquipmentInt(value: unknown): number {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n) || n < 0) {
+    return 0;
+  }
+  return Math.min(9999, n);
+}
+
 interface SaleRecord {
   id: string;
   createdAt: string;
@@ -253,6 +285,7 @@ export class AuthService implements OnModuleInit {
   private financeAccounts: FinanceAccount[] = [];
   private financeExpenses: FinanceExpense[] = [];
   private financeIncomes: FinanceIncome[] = [];
+  private storeEquipmentByStore: Record<string, StoreEquipmentCounts> = {};
 
   private allStockLocationKeys(): string[] {
     return [this.warehouseLocationKey, ...DEMO_STORE_NAMES];
@@ -727,6 +760,49 @@ export class AuthService implements OnModuleInit {
     return this.demoUsers.find((u) => u.nickname === nickname)?.storeName ?? null;
   }
 
+  getStoreEquipmentForStore(storeName: string): StoreEquipmentCounts {
+    const row = this.storeEquipmentByStore[storeName];
+    return row ? { ...row } : emptyStoreEquipmentCounts();
+  }
+
+  getAllStoresEquipmentForAccountant(): Array<{ storeName: string } & StoreEquipmentCounts> {
+    return DEMO_STORE_NAMES.map((sn) => ({
+      storeName: sn,
+      ...this.getStoreEquipmentForStore(sn),
+    }));
+  }
+
+  updateStoreEquipmentByAccountant(
+    storeName: string,
+    patch: Partial<StoreEquipmentCounts>,
+    actorNickname: string,
+  ): StoreEquipmentCounts | null {
+    if (!(DEMO_STORE_NAMES as readonly string[]).includes(storeName)) {
+      return null;
+    }
+    const cur = this.getStoreEquipmentForStore(storeName);
+    const keys: (keyof StoreEquipmentCounts)[] = [
+      'pc',
+      'camera',
+      'printer',
+      'sdCard',
+      'monitor',
+      'mouse',
+      'keyboard',
+      'cardReader',
+    ];
+    const next = { ...cur };
+    for (const k of keys) {
+      if (patch[k] !== undefined) {
+        next[k] = clampEquipmentInt(patch[k]);
+      }
+    }
+    this.storeEquipmentByStore[storeName] = next;
+    this.pushAudit(actorNickname, 'STORE_EQUIPMENT_UPDATED', storeName);
+    this.queuePersist();
+    return next;
+  }
+
   parseToken(token: string): DemoTokenPayload | null {
     try {
       const decoded = Buffer.from(token, 'base64url').toString('utf8');
@@ -838,6 +914,7 @@ export class AuthService implements OnModuleInit {
     if (user.role === 'MANAGER') {
       const today = this.getStoreBusinessDayKey(new Date().toISOString());
       const salaryToday = this.managerSalaryForDay(today);
+      const planDayPlans = this.storeRevenuePlans[today] ?? {};
       const storeRows = DEMO_STORE_NAMES.map((name) => {
         const revenue = this.getStoreRevenueForDay(name, today);
         const excluded = MANAGER_EXCLUDED_SALARY_STORES.has(name);
@@ -850,6 +927,19 @@ export class AuthService implements OnModuleInit {
             : this.formatCurrency(salary),
         };
       });
+      const managerRevenuePlanCompliance = {
+        dayKey: today,
+        items: DEMO_STORE_NAMES.map((storeName) => {
+          const rawPlan = planDayPlans[storeName];
+          const hasPlan =
+            typeof rawPlan === 'number' && Number.isFinite(rawPlan) && Math.round(rawPlan) > 0;
+          const planRub = hasPlan ? Math.round(rawPlan) : 0;
+          const actualRub = Math.round(this.getStoreRevenueForDay(storeName, today));
+          const met = hasPlan && actualRub >= planRub;
+          const progressPct = hasPlan ? Math.min(100, Math.round((actualRub / planRub) * 100)) : 0;
+          return { storeName, planRub, actualRub, hasPlan, met, progressPct };
+        }),
+      };
       return {
         role: user.role,
         sellerDataManagedByAdmin: true,
@@ -859,6 +949,7 @@ export class AuthService implements OnModuleInit {
           { label: 'Ставка', value: '5% от продаж точек' },
         ],
         stores: storeRows,
+        managerRevenuePlanCompliance,
       };
     }
 
@@ -2878,6 +2969,10 @@ export class AuthService implements OnModuleInit {
     this.acquiringPercent = 1.8;
     this.acquiringPercentDetkov = 1.8;
     this.acquiringPercentPutintsevSber = 1.8;
+    this.storeEquipmentByStore = {};
+    for (const sn of DEMO_STORE_NAMES) {
+      this.storeEquipmentByStore[sn] = emptyStoreEquipmentCounts();
+    }
   }
 
   private async loadState() {
@@ -2902,6 +2997,7 @@ export class AuthService implements OnModuleInit {
       financeIncomes,
       appState,
       directorApprovals,
+      storeEquipmentRows,
     ] = await this.prisma.$transaction([
       this.prisma.user.findMany(),
       this.prisma.sellerProfile.findMany(),
@@ -2926,6 +3022,7 @@ export class AuthService implements OnModuleInit {
       this.prisma.financeIncome.findMany(),
       this.prisma.appState.findUnique({ where: { id: 1 } }),
       this.prisma.directorApprovalRequest.findMany({ orderBy: { createdAt: 'desc' } }),
+      this.prisma.storeEquipment.findMany(),
     ]);
 
     const salesBySellerId = new Map<number, SaleRecord[]>();
@@ -3134,6 +3231,25 @@ export class AuthService implements OnModuleInit {
       appState?.acquiringPercentPutintsevSber != null
         ? appState.acquiringPercentPutintsevSber
         : 1.8;
+
+    this.storeEquipmentByStore = {};
+    for (const sn of DEMO_STORE_NAMES) {
+      this.storeEquipmentByStore[sn] = emptyStoreEquipmentCounts();
+    }
+    for (const row of storeEquipmentRows) {
+      if (this.storeEquipmentByStore[row.storeName] !== undefined) {
+        this.storeEquipmentByStore[row.storeName] = {
+          pc: row.pc,
+          camera: row.camera,
+          printer: row.printer,
+          sdCard: row.sdCard,
+          monitor: row.monitor,
+          mouse: row.mouse,
+          keyboard: row.keyboard,
+          cardReader: row.cardReader,
+        };
+      }
+    }
   }
 
   private async persistState() {
@@ -3398,6 +3514,23 @@ export class AuthService implements OnModuleInit {
       if (planRows.length > 0) {
         await tx.storeRevenuePlan.createMany({ data: planRows });
       }
+
+      await tx.storeEquipment.deleteMany();
+      const equipmentRows = DEMO_STORE_NAMES.map((sn) => {
+        const e = this.storeEquipmentByStore[sn] ?? emptyStoreEquipmentCounts();
+        return {
+          storeName: sn,
+          pc: e.pc,
+          camera: e.camera,
+          printer: e.printer,
+          sdCard: e.sdCard,
+          monitor: e.monitor,
+          mouse: e.mouse,
+          keyboard: e.keyboard,
+          cardReader: e.cardReader,
+        };
+      });
+      await tx.storeEquipment.createMany({ data: equipmentRows });
 
       await tx.auditLogItem.deleteMany();
       if (this.auditLog.length > 0) {

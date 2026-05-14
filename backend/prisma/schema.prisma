@@ -265,6 +265,20 @@ model AuditLogItem {
   details   String
 }
 
+/// Учёт спецтехники на торговой точке (редактирует бухгалтер; админ — только просмотр).
+model StoreEquipment {
+  storeName  String   @id
+  pc         Int      @default(0)
+  camera     Int      @default(0)
+  printer    Int      @default(0)
+  sdCard     Int      @default(0)
+  monitor    Int      @default(0)
+  mouse      Int      @default(0)
+  keyboard   Int      @default(0)
+  cardReader Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
 /// Общий чат сети: магазины (ADMIN), директор и управляющий.
 model OrgChatMessage {
   id             String   @id @default(cuid())
