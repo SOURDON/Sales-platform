@@ -759,26 +759,21 @@ export class AuthService implements OnModuleInit {
   }
 
   directorListDemoAccounts() {
+    const allowedRoles: UserRole[] = ['ACCOUNTANT', 'MANAGER', 'ADMIN'];
     const roleRank = (role: UserRole) => {
-      switch (role) {
-        case 'DIRECTOR':
-          return 0;
-        case 'MANAGER':
-          return 1;
-        case 'ACCOUNTANT':
-          return 2;
-        case 'ADMIN':
-          return 3;
-        case 'SELLER':
-          return 4;
-        case 'RETOUCHER':
-          return 5;
-        default:
-          return 9;
+      if (role === 'ACCOUNTANT') {
+        return 0;
       }
+      if (role === 'MANAGER') {
+        return 1;
+      }
+      if (role === 'ADMIN') {
+        return 2;
+      }
+      return 9;
     };
     return [...this.demoUsers]
-      .filter((u) => u.isActive)
+      .filter((u) => u.isActive && allowedRoles.includes(u.role))
       .sort((a, b) => {
         const byRole = roleRank(a.role) - roleRank(b.role);
         if (byRole !== 0) {
@@ -806,6 +801,9 @@ export class AuthService implements OnModuleInit {
     const target = this.demoUsers.find((u) => u.nickname === targetNickname);
     if (!target) {
       return { ok: false as const, error: 'not_found' };
+    }
+    if (target.role !== 'ACCOUNTANT' && target.role !== 'MANAGER' && target.role !== 'ADMIN') {
+      return { ok: false as const, error: 'role_not_allowed' };
     }
     target.password = newPassword;
     this.pushAudit(directorNickname, 'DIRECTOR_SET_USER_PASSWORD', `user=${targetNickname}`);

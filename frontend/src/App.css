@@ -4649,13 +4649,14 @@ h1 {
   box-shadow: 0 0 0 3px rgba(212, 182, 123, 0.18) !important;
 }
 
-/* Директор: компактная карусель учёток (логин / пароль) */
+/* Директор: карусель паролей (бухгалтер · управляющий · админы) — минималистично */
 .homeDashboardDirectorSkin .directorDemoAccountsStrip {
-  margin-top: 10px;
-  border-radius: 14px;
-  border: 1px solid rgba(212, 182, 123, 0.16);
-  background: rgba(4, 14, 11, 0.38);
+  margin-top: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.14);
   overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsToggle {
@@ -4663,142 +4664,272 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 12px 14px;
   border: none;
   background: transparent;
-  color: var(--dh-gold-soft);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: rgba(252, 248, 238, 0.92);
   cursor: pointer;
   text-align: left;
 }
 
+.homeDashboardDirectorSkin .directorDemoAccountsToggleText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsToggleTitle {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsToggleSub {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: rgba(212, 182, 123, 0.55);
+  line-height: 1.3;
+}
+
 .homeDashboardDirectorSkin .directorDemoAccountsToggleChevron {
   flex-shrink: 0;
-  opacity: 0.75;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
   font-size: 10px;
+  color: rgba(212, 182, 123, 0.65);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsBody {
-  padding: 0 10px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0 12px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsMsg {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   font-size: 12px;
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsScopeHint {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  opacity: 0.72;
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsCarousel {
+  margin-top: 4px;
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsNav {
   display: flex;
   align-items: stretch;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsNavBtn {
   flex: 0 0 auto;
-  width: 36px;
-  min-height: 0;
+  width: 32px;
   align-self: center;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(252, 248, 238, 0.88);
-  font-size: 18px;
+  min-height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(252, 248, 238, 0.78);
+  font-size: 16px;
   line-height: 1;
   cursor: pointer;
   padding: 0;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsNavBtn:hover:not(:disabled) {
+  border-color: rgba(212, 182, 123, 0.35);
+  color: rgba(252, 248, 238, 0.95);
+  background: rgba(212, 182, 123, 0.08);
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsNavBtn:disabled {
-  opacity: 0.28;
+  opacity: 0.22;
   cursor: not-allowed;
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsCard {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 10px 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.18);
+  padding: 12px 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.12) 100%);
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsCardHead {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsNick {
   margin: 0;
-  font-size: 17px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 600;
   letter-spacing: -0.02em;
-  color: rgba(252, 248, 238, 0.96);
+  font-variant-numeric: tabular-nums;
+  color: rgba(252, 248, 238, 0.98);
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsRole {
-  margin: 4px 0 0;
-  font-size: 12px;
+  margin: 6px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
   font-weight: 600;
-  color: rgba(212, 182, 123, 0.82);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsRolePill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(212, 182, 123, 0.12);
+  border: 1px solid rgba(212, 182, 123, 0.22);
+  color: rgba(212, 182, 123, 0.88);
+  letter-spacing: 0.06em;
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsStoreSep {
+  opacity: 0.35;
+  font-weight: 500;
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsStore {
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  color: rgba(252, 248, 238, 0.55);
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsFull {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   font-size: 12px;
+  font-weight: 500;
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsPwdRow {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
-  margin-top: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsPwd {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   word-break: break-all;
-  color: rgba(252, 248, 238, 0.92);
+  color: rgba(252, 248, 238, 0.9);
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsCopyBtn {
   flex-shrink: 0;
-  font-size: 12px !important;
-  padding: 6px 10px !important;
+  align-self: center;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  padding: 7px 10px !important;
   min-height: 0 !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(252, 248, 238, 0.75) !important;
 }
 
-.homeDashboardDirectorSkin .directorDemoAccountsMeta {
-  margin: 8px 0 0;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.38);
+.homeDashboardDirectorSkin .directorDemoAccountsCopyBtn:hover {
+  border-color: rgba(212, 182, 123, 0.35) !important;
+  color: rgba(252, 248, 238, 0.95) !important;
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsDots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsDot {
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+  transition:
+    width 0.2s ease,
+    background 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsDot:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsDotActive {
+  width: 20px;
+  background: rgba(212, 182, 123, 0.85);
+  opacity: 1;
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsNewLabel {
   display: grid;
   gap: 6px;
-  margin-top: 12px;
-  font-size: 11px;
+  margin-top: 14px;
+  font-size: 10px;
   font-weight: 650;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--dh-muted);
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.homeDashboardDirectorSkin .directorDemoAccountsNewLabel input {
+  font-size: 14px;
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: 500;
 }
 
 .homeDashboardDirectorSkin .directorDemoAccountsSaveBtn {
   margin-top: 10px;
   width: 100%;
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
 }
 
 .appWorkspace article.metricCard:not(.financeOpsBalanceCard),

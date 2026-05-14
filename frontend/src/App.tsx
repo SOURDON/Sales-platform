@@ -3637,7 +3637,17 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
         },
       );
       if (!res.ok) {
-        throw new Error('http');
+        let msg = 'Не удалось сохранить пароль';
+        try {
+          const j = (await res.json()) as { message?: string | string[] };
+          if (j.message) {
+            msg = Array.isArray(j.message) ? j.message[0] : j.message;
+          }
+        } catch {
+          /* ignore */
+        }
+        setErr(msg);
+        return;
       }
       setDraftPwd('');
       setHint('Пароль обновлён');
@@ -3659,7 +3669,10 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
         }}
         aria-expanded={open}
       >
-        <span>Учётные записи (логин / пароль)</span>
+        <span className="directorDemoAccountsToggleText">
+          <span className="directorDemoAccountsToggleTitle">Пароли доступа</span>
+          <span className="directorDemoAccountsToggleSub">Бухгалтер · Управляющий · Админы точек</span>
+        </span>
         <span className="directorDemoAccountsToggleChevron" aria-hidden>
           {open ? '▾' : '▸'}
         </span>
@@ -3677,6 +3690,11 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
             </p>
           ) : null}
           {loading ? <p className="muted directorDemoAccountsMsg">Загрузка…</p> : null}
+          {current && !loading ? (
+            <p className="muted directorDemoAccountsScopeHint">
+              Здесь только бухгалтер, управляющий и админы точек; пароли других ролей отсюда не меняются.
+            </p>
+          ) : null}
           {current ? (
             <div className="directorDemoAccountsCarousel">
               <div className="directorDemoAccountsNav">
@@ -3690,20 +3708,38 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
                   ‹
                 </button>
                 <div className="directorDemoAccountsCard">
-                  <p className="directorDemoAccountsNick">{current.nickname}</p>
-                  <p className="directorDemoAccountsRole">
-                    {directorDemoRoleLabel(current.role)} · {current.storeName}
-                  </p>
-                  <p className="directorDemoAccountsFull muted">{current.fullName}</p>
+                  <div className="directorDemoAccountsCardHead">
+                    <p className="directorDemoAccountsNick">{current.nickname}</p>
+                    <p className="directorDemoAccountsRole">
+                      <span className="directorDemoAccountsRolePill">{directorDemoRoleLabel(current.role)}</span>
+                      <span className="directorDemoAccountsStoreSep" aria-hidden>
+                        ·
+                      </span>
+                      <span className="directorDemoAccountsStore">{current.storeName}</span>
+                    </p>
+                    <p className="directorDemoAccountsFull muted">{current.fullName}</p>
+                  </div>
                   <div className="directorDemoAccountsPwdRow">
                     <code className="directorDemoAccountsPwd">{current.password}</code>
                     <button type="button" className="ghost directorDemoAccountsCopyBtn" onClick={() => void copyPassword()}>
                       Копировать
                     </button>
                   </div>
-                  <p className="directorDemoAccountsMeta">
-                    {idx + 1} из {total}
-                  </p>
+                  {total > 1 ? (
+                    <div className="directorDemoAccountsDots" role="tablist" aria-label="Учётные записи">
+                      {Array.from({ length: total }, (_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          role="tab"
+                          aria-selected={i === idx}
+                          aria-label={`${i + 1} из ${total}`}
+                          className={`directorDemoAccountsDot${i === idx ? ' directorDemoAccountsDotActive' : ''}`}
+                          onClick={() => setIdx(i)}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
                   <label className="directorDemoAccountsNewLabel">
                     Новый пароль
                     <input
@@ -3719,7 +3755,7 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
                     className="primaryAction directorDemoAccountsSaveBtn"
                     onClick={() => void applyPassword()}
                   >
-                    Сохранить пароль
+                    Сохранить
                   </button>
                 </div>
                 <button

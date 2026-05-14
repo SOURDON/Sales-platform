@@ -107,6 +107,9 @@ export class DirectorController {
       if (result.error === 'not_found') {
         throw new BadRequestException('user not found');
       }
+      if (result.error === 'role_not_allowed') {
+        throw new BadRequestException('Пароль можно менять только у бухгалтера, управляющего или админа точки');
+      }
       throw new UnauthorizedException('Only director allowed');
     }
     return { ok: true } as unknown;
