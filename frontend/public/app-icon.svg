@@ -2,13 +2,13 @@
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1a4538" />
-      <stop offset="52%" stop-color="#102a22" />
+      <stop offset="50%" stop-color="#102a22" />
       <stop offset="100%" stop-color="#0a1a15" />
     </linearGradient>
     <linearGradient id="line" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#faf4e8" />
-      <stop offset="40%" stop-color="#d4b67b" />
-      <stop offset="100%" stop-color="#a88a52" />
+      <stop offset="0%" stop-color="#faf6ec" />
+      <stop offset="42%" stop-color="#d4b67b" />
+      <stop offset="100%" stop-color="#9d7d48" />
     </linearGradient>
     <clipPath id="arcL">
       <rect x="0" y="0" width="242" height="512" />
@@ -28,27 +28,28 @@
     stroke-width="1.25"
   />
 
-  <!-- Лёгкое кольцо-видоискатель -->
+  <!-- Мягкое «окно» объектива -->
   <circle
     cx="256"
     cy="256"
-    r="182"
+    r="178"
     fill="none"
-    stroke="rgba(212, 182, 123, 0.18)"
-    stroke-width="3.5"
+    stroke="rgba(212, 182, 123, 0.15)"
+    stroke-width="4"
   />
 
-  <!-- Буква Ф: тонкие линии -->
+  <!-- Ф + центральный круг (объектив): линии не сходятся в точку, обводят линзу -->
   <g
     fill="none"
     stroke="url(#line)"
-    stroke-width="9"
+    stroke-width="11.5"
     stroke-linecap="round"
     stroke-linejoin="round"
   >
     <circle cx="256" cy="256" r="118" clip-path="url(#arcL)" />
     <circle cx="256" cy="256" r="118" clip-path="url(#arcR)" />
-    <path d="M256 122 L256 390" />
-    <path d="M174 256 L338 256" />
+    <circle cx="256" cy="256" r="19" />
+    <path d="M256 116 L256 235 M256 277 L256 396" />
+    <path d="M168 256 L235 256 M277 256 L344 256" />
   </g>
 </svg>
