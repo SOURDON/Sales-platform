@@ -38,10 +38,14 @@ npm install
 npm run build
 Pop-Location
 
-$nsisDir = "$Repo\desktop\src-tauri\target\release\bundle\nsis"
-$exe = Get-ChildItem -Path $nsisDir -Filter '*setup.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+$bundleRoot = "$Repo\desktop\src-tauri\target\release\bundle"
+$exe = Get-ChildItem -Path $bundleRoot -Filter '*setup.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $exe) {
-  Write-Error "Не найден setup.exe в $nsisDir"
+  Write-Host "Содержимое $bundleRoot :"
+  if (Test-Path $bundleRoot) {
+    Get-ChildItem -Path $bundleRoot -Recurse | Select-Object -First 40 FullName
+  }
+  Write-Error "Не найден *setup.exe под $bundleRoot"
 }
 
 $outDir = "$Repo\desktop\dist"
