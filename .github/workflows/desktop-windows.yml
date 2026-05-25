@@ -35,9 +35,14 @@ jobs:
         working-directory: desktop
         run: npm run icon
 
+      - name: Prepare desktop env (production API)
+        shell: bash
+        run: |
+          echo 'VITE_API_URL=https://sales-platform-1.onrender.com' > desktop/.env
+
       - name: Smoke API
         shell: bash
-        run: bash scripts/desktop-smoke.sh
+        run: bash scripts/desktop-smoke.sh https://sales-platform-1.onrender.com
 
       - name: Build Tauri bundle
         shell: pwsh
