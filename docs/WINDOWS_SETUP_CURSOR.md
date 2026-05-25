@@ -2,7 +2,38 @@
 
 Краткая инструкция после `git clone` / `git pull` с Mac.
 
-## 1. Установить один раз
+## Вариант А — без установки Rust (рекомендуется, если rustup падает)
+
+С Mac уже запущена сборка в **GitHub Actions**. На Windows вам нужен только браузер:
+
+1. Откройте https://github.com/SOURDON/Sales-platform/actions/workflows/desktop-windows.yml
+2. Выберите последний зелёный run → внизу **Artifacts** → `desktop-windows-setup`
+3. Скачайте ZIP → внутри `*setup.exe` → установите на ПК
+
+Или: **Actions** → **Desktop Windows** → **Run workflow** → после сборки скачать артефакт.
+
+---
+
+## Вариант Б — один скрипт на Windows (автоустановка)
+
+**PowerShell от администратора:**
+
+```powershell
+cd $HOME\Projects\Sales-platform
+git pull
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\scripts\windows-setup-all.ps1
+```
+
+Перезагрузка → обычный PowerShell:
+
+```powershell
+.\scripts\desktop-build.ps1
+```
+
+---
+
+## 1. Установить один раз (вручную, если скрипт не сработал)
 
 | Компонент | Действие |
 |-----------|----------|
