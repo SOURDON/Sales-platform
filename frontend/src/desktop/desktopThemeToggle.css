@@ -14,9 +14,8 @@
 }
 
 html[data-dt-theme='light'] .desktopThemeToggle {
-  background: var(--hermes-cream, #fbf9f4);
-  border-color: var(--hermes-line, #e8e8e8);
-  border-radius: 4px;
+  background: var(--cb-bg, #748391);
+  border-color: var(--hermes-line-strong, rgba(227, 223, 216, 0.22));
 }
 
 .app.app--desktop .desktopThemeToggleBtn {
@@ -24,8 +23,8 @@ html[data-dt-theme='light'] .desktopThemeToggle {
   padding: 0 8px !important;
   font-size: 11px !important;
   font-weight: 600 !important;
-  color: var(--dt-text-dim) !important;
-  -webkit-text-fill-color: var(--dt-text-dim) !important;
+  color: var(--dt-text-muted) !important;
+  -webkit-text-fill-color: var(--dt-text-muted) !important;
   background: transparent !important;
   border: none !important;
   border-radius: 6px !important;
@@ -41,7 +40,7 @@ html[data-dt-theme='light'] .desktopThemeToggle {
 }
 
 html[data-dt-theme='light'] .app.app--desktop .desktopThemeToggleBtn {
-  font-family: var(--dt-font, 'Manrope', sans-serif) !important;
+  font-family: var(--dt-font, 'DM Sans', sans-serif) !important;
   font-size: 10px !important;
   letter-spacing: 0.06em !important;
   text-transform: uppercase !important;
@@ -49,9 +48,9 @@ html[data-dt-theme='light'] .app.app--desktop .desktopThemeToggleBtn {
 }
 
 html[data-dt-theme='light'] .app.app--desktop .desktopThemeToggleBtn:hover:not(:disabled):not(.desktopThemeToggleBtn--active) {
-  background: var(--hermes-white, #ffffff) !important;
-  color: var(--hermes-black, #1a1a1a) !important;
-  -webkit-text-fill-color: var(--hermes-black, #1a1a1a) !important;
+  background: var(--cb-mid, #92a1ac) !important;
+  color: var(--cb-light, #e3dfd8) !important;
+  -webkit-text-fill-color: var(--cb-light, #e3dfd8) !important;
 }
 
 .app.app--desktop .desktopThemeToggleBtn--active {
@@ -62,8 +61,8 @@ html[data-dt-theme='light'] .app.app--desktop .desktopThemeToggleBtn:hover:not(:
 }
 
 html[data-dt-theme='light'] .app.app--desktop .desktopThemeToggleBtn--active {
-  background: var(--hermes-black, #1a1a1a) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  box-shadow: none !important;
+  background: var(--dt-accent-gradient) !important;
+  color: var(--dt-accent-text) !important;
+  -webkit-text-fill-color: var(--dt-accent-text) !important;
+  box-shadow: var(--dt-btn-convex) !important;
 }

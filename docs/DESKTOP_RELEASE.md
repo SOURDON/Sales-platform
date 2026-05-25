@@ -51,7 +51,21 @@ cd desktop && npm install && npm run build
 
 ## CI (опционально)
 
-При push тега `desktop-v*` GitHub Actions собирает macOS `.dmg` (см. `.github/workflows/desktop-macos.yml`). Секреты не нужны; `VITE_API_URL` берётся из `desktop/.env` в репозитории.
+При push тега `desktop-v*` GitHub Actions собирает установщики (секреты не нужны; `VITE_API_URL` из `desktop/.env`):
+
+| Workflow | Артефакт |
+|----------|----------|
+| `desktop-macos.yml` | `.dmg` |
+| `desktop-windows.yml` | `*setup.exe` |
+
+```bash
+git tag desktop-v1.0.0
+git push origin desktop-v1.0.0
+```
+
+Скачать: **Actions** → run по тегу → **Artifacts**.
+
+Подробнее для Windows: [DESKTOP_WINDOWS.md](./DESKTOP_WINDOWS.md).
 
 ## Обновление у пользователя
 

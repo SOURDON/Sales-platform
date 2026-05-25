@@ -1,0 +1,59 @@
+/**
+ * Единая типографика десктопа (тёмная и светлая тема).
+ */
+
+.app.app--desktop {
+  --dt-font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --dt-font-display: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --dt-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --dt-label-tracking: 0.06em;
+
+  font-family: var(--dt-font) !important;
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  font-feature-settings: 'kern' 1, 'tnum' 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.app.app--desktop .desktopTitlebarTitle,
+.app.app--desktop .dtSectionTitle,
+.app.app--desktop .financeOpsZoneTitle,
+.app.app--desktop .financeReportCard--desktop .financeReportCardTitle,
+.app.app--desktop .directorHomeSectionTitle,
+.app.app--desktop .dashboard--shiftDesktop h4.shiftColTitle,
+.app.app--desktop .homePanelTitle,
+.app.app--desktop .storeEquipAccountantLead,
+.app.app--desktop .storeEquipEditorTitle,
+.app.app--desktop.loginScreen h1,
+.app.app--desktop .desktopSidebarTitle {
+  font-family: var(--dt-font-display) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+  text-transform: none !important;
+}
+
+.app.app--desktop .financeOpsPageTitle,
+.app.app--desktop .shiftMgmtTitle,
+.app.app--desktop .staffMgmtGroupLabel,
+.app.app--desktop .writeOffClusterLabel,
+.app.app--desktop .storeEquipStoreSearchLabel,
+.app.app--desktop .desktopSidebarSectionLabel {
+  font-family: var(--dt-font) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: var(--dt-label-tracking) !important;
+  text-transform: uppercase !important;
+}
+
+.app.app--desktop .metricCard strong,
+.app.app--desktop .homeProfileVal,
+.app.app--desktop .homeStoreCard dd,
+.app.app--desktop .homeStoresMiniValue,
+.app.app--desktop .financeOpsBankTotalCallout strong {
+  font-family: var(--dt-font-display) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+}

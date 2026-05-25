@@ -17,7 +17,7 @@
   padding: 16px 18px 18px;
   border-radius: var(--dt-radius-lg);
   background:
-    linear-gradient(165deg, rgba(62, 207, 154, 0.06) 0%, transparent 42%),
+    linear-gradient(165deg, rgba(154, 163, 173, 0.06) 0%, transparent 42%),
     var(--dt-bg-panel);
   box-shadow:
     var(--dt-surface-shine),
@@ -129,8 +129,8 @@
 
 /* Светлая тема Hermès */
 html[data-dt-theme='light'] .app.app--desktop .acquiringPanelShell {
-  background: var(--hermes-white, #ffffff) !important;
-  border: 1px solid var(--hermes-line, #e8e8e8) !important;
+  background: var(--st-fog, #b3b7b4) !important;
+  border: 1px solid var(--st-stone, #7c7773) !important;
   box-shadow: var(--dt-surface-depth) !important;
 }
 
@@ -142,12 +142,12 @@ html[data-dt-theme='light'] .app.app--desktop .acquiringPanelTitle {
 }
 
 html[data-dt-theme='light'] .app.app--desktop .acquiringPanelCard {
-  background: var(--hermes-cream, #fbf9f4) !important;
-  border-color: var(--hermes-line, #e8e8e8) !important;
+  background: var(--st-mist, #c4c6c5) !important;
+  border-color: var(--st-stone, #7c7773) !important;
 }
 
 html[data-dt-theme='light'] .app.app--desktop .acquiringPanelInput {
-  background: var(--hermes-white, #ffffff) !important;
-  color: var(--hermes-black, #1a1a1a) !important;
+  background: var(--st-fog, #b3b7b4) !important;
+  color: var(--hermes-black, #19171a) !important;
   box-shadow: none !important;
 }

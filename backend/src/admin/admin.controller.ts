@@ -461,6 +461,23 @@ export class AdminController {
     if (!body.accountId || !body.title || body.amount === undefined || !Number.isFinite(body.amount)) {
       throw new BadRequestException('accountId, title and amount are required');
     }
+    const amount = Math.round(body.amount * 100) / 100;
+    if (amount <= 0) {
+      throw new BadRequestException('amount must be greater than zero');
+    }
+    const financeOps = this.authService.getFinanceOpsSnapshot() as {
+      accounts: Array<{ id: string; name: string; balance: number }>;
+    };
+    const account = financeOps.accounts.find((item) => item.id === body.accountId);
+    if (!account) {
+      throw new BadRequestException('Invalid finance account');
+    }
+    if (Math.round(account.balance * 100) < Math.round(amount * 100)) {
+      const available = account.balance.toLocaleString('ru-RU');
+      throw new BadRequestException(
+        `Недостаточно средств на счёте «${account.name}». Доступно: ${available} ₽`,
+      );
+    }
     const expense = this.authService.addFinanceExpense(
       {
         accountId: body.accountId,

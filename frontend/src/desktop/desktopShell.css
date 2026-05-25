@@ -4,30 +4,34 @@
  */
 
 .app.app--desktop {
-  --dt-bg: #0d1814;
-  --dt-bg-elevated: #122820;
-  --dt-bg-sidebar: #101c18;
-  --dt-bg-panel: #162a22;
-  --dt-bg-panel-hover: #1c3329;
-  --dt-bg-hover: rgba(62, 207, 154, 0.1);
-  --dt-bg-active: rgba(62, 207, 154, 0.22);
-  --dt-border: rgba(91, 196, 154, 0.24);
-  --dt-border-subtle: rgba(91, 196, 154, 0.12);
-  --dt-border-hairline: rgba(255, 255, 255, 0.07);
-  --dt-text: #e8f5ef;
-  --dt-text-muted: #9ec4b3;
-  --dt-text-dim: #6f9585;
-  --dt-gold: #7dd4b0;
-  --dt-gold-soft: #5bc49a;
-  --dt-accent: #1f8f6a;
-  --dt-accent-hover: #2d9f78;
-  --dt-accent-bright: #3ecf9a;
-  --dt-accent-gradient: linear-gradient(168deg, #6ee7d8 0%, #2bb8a8 42%, #0f4d3a 100%);
-  --dt-accent-gradient-hover: linear-gradient(168deg, #8ef5e4 0%, #3ecf9a 40%, #146b52 100%);
-  --dt-accent-text: #04120d;
-  --dt-accent-edge: rgba(255, 255, 255, 0.28);
-  --dt-surface-shine: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  --dt-surface-depth: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --dt-bg: #090c11;
+  --dt-bg-elevated: #121820;
+  --dt-bg-sidebar: #090c11;
+  --dt-bg-panel: #262b32;
+  --dt-bg-panel-hover: #2e343c;
+  --dt-bg-hover: rgba(255, 255, 255, 0.05);
+  --dt-bg-active: rgba(154, 163, 173, 0.14);
+  --dt-border: rgba(117, 123, 129, 0.35);
+  --dt-border-subtle: rgba(117, 123, 129, 0.2);
+  --dt-border-hairline: rgba(255, 255, 255, 0.08);
+  --dt-text: #ffffff;
+  --dt-text-muted: #b8bcc0;
+  --dt-text-dim: #757b81;
+  --dt-gold: #9aa3ad;
+  --dt-gold-soft: #b4bcc4;
+  --dt-accent: #525a63;
+  --dt-accent-hover: #5f6a74;
+  --dt-accent-bright: #c4cbd3;
+  --dt-accent-gradient: linear-gradient(180deg, #5a6772 0%, #434d56 100%);
+  --dt-accent-gradient-hover: linear-gradient(180deg, #6a7782 0%, #4f5b66 100%);
+  --dt-accent-text: #e3dfd8;
+  --dt-accent-edge: rgba(0, 0, 0, 0.35);
+  --dt-btn-convex: none;
+  --dt-btn-convex-hover: none;
+  --dt-btn-convex-active: none;
+  --dt-surface-shine: none;
+  --dt-surface-depth: 0 0 0 1px var(--dt-border-hairline);
+  --dt-elevated: 0 0 0 1px var(--dt-border-subtle);
   --dt-radius-sm: 6px;
   --dt-radius-md: 9px;
   --dt-radius-lg: 12px;
@@ -35,8 +39,8 @@
   --dt-titlebar-h: 52px;
   --dt-titlebar-inset-x: 72px;
   --dt-control-h: 30px;
-  --dt-font:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, 'Segoe UI', sans-serif;
+  --dt-font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --dt-font-display: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --dt-mono: ui-monospace, 'SF Mono', Menlo, monospace;
   font-family: var(--dt-font);
   font-size: 13px;
@@ -103,9 +107,9 @@ body:has(.app--desktop) {
   justify-content: center !important;
   padding: 32px !important;
   background:
-    radial-gradient(ellipse 130% 95% at 50% -28%, rgba(62, 207, 154, 0.2), transparent 56%),
-    radial-gradient(760px 500px at 96% 88%, rgba(44, 96, 79, 0.38), transparent 58%),
-    linear-gradient(168deg, #0a1411 0%, #122820 44%, #183528 76%, #0d1814 100%) !important;
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(154, 163, 173, 0.12), transparent 58%),
+    radial-gradient(ellipse 55% 40% at 100% 90%, rgba(117, 123, 129, 0.15), transparent 55%),
+    linear-gradient(165deg, #090c11 0%, #121820 55%, #262b32 100%) !important;
 }
 
 .app.app--desktop.loginScreen .desktopLoginStatus {
@@ -359,7 +363,7 @@ body:has(.app--desktop) {
   font-size: 13px;
   font-weight: 700;
   color: var(--dt-gold);
-  background: rgba(62, 207, 154, 0.15);
+  background: rgba(154, 163, 173, 0.15);
   flex-shrink: 0;
 }
 
@@ -779,7 +783,7 @@ body:has(.app--desktop) {
 .app.app--desktop .notice {
   border-radius: var(--dt-radius-md);
   border: 1px solid var(--dt-border);
-  background: rgba(62, 207, 154, 0.08);
+  background: rgba(154, 163, 173, 0.08);
   color: var(--dt-gold-soft);
   padding: 10px 14px;
   font-size: 13px;

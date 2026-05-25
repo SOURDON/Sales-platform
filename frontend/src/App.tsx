@@ -915,6 +915,7 @@ function App() {
     if (!isDesktopShell) {
       return;
     }
+    void import('./desktop/desktopTypography.css');
     void import('./desktop/desktopShell.css');
     void import('./desktop/desktopPages.css');
     void import('./desktop/desktopNative.css');
@@ -927,6 +928,9 @@ function App() {
     void import('./desktop/desktopDirectorAccountSwitcher.css');
     void import('./desktop/desktopThemes.css');
     void import('./desktop/desktopHermesLight.css');
+    void import('./desktop/desktopStoneLight.css');
+    void import('./desktop/desktopFlat.css');
+    void import('./desktop/desktopLightContrast.css');
     void import('./desktop/desktopThemeToggle.css');
     void import('./desktop/desktopStoreEquipment.css');
     void import('./desktop/desktopAcquiring.css');
@@ -1750,9 +1754,14 @@ function App() {
     token: string,
     payload: { accountId: string; title: string; amount: string; comment?: string },
   ) => {
-    const amount = Number(String(payload.amount).replace(',', '.'));
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return;
+    const amount = parseFinanceMoneyInput(payload.amount);
+    if (amount === null) {
+      throw new Error('INVALID_EXPENSE_AMOUNT');
+    }
+    const account = financeOps.accounts.find((a) => a.id === payload.accountId);
+    const insufficient = financeExpenseInsufficientMessage(account, amount);
+    if (insufficient) {
+      throw new Error(insufficient);
     }
     const uid = session?.user?.id;
     const financeOffline =
@@ -1786,7 +1795,19 @@ function App() {
         }),
       });
       if (!response.ok) {
-        throw new Error('add finance expense error');
+        let message = 'add finance expense error';
+        try {
+          const data = (await response.json()) as { message?: string | string[] };
+          const raw = data.message;
+          if (typeof raw === 'string' && raw.trim()) {
+            message = raw;
+          } else if (Array.isArray(raw) && typeof raw[0] === 'string') {
+            message = raw[0];
+          }
+        } catch {
+          /* ignore */
+        }
+        throw new Error(message);
       }
     };
 
@@ -5579,6 +5600,28 @@ function WriteOffForm({
 }
 
 /** Порядок счётов на главном блоке оперативных финансов (остатки и приход за день). */
+function parseFinanceMoneyInput(raw: string): number | null {
+  const n = Number(String(raw).replace(',', '.').trim());
+  if (!Number.isFinite(n) || n <= 0) {
+    return null;
+  }
+  return Math.round(n * 100) / 100;
+}
+
+function financeExpenseInsufficientMessage(
+  account: FinanceAccount | undefined,
+  amount: number,
+): string | null {
+  if (!account) {
+    return 'Выберите счёт';
+  }
+  const balance = Math.round(account.balance * 100) / 100;
+  if (Math.round(balance * 100) < Math.round(amount * 100)) {
+    return `Недостаточно средств на «${account.name?.trim() || 'Счёт'}». Доступно: ${balance.toLocaleString('ru-RU')} ₽`;
+  }
+  return null;
+}
+
 const FINANCE_OPS_PRIMARY_ACCOUNT_IDS = [
   'fa-bank-extra',
   'fa-bank-main',
@@ -5879,10 +5922,35 @@ function FinanceOpsPanel({
     }
   };
 
+  const expenseAccountIdForForm = desktopFinance ? selectedFlowAccountId : expenseAccountId;
+  const expenseAccountForForm = snapshot.accounts.find((a) => a.id === expenseAccountIdForForm);
+  const parsedExpenseAmount = parseFinanceMoneyInput(expenseAmount);
+  const expenseInsufficientMessage =
+    parsedExpenseAmount !== null
+      ? financeExpenseInsufficientMessage(expenseAccountForForm, parsedExpenseAmount)
+      : null;
+  const canSubmitExpense =
+    Boolean(expenseAccountIdForForm) &&
+    parsedExpenseAmount !== null &&
+    !expenseInsufficientMessage;
+
   const submitExpense = async () => {
-    const accountId = desktopFinance ? selectedFlowAccountId : expenseAccountId;
+    const accountId = expenseAccountIdForForm;
     if (!accountId) {
       setError('Выберите счёт');
+      return;
+    }
+    const amount = parseFinanceMoneyInput(expenseAmount);
+    if (amount === null) {
+      setError('Укажите сумму расхода');
+      return;
+    }
+    const insufficient = financeExpenseInsufficientMessage(
+      snapshot.accounts.find((a) => a.id === accountId),
+      amount,
+    );
+    if (insufficient) {
+      setError(insufficient);
       return;
     }
     setBusyId('expense');
@@ -5898,8 +5966,13 @@ function FinanceOpsPanel({
       setExpenseAmount('');
       const acc = snapshot.accounts.find((a) => a.id === accountId);
       setStatus(acc ? `Расход со счёта «${acc.name}» добавлен.` : 'Расход добавлен.');
-    } catch {
-      setError('Не удалось добавить расход');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      setError(
+        message && message !== 'add finance expense error' && message !== 'INVALID_EXPENSE_AMOUNT'
+          ? message
+          : 'Не удалось добавить расход',
+      );
     } finally {
       setBusyId('');
     }
@@ -6061,10 +6134,15 @@ function FinanceOpsPanel({
                   }}
                 />
               </label>
+              {expenseInsufficientMessage ? (
+                <p className="error financeOpsExpenseHint" role="alert">
+                  {expenseInsufficientMessage}
+                </p>
+              ) : null}
               <button
                 type="button"
                 className="primaryAction financeOpsExpenseSubmit"
-                disabled={!selectedFlowAccountId || busyId === 'expense'}
+                disabled={!canSubmitExpense || busyId === 'expense'}
                 onClick={() => void submitExpense()}
               >
                 Добавить расход
@@ -6075,18 +6153,28 @@ function FinanceOpsPanel({
               role="group"
               aria-label="Счёт для прихода и расхода"
             >
-              {primaryFinanceAccounts.map((acc) => (
-                <button
-                  key={acc.id}
-                  type="button"
-                  className={`ghost financeOpsFlowAccountChip${
-                    selectedFlowAccountId === acc.id ? ' financeOpsFlowAccountChip--active' : ''
-                  }`}
-                  onClick={() => setSelectedFlowAccountId(acc.id)}
-                >
-                  {acc.name?.trim() || 'Счёт'}
-                </button>
-              ))}
+              {primaryFinanceAccounts.map((acc) => {
+                const chipInsufficient =
+                  parsedExpenseAmount !== null &&
+                  financeExpenseInsufficientMessage(acc, parsedExpenseAmount) !== null;
+                return (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    className={`ghost financeOpsFlowAccountChip${
+                      selectedFlowAccountId === acc.id ? ' financeOpsFlowAccountChip--active' : ''
+                    }${chipInsufficient ? ' financeOpsFlowAccountChip--insufficient' : ''}`}
+                    onClick={() => setSelectedFlowAccountId(acc.id)}
+                    title={
+                      chipInsufficient
+                        ? `Доступно: ${acc.balance.toLocaleString('ru-RU')} ₽`
+                        : undefined
+                    }
+                  >
+                    {acc.name?.trim() || 'Счёт'}
+                  </button>
+                );
+              })}
             </div>
             <div className="financeOpsIncomeEntryCallout">
               <label className="financeOpsFlowSideField financeOpsFlowSideField--amount financeOpsFlowSideField--income">
@@ -6226,11 +6314,16 @@ function FinanceOpsPanel({
                 />
               </label>
             </div>
+            {expenseInsufficientMessage ? (
+              <p className="error financeOpsExpenseHint" role="alert">
+                {expenseInsufficientMessage}
+              </p>
+            ) : null}
             <div className="inlineActions financeOpsExpenseActions">
               <button
                 type="button"
                 className="primaryAction"
-                disabled={busyId === 'expense'}
+                disabled={!canSubmitExpense || busyId === 'expense'}
                 onClick={() => void submitExpense()}
               >
                 Добавить расход

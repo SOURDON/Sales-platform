@@ -34,7 +34,7 @@
 | Rust | https://rustup.rs/ (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh`) |
 | Xcode Command Line Tools | В терминале: `xcode-select --install` |
 
-Windows-сборку `.exe` делайте **на Windows** (те же Node + Rust + [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)).
+Windows `.exe`: **на Windows** (`.\scripts\desktop-build.ps1`) или **через GitHub** (тег `desktop-v*` → Actions → артефакт). Подробно: [DESKTOP_WINDOWS.md](./DESKTOP_WINDOWS.md).
 
 ### 2. Указать адрес сервера
 

@@ -1,0 +1,65 @@
+# Сборка Windows NSIS installer при теге desktop-v* (например desktop-v1.0.1).
+# Артефакт: *setup.exe из desktop/dist
+name: Desktop Windows
+
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+
+jobs:
+  build-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          npm ci --prefix frontend
+          npm ci --prefix desktop
+
+      - name: Generate icons
+        shell: bash
+        working-directory: desktop
+        run: npm run icon
+
+      - name: Smoke API
+        shell: bash
+        run: bash scripts/desktop-smoke.sh
+
+      - name: Build Tauri bundle
+        shell: pwsh
+        env:
+          DESKTOP_BUILD_SKIP_CONFIRM: '1'
+          DESKTOP_BUILD_SKIP_SMOKE: '1'
+        run: |
+          if (-not (Test-Path desktop/.env)) {
+            Copy-Item desktop/.env.example desktop/.env
+          }
+          Set-Location desktop
+          npm run build
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $exe = Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Filter '*setup.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) {
+            Write-Error 'NSIS setup.exe not found after tauri build'
+          }
+          Copy-Item $exe.FullName dist/
+          Write-Host "Copied to desktop/dist/$($exe.Name)"
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows-setup
+          path: desktop/dist/*setup.exe
+          if-no-files-found: error

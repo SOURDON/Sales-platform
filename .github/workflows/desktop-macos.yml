@@ -1,5 +1,5 @@
 # Сборка macOS .dmg при теге desktop-v* (например desktop-v1.0.1).
-# Артефакт: dmg из desktop/dist. Windows — только на runner windows (не настроено).
+# Артефакт: dmg из desktop/dist. Windows: desktop-windows.yml
 name: Desktop macOS
 
 on:

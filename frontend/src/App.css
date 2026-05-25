@@ -3023,6 +3023,13 @@ button.financeRangePresetBtn {
   outline: none;
 }
 
+.financeOpsExpenseHint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
 .financeOpsExpenseAmountRow {
   margin-bottom: 4px;
 }

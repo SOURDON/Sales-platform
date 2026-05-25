@@ -1,0 +1,13 @@
+---
+description: Веб и мобильный браузер — обычная разработка, без Tauri
+globs: frontend/**/*,backend/**/*
+alwaysApply: false
+---
+
+# Веб (телефон + браузер)
+
+- См. `docs/WEB_WORK.md` — веб живёт параллельно с десктопом.
+- Не создавать и не менять `desktop/` unless user explicitly asks in this chat.
+- Не блокировать деплой веба из-за незавершённого Tauri.
+- При ломающих изменениях API — учитывать будущий offline outbox (`clientId`).
+- Десктоп-прогресс: `docs/DESKTOP_APP.md` (другой Agent-чат).

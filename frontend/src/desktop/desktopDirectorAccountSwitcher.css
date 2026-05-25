@@ -45,7 +45,7 @@
   overflow-y: auto;
   padding: 2px 0 4px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(62, 207, 154, 0.28) transparent;
+  scrollbar-color: rgba(154, 163, 173, 0.28) transparent;
 }
 
 .desktopDirectorSwitcherList {
@@ -107,8 +107,8 @@
 
 .app.app--desktop .desktopDirectorSwitcherCard--active.desktopSidebarUserCard {
   background: rgba(255, 255, 255, 0.05) !important;
-  border-color: rgba(62, 207, 154, 0.32) !important;
-  box-shadow: inset 0 0 0 1px rgba(62, 207, 154, 0.08) !important;
+  border-color: rgba(154, 163, 173, 0.32) !important;
+  box-shadow: inset 0 0 0 1px rgba(154, 163, 173, 0.08) !important;
 }
 
 .app.app--desktop .desktopDirectorSwitcherCard--busy.desktopSidebarUserCard {
@@ -124,7 +124,7 @@
 
 .app.app--desktop .desktopDirectorSwitcherCard--back.desktopSidebarUserCard:hover {
   background: rgba(255, 255, 255, 0.06) !important;
-  border-color: rgba(62, 207, 154, 0.28) !important;
+  border-color: rgba(154, 163, 173, 0.28) !important;
 }
 
 .app.app--desktop .desktopDirectorSwitcherCardMain {
@@ -188,7 +188,7 @@
 
 .app.app--desktop .desktopDirectorSwitcherGear--active {
   color: var(--dt-gold) !important;
-  background: rgba(62, 207, 154, 0.12) !important;
+  background: rgba(154, 163, 173, 0.12) !important;
 }
 
 /* Триггер внизу */
@@ -210,13 +210,13 @@
 
 .app.app--desktop .desktopDirectorSwitcherTrigger.desktopSidebarUserCard:hover {
   background: rgba(255, 255, 255, 0.06) !important;
-  border-color: rgba(62, 207, 154, 0.22) !important;
+  border-color: rgba(154, 163, 173, 0.22) !important;
   transform: none !important;
 }
 
 .desktopDirectorSwitcher--open .desktopDirectorSwitcherTrigger.desktopSidebarUserCard {
   background: rgba(255, 255, 255, 0.05) !important;
-  border-color: rgba(62, 207, 154, 0.28) !important;
+  border-color: rgba(154, 163, 173, 0.28) !important;
 }
 
 .desktopDirectorSwitcherChevron {

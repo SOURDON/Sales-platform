@@ -1,0 +1,80 @@
+/**
+ * Плоский UI: без объёмных теней и «выпуклых» кнопок (обе темы).
+ */
+
+.app.app--desktop {
+  --dt-btn-convex: none;
+  --dt-btn-convex-hover: none;
+  --dt-btn-convex-active: none;
+  --dt-surface-shine: none;
+  --dt-surface-depth: 0 0 0 1px var(--dt-border-hairline);
+  --dt-elevated: 0 0 0 1px var(--dt-border-subtle);
+}
+
+.app.app--desktop button.primaryAction,
+.app.app--desktop
+  button:not(.ghost):not(.addSaleQtyBtn):not(.paymentTypeBtn):not(.saleDeleteBtn):not(.saleDeleteRequestIconBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.messengerThreadRow):not(.messengerTgPill):not(.orgChatSendFab):not(.directorApprovalsCarouselDot):not(.directorCashflowCarouselDot):not(.desktopTitlebarBtn):not(.teamWarehouseStoreBtn):not(.statPercentToggleBtn):not(.teamMemberDeletePill):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.directorDemoAccountsListBtn):not(.desktopThemeToggleBtn):not(.directorDemoAccountsToggle):not(.directorDemoAccountsNavBtn):not(.directorDemoAccountsDot):not(.storeEquipAddTypeBtn):not(.storeEquipAddTypeCancel):not(.directorWarehouseAddProductBtn):not(.directorWarehouseAddProductCancel) {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+.app.app--desktop button.primaryAction:hover:not(:disabled),
+.app.app--desktop
+  button:not(.ghost):not(.addSaleQtyBtn):not(.paymentTypeBtn):not(.saleDeleteBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.desktopTitlebarBtn):not(.teamWarehouseStoreBtn):not(.statPercentToggleBtn):not(.teamMemberDeletePill):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.directorDemoAccountsListBtn):not(.desktopThemeToggleBtn):not(.directorDemoAccountsToggle):not(.directorDemoAccountsNavBtn):not(.directorDemoAccountsDot):hover:not(:disabled) {
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.app.app--desktop button.primaryAction:active:not(:disabled),
+.app.app--desktop
+  button:not(.ghost):not(.addSaleQtyBtn):not(.paymentTypeBtn):not(.saleDeleteBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.desktopTitlebarBtn):not(.teamWarehouseStoreBtn):not(.statPercentToggleBtn):not(.teamMemberDeletePill):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.directorDemoAccountsListBtn):not(.desktopThemeToggleBtn):not(.directorDemoAccountsToggle):not(.directorDemoAccountsNavBtn):not(.directorDemoAccountsDot):active:not(:disabled) {
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.app.app--desktop button.ghost,
+.app.app--desktop a.ghost:not(.desktopSidebarLink) {
+  box-shadow: none !important;
+}
+
+.app.app--desktop .desktopSidebarLogo {
+  box-shadow: none !important;
+}
+
+.app.app--desktop .dashboard > .sectionCard,
+.app.app--desktop .sectionCard,
+.app.app--desktop .homePanelSection,
+.app.app--desktop.appWorkspace .homeStoreCard,
+.app.app--desktop.appWorkspace .homeStoresAggregateCard,
+.app.app--desktop.appWorkspace .shiftPanelCard,
+.app.app--desktop.appWorkspace .saleItem,
+.app.app--desktop .appWorkspace .opsCard:not(.financeOpsCard):not(.staffPanelRoot):not(.financeReportCard--desktop),
+.app.app--desktop .financeOpsShell--desktop,
+.app.app--desktop .financeOpsCard--desktop,
+.app.app--desktop .financeReportCard--desktop,
+.app.app--desktop.loginScreen .loginScreenPanel {
+  box-shadow: var(--dt-elevated) !important;
+}
+
+.app.app--desktop input:not([type='checkbox']):not([type='radio']),
+.app.app--desktop select,
+.app.app--desktop textarea {
+  box-shadow: none !important;
+}
+
+.app.app--desktop input:focus,
+.app.app--desktop select:focus,
+.app.app--desktop textarea:focus {
+  box-shadow: 0 0 0 2px var(--dt-border) !important;
+}
+
+.app.app--desktop .paymentTypeBtn--desktop.paymentTypeBtnActive,
+.app.app--desktop .financeOpsFlowAccountChip--active,
+.app.app--desktop .teamWarehouseStoreBtn--active {
+  box-shadow: inset 3px 0 0 var(--dt-accent) !important;
+}
+
+.app.app--desktop .desktopSidebarLink--active .desktopSidebarLinkIndicator {
+  box-shadow: none !important;
+}

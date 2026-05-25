@@ -20,8 +20,8 @@
 
 .desktopConnPill--ok {
   color: #9ed4b8;
-  background: rgba(62, 207, 154, 0.18);
-  border-color: rgba(62, 207, 154, 0.35);
+  background: rgba(154, 163, 173, 0.18);
+  border-color: rgba(154, 163, 173, 0.35);
 }
 
 .desktopConnPill--ok .desktopConnPillDot {

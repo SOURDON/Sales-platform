@@ -1,0 +1,15 @@
+---
+description: Десктоп Tauri + офлайн-sync — только ПК-версия, не общие веб-правки
+globs: desktop/**/*,docs/DESKTOP_APP.md,frontend/src/sync/**/*
+alwaysApply: false
+---
+
+# Десктоп (Windows / macOS)
+
+- Читай `docs/DESKTOP_APP.md` — этапы, scope, статус.
+- Работа: `desktop/` (Tauri), `frontend/src/sync/` (outbox, IndexedDB), backend идемпотентность.
+- Не рефакторить весь `App.tsx` без нужды; выносить sync в `frontend/src/sync/`.
+- Веб на телефоне должен оставаться рабочим; один backend, один `frontend` build для Tauri.
+- Офлайн обязателен для: ADMIN, DIRECTOR, ACCOUNTANT, MANAGER.
+- Чат (messenger) — online-only в офлайне.
+- После этапа — обновлять таблицу «Статус» в `docs/DESKTOP_APP.md`.

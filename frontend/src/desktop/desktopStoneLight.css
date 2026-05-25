@@ -1,0 +1,36 @@
+/**
+ * Светлая IN COLOR BALANCE — доп. страницы (поверх desktopThemes.css).
+ */
+
+html[data-dt-theme='light'] .app.app--desktop .financeOpsShell--desktop,
+html[data-dt-theme='light'] .app.app--desktop .financeOpsCard--desktop,
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop,
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop,
+html[data-dt-theme='light'] .app.app--desktop .homeDashboardDirectorSkin > .sectionCard.homePanelSection,
+html[data-dt-theme='light'] .app.app--desktop .dashboard--teamDesktop > .teamPanelCard,
+html[data-dt-theme='light'] .app.app--desktop .storeEquipAccountantRoot--desktop,
+html[data-dt-theme='light'] .app.app--desktop .directorWarehousePanel--desktop {
+  background: var(--cb-mid, #92a1ac) !important;
+  box-shadow: var(--dt-elevated) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeOpsShell--desktop,
+html[data-dt-theme='light'] .app.app--desktop .financeOpsCard--desktop {
+  background: var(--cb-mid, #92a1ac) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeOpsFlowAccountChip--active,
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadRow--active,
+html[data-dt-theme='light'] .app.app--desktop .storeEquipStoreBtn--active {
+  box-shadow: inset 3px 0 0 var(--cb-light, #e3dfd8) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .orgChatSendFab {
+  background: var(--cb-deep, #434d56) !important;
+  box-shadow: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .directorApprovalsCarouselDot--active,
+html[data-dt-theme='light'] .app.app--desktop .directorCashflowCarouselDot--active {
+  background: var(--cb-light, #e3dfd8) !important;
+}

@@ -38,7 +38,7 @@
   border: none !important;
   border-radius: var(--dt-radius-lg) !important;
   background:
-    linear-gradient(165deg, rgba(62, 207, 154, 0.08) 0%, transparent 38%),
+    linear-gradient(165deg, rgba(154, 163, 173, 0.08) 0%, transparent 38%),
     var(--dt-bg-panel) !important;
   box-shadow:
     var(--dt-surface-shine),
@@ -91,7 +91,7 @@
   border: none !important;
   border-radius: var(--dt-radius-md) !important;
   background:
-    linear-gradient(145deg, rgba(62, 207, 154, 0.1) 0%, transparent 55%),
+    linear-gradient(145deg, rgba(154, 163, 173, 0.1) 0%, transparent 55%),
     rgba(0, 0, 0, 0.32) !important;
   box-shadow:
     var(--dt-surface-shine),
@@ -188,10 +188,10 @@
 }
 
 .app.app--desktop .financeOpsShell--desktop .financeOpsBalanceAdjustBtn:hover {
-  border-color: rgba(62, 207, 154, 0.45) !important;
+  border-color: rgba(154, 163, 173, 0.45) !important;
   color: var(--dt-gold) !important;
   -webkit-text-fill-color: var(--dt-gold) !important;
-  background: rgba(62, 207, 154, 0.1) !important;
+  background: rgba(154, 163, 173, 0.1) !important;
 }
 
 .app.app--desktop .financeOpsBalanceAdjust {
@@ -370,14 +370,33 @@
 
 .app.app--desktop .financeOpsShell--desktop .financeOpsFlowAccountChip--active {
   background:
-    linear-gradient(145deg, rgba(62, 207, 154, 0.1) 0%, transparent 55%),
+    linear-gradient(145deg, rgba(154, 163, 173, 0.1) 0%, transparent 55%),
     rgba(0, 0, 0, 0.32) !important;
   color: var(--dt-gold) !important;
   box-shadow:
     var(--dt-surface-shine),
-    inset 0 0 0 1px rgba(62, 207, 154, 0.35),
+    inset 0 0 0 1px rgba(154, 163, 173, 0.35),
     inset 3px 0 0 var(--dt-gold-soft) !important;
   -webkit-text-fill-color: var(--dt-gold) !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsFlowAccountChip--insufficient {
+  opacity: 0.72;
+  border-color: rgba(220, 80, 70, 0.45) !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsFlowAccountChip--insufficient.financeOpsFlowAccountChip--active {
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px rgba(220, 80, 70, 0.5),
+    inset 3px 0 0 rgba(220, 80, 70, 0.75) !important;
+}
+
+.app.app--desktop .financeOpsExpenseHint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
 }
 
 .app.app--desktop .financeOpsExpenseEntryCallout,
@@ -403,7 +422,7 @@
 
 .app.app--desktop .financeOpsIncomeEntryCallout {
   background:
-    linear-gradient(145deg, rgba(62, 207, 154, 0.12) 0%, transparent 55%),
+    linear-gradient(145deg, rgba(154, 163, 173, 0.12) 0%, transparent 55%),
     rgba(0, 0, 0, 0.32);
 }
 
@@ -513,15 +532,15 @@
 }
 
 .app.app--desktop .financeOpsIncomeEntryCallout .financeOpsIncomeEntryInput::placeholder {
-  color: rgba(62, 207, 154, 0.35) !important;
-  -webkit-text-fill-color: rgba(62, 207, 154, 0.35) !important;
+  color: rgba(154, 163, 173, 0.35) !important;
+  -webkit-text-fill-color: rgba(154, 163, 173, 0.35) !important;
   font-size: clamp(2.75rem, 4.5vw, 3.5rem) !important;
 }
 
 .app.app--desktop .financeOpsIncomeEntryCallout .financeOpsIncomeEntryInput:focus {
   outline: none !important;
   border: none !important;
-  box-shadow: inset 0 -1px 0 rgba(62, 207, 154, 0.45) !important;
+  box-shadow: inset 0 -1px 0 rgba(154, 163, 173, 0.45) !important;
 }
 
 .app.app--desktop .financeOpsShell--desktop .financeOpsIncomeSubmit,
@@ -647,8 +666,8 @@
 
 .app.app--desktop .financeOpsHistoryMini:first-child {
   box-shadow:
-    inset 0 0 0 1px rgba(62, 207, 154, 0.2),
-    inset 0 1px 0 rgba(62, 207, 154, 0.16);
+    inset 0 0 0 1px rgba(154, 163, 173, 0.2),
+    inset 0 1px 0 rgba(154, 163, 173, 0.16);
 }
 
 .app.app--desktop .financeOpsHistoryMini:last-child {
@@ -683,7 +702,7 @@
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: rgba(62, 207, 154, 0.35) transparent;
+  scrollbar-color: rgba(154, 163, 173, 0.35) transparent;
 }
 
 .app.app--desktop .financeOpsHistoryMiniTrack::-webkit-scrollbar {
@@ -692,7 +711,7 @@
 
 .app.app--desktop .financeOpsHistoryMiniTrack::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(62, 207, 154, 0.35);
+  background: rgba(154, 163, 173, 0.35);
 }
 
 .app.app--desktop .financeOpsHistoryMiniChip {
@@ -768,7 +787,7 @@
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: rgba(62, 207, 154, 0.35) transparent;
+  scrollbar-color: rgba(154, 163, 173, 0.35) transparent;
 }
 
 .app.app--desktop .financeOpsExpenseArticlesCarousel--desktop::-webkit-scrollbar {
@@ -777,7 +796,7 @@
 
 .app.app--desktop .financeOpsExpenseArticlesCarousel--desktop::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(62, 207, 154, 0.35);
+  background: rgba(154, 163, 173, 0.35);
 }
 
 .app.app--desktop .financeOpsExpenseArticlesCarousel--desktop .financeOpsExpenseArticlesChip {

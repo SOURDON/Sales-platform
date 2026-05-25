@@ -1,0 +1,148 @@
+/**
+ * Светлая тема: контраст текста и акцент #5B9AAD (чат, смена, склад).
+ */
+
+/* ——— Смена ——— */
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop h4.shiftColTitle {
+  color: var(--dt-text) !important;
+  box-shadow: inset 0 -2px 0 var(--cb-accent) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .statLabel {
+  color: var(--dt-text-muted) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberNick,
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberMeta {
+  color: var(--dt-text-muted) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberName,
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberName strong {
+  color: var(--dt-text) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop .staffMgmtGroupLabel,
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop .writeOffClusterLabel {
+  color: var(--dt-text-muted) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop .shiftPanelCard--desktop,
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop {
+  background: var(--cb-panel) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop label {
+  color: var(--dt-text-muted) !important;
+}
+
+/* ——— Склад ——— */
+html[data-dt-theme='light'] .app.app--desktop .dashboard--warehouseDesktop .teamPanelCard,
+html[data-dt-theme='light'] .app.app--desktop .dashboard--warehouseDesktop .tableWrap {
+  background: var(--cb-panel) !important;
+  border: 1px solid var(--dt-border) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .dashboard--warehouseDesktop .tableWrap table td,
+html[data-dt-theme='light'] .app.app--desktop .dashboard--warehouseDesktop .tableWrap table th {
+  color: var(--dt-text) !important;
+  -webkit-text-fill-color: var(--dt-text) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .dashboard--warehouseDesktop .writeOffControl,
+html[data-dt-theme='light'] .app.app--desktop .dashboard--warehouseDesktop .writeOffClusterLabel {
+  color: var(--dt-text) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .dashboard--warehouseDesktop dt,
+html[data-dt-theme='light'] .app.app--desktop .dashboard--warehouseDesktop .muted {
+  color: var(--dt-text-muted) !important;
+}
+
+/* ——— Чат ——— */
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop {
+  background: var(--cb-panel) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHubDesktopRail {
+  background: var(--cb-panel-deep) !important;
+  border-right: 1px solid var(--dt-border) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHubDesktopMain {
+  background: var(--cb-bg) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadRow {
+  color: var(--dt-text-muted) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadName {
+  color: var(--dt-text) !important;
+  font-weight: 600 !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadPreview,
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadSender,
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadTime {
+  color: var(--dt-text-muted) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadRow--active {
+  background: rgba(91, 154, 173, 0.18) !important;
+  box-shadow: inset 3px 0 0 var(--cb-accent) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadRow--active .messengerThreadName {
+  color: var(--dt-text) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHubDesktopPlaceholder {
+  background: transparent !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHubDesktopPlaceholderIcon {
+  background: rgba(91, 154, 173, 0.2) !important;
+  color: var(--cb-accent) !important;
+  box-shadow: inset 0 0 0 1px rgba(91, 154, 173, 0.45) !important;
+  font-weight: 700 !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHubDesktopPlaceholderTitle {
+  color: var(--dt-text) !important;
+  font-weight: 700 !important;
+  font-size: 1.15rem !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHubDesktopPlaceholderHint {
+  color: var(--dt-text-muted) !important;
+  font-size: 13px !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .orgChatEmpty {
+  color: var(--dt-text-muted) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerHubTitle {
+  color: var(--dt-text) !important;
+}
+
+/* ——— Общее: чекбоксы, списки смены ——— */
+html[data-dt-theme='light'] .app.app--desktop .staffMgmtStrip label,
+html[data-dt-theme='light'] .app.app--desktop .shiftMgmtRoster label {
+  color: var(--dt-text) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .statusPill,
+html[data-dt-theme='light'] .app.app--desktop .retoucherBadge {
+  color: var(--dt-text) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopConnPill--ok {
+  color: var(--dt-text) !important;
+  background: var(--cb-panel-deep) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopConnPill--ok .desktopConnPillDot {
+  background: #4caf7a !important;
+}

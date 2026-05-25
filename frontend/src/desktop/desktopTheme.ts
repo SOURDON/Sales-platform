@@ -23,8 +23,8 @@ export function storeDesktopTheme(theme: DesktopTheme) {
 }
 
 const THEME_COLOR: Record<DesktopTheme, string> = {
-  dark: '#122820',
-  light: '#fbf9f4',
+  dark: '#090c11',
+  light: '#748391',
 };
 
 export function applyDesktopTheme(theme: DesktopTheme) {

@@ -138,6 +138,10 @@ async function applyExpense(userId: number, payload: FinanceExpenseOutboxPayload
   if (!account) {
     return;
   }
+  const amountCents = Math.round(payload.amount * 100);
+  if (Math.round(account.balance * 100) < amountCents) {
+    return;
+  }
   const accounts = snap.accounts.map((a) =>
     a.id === payload.accountId
       ? { ...a, balance: Math.round((a.balance - payload.amount) * 100) / 100 }

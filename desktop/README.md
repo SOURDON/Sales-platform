@@ -52,7 +52,9 @@ npm run build
 | Windows `.exe` (NSIS) | `src-tauri/target/release/bundle/nsis/*.exe` |
 | Windows MSI | `src-tauri/target/release/bundle/msi/*.msi` |
 
-Кросс-компиляция: macOS-бинарники собирают на Mac, Windows — на Windows (или CI с соответствующим runner).
+Кросс-компиляция: macOS — на Mac, Windows — на Windows. Без Windows у себя: тег `desktop-v*` → GitHub Actions → артефакт `.exe` (см. [docs/DESKTOP_WINDOWS.md](../docs/DESKTOP_WINDOWS.md)).
+
+**Windows (PowerShell):** `..\..\scripts\desktop-build.ps1` из корня репозитория.
 
 ## Конфигурация
 

@@ -57,7 +57,7 @@
   border: none;
   border-radius: var(--dt-radius-lg);
   background:
-    linear-gradient(165deg, rgba(62, 207, 154, 0.05) 0%, transparent 42%),
+    linear-gradient(165deg, rgba(154, 163, 173, 0.05) 0%, transparent 42%),
     var(--dt-bg-panel);
   box-shadow:
     var(--dt-surface-shine),
@@ -152,7 +152,7 @@
 
 .app.app--desktop .teamWarehouseStoresRail:hover {
   scrollbar-width: thin;
-  scrollbar-color: rgba(62, 207, 154, 0.3) transparent;
+  scrollbar-color: rgba(154, 163, 173, 0.3) transparent;
 }
 
 .app.app--desktop .teamWarehouseStoresRail:hover::-webkit-scrollbar {
@@ -161,7 +161,7 @@
 
 .app.app--desktop .teamWarehouseStoresRail:hover::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(62, 207, 154, 0.3);
+  background: rgba(154, 163, 173, 0.3);
 }
 
 .app.app--desktop .dashboard--warehouseDesktop .teamWarehouseStoreBtn {
@@ -196,12 +196,12 @@
 
 .app.app--desktop .dashboard--warehouseDesktop .teamWarehouseStoreBtn--active {
   background:
-    linear-gradient(145deg, rgba(62, 207, 154, 0.12) 0%, transparent 55%),
+    linear-gradient(145deg, rgba(154, 163, 173, 0.12) 0%, transparent 55%),
     rgba(0, 0, 0, 0.42) !important;
   color: #6ed4a8 !important;
-  border-color: rgba(62, 207, 154, 0.28) !important;
+  border-color: rgba(154, 163, 173, 0.28) !important;
   box-shadow:
-    inset 2px 0 0 rgba(62, 207, 154, 0.55) !important;
+    inset 2px 0 0 rgba(154, 163, 173, 0.55) !important;
   -webkit-text-fill-color: #6ed4a8 !important;
 }
 
@@ -290,7 +290,7 @@
   overflow-y: auto;
   align-content: start;
   scrollbar-width: thin;
-  scrollbar-color: rgba(62, 207, 154, 0.3) transparent;
+  scrollbar-color: rgba(154, 163, 173, 0.3) transparent;
 }
 
 .app.app--desktop .teamWarehousePayroll {
@@ -388,9 +388,9 @@
 .app.app--desktop .teamWarehouseMemberGrid .statusPillOn {
   font-size: 9px !important;
   padding: 2px 6px !important;
-  background: rgba(62, 207, 154, 0.1) !important;
+  background: rgba(154, 163, 173, 0.1) !important;
   color: #c4ad82 !important;
-  border: 1px solid rgba(62, 207, 154, 0.22) !important;
+  border: 1px solid rgba(154, 163, 173, 0.22) !important;
 }
 
 .app.app--desktop .dashboard--warehouseDesktop .teamWarehouseMemberGrid .teamMemberDeletePill {
@@ -445,7 +445,7 @@
 }
 
 .app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .statPercentToggleBtn:hover:not(:disabled) {
-  border-color: rgba(62, 207, 154, 0.24) !important;
+  border-color: rgba(154, 163, 173, 0.24) !important;
   background: rgba(0, 0, 0, 0.52) !important;
   filter: none !important;
 }
@@ -491,7 +491,7 @@
   font-weight: 700 !important;
   color: #6ed4a8 !important;
   background: rgba(0, 0, 0, 0.45) !important;
-  border: 1px solid rgba(62, 207, 154, 0.22) !important;
+  border: 1px solid rgba(154, 163, 173, 0.22) !important;
   border-radius: 6px !important;
 }
 
@@ -621,7 +621,7 @@
 
 .app.app--desktop .teamWarehouseRemovedTag--retoucher {
   color: var(--dt-gold-soft);
-  box-shadow: inset 0 0 0 1px rgba(62, 207, 154, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(154, 163, 173, 0.28);
 }
 
 .app.app--desktop .teamWarehouseRemovedReason {
@@ -666,15 +666,15 @@
   text-transform: none !important;
   letter-spacing: normal !important;
   border-radius: 8px !important;
-  border: 1px solid rgba(62, 207, 154, 0.35) !important;
-  background: rgba(62, 207, 154, 0.1) !important;
+  border: 1px solid rgba(154, 163, 173, 0.35) !important;
+  background: rgba(154, 163, 173, 0.1) !important;
   color: var(--dt-gold-soft) !important;
   -webkit-text-fill-color: var(--dt-gold-soft) !important;
   white-space: nowrap;
 }
 
 .app.app--desktop .teamWarehouseShell--desktop .teamWarehouseRestoreBtn:hover:not(:disabled) {
-  background: rgba(62, 207, 154, 0.18) !important;
+  background: rgba(154, 163, 173, 0.18) !important;
   color: var(--dt-gold) !important;
   -webkit-text-fill-color: var(--dt-gold) !important;
 }
