@@ -47,21 +47,12 @@ jobs:
       - name: Build Tauri bundle
         shell: pwsh
         env:
+          CI: 'true'
           DESKTOP_BUILD_SKIP_CONFIRM: '1'
           DESKTOP_BUILD_SKIP_SMOKE: '1'
         run: |
-          if (-not (Test-Path desktop/.env)) {
-            Copy-Item desktop/.env.example desktop/.env
-          }
-          Set-Location desktop
-          npm run build
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          $exe = Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Filter '*setup.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $exe) {
-            Write-Error 'NSIS setup.exe not found after tauri build'
-          }
-          Copy-Item $exe.FullName dist/
-          Write-Host "Copied to desktop/dist/$($exe.Name)"
+          $ErrorActionPreference = 'Stop'
+          & "$env:GITHUB_WORKSPACE/scripts/desktop-build.ps1"
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4

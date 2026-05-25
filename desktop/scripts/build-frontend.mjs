@@ -41,11 +41,12 @@ const env = {
   ...loadEnvFile(resolve(desktopRoot, '.env')),
 };
 
-const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const result = spawnSync(npmCmd, ['run', 'build'], {
+const isWin = process.platform === 'win32';
+const result = spawnSync(isWin ? 'npm.cmd' : 'npm', ['run', 'build'], {
   cwd: frontendRoot,
   env,
   stdio: 'inherit',
+  shell: isWin,
 });
 
 process.exit(result.status ?? 1);

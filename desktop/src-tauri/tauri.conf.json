@@ -20,9 +20,7 @@
         "minWidth": 1024,
         "minHeight": 640,
         "resizable": true,
-        "maximized": true,
-        "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "maximized": true
       }
     ],
     "security": {
