@@ -1,0 +1,839 @@
+/**
+ * Оперативка (директор / бухгалтер) — единое премиальное полотно на десктопе.
+ */
+
+.app.app--desktop .dashboard--financeDesktop {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+}
+
+.app.app--desktop .dashboard--financeDesktop > .sectionCard {
+  flex: 1 1 auto;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .financeOpsCard--desktop {
+  flex: 1 1 auto;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0;
+}
+
+.app.app--desktop .financeOpsShell--desktop {
+  flex: 1 1 auto;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 20px 22px 22px !important;
+  border: none !important;
+  border-radius: var(--dt-radius-lg) !important;
+  background:
+    linear-gradient(165deg, rgba(62, 207, 154, 0.08) 0%, transparent 38%),
+    var(--dt-bg-panel) !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    var(--dt-surface-depth),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow-x: hidden;
+}
+
+/* ——— Шапка: общий остаток + счета ——— */
+.app.app--desktop .financeOpsHero {
+  padding-bottom: 18px;
+  margin-bottom: 0;
+  box-shadow: inset 0 -1px 0 var(--dt-border-hairline);
+}
+
+.app.app--desktop .financeOpsPageTitle {
+  margin: 0 0 14px !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-align: left !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--dt-gold-soft) !important;
+  text-shadow: none !important;
+}
+
+.app.app--desktop .financeOpsHeroMain {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBankTotalCallout {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  padding: 16px 18px !important;
+  width: 100% !important;
+  max-width: none !important;
+  text-align: left !important;
+  border: none !important;
+  border-radius: var(--dt-radius-md) !important;
+  background:
+    linear-gradient(145deg, rgba(62, 207, 154, 0.1) 0%, transparent 55%),
+    rgba(0, 0, 0, 0.32) !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBankTotalCalloutLabel {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: var(--dt-text-dim) !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBankTotalCalloutValue {
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  color: var(--dt-gold) !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBalancesGrid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBalanceCard {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  min-height: 52px !important;
+  padding: 12px 14px !important;
+  text-align: left !important;
+  border: none !important;
+  border-radius: var(--dt-radius-md) !important;
+  background: rgba(0, 0, 0, 0.28) !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBalanceCard p {
+  margin: 0 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: none !important;
+  color: var(--dt-text-muted) !important;
+  line-height: 1.3 !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBalanceCard strong {
+  margin: 0 !important;
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+  color: var(--dt-text) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBalanceCard--adjusting {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+}
+
+.app.app--desktop .financeOpsBalanceCardTail {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBalanceAdjustBtn {
+  flex-shrink: 0;
+  width: 28px !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  background: rgba(0, 0, 0, 0.35) !important;
+  color: var(--dt-gold-soft) !important;
+  -webkit-text-fill-color: var(--dt-gold-soft) !important;
+  box-shadow: var(--dt-surface-shine) !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBalanceAdjustBtn:hover {
+  border-color: rgba(62, 207, 154, 0.45) !important;
+  color: var(--dt-gold) !important;
+  -webkit-text-fill-color: var(--dt-gold) !important;
+  background: rgba(62, 207, 154, 0.1) !important;
+}
+
+.app.app--desktop .financeOpsBalanceAdjust {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.app.app--desktop .financeOpsBalanceAdjustInput {
+  width: 100%;
+  min-height: 36px !important;
+  padding: 8px 10px !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  border-radius: var(--dt-radius-md) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  background: rgba(2, 8, 6, 0.75) !important;
+  color: var(--dt-text) !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35) !important;
+}
+
+.app.app--desktop .financeOpsBalanceAdjustConfirm {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--dt-gold-soft);
+  text-align: right;
+}
+
+.app.app--desktop .financeOpsBalanceAdjustPreview {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: right;
+  color: var(--dt-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.app.app--desktop .financeOpsBalanceAdjustActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBalanceAdjustPrimary {
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  -webkit-text-fill-color: var(--dt-accent-text, #0b1410) !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsBalanceAdjustCancel {
+  min-height: 34px !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  background: rgba(0, 0, 0, 0.22) !important;
+  color: var(--dt-text-muted) !important;
+  -webkit-text-fill-color: var(--dt-text-muted) !important;
+}
+
+.app.app--desktop .financeOpsBalanceAdjustError {
+  margin: 0;
+  font-size: 11px;
+  text-align: right;
+}
+
+/* ——— Зоны: единое полотно, разделители вместо коробок ——— */
+.app.app--desktop .financeOpsZone {
+  padding: 16px 0;
+  box-shadow: inset 0 -1px 0 var(--dt-border-hairline);
+}
+
+.app.app--desktop .financeOpsZone:last-child {
+  box-shadow: none;
+  padding-bottom: 0;
+}
+
+.app.app--desktop .financeOpsZoneTitle {
+  margin: 0 0 12px !important;
+  padding: 0 !important;
+  border: none !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: var(--dt-gold-soft) !important;
+  text-align: left !important;
+}
+
+.app.app--desktop .financeOpsFieldLabel {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dt-text-muted);
+}
+
+.app.app--desktop .financeOpsShell--desktop .addSaleForm,
+.app.app--desktop .financeOpsShell--desktop .financeOpsIncomeBlock {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  gap: 12px !important;
+}
+
+/* Приход и расход — единое полотно без второй «коробки» */
+.app.app--desktop .financeOpsZone--flows {
+  padding-top: 14px;
+}
+
+.app.app--desktop .financeOpsFlowsMain {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(0, 1.45fr) minmax(240px, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.app.app--desktop .financeOpsFlowAccountsGrid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  align-self: stretch;
+  width: 100%;
+  min-height: 176px;
+  margin: 0 !important;
+  padding: 0;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsFlowAccountChip {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  min-height: 54px !important;
+  height: 100% !important;
+  padding: 12px 16px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.3 !important;
+  text-align: left !important;
+  border: none !important;
+  border-radius: var(--dt-radius-md) !important;
+  background: rgba(0, 0, 0, 0.28) !important;
+  color: var(--dt-text-muted) !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+  -webkit-text-fill-color: var(--dt-text-muted) !important;
+  cursor: pointer;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsFlowAccountChip:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--dt-text) !important;
+  -webkit-text-fill-color: var(--dt-text) !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsFlowAccountChip--active {
+  background:
+    linear-gradient(145deg, rgba(62, 207, 154, 0.1) 0%, transparent 55%),
+    rgba(0, 0, 0, 0.32) !important;
+  color: var(--dt-gold) !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px rgba(62, 207, 154, 0.35),
+    inset 3px 0 0 var(--dt-gold-soft) !important;
+  -webkit-text-fill-color: var(--dt-gold) !important;
+}
+
+.app.app--desktop .financeOpsExpenseEntryCallout,
+.app.app--desktop .financeOpsIncomeEntryCallout {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 176px;
+  padding: 16px 18px;
+  border: none;
+  border-radius: var(--dt-radius-md);
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .financeOpsExpenseEntryCallout {
+  background:
+    linear-gradient(145deg, rgba(72, 120, 98, 0.14) 0%, transparent 55%),
+    rgba(0, 0, 0, 0.32);
+}
+
+.app.app--desktop .financeOpsIncomeEntryCallout {
+  background:
+    linear-gradient(145deg, rgba(62, 207, 154, 0.12) 0%, transparent 55%),
+    rgba(0, 0, 0, 0.32);
+}
+
+.app.app--desktop .financeOpsEntryCalloutLabel,
+.app.app--desktop .financeOpsIncomeEntryLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .financeOpsFlowSideField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.app.app--desktop .financeOpsFlowSideField--amount {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+.app.app--desktop .financeOpsFlowSideField--income {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.app.app--desktop .financeOpsFlowSideField--income .financeOpsEntryCalloutLabel {
+  flex-shrink: 0;
+}
+
+.app.app--desktop .financeOpsFlowSideFieldLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dt-text-muted);
+}
+
+.app.app--desktop .financeOpsExpenseCategoryInline {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 32px 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dt-text);
+  border-radius: var(--dt-radius-md);
+  border: 1px solid var(--dt-border-subtle);
+  background: rgba(2, 8, 6, 0.55);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.28);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='%23a8b5af' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.app.app--desktop .financeOpsExpenseEntryInput {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 0 6px;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--dt-text);
+  -webkit-text-fill-color: var(--dt-text);
+  font-variant-numeric: tabular-nums;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+.app.app--desktop .financeOpsExpenseEntryInput::placeholder {
+  color: rgba(232, 240, 236, 0.28);
+  -webkit-text-fill-color: rgba(232, 240, 236, 0.28);
+}
+
+.app.app--desktop .financeOpsExpenseEntryInput:focus {
+  outline: none;
+  box-shadow: inset 0 -1px 0 rgba(120, 168, 140, 0.5);
+}
+
+.app.app--desktop .financeOpsIncomeEntryCallout .financeOpsIncomeEntryInput {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 88px !important;
+  margin: 0;
+  padding: 8px 0 12px !important;
+  font-size: clamp(2.75rem, 4.5vw, 3.5rem) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.04em !important;
+  line-height: 1.05 !important;
+  color: var(--dt-gold) !important;
+  -webkit-text-fill-color: var(--dt-gold) !important;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none;
+}
+
+.app.app--desktop .financeOpsIncomeEntryCallout .financeOpsIncomeEntryInput::placeholder {
+  color: rgba(62, 207, 154, 0.35) !important;
+  -webkit-text-fill-color: rgba(62, 207, 154, 0.35) !important;
+  font-size: clamp(2.75rem, 4.5vw, 3.5rem) !important;
+}
+
+.app.app--desktop .financeOpsIncomeEntryCallout .financeOpsIncomeEntryInput:focus {
+  outline: none !important;
+  border: none !important;
+  box-shadow: inset 0 -1px 0 rgba(62, 207, 154, 0.45) !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsIncomeSubmit,
+.app.app--desktop .financeOpsShell--desktop .financeOpsExpenseSubmit {
+  width: 100% !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 14px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  border-radius: var(--dt-radius-md) !important;
+  -webkit-text-fill-color: var(--dt-accent-text, #0b1410) !important;
+}
+
+/* Расход (веб / мобильная вёрстка) */
+.app.app--desktop .financeOpsZone--expense .financeOpsExpensePickRow {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  margin: 0 0 10px !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsExpenseUnifiedPick {
+  flex: none !important;
+  max-width: none !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  text-align: left !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsExpenseUnifiedPickCaption {
+  display: block;
+  width: auto !important;
+  margin-bottom: 6px;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  text-align: left !important;
+  color: var(--dt-text-muted) !important;
+}
+
+.app.app--desktop .financeOpsShell--desktop .financeOpsExpenseUnifiedSelect {
+  width: 100% !important;
+  min-height: 42px !important;
+  padding: 10px 36px 10px 12px !important;
+  font-size: 14px !important;
+  text-align: left !important;
+  text-align-last: left !important;
+  border-radius: var(--dt-radius-md) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  background: rgba(2, 8, 6, 0.75) !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35) !important;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.app.app--desktop .financeOpsZone--expense .financeOpsExpenseAmountRow {
+  display: grid !important;
+  grid-template-columns: minmax(120px, 200px) auto !important;
+  gap: 10px !important;
+  align-items: end !important;
+  margin: 0 !important;
+}
+
+.app.app--desktop .financeOpsZone--expense .financeOpsExpenseAmountRow input {
+  text-align: left !important;
+}
+
+.app.app--desktop .financeOpsZone--expense .financeOpsExpenseActions {
+  margin: 0 !important;
+  justify-content: flex-start !important;
+}
+
+.app.app--desktop .financeOpsZone--expense .financeOpsExpenseActions .primaryAction {
+  min-width: 148px !important;
+  min-height: 42px !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  -webkit-text-fill-color: var(--dt-accent-text, #0b1410) !important;
+}
+
+/* Статус */
+.app.app--desktop .financeOpsStatusBar {
+  padding: 10px 0 14px;
+  box-shadow: inset 0 -1px 0 var(--dt-border-hairline);
+}
+
+.app.app--desktop .financeOpsStatusMsg {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* Расходы по статьям — сетка */
+.app.app--desktop .financeOpsZone--articles.financeOpsExpenseArticlesSheet--desktop {
+  padding-top: 16px;
+}
+
+/* История — компактные ленты под статьями */
+.app.app--desktop .financeOpsZone--historyMini {
+  padding-top: 14px;
+  padding-bottom: 4px;
+  box-shadow: none;
+}
+
+.app.app--desktop .financeOpsHistoryMiniRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.app.app--desktop .financeOpsHistoryMini {
+  min-width: 0;
+  padding: 8px 10px 10px;
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.16);
+  box-shadow: inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .financeOpsHistoryMini:first-child {
+  box-shadow:
+    inset 0 0 0 1px rgba(62, 207, 154, 0.2),
+    inset 0 1px 0 rgba(62, 207, 154, 0.16);
+}
+
+.app.app--desktop .financeOpsHistoryMini:last-child {
+  box-shadow:
+    inset 0 0 0 1px rgba(114, 166, 139, 0.24),
+    inset 0 1px 0 rgba(114, 166, 139, 0.18);
+}
+
+.app.app--desktop .financeOpsHistoryMiniTitle {
+  margin: 0 0 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .financeOpsHistoryMini:first-child .financeOpsHistoryMiniTitle {
+  color: var(--dt-gold-soft);
+}
+
+.app.app--desktop .financeOpsHistoryMini:last-child .financeOpsHistoryMiniTitle {
+  color: #9cc9b4;
+}
+
+.app.app--desktop .financeOpsHistoryMiniTrack {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 6px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(62, 207, 154, 0.35) transparent;
+}
+
+.app.app--desktop .financeOpsHistoryMiniTrack::-webkit-scrollbar {
+  height: 4px;
+}
+
+.app.app--desktop .financeOpsHistoryMiniTrack::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(62, 207, 154, 0.35);
+}
+
+.app.app--desktop .financeOpsHistoryMiniChip {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 160px;
+  max-width: 214px;
+  min-height: 56px;
+  padding: 9px 11px;
+  scroll-snap-align: start;
+  border: none;
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.24);
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .financeOpsHistoryMiniChipMeta {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--dt-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app.app--desktop .financeOpsHistoryMiniChipValue {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--dt-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.app.app--desktop .financeOpsHistoryMiniEmpty {
+  margin: 0;
+  padding: 10px 0;
+  font-size: 12px;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .financeOpsArticlesHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.app.app--desktop .financeOpsArticlesHead .financeOpsZoneTitle {
+  margin: 0 !important;
+}
+
+.app.app--desktop .financeOpsArticlesTotal {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--dt-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.app.app--desktop .financeOpsExpenseArticlesCarousel--desktop {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 8px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(62, 207, 154, 0.35) transparent;
+}
+
+.app.app--desktop .financeOpsExpenseArticlesCarousel--desktop::-webkit-scrollbar {
+  height: 4px;
+}
+
+.app.app--desktop .financeOpsExpenseArticlesCarousel--desktop::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(62, 207, 154, 0.35);
+}
+
+.app.app--desktop .financeOpsExpenseArticlesCarousel--desktop .financeOpsExpenseArticlesChip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: min(148px, 28vw);
+  min-width: 132px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px var(--dt-border-hairline);
+  text-align: left;
+  align-items: flex-start;
+}
+
+.app.app--desktop .financeOpsExpenseArticlesCarousel--desktop .financeOpsExpenseArticlesChipTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dt-text-dim);
+  line-height: 1.3;
+}
+
+.app.app--desktop .financeOpsExpenseArticlesCarousel--desktop .financeOpsExpenseArticlesChipAmount {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--dt-text);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1100px) {
+  .app.app--desktop .financeOpsHeroMain,
+  .app.app--desktop .financeOpsFlowsMain {
+    grid-template-columns: 1fr;
+  }
+
+  .app.app--desktop .financeOpsFlowAccountsGrid {
+    order: -1;
+    min-height: 0;
+    grid-template-rows: auto auto !important;
+  }
+
+  .app.app--desktop .financeOpsShell--desktop .financeOpsFlowAccountChip {
+    height: auto !important;
+    min-height: 44px !important;
+  }
+
+  .app.app--desktop .financeOpsHistoryMiniRow {
+    grid-template-columns: 1fr;
+  }
+
+}

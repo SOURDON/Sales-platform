@@ -1,0 +1,1870 @@
+/**
+ * Десктоп (Tauri): единая сетка страниц — выровненные панели, без «мелких окошек».
+ * Только .app--desktop — веб не затрагивается.
+ */
+
+.app.app--desktop {
+  --dt-page-gap: 12px;
+  --dt-pane-pad: 16px 18px;
+  --dt-pane-min-h: 200px;
+}
+
+.app.app--desktop .pageOutlet {
+  gap: var(--dt-page-gap);
+  padding-bottom: 0 !important;
+}
+
+/* Страница = одна визуальная система */
+.app.app--desktop .dashboard {
+  display: grid;
+  gap: var(--dt-page-gap);
+  width: 100%;
+  align-items: stretch;
+}
+
+/* Карточки-разделы: ровные «панели» в одной стилистике */
+.app.app--desktop .dashboard > .sectionCard {
+  margin: 0 !important;
+  min-height: var(--dt-pane-min-h);
+  padding: var(--dt-pane-pad) !important;
+  background: var(--dt-bg-panel) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  border-radius: var(--dt-radius-lg) !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .dashboard--warehouseDesktop > .teamPanelCard {
+  min-height: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Вложенные блоки — без второй «рамки», только лёгкий фон */
+.app.app--desktop .appWorkspace .homeStoreCard,
+.app.app--desktop .appWorkspace .homeStoresAggregateCard,
+.app.app--desktop .appWorkspace .adminSellerRegister,
+.app.app--desktop .appWorkspace .soldProductsBlock,
+.app.app--desktop .appWorkspace .opsCard:not(.financeOpsCard):not(.staffPanelRoot):not(.financeReportCard--desktop),
+.app.app--desktop .appWorkspace .teamMemberCard,
+.app.app--desktop .appWorkspace .shiftPanelCard,
+.app.app--desktop .appWorkspace .addSaleForm:not(.financeOpsIncomeBlock),
+.app.app--desktop .appWorkspace .writeOffForm:not(.writeOffFormCarousel):not(.writeOffForm--desktop),
+.app.app--desktop .appWorkspace .saleItem,
+.app.app--desktop .appWorkspace .directorApprovalsCarouselCard,
+.app.app--desktop .appWorkspace .directorCashflowCarouselCard {
+  background: var(--dt-bg-panel-hover) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  border-radius: var(--dt-radius-md) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.app.app--desktop .appWorkspace .writeOffForm.writeOffFormCarousel,
+.app.app--desktop .appWorkspace .opsCard.staffPanelRoot {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* ——— Главная: сетка внутри одной панели ——— */
+.app.app--desktop .homeDashboard > .sectionCard.homePanelSection {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--dt-page-gap);
+  align-items: stretch;
+  padding: 20px 22px !important;
+}
+
+.app.app--desktop .homePanelSection > * {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.app.app--desktop .homePanelSection > .adminSellerRegister,
+.app.app--desktop .homePanelSection > .soldProductsBlock {
+  grid-column: auto;
+  margin-top: 0 !important;
+  min-height: var(--dt-pane-min-h);
+  display: flex;
+  flex-direction: column;
+}
+
+.app.app--desktop .homePanelTitle {
+  margin: 0 0 4px !important;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--dt-border-subtle);
+  font-size: 1.125rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  text-transform: none !important;
+  color: var(--dt-gold) !important;
+}
+
+/* Сводка по точке — на всю ширину, метрики в ряд */
+.app.app--desktop .homeStoresList {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--dt-page-gap);
+}
+
+.app.app--desktop .homeStoreCard {
+  padding: 16px 18px !important;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.app.app--desktop .homeStoreDl {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.app.app--desktop .homeStoreRow {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 4px !important;
+  padding: 12px 14px !important;
+  border-bottom: none !important;
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.app.app--desktop .homeStoreRow dt {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dt-text-dim) !important;
+}
+
+.app.app--desktop .homeStoreRow dd {
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+  color: var(--dt-text) !important;
+  text-align: left !important;
+}
+
+.app.app--desktop .homeStoresAggregateCard {
+  padding: 16px 18px !important;
+}
+
+.app.app--desktop .homeStoresMiniList {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.app.app--desktop .homeStoresMiniRow {
+  padding: 10px 12px !important;
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.15);
+  border-bottom: none !important;
+}
+
+/* Кассы + проданные товары — одинаковые колонки */
+.app.app--desktop .adminSellerRegister h4,
+.app.app--desktop .soldProductsBlock h4 {
+  margin: 0 0 12px !important;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--dt-border-subtle);
+  font-size: 13px !important;
+  color: var(--dt-gold-soft) !important;
+}
+
+.app.app--desktop .adminSellerRegister ul,
+.app.app--desktop .soldProductsBlock ul {
+  flex: 1 1 auto;
+  gap: 8px !important;
+}
+
+.app.app--desktop .adminSellerRegister li,
+.app.app--desktop .soldProductsBlock li {
+  padding: 10px 12px !important;
+  border-radius: var(--dt-radius-md) !important;
+  background: rgba(0, 0, 0, 0.12) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+}
+
+.app.app--desktop .adminSellerRegisterName,
+.app.app--desktop .soldProductsBlock li span:first-child {
+  color: var(--dt-text-muted) !important;
+}
+
+.app.app--desktop .adminSellerRegisterAmount,
+.app.app--desktop .soldProductsBlock li strong {
+  color: var(--dt-gold) !important;
+}
+
+/* Директор / управляющий: метрики и карусели на всю ширину */
+.app.app--desktop .homeDashboardDirectorSkin .homePanelSection > .metrics,
+.app.app--desktop .homeDashboardDirectorSkin .homePanelSection > .homeMetricsTopLine,
+.app.app--desktop .homeDashboardDirectorSkin .homePanelSection > .homeMetricsTight,
+.app.app--desktop .homeDashboardDirectorSkin .homePanelSection > .directorApprovalsCarousel,
+.app.app--desktop .homeDashboardDirectorSkin .homePanelSection > .directorCashflowCarousel,
+.app.app--desktop .homeDashboardDirectorSkin .homePanelSection > .homeStoresAggregateCard {
+  grid-column: 1 / -1;
+}
+
+/* ——— Несколько sectionCard на странице (склад и др.) ——— */
+@media (min-width: 900px) {
+  .app.app--desktop
+    .dashboard:not(.homeDashboard):not(.teamPage):not(.dashboardMessengerPage):not(.dashboard--salesDesktop) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app.app--desktop .dashboard:not(.homeDashboard) > .sectionCard:only-child {
+    grid-column: 1 / -1;
+  }
+
+  .app.app--desktop .dashboard > .sectionCard:has(.financeOpsCard),
+  .app.app--desktop .dashboard > .sectionCard:has(.financeReportCard),
+  .app.app--desktop .dashboard > .sectionCard:has(.inventorySectionCard),
+  .app.app--desktop .dashboard > .sectionCard:has(.staffPanelStoresOverview),
+  .app.app--desktop .dashboard > .sectionCard:has(.salesLog) {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Продажи — см. dashboard--salesDesktop ниже */
+
+/* ——— Общие заголовки секций (десктоп) ——— */
+.app.app--desktop .dtSectionTitle {
+  margin: 0 0 10px;
+  padding: 0;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--dt-text-muted);
+}
+
+/* ——— Смена: лёгкая сетка, без тяжёлых карточек ——— */
+.app.app--desktop .dashboard--shiftDesktop {
+  --dt-shift-panels-h: min(55vh, 480px);
+  gap: 0;
+  min-height: 0;
+}
+
+.app.app--desktop .dashboard--shiftDesktop > .sectionCard {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--dt-border-subtle) !important;
+  background: var(--dt-bg-panel) !important;
+  box-shadow: none !important;
+}
+
+@media (min-width: 960px) {
+  .app.app--desktop .dashboard--shiftDesktop > .sectionCard {
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+    grid-template-rows: var(--dt-shift-panels-h) auto;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+  }
+
+  .app.app--desktop .dashboard--shiftDesktop > .sectionCard > .shiftPanelCard--desktop {
+    grid-column: 1;
+    grid-row: 1;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    border-right: 1px solid var(--dt-border-subtle);
+  }
+
+  .app.app--desktop .dashboard--shiftDesktop > .sectionCard > .opsCard.staffPanelRoot.staffPanel--cards {
+    grid-column: 2;
+    grid-row: 1;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app.app--desktop .dashboard--shiftDesktop > .sectionCard > .opsCard.staffPanelRoot:has(.staffPanel--management) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding: 12px 20px 16px !important;
+    border-top: 1px solid var(--dt-border-subtle);
+  }
+
+  .app.app--desktop .dashboard--shiftDesktop .staffPanel--management {
+    padding: 0;
+    min-width: 0;
+  }
+}
+
+.app.app--desktop .dashboard--shiftDesktop .shiftPanelCard,
+.app.app--desktop .dashboard--shiftDesktop .staffPanel--cards.opsCard,
+.app.app--desktop .dashboard--shiftDesktop .staffPanel--management {
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Верхние колонки «Смена»: одинаковые отступы и высота заголовков */
+.app.app--desktop .dashboard--shiftDesktop > .sectionCard > .shiftPanelCard--desktop,
+.app.app--desktop .dashboard--shiftDesktop > .sectionCard > .opsCard.staffPanelRoot.staffPanel--cards {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+  padding: 14px 16px !important;
+  box-sizing: border-box;
+}
+
+.app.app--desktop .dashboard--shiftDesktop h4.shiftColTitle {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  margin: 0 0 10px !important;
+  padding: 0 0 8px !important;
+  min-height: 34px;
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--dt-border-subtle) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: var(--dt-gold-soft) !important;
+}
+
+.app.app--desktop .shiftPanelCard--desktop {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  gap: 8px;
+}
+
+.app.app--desktop .shiftPanelCard--desktop .shiftNotice {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--dt-radius-sm);
+  border: none;
+  background: rgba(62, 207, 154, 0.08);
+  color: var(--dt-text-dim);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.app.app--desktop .shiftPanelCard--desktop .shiftSellerList {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.12);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(62, 207, 154, 0.3) transparent;
+}
+
+.app.app--desktop .shiftPanelCard--desktop .shiftSellerRow {
+  padding: 6px 10px !important;
+  border-radius: 0 !important;
+  border: none !important;
+  border-bottom: 1px solid var(--dt-border-subtle) !important;
+  background: transparent !important;
+  transition: background 0.1s ease;
+}
+
+.app.app--desktop .shiftPanelCard--desktop .shiftSellerRow:last-child {
+  border-bottom: none !important;
+}
+
+.app.app--desktop .shiftPanelCard--desktop .shiftSellerRow:hover {
+  background: var(--dt-bg-hover) !important;
+}
+
+.app.app--desktop .shiftPanelCard--desktop .shiftSellerName {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--dt-text);
+}
+
+.app.app--desktop .shiftPanelCard--desktop .shiftSellerStore {
+  color: var(--dt-text-dim);
+  font-size: 11px;
+}
+
+.app.app--desktop .shiftPanelCard--desktop .shiftActionsRow {
+  flex-shrink: 0;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--dt-border-subtle);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.app.app--desktop .shiftPanelCard--desktop .shiftActionsRow .primaryAction,
+.app.app--desktop .shiftPanelCard--desktop .shiftActionsRow .ghost {
+  width: 100%;
+  min-height: 34px;
+  font-size: 13px;
+  justify-content: center;
+}
+
+/* Сотрудники — карточки с воздухом и подсветкой смены */
+.app.app--desktop .dashboard--shiftDesktop .staffPanel--cards {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  gap: 8px;
+}
+
+
+.app.app--desktop .dashboard--shiftDesktop .dtTeamRosterGrid {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0 2px 0 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(62, 207, 154, 0.3) transparent;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop {
+  position: relative;
+  flex-shrink: 0;
+  min-height: 0;
+  padding: 7px 9px 8px !important;
+  gap: 5px !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  border-left-width: 3px !important;
+  border-radius: var(--dt-radius-md) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop.teamMemberCardShiftOpen {
+  border-left-color: #4aba76 !important;
+  border-color: rgba(62, 207, 154, 0.35) !important;
+  background:
+    linear-gradient(135deg, rgba(62, 207, 154, 0.14) 0%, rgba(16, 31, 25, 0.4) 55%) !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop.teamMemberCardShiftClosed {
+  border-left-color: rgba(160, 110, 100, 0.55) !important;
+  border-color: var(--dt-border-subtle) !important;
+  background: rgba(0, 0, 0, 0.12) !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberTop {
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 0 !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberMeta {
+  display: none;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberName {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberName strong {
+  font-weight: 600;
+  color: var(--dt-text);
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberNick {
+  font-size: 12px !important;
+  color: var(--dt-text-dim) !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberShiftState {
+  margin-top: 2px !important;
+  font-size: 10px !important;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberShiftState.shiftOpen {
+  color: #8fd4ad;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberShiftState.shiftClosed {
+  color: #b89a94;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .statusPill {
+  display: none;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .retoucherBadge {
+  margin-left: 4px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 500;
+  vertical-align: middle;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--dt-border-subtle);
+  color: var(--dt-text-muted);
+  border-radius: 999px;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberStats {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 5px !important;
+  padding: 6px 0 0 !important;
+  margin: 0 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop.teamMemberCardShiftOpen .teamMemberStats {
+  border-top-color: rgba(62, 207, 154, 0.2);
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .statCell {
+  min-height: 28px !important;
+  padding: 3px 6px !important;
+  border: none !important;
+  border-radius: var(--dt-radius-sm) !important;
+  background: rgba(0, 0, 0, 0.18) !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop.teamMemberCardShiftOpen .statCell {
+  background: rgba(0, 0, 0, 0.14) !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .statLabel {
+  font-size: 9px !important;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--dt-text-dim) !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .statLabel::after {
+  content: none;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .statValue {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums;
+  color: var(--dt-text) !important;
+  line-height: 1.2;
+}
+
+/* Управление персоналом — на всю ширину, три колонки */
+.app.app--desktop .dashboard--shiftDesktop > .sectionCard > .opsCard.staffPanelRoot:has(.staffPanel--management) {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .staffPanel--management {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .staffPanel--management .shiftMgmtTitle {
+  margin-bottom: 0;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .staffMgmtStrip {
+  display: flex !important;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.app.app--desktop .dashboard--shiftDesktop .staffMgmtStripInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.14fr) minmax(0, 1.02fr) minmax(0, 0.9fr);
+  align-items: center;
+  gap: 12px 16px;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .staffMgmtGroup {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .staffMgmtSep {
+  display: none;
+}
+
+.app.app--desktop .staffMgmtGroupLabel {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: var(--dt-gold-soft);
+  white-space: nowrap;
+}
+
+.app.app--desktop .staffMgmtSelectWrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app.app--desktop .staffMgmtSelectWrap::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 7px;
+  height: 7px;
+  margin-top: -2px;
+  border-right: 2px solid var(--dt-text-dim);
+  border-bottom: 2px solid var(--dt-text-dim);
+  transform: translateY(-55%) rotate(45deg);
+  pointer-events: none;
+}
+
+.app.app--desktop .staffMgmtSelect {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 8px 34px 8px 12px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
+  color: var(--dt-text) !important;
+  border-radius: var(--dt-radius-md) !important;
+  border: 1px solid var(--dt-border) !important;
+  background: rgba(4, 12, 9, 0.45) !important;
+  box-shadow: none !important;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app.app--desktop .staffMgmtSelect:focus {
+  border-color: rgba(62, 207, 154, 0.5) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(62, 207, 154, 0.12) !important;
+}
+
+.app.app--desktop .staffMgmtInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 8px 12px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
+  color: var(--dt-text) !important;
+  border-radius: var(--dt-radius-md) !important;
+  border: 1px solid var(--dt-border) !important;
+  background: rgba(4, 12, 9, 0.45) !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .staffMgmtInput::placeholder {
+  color: var(--dt-text-dim);
+  opacity: 1;
+}
+
+.app.app--desktop .staffMgmtInput:focus {
+  border-color: rgba(62, 207, 154, 0.5) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(62, 207, 154, 0.12) !important;
+}
+
+.app.app--desktop .staffMgmtInput--name {
+  flex: 1.15 1 0;
+  min-width: 56px;
+}
+
+.app.app--desktop .staffMgmtInput--nick {
+  flex: 0.75 1 0;
+  min-width: 48px;
+  max-width: 96px;
+}
+
+.app.app--desktop .staffMgmtBtn {
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 40px !important;
+  padding: 0 10px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+  border-radius: var(--dt-radius-md) !important;
+}
+
+.app.app--desktop .staffMgmtStrip .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 959px) {
+  .app.app--desktop .dashboard--shiftDesktop > .sectionCard {
+    padding: 14px !important;
+    gap: 14px;
+    height: auto;
+    max-height: none;
+  }
+
+  .app.app--desktop .dashboard--shiftDesktop > .sectionCard > .shiftPanelCard--desktop,
+  .app.app--desktop .dashboard--shiftDesktop > .sectionCard > .opsCard.staffPanelRoot.staffPanel--cards {
+    height: auto;
+    max-height: none;
+  }
+
+  .app.app--desktop .shiftPanelCard--desktop .shiftSellerList,
+  .app.app--desktop .dashboard--shiftDesktop .dtTeamRosterGrid {
+    max-height: min(46vh, 360px);
+  }
+
+  .app.app--desktop .dashboard--shiftDesktop .shiftPanelCard--desktop,
+  .app.app--desktop .dashboard--shiftDesktop .staffPanel--cards,
+  .app.app--desktop .dashboard--shiftDesktop .staffPanel--management {
+    padding: 0 !important;
+    border: none !important;
+  }
+
+  .app.app--desktop .dashboard--shiftDesktop .staffMgmtStripInner {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .app.app--desktop .staffMgmtSelectWrap {
+    max-width: none;
+  }
+
+  .app.app--desktop .dashboard--shiftDesktop .staffMgmtGrid,
+  .app.app--desktop .dashboard--shiftDesktop .staffPanel--management .staffPanelAddRow,
+  .app.app--desktop .staffPanelAddRow--desktop {
+    grid-template-columns: 1fr;
+  }
+
+  .app.app--desktop .dashboard--shiftDesktop .teamMemberCard--desktop .teamMemberStats {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+/* ——— Финансы (оперативка) ——— */
+.app.app--desktop .financeOpsCard {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.app.app--desktop .financeOpsShell {
+  padding: 18px 20px !important;
+  border-radius: var(--dt-radius-lg) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  background: var(--dt-bg-panel-hover) !important;
+  box-shadow: none !important;
+  gap: 14px !important;
+}
+
+.app.app--desktop .financeOpsBankTotalCallout {
+  max-width: 420px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.app.app--desktop .financeOpsBalancesGrid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.app.app--desktop .financeOpsShell > .addSaleForm {
+  padding: 14px 16px !important;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* ——— Склад / команда (не ADMIN-панель учёта, не десктоп-склад) ——— */
+.app.app--desktop .teamPage:not(.dashboard--teamDesktop):not(.dashboard--warehouseDesktop) {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+@media (min-width: 1000px) {
+  .app.app--desktop
+    .teamPage:not(.dashboard--teamDesktop):not(.dashboard--warehouseDesktop):has(.teamPanelCard) {
+    grid-template-columns: minmax(320px, 380px) minmax(0, 1fr) !important;
+  }
+}
+
+.app.app--desktop .teamPage:not(.dashboard--teamDesktop):not(.dashboard--warehouseDesktop) .teamPanelCard {
+  min-height: var(--dt-pane-min-h);
+}
+
+/* Склад (директор): одна колонка, без пустой левой «подложки» от grid */
+.app.app--desktop .dashboard--warehouseDesktop.teamPage {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: none !important;
+  grid-template-rows: none !important;
+  gap: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  align-items: stretch !important;
+}
+
+.app.app--desktop .dashboard--warehouseDesktop.teamPage > .teamPanelCard {
+  grid-column: auto !important;
+  min-height: 0 !important;
+  width: 100% !important;
+}
+
+.app.app--desktop .teamMemberCard {
+  padding: 12px 14px !important;
+}
+
+/* ——— Списки продаж, журналы ——— */
+.app.app--desktop .salesList {
+  display: grid;
+  gap: 8px;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+}
+
+.app.app--desktop .saleItem {
+  padding: 12px 14px !important;
+}
+
+/* ——— Аккордеоны: секции на всю ширину ——— */
+.app.app--desktop .mobileAccordion {
+  margin-bottom: 0 !important;
+}
+
+.app.app--desktop .dashboard > .mobileAccordion {
+  grid-column: 1 / -1;
+}
+
+/* ——— Заголовки секций внутри панелей ——— */
+.app.app--desktop .opsCard h4:not(.shiftColTitle),
+.app.app--desktop .shiftPanelHeading,
+.app.app--desktop .addSaleForm > h4:first-child {
+  margin: 0 0 12px !important;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--dt-border-subtle);
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--dt-gold-soft) !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ——— Продажи: форма сверху, журнал снизу, на всю ширину ——— */
+.app.app--desktop .dashboard--salesDesktop {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: none !important;
+  gap: var(--dt-page-gap);
+  align-items: stretch;
+  width: 100%;
+  max-width: none;
+}
+
+.app.app--desktop .dashboard--salesDesktop > .sectionCard--addSale,
+.app.app--desktop .dashboard--salesDesktop > .sectionCard--salesLog {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.app.app--desktop .dashboard--salesDesktop > .sectionCard--addSale {
+  order: 1;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.app.app--desktop .dashboard--salesDesktop > .sectionCard--salesLog {
+  order: 2;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+}
+
+@media (min-width: 1024px) {
+  .app.app--desktop .dashboard--salesDesktop > .sectionCard--salesLog {
+    min-height: min(32vh, 320px);
+  }
+
+  .app.app--desktop .salesLogBody {
+    min-height: min(28vh, 280px);
+  }
+}
+
+/* Форма «Добавить продажу» — крупная, по шагам */
+.app.app--desktop .addSaleForm--hero {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.app.app--desktop .addSaleAlert {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--dt-radius-md);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.app.app--desktop .addSaleHeroRow--who {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: end;
+}
+
+.app.app--desktop .addSaleField,
+.app.app--desktop .addSaleField--payment,
+.app.app--desktop .addSaleAmountBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  align-items: center;
+}
+
+.app.app--desktop .addSaleFieldLabel,
+.app.app--desktop .addSaleAmountLabel {
+  width: 100%;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--dt-text-muted);
+}
+
+.app.app--desktop .addSaleFieldControl,
+.app.app--desktop .addSaleField--payment .paymentTypeRow--desktop,
+.app.app--desktop .addSaleAmountField {
+  align-self: stretch;
+  width: 100%;
+}
+
+.app.app--desktop .addSaleFieldControl--select {
+  position: relative;
+}
+
+.app.app--desktop .addSaleFieldControl--select::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  width: 7px;
+  height: 7px;
+  margin-top: -2px;
+  border-right: 2px solid var(--dt-text-dim);
+  border-bottom: 2px solid var(--dt-text-dim);
+  transform: translateY(-55%) rotate(45deg);
+  pointer-events: none;
+}
+
+.app.app--desktop .addSaleFieldSelect {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 48px !important;
+  padding: 10px 36px 10px 14px !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  color: var(--dt-text) !important;
+  border-radius: var(--dt-radius-md) !important;
+  border: 1px solid var(--dt-border) !important;
+  background: rgba(4, 12, 9, 0.45) !important;
+  appearance: none;
+}
+
+.app.app--desktop .addSaleFieldSelect:focus {
+  border-color: rgba(62, 207, 154, 0.5) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(62, 207, 154, 0.12);
+}
+
+.app.app--desktop .addSaleField--payment .paymentTypeRow--desktop {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.app.app--desktop .paymentTypeBtn--desktop {
+  min-height: 48px !important;
+  padding: 10px 8px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  border-radius: var(--dt-radius-md) !important;
+  border: 1px solid var(--dt-border) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: var(--dt-text-muted) !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .paymentTypeBtn--desktop:hover:not(:disabled) {
+  background: var(--dt-bg-hover) !important;
+  border-color: var(--dt-border) !important;
+  color: var(--dt-text) !important;
+}
+
+.app.app--desktop .paymentTypeBtn--desktop.paymentTypeBtnActive {
+  background: rgba(62, 207, 154, 0.2) !important;
+  color: var(--dt-gold-soft) !important;
+  border-color: rgba(62, 207, 154, 0.45) !important;
+  font-weight: 600 !important;
+}
+
+/* Сумма — главный акцент */
+.app.app--desktop .addSaleAmountField {
+  display: flex;
+  align-items: stretch;
+  min-height: 56px;
+  border-radius: var(--dt-radius-md);
+  border: 1px solid var(--dt-border-subtle);
+  background: var(--dt-bg-panel-hover);
+  overflow: hidden;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.app.app--desktop .addSaleAmountField:focus-within {
+  border-color: rgba(62, 207, 154, 0.5);
+  box-shadow: 0 0 0 3px rgba(62, 207, 154, 0.12);
+}
+
+.app.app--desktop .addSaleAmountInput {
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
+  min-height: 64px !important;
+  margin: 0 !important;
+  padding: 8px 12px 8px 16px !important;
+  font-size: 32px !important;
+  font-weight: 700 !important;
+  line-height: 1.1 !important;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  color: var(--dt-text) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .addSaleAmountInput::placeholder {
+  color: var(--dt-text-dim);
+  opacity: 0.45;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.app.app--desktop .addSaleAmountCurrency {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--dt-text-muted);
+  border-left: 1px solid var(--dt-border-subtle);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+/* Товары — компактная сетка */
+.app.app--desktop .addSaleProductsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.app.app--desktop .addSaleProductsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: min(42vh, 380px);
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.12);
+  align-content: start;
+}
+
+.app.app--desktop .addSaleProductCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--dt-radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.app.app--desktop .addSaleProductCard:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.app.app--desktop .addSaleProductCard--hasQty {
+  border-color: rgba(62, 207, 154, 0.32);
+  background: rgba(62, 207, 154, 0.07);
+}
+
+.app.app--desktop .addSaleProductName {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.32;
+  color: var(--dt-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.app.app--desktop .addSaleProductCard--hasQty .addSaleProductName {
+  color: var(--dt-text);
+  font-weight: 600;
+}
+
+.app.app--desktop .addSaleQtyStepper {
+  display: grid;
+  grid-template-columns: 32px 42px 32px;
+  flex-shrink: 0;
+  align-items: stretch;
+  width: auto;
+  overflow: hidden;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.app.app--desktop .addSaleQtyBtn {
+  min-height: 34px !important;
+  width: 32px !important;
+  padding: 0 !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--dt-text-muted) !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .addSaleQtyBtn--minus {
+  border-right: 1px solid var(--dt-border-subtle) !important;
+}
+
+.app.app--desktop .addSaleQtyBtn--plus {
+  border-left: 1px solid var(--dt-border-subtle) !important;
+}
+
+.app.app--desktop .addSaleQtyBtn:hover:not(:disabled) {
+  background: var(--dt-bg-hover) !important;
+  color: var(--dt-text) !important;
+}
+
+.app.app--desktop .addSaleQtyInput {
+  min-height: 34px !important;
+  width: 42px !important;
+  margin: 0 !important;
+  padding: 0 2px !important;
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  font-variant-numeric: tabular-nums;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--dt-text) !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .addSaleQtyInput:focus {
+  outline: none;
+  background: rgba(62, 207, 154, 0.12) !important;
+}
+
+@media (min-width: 1200px) {
+  .app.app--desktop .addSaleProductsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.app.app--desktop .addSaleSaveWrap {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.app.app--desktop .addSaleSaveBtn {
+  width: 100%;
+  min-height: 52px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em;
+  border-radius: var(--dt-radius-md) !important;
+  background: linear-gradient(168deg, #6ee7d8 0%, #2bb8a8 42%, #0f4d3a 100%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.14) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18) !important;
+}
+
+.app.app--desktop .addSaleSaveBtn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+/* Журнал продаж */
+.app.app--desktop .salesLog--desktop {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  height: 100%;
+  gap: 8px;
+}
+
+.app.app--desktop .salesLog--desktop .dtSectionTitle {
+  flex-shrink: 0;
+}
+
+.app.app--desktop .dashboard--salesDesktop .salesLogBody {
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow-y: auto;
+  margin-top: 0;
+  padding: 0;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-md);
+  background: var(--dt-bg-panel-hover);
+}
+
+.app.app--desktop .salesLog--desktop .salesList {
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.app.app--desktop .salesLog--desktop .saleItem {
+  padding: 10px 12px !important;
+  margin: 0 !important;
+  border: none !important;
+  border-bottom: 1px solid var(--dt-border-subtle) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .salesLog--desktop .saleItem:last-child {
+  border-bottom: none !important;
+}
+
+.app.app--desktop .salesLog--desktop .saleHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--dt-text-muted);
+}
+
+.app.app--desktop .salesLog--desktop .saleHeaderTrailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.app.app--desktop .salesLog--desktop .salePay {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--dt-border-subtle);
+  color: var(--dt-text-dim);
+  letter-spacing: 0;
+}
+
+.app.app--desktop .salesLog--desktop .saleTotal {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dt-gold-soft) !important;
+}
+
+.app.app--desktop .saleDeleteBtn,
+.app.app--desktop .saleDeleteRequestIconBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  flex-shrink: 0;
+  color: #9eb0a6 !important;
+  background: rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: var(--dt-radius-sm) !important;
+  box-shadow: none !important;
+  cursor: default;
+}
+
+.app.app--desktop .saleDeleteBtn:hover:not(:disabled),
+.app.app--desktop .saleDeleteRequestIconBtn:hover:not(:disabled) {
+  color: #e8b4a8 !important;
+  background: rgba(180, 100, 90, 0.18) !important;
+  border-color: rgba(200, 120, 100, 0.4) !important;
+}
+
+.app.app--desktop .saleDeleteBtnIcon,
+.app.app--desktop .saleDeleteRequestIconSvg {
+  display: block !important;
+  width: 16px !important;
+  height: 16px !important;
+  flex-shrink: 0;
+  pointer-events: none;
+  opacity: 1 !important;
+}
+
+.app.app--desktop .saleDeleteBtnIcon path {
+  fill: currentColor !important;
+}
+
+@media (max-width: 1023px) {
+  .app.app--desktop .addSaleHeroRow--who {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 899px) {
+  .app.app--desktop .homeDashboard > .sectionCard.homePanelSection {
+    grid-template-columns: 1fr;
+  }
+
+  .app.app--desktop .homePanelSection > .adminSellerRegister,
+  .app.app--desktop .homePanelSection > .soldProductsBlock {
+    grid-column: 1 / -1;
+  }
+
+  .app.app--desktop .homeStoreDl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ——— Склад (ADMIN): учёт, спецтехника, списание ——— */
+.app.app--desktop .dashboard--teamDesktop.teamPage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0;
+}
+
+.app.app--desktop .dashboard--teamDesktop {
+  gap: 0;
+}
+
+.app.app--desktop .dashboard--teamDesktop > .teamPanelCard {
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  min-height: min(68vh, 620px);
+  max-height: min(78vh, 700px);
+  overflow: hidden;
+  border: 1px solid var(--dt-border-subtle) !important;
+  background: var(--dt-bg-panel) !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .teamPanelZone {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--dt-border-subtle);
+  margin: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .teamPanelZone--inventory {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 12px;
+}
+
+.app.app--desktop .dashboard--teamDesktop .inventorySectionCard {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInventoryPanel--desktop,
+.app.app--desktop .dashboard--teamDesktop .storeInventoryPanel--desktop .storeInventoryShell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  padding: 0;
+  margin: 0;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInventoryHeader.invGlassHeader {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 0 0 8px;
+  border: none;
+  background: transparent !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInventoryTitleDesktop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInventoryStoreName {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInventoryRefreshBtn {
+  width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  flex-shrink: 0;
+  font-size: 14px !important;
+  border-radius: var(--dt-radius-sm) !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInvMessage {
+  margin: 0;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: var(--dt-radius-sm);
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInventoryTableWrap {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: none;
+  overflow: auto;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInventoryRoot .invTableStore {
+  font-size: 12px;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInventoryRoot .invTableStore thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 10px !important;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--dt-text-dim) !important;
+  background: rgba(16, 31, 25, 0.95) !important;
+  border-bottom: 1px solid var(--dt-border-subtle) !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInventoryRoot .invTableStore tbody td {
+  padding: 7px 10px !important;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInventoryRoot .invTdName {
+  font-weight: 500;
+  color: var(--dt-text-muted) !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .siQty {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInvActions {
+  gap: 6px !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInvActions .siQtyInput {
+  width: 52px !important;
+  min-height: 30px !important;
+  padding: 4px 6px !important;
+  font-size: 13px !important;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeInvActions .siApplyBtn {
+  min-height: 30px !important;
+  min-width: 36px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  background: rgba(62, 207, 154, 0.2) !important;
+  border: 1px solid rgba(62, 207, 154, 0.35) !important;
+  color: var(--dt-gold-soft) !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeEquipRead--desktop .dtSectionTitle {
+  margin-bottom: 8px;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeEquipGrid--desktop {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeEquipGrid--desktop .storeEquipGridRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--dt-border-subtle);
+  border-radius: 0;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeEquipGrid--desktop .storeEquipGridRow:last-child {
+  border-bottom: none;
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeEquipLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .dashboard--teamDesktop .storeEquipVal {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--dt-text-muted);
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffForm--desktop {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffFormHead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffForm--desktop .dtSectionTitle {
+  margin: 0;
+  padding: 0;
+  border: none !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dt-gold-soft) !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffPolicyHint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffOk {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #9fd4b8;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffError {
+  margin: 0;
+  font-size: 12px;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffRow--desktop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffCluster {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffCluster--product {
+  flex: 1 1 148px;
+  min-width: 0;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffCluster--qty {
+  flex: 0 0 auto;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffCluster--reason {
+  flex: 1 1 132px;
+  min-width: 0;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffClusterLabel {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--dt-gold-soft);
+  white-space: nowrap;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffSelectWrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffSelectWrap::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  width: 7px;
+  height: 7px;
+  margin-top: -2px;
+  border-right: 2px solid var(--dt-text-dim);
+  border-bottom: 2px solid var(--dt-text-dim);
+  transform: translateY(-55%) rotate(45deg);
+  pointer-events: none;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffControl {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 38px !important;
+  margin: 0 !important;
+  padding: 7px 11px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
+  color: var(--dt-text) !important;
+  border-radius: var(--dt-radius-md) !important;
+  border: 1px solid var(--dt-border) !important;
+  background: rgba(4, 12, 9, 0.45) !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffSelect {
+  padding-right: 30px !important;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffCluster--qty .writeOffControl {
+  width: 52px;
+  min-width: 52px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffControl:focus {
+  border-color: rgba(62, 207, 154, 0.5) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(62, 207, 154, 0.12) !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .writeOffSubmitBtn {
+  flex: 0 0 auto;
+  min-width: 92px;
+  min-height: 38px !important;
+  margin-left: auto;
+  padding: 0 14px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: var(--dt-radius-md) !important;
+  box-shadow: none !important;
+}
+
+@media (min-width: 960px) {
+  .app.app--desktop .dashboard--teamDesktop > .teamPanelCard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .app.app--desktop .dashboard--teamDesktop .teamPanelZone--inventory {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .app.app--desktop .dashboard--teamDesktop .teamPanelZone--equipment {
+    grid-column: 1;
+    grid-row: 2;
+    border-right: 1px solid var(--dt-border-subtle);
+    border-bottom: none;
+    padding-top: 12px;
+    padding-bottom: 14px;
+  }
+
+  .app.app--desktop .dashboard--teamDesktop .teamPanelZone--writeoff {
+    grid-column: 2;
+    grid-row: 2;
+    padding-top: 12px;
+    padding-bottom: 14px;
+  }
+
+}
+
+@media (max-width: 959px) {
+  .app.app--desktop .dashboard--teamDesktop .writeOffRow--desktop {
+    gap: 8px;
+  }
+
+  .app.app--desktop .dashboard--teamDesktop .writeOffCluster--product,
+  .app.app--desktop .dashboard--teamDesktop .writeOffCluster--reason {
+    flex: 1 1 100%;
+  }
+
+  .app.app--desktop .dashboard--teamDesktop .writeOffSubmitBtn {
+    width: 100%;
+    margin-left: 0;
+  }
+}

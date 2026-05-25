@@ -1,0 +1,709 @@
+/**
+ * Склад (команда по магазинам) — десктоп: компактный мастер-деталь, нейтральная палитра.
+ */
+
+.app.app--desktop .dashboard--warehouseDesktop {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: none !important;
+  gap: 0 !important;
+  min-height: 0;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 100%;
+}
+
+.app.app--desktop .dashboard--warehouseDesktop.teamPage {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: none !important;
+}
+
+.app.app--desktop .dashboard--warehouseDesktop > .teamPanelCard {
+  display: block !important;
+  flex: none !important;
+  flex-grow: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .teamWarehouseShell--desktop.staffPanelRoot {
+  margin: 0 !important;
+}
+
+.app.app--desktop .teamWarehouseShell--desktop.staffPanelStoresOverview {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: unset !important;
+  gap: 0 !important;
+}
+
+.app.app--desktop .teamWarehouseShell--desktop {
+  display: flex;
+  flex-direction: column;
+  flex: none !important;
+  flex-grow: 0 !important;
+  gap: 0;
+  width: 100%;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 16px 18px 18px;
+  border: none;
+  border-radius: var(--dt-radius-lg);
+  background:
+    linear-gradient(165deg, rgba(62, 207, 154, 0.05) 0%, transparent 42%),
+    var(--dt-bg-panel);
+  box-shadow:
+    var(--dt-surface-shine),
+    var(--dt-surface-depth),
+    inset 0 0 0 1px var(--dt-border-hairline);
+  overflow: hidden;
+}
+
+.app.app--desktop .teamWarehouseShell--desktop > * {
+  flex: 0 0 auto !important;
+  flex-grow: 0 !important;
+}
+
+.app.app--desktop .teamWarehouseHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding-bottom: 12px;
+  box-shadow: inset 0 -1px 0 var(--dt-border-hairline);
+}
+
+.app.app--desktop .teamWarehouseTitle {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--dt-gold-soft);
+}
+
+.app.app--desktop .teamWarehouseShell--desktop .teamReportDateBar {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.app.app--desktop .teamWarehouseShell--desktop .teamReportDateLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--dt-text-muted);
+}
+
+.app.app--desktop .teamWarehouseShell--desktop .teamReportDateLabel input {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--dt-border-subtle);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.app.app--desktop .teamWarehouseWorkspace {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 0;
+  height: auto;
+  padding-top: 12px;
+}
+
+/* ——— Список точек ——— */
+.app.app--desktop .teamWarehouseStoresRail {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-self: flex-start;
+  width: 220px;
+  max-width: 220px;
+  height: fit-content;
+  max-height: min(52vh, 480px);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  background: transparent;
+}
+
+.app.app--desktop .teamWarehouseStoresRail::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.app.app--desktop .teamWarehouseStoresRail:hover {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(62, 207, 154, 0.3) transparent;
+}
+
+.app.app--desktop .teamWarehouseStoresRail:hover::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app.app--desktop .teamWarehouseStoresRail:hover::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(62, 207, 154, 0.3);
+}
+
+.app.app--desktop .dashboard--warehouseDesktop .teamWarehouseStoreBtn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 11px;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.32) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  color: #a8b2ae !important;
+  -webkit-text-fill-color: #a8b2ae !important;
+  text-shadow: none !important;
+}
+
+.app.app--desktop .dashboard--warehouseDesktop .teamWarehouseStoreBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #d8deda !important;
+  -webkit-text-fill-color: #d8deda !important;
+  filter: none !important;
+}
+
+.app.app--desktop .dashboard--warehouseDesktop .teamWarehouseStoreBtn--active {
+  background:
+    linear-gradient(145deg, rgba(62, 207, 154, 0.12) 0%, transparent 55%),
+    rgba(0, 0, 0, 0.42) !important;
+  color: #6ed4a8 !important;
+  border-color: rgba(62, 207, 154, 0.28) !important;
+  box-shadow:
+    inset 2px 0 0 rgba(62, 207, 154, 0.55) !important;
+  -webkit-text-fill-color: #6ed4a8 !important;
+}
+
+.app.app--desktop .teamWarehouseStoreBtnName {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.app.app--desktop .teamWarehouseStoreBtnMeta {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--dt-text-dim);
+  -webkit-text-fill-color: var(--dt-text-dim);
+}
+
+.app.app--desktop .teamWarehouseStoreBtn--active .teamWarehouseStoreBtnMeta {
+  color: var(--dt-gold-soft);
+  -webkit-text-fill-color: var(--dt-gold-soft);
+}
+
+/* ——— Деталь точки ——— */
+.app.app--desktop .teamWarehouseDetail {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: flex-start;
+  min-height: 0;
+  min-width: 0;
+  width: auto;
+  max-width: 100%;
+}
+
+.app.app--desktop .teamWarehouseDetailHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  padding-bottom: 8px;
+  box-shadow: inset 0 -1px 0 var(--dt-border-hairline);
+}
+
+.app.app--desktop .teamWarehouseDetailTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--dt-text);
+}
+
+.app.app--desktop .teamWarehouseDetailBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.app.app--desktop .teamWarehouseDetailBadge {
+  padding: 3px 8px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  color: var(--dt-text-dim);
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .teamWarehouseDetailBadge--open {
+  color: #b8c4be;
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.app.app--desktop .teamWarehouseMemberGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: 8px;
+  height: auto;
+  min-height: 0;
+  max-height: min(52vh, 480px);
+  overflow-y: auto;
+  align-content: start;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(62, 207, 154, 0.3) transparent;
+}
+
+.app.app--desktop .teamWarehousePayroll {
+  max-height: min(52vh, 480px);
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.app.app--desktop .teamWarehouseEmpty {
+  margin: 0;
+  padding: 16px 0;
+  font-size: 12px;
+  color: var(--dt-text-dim);
+  text-align: center;
+}
+
+/* Карточки сотрудников — нейтральные, без зелёного «стекла» appWorkspace */
+.app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .teamMemberCard.storeTeamMemberCard,
+.app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .teamMemberCard.teamMemberCard--desktop {
+  margin: 0 !important;
+  padding: 9px 10px 10px !important;
+  gap: 0 !important;
+  background: rgba(6, 8, 7, 0.88) !important;
+  border: none !important;
+  border-radius: 10px !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .teamMemberCardShiftOpen,
+.app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .teamMemberCardShiftClosed {
+  background: rgba(6, 8, 7, 0.88) !important;
+  border: none !important;
+}
+
+.app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .teamMemberCardShiftOpen {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 2px 0 0 rgba(140, 158, 148, 0.38) !important;
+}
+
+.app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .teamMemberCardShiftClosed {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.03),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 2px 0 0 rgba(150, 118, 118, 0.32) !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .teamMemberTop {
+  gap: 6px !important;
+  margin: 0 !important;
+  padding-bottom: 8px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .teamMemberName {
+  margin: 0 !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  color: var(--dt-text) !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .teamMemberName strong {
+  font-weight: 700 !important;
+  color: #e8ece9 !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .teamMemberNick {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: #8a9490 !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .teamMemberShiftState {
+  margin: 3px 0 0 !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .teamMemberShiftState.shiftOpen {
+  color: #9aa8a0 !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .teamMemberShiftState.shiftClosed {
+  color: #a89494 !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .retoucherBadge,
+.app.app--desktop .teamWarehouseMemberGrid .statusPill,
+.app.app--desktop .teamWarehouseMemberGrid .statusPillOn {
+  font-size: 9px !important;
+  padding: 2px 6px !important;
+  background: rgba(62, 207, 154, 0.1) !important;
+  color: #c4ad82 !important;
+  border: 1px solid rgba(62, 207, 154, 0.22) !important;
+}
+
+.app.app--desktop .dashboard--warehouseDesktop .teamWarehouseMemberGrid .teamMemberDeletePill {
+  width: 26px !important;
+  min-width: 26px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 7px !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  box-shadow: none !important;
+  color: #8f9894 !important;
+  text-shadow: none !important;
+}
+
+.app.app--desktop .dashboard--warehouseDesktop .teamWarehouseMemberGrid .teamMemberDeletePill:hover:not(:disabled) {
+  border-color: rgba(180, 130, 130, 0.35) !important;
+  color: #c9a8a8 !important;
+  background: rgba(40, 20, 20, 0.45) !important;
+  filter: none !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .teamMemberStats {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 5px !important;
+  margin: 8px 0 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  align-items: stretch !important;
+}
+
+.app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .statCell,
+.app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .statPercentToggleBtn,
+.app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .statCellPercentEdit {
+  min-height: 0 !important;
+  padding: 6px 7px 7px !important;
+  border-radius: 7px !important;
+  background: rgba(0, 0, 0, 0.42) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+  color: inherit !important;
+  text-align: left !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  text-shadow: none !important;
+}
+
+.app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .statPercentToggleBtn {
+  cursor: pointer;
+}
+
+.app.app--desktop.appWorkspace .dashboard--warehouseDesktop .teamWarehouseMemberGrid .statPercentToggleBtn:hover:not(:disabled) {
+  border-color: rgba(62, 207, 154, 0.24) !important;
+  background: rgba(0, 0, 0, 0.52) !important;
+  filter: none !important;
+}
+
+.app.app--desktop .dashboard--warehouseDesktop .teamWarehouseMemberGrid .statPercentToggleBtn .statValue.strong {
+  color: #6ed4a8 !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .statLabel {
+  display: block !important;
+  margin: 0 0 3px !important;
+  font-size: 8px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  color: #727c78 !important;
+  line-height: 1.25 !important;
+  text-align: left !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .statLabel::after {
+  display: none !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .statValue {
+  display: block !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums !important;
+  color: #d8deda !important;
+  line-height: 1.2 !important;
+  text-align: left !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .statValue.strong {
+  color: #6ed4a8 !important;
+}
+
+.app.app--desktop .teamWarehouseMemberGrid .statPercentInlineInput {
+  min-height: 26px !important;
+  padding: 4px 6px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #6ed4a8 !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid rgba(62, 207, 154, 0.22) !important;
+  border-radius: 6px !important;
+}
+
+/* Склад: без растягивания по высоте окна (в отличие от чата/оперативки) */
+.app.app--desktop .desktopContentFrame:has(.dashboard--warehouseDesktop),
+.app.app--desktop .pageOutlet:has(.dashboard--warehouseDesktop),
+.app.app--desktop .dashboard--warehouseDesktop {
+  flex: none !important;
+  flex-grow: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  width: 100%;
+}
+
+/* ——— Удалённые сотрудники ——— */
+.app.app--desktop .teamWarehouseRemoved {
+  flex: 0 0 auto;
+  margin-top: 12px;
+  padding: 12px 12px 10px;
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .teamWarehouseRemovedHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.app.app--desktop .teamWarehouseRemovedTitle {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dt-gold-soft);
+}
+
+.app.app--desktop .teamWarehouseRemovedCount {
+  min-width: 22px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--dt-text-muted);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .teamWarehouseRemoved .teamStoresRemovedIntro {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .teamWarehouseRemovedBodyInner {
+  max-height: 168px;
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-width: thin;
+}
+
+.app.app--desktop .teamWarehouseRemovedGrid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 8px;
+}
+
+.app.app--desktop .teamWarehouseRemovedCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 11px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .teamWarehouseRemovedCardMain {
+  min-width: 0;
+}
+
+.app.app--desktop .teamWarehouseRemovedName {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--dt-text);
+}
+
+.app.app--desktop .teamWarehouseRemovedName strong {
+  font-weight: 700;
+}
+
+.app.app--desktop .teamWarehouseRemovedName .teamMemberNick {
+  font-size: 11px;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .teamWarehouseRemovedMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.app.app--desktop .teamWarehouseRemovedTag {
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  color: var(--dt-text-dim);
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .teamWarehouseRemovedTag--retoucher {
+  color: var(--dt-gold-soft);
+  box-shadow: inset 0 0 0 1px rgba(62, 207, 154, 0.28);
+}
+
+.app.app--desktop .teamWarehouseRemovedReason {
+  font-size: 10px;
+  font-weight: 600;
+  color: #c9b8a8;
+}
+
+.app.app--desktop .teamWarehouseRemovedReason--off {
+  color: #d4a8a8;
+}
+
+.app.app--desktop .teamWarehouseRemovedActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.app.app--desktop .teamWarehouseRestoreSelect {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 28px 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dt-text-muted);
+  border-radius: 8px;
+  border: 1px solid var(--dt-border-subtle);
+  background: rgba(0, 0, 0, 0.35);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='%23a8b5af' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.app.app--desktop .teamWarehouseShell--desktop .teamWarehouseRestoreBtn {
+  min-height: 32px !important;
+  padding: 0 12px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(62, 207, 154, 0.35) !important;
+  background: rgba(62, 207, 154, 0.1) !important;
+  color: var(--dt-gold-soft) !important;
+  -webkit-text-fill-color: var(--dt-gold-soft) !important;
+  white-space: nowrap;
+}
+
+.app.app--desktop .teamWarehouseShell--desktop .teamWarehouseRestoreBtn:hover:not(:disabled) {
+  background: rgba(62, 207, 154, 0.18) !important;
+  color: var(--dt-gold) !important;
+  -webkit-text-fill-color: var(--dt-gold) !important;
+}
+
+.app.app--desktop .teamWarehouseShell--desktop .teamWarehouseRestoreBtn:disabled {
+  opacity: 0.45;
+}
+
+@media (max-width: 1100px) {
+  .app.app--desktop .teamWarehouseWorkspace {
+    flex-direction: column;
+  }
+
+  .app.app--desktop .teamWarehouseStoresRail {
+    flex: 0 1 auto;
+    width: 100%;
+    max-width: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-height: none;
+  }
+
+  .app.app--desktop .teamWarehouseStoreBtn {
+    width: auto;
+    min-width: 140px;
+    flex: 1 1 auto;
+  }
+
+  .app.app--desktop .teamWarehouseRemovedGrid {
+    grid-template-columns: 1fr;
+  }
+}

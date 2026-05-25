@@ -85,6 +85,16 @@ function internalPaymentTypeToPrisma(pt: SalePaymentType): PrismaPaymentType {
   return PrismaPaymentType.CASH;
 }
 
+export type StoreEquipmentBuiltinKey =
+  | 'pc'
+  | 'camera'
+  | 'printer'
+  | 'sdCard'
+  | 'monitor'
+  | 'mouse'
+  | 'keyboard'
+  | 'cardReader';
+
 export type StoreEquipmentCounts = {
   pc: number;
   camera: number;
@@ -94,7 +104,34 @@ export type StoreEquipmentCounts = {
   mouse: number;
   keyboard: number;
   cardReader: number;
+  extra: Record<string, number>;
 };
+
+export type StoreEquipmentCustomTypeDto = { id: string; label: string };
+
+const STORE_EQUIPMENT_BUILTIN_KEYS: StoreEquipmentBuiltinKey[] = [
+  'pc',
+  'camera',
+  'printer',
+  'sdCard',
+  'monitor',
+  'mouse',
+  'keyboard',
+  'cardReader',
+];
+
+function parseStoreEquipmentExtra(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
+  }
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof k === 'string' && k.trim()) {
+      out[k.trim()] = clampEquipmentInt(v);
+    }
+  }
+  return out;
+}
 
 function emptyStoreEquipmentCounts(): StoreEquipmentCounts {
   return {
@@ -106,6 +143,7 @@ function emptyStoreEquipmentCounts(): StoreEquipmentCounts {
     mouse: 0,
     keyboard: 0,
     cardReader: 0,
+    extra: {},
   };
 }
 
@@ -288,6 +326,7 @@ export class AuthService implements OnModuleInit {
   private financeExpenses: FinanceExpense[] = [];
   private financeIncomes: FinanceIncome[] = [];
   private storeEquipmentByStore: Record<string, StoreEquipmentCounts> = {};
+  private storeEquipmentCustomTypes: StoreEquipmentCustomTypeDto[] = [];
 
   private allStockLocationKeys(): string[] {
     return [this.warehouseLocationKey, ...DEMO_STORE_NAMES];
@@ -380,6 +419,34 @@ export class AuthService implements OnModuleInit {
       qtyOnWarehouse: this.getStockQty(this.warehouseLocationKey, p.name),
     }));
     return { storeName, warehouseKey: this.warehouseLocationKey, products };
+  }
+
+  addProductToCatalog(
+    name: string,
+    price: number,
+    actor: string,
+  ): { name: string; price: number } | { error: string } {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return { error: 'Укажите название товара' };
+    }
+    if (trimmed.length > 120) {
+      return { error: 'Слишком длинное название' };
+    }
+    const exists = this.productCatalog.some(
+      (p) => p.name.trim().toLocaleLowerCase('ru-RU') === trimmed.toLocaleLowerCase('ru-RU'),
+    );
+    if (exists) {
+      return { error: 'Такой товар уже есть в каталоге' };
+    }
+    const salePrice = Number.isFinite(price) && price >= 0 ? Math.round(price * 100) / 100 : 0;
+    const item = { name: trimmed, price: salePrice };
+    this.productCatalog.push(item);
+    this.syncProcurementKeysWithCatalog();
+    this.syncStockWithCatalog();
+    this.pushAudit(actor, 'PRODUCT_ADDED', trimmed);
+    this.queuePersist();
+    return item;
   }
 
   replenishWarehouseStock(productName: string, qty: number, actor: string) {
@@ -587,7 +654,13 @@ export class AuthService implements OnModuleInit {
   }
 
   addFinanceIncome(
-    payload: { accountId: string; amount: number; workDay: string; comment?: string },
+    payload: {
+      accountId: string;
+      amount: number;
+      workDay: string;
+      comment?: string;
+      incomeId?: string;
+    },
     actor = 'system',
   ) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.workDay)) {
@@ -596,6 +669,16 @@ export class AuthService implements OnModuleInit {
     if (!payload.accountId || !Number.isFinite(payload.amount) || payload.amount <= 0) {
       return null;
     }
+    const trimmedIncomeId =
+      typeof payload.incomeId === 'string'
+        ? payload.incomeId.trim().slice(0, 128).replace(/[^\w.-]/g, '') || undefined
+        : undefined;
+    if (trimmedIncomeId) {
+      const existing = this.financeIncomes.find((item) => item.id === trimmedIncomeId);
+      if (existing) {
+        return existing;
+      }
+    }
     const account = this.financeAccounts.find((item) => item.id === payload.accountId);
     if (!account) {
       return null;
@@ -603,7 +686,7 @@ export class AuthService implements OnModuleInit {
     const amount = Math.round(payload.amount * 100) / 100;
     account.balance = Math.round((account.balance + amount) * 100) / 100;
     const income: FinanceIncome = {
-      id: `finc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: trimmedIncomeId ?? `finc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       createdAt: new Date().toISOString(),
       workDay: payload.workDay,
       amount,
@@ -623,12 +706,28 @@ export class AuthService implements OnModuleInit {
   }
 
   addFinanceExpense(
-    payload: { accountId: string; title: string; amount: number; comment?: string },
+    payload: {
+      accountId: string;
+      title: string;
+      amount: number;
+      comment?: string;
+      expenseId?: string;
+    },
     actor = 'system',
   ) {
     const title = payload.title?.trim();
     if (!payload.accountId || !title || !Number.isFinite(payload.amount) || payload.amount <= 0) {
       return null;
+    }
+    const trimmedExpenseId =
+      typeof payload.expenseId === 'string'
+        ? payload.expenseId.trim().slice(0, 128).replace(/[^\w.-]/g, '') || undefined
+        : undefined;
+    if (trimmedExpenseId) {
+      const existingExp = this.financeExpenses.find((item) => item.id === trimmedExpenseId);
+      if (existingExp) {
+        return existingExp;
+      }
     }
     const account = this.financeAccounts.find((item) => item.id === payload.accountId);
     if (!account) {
@@ -637,7 +736,7 @@ export class AuthService implements OnModuleInit {
     const amount = Math.round(payload.amount * 100) / 100;
     account.balance = Math.round((account.balance - amount) * 100) / 100;
     const expense: FinanceExpense = {
-      id: `fexp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: trimmedExpenseId ?? `fexp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       createdAt: new Date().toISOString(),
       title,
       amount,
@@ -823,9 +922,19 @@ export class AuthService implements OnModuleInit {
     return this.demoUsers.find((u) => u.nickname === nickname)?.storeName ?? null;
   }
 
+  getStoreEquipmentCustomTypes(): StoreEquipmentCustomTypeDto[] {
+    return this.storeEquipmentCustomTypes.map((t) => ({ ...t }));
+  }
+
   getStoreEquipmentForStore(storeName: string): StoreEquipmentCounts {
     const row = this.storeEquipmentByStore[storeName];
-    return row ? { ...row } : emptyStoreEquipmentCounts();
+    if (!row) {
+      return emptyStoreEquipmentCounts();
+    }
+    return {
+      ...row,
+      extra: { ...row.extra },
+    };
   }
 
   getAllStoresEquipmentForAccountant(): Array<{ storeName: string } & StoreEquipmentCounts> {
@@ -835,29 +944,61 @@ export class AuthService implements OnModuleInit {
     }));
   }
 
+  addStoreEquipmentCustomType(
+    label: string,
+    actorNickname: string,
+  ): StoreEquipmentCustomTypeDto | { error: string } {
+    const trimmed = label.trim();
+    if (!trimmed) {
+      return { error: 'Укажите название' };
+    }
+    if (trimmed.length > 64) {
+      return { error: 'Слишком длинное название' };
+    }
+    const exists = this.storeEquipmentCustomTypes.some(
+      (t) => t.label.toLocaleLowerCase('ru-RU') === trimmed.toLocaleLowerCase('ru-RU'),
+    );
+    if (exists) {
+      return { error: 'Такой вид техники уже есть' };
+    }
+    const id = `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const created: StoreEquipmentCustomTypeDto = { id, label: trimmed };
+    this.storeEquipmentCustomTypes.push(created);
+    for (const sn of DEMO_STORE_NAMES) {
+      const cur = this.getStoreEquipmentForStore(sn);
+      this.storeEquipmentByStore[sn] = {
+        ...cur,
+        extra: { ...cur.extra, [id]: cur.extra[id] ?? 0 },
+      };
+    }
+    this.pushAudit(actorNickname, 'STORE_EQUIPMENT_TYPE_ADDED', trimmed);
+    this.queuePersist();
+    return created;
+  }
+
   updateStoreEquipmentByAccountant(
     storeName: string,
-    patch: Partial<StoreEquipmentCounts>,
+    patch: Partial<StoreEquipmentCounts> & { extra?: Record<string, number> },
     actorNickname: string,
   ): StoreEquipmentCounts | null {
     if (!(DEMO_STORE_NAMES as readonly string[]).includes(storeName)) {
       return null;
     }
     const cur = this.getStoreEquipmentForStore(storeName);
-    const keys: (keyof StoreEquipmentCounts)[] = [
-      'pc',
-      'camera',
-      'printer',
-      'sdCard',
-      'monitor',
-      'mouse',
-      'keyboard',
-      'cardReader',
-    ];
-    const next = { ...cur };
-    for (const k of keys) {
+    const next: StoreEquipmentCounts = {
+      ...cur,
+      extra: { ...cur.extra },
+    };
+    for (const k of STORE_EQUIPMENT_BUILTIN_KEYS) {
       if (patch[k] !== undefined) {
         next[k] = clampEquipmentInt(patch[k]);
+      }
+    }
+    if (patch.extra !== undefined && typeof patch.extra === 'object') {
+      for (const t of this.storeEquipmentCustomTypes) {
+        if (patch.extra[t.id] !== undefined) {
+          next.extra[t.id] = clampEquipmentInt(patch.extra[t.id]);
+        }
       }
     }
     this.storeEquipmentByStore[storeName] = next;
@@ -1071,13 +1212,13 @@ export class AuthService implements OnModuleInit {
         }
       }
 
-      const sellerRegister: Array<{ fullName: string; salary: string }> = this.sellerProfiles
+      const sellerRegister: Array<{ fullName: string; cash: string }> = this.sellerProfiles
         .filter((p) => p.storeName === user.storeName)
         .map((p) => {
           this.recomputeSeller(p);
           return {
             fullName: p.fullName,
-            salary: this.formatCurrency(Math.round(p.commissionAmount)),
+            cash: this.formatCurrency(Math.round(p.salesAmount)),
           };
         });
       for (const m of this.staff) {
@@ -1088,7 +1229,7 @@ export class AuthService implements OnModuleInit {
         if (u?.storeName === user.storeName && u.isActive) {
           sellerRegister.push({
             fullName: m.fullName,
-            salary: this.formatCurrency(Math.round(m.earningsAmount)),
+            cash: this.formatCurrency(0),
           });
         }
       }
@@ -1477,8 +1618,13 @@ export class AuthService implements OnModuleInit {
 
   async decideCommissionRequest(id: string, decision: 'APPROVE' | 'REJECT') {
     const request = this.commissionChangeRequests.find((item) => item.id === id);
-    if (!request || request.status !== 'PENDING') {
+    if (!request) {
       return null;
+    }
+    if (request.status !== 'PENDING') {
+      return request.status === 'APPROVED' && decision === 'APPROVE'
+        ? { request, seller: this.sellerProfiles.find((s) => s.id === request.sellerId) }
+        : request;
     }
     if (decision === 'REJECT') {
       request.status = 'REJECTED';
@@ -1625,6 +1771,7 @@ export class AuthService implements OnModuleInit {
     qty: number,
     reason: 'Брак' | 'Поломка',
     actorNickname: string,
+    optionalRequestId?: string,
   ): DirectorApprovalRequestMem | null {
     const validNames = new Set(this.productCatalog.map((item) => item.name));
     const nm = name?.trim();
@@ -1643,8 +1790,18 @@ export class AuthService implements OnModuleInit {
       return null;
     }
     const q = Math.round(qty);
+    const trimmedRequestId =
+      typeof optionalRequestId === 'string'
+        ? optionalRequestId.trim().slice(0, 128).replace(/[^\w.-]/g, '') || undefined
+        : undefined;
+    if (trimmedRequestId) {
+      const existing = this.directorApprovalRequests.find((r) => r.id === trimmedRequestId);
+      if (existing) {
+        return existing;
+      }
+    }
     const row: DirectorApprovalRequestMem = {
-      id: `dap-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      id: trimmedRequestId ?? `dap-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
       createdAt: new Date().toISOString(),
       kind: 'WRITE_OFF',
       state: 'PENDING',
@@ -1664,8 +1821,14 @@ export class AuthService implements OnModuleInit {
     directorNickname: string,
   ): Promise<{ ok: boolean; error?: string }> {
     const req = this.directorApprovalRequests.find((r) => r.id === id);
-    if (!req || req.state !== 'PENDING') {
+    if (!req) {
       return { ok: false, error: 'not_found' };
+    }
+    if (req.state !== 'PENDING') {
+      const sameDecision =
+        (req.state === 'APPROVED' && decision === 'APPROVE') ||
+        (req.state === 'REJECTED' && decision === 'REJECT');
+      return sameDecision ? { ok: true } : { ok: false, error: 'not_found' };
     }
     if (decision === 'REJECT') {
       req.state = 'REJECTED';
@@ -1704,14 +1867,14 @@ export class AuthService implements OnModuleInit {
     return { ok: true };
   }
 
-  addAdminSale(
+  async addAdminSale(
     sellerId: number,
     items: Array<{ name: string; qty: number }>,
     totalAmount: number,
     actor = 'system',
     paymentType: SalePaymentType = 'CASH',
     optionalSaleId?: string,
-  ) {
+  ): Promise<SaleRecord | null> {
     const trimmedOptionalId =
       typeof optionalSaleId === 'string'
         ? optionalSaleId.trim().slice(0, 128).replace(/[^\w.-]/g, '') || undefined
@@ -1722,6 +1885,25 @@ export class AuthService implements OnModuleInit {
         const existing = profile.sales.find((s) => s.id === trimmedOptionalId);
         if (existing) {
           return existing;
+        }
+      }
+      if (this.persistenceEnabled) {
+        const existingDb = await this.prisma.sale.findUnique({
+          where: { id: trimmedOptionalId },
+          include: { items: true },
+        });
+        if (existingDb) {
+          return {
+            id: existingDb.id,
+            createdAt: existingDb.createdAt.toISOString(),
+            items: existingDb.items.map((line) => ({
+              name: line.name,
+              qty: line.qty,
+            })),
+            totalAmount: existingDb.totalAmount,
+            units: existingDb.units,
+            paymentType: prismaPaymentTypeToInternal(existingDb.paymentType),
+          };
         }
       }
     }
@@ -1880,8 +2062,18 @@ export class AuthService implements OnModuleInit {
     return true;
   }
 
-  openShift(openedBy: string, assignedSellerIds: number[]) {
+  openShift(openedBy: string, assignedSellerIds: number[], optionalClientShiftId?: string) {
     this.ensureActiveShiftForToday();
+    const trimmedShiftId =
+      typeof optionalClientShiftId === 'string'
+        ? optionalClientShiftId.trim().slice(0, 128).replace(/[^\w.-]/g, '') || undefined
+        : undefined;
+    if (trimmedShiftId) {
+      const byId = this.shiftHistory.find((item) => item.id === trimmedShiftId);
+      if (byId) {
+        return byId;
+      }
+    }
     const opener = this.demoUsers.find((item) => item.nickname === openedBy);
     let allowedIds = [...new Set(assignedSellerIds)];
     if (opener?.role === 'ADMIN') {
@@ -1910,7 +2102,7 @@ export class AuthService implements OnModuleInit {
       return existingOpen;
     }
     const shift: Shift = {
-      id: `shift-${Date.now()}`,
+      id: trimmedShiftId ?? `shift-${Date.now()}`,
       openedAt: new Date().toISOString(),
       openedBy,
       assignedSellerIds: allowedIds,
@@ -3034,6 +3226,7 @@ export class AuthService implements OnModuleInit {
     this.acquiringPercentDetkov = 1.8;
     this.acquiringPercentPutintsevSber = 1.8;
     this.storeEquipmentByStore = {};
+    this.storeEquipmentCustomTypes = [];
     for (const sn of DEMO_STORE_NAMES) {
       this.storeEquipmentByStore[sn] = emptyStoreEquipmentCounts();
     }
@@ -3062,6 +3255,7 @@ export class AuthService implements OnModuleInit {
       appState,
       directorApprovals,
       storeEquipmentRows,
+      storeEquipmentCustomTypeRows,
     ] = await this.prisma.$transaction([
       this.prisma.user.findMany(),
       this.prisma.sellerProfile.findMany(),
@@ -3087,6 +3281,7 @@ export class AuthService implements OnModuleInit {
       this.prisma.appState.findUnique({ where: { id: 1 } }),
       this.prisma.directorApprovalRequest.findMany({ orderBy: { createdAt: 'desc' } }),
       this.prisma.storeEquipment.findMany(),
+      this.prisma.storeEquipmentCustomType.findMany({ orderBy: { sortOrder: 'asc' } }),
     ]);
 
     const salesBySellerId = new Map<number, SaleRecord[]>();
@@ -3296,12 +3491,23 @@ export class AuthService implements OnModuleInit {
         ? appState.acquiringPercentPutintsevSber
         : 1.8;
 
+    this.storeEquipmentCustomTypes = storeEquipmentCustomTypeRows.map((row) => ({
+      id: row.id,
+      label: row.label,
+    }));
+
     this.storeEquipmentByStore = {};
     for (const sn of DEMO_STORE_NAMES) {
       this.storeEquipmentByStore[sn] = emptyStoreEquipmentCounts();
     }
     for (const row of storeEquipmentRows) {
       if (this.storeEquipmentByStore[row.storeName] !== undefined) {
+        const extra = parseStoreEquipmentExtra(row.extra);
+        for (const t of this.storeEquipmentCustomTypes) {
+          if (extra[t.id] === undefined) {
+            extra[t.id] = 0;
+          }
+        }
         this.storeEquipmentByStore[row.storeName] = {
           pc: row.pc,
           camera: row.camera,
@@ -3311,6 +3517,7 @@ export class AuthService implements OnModuleInit {
           mouse: row.mouse,
           keyboard: row.keyboard,
           cardReader: row.cardReader,
+          extra,
         };
       }
     }
@@ -3579,6 +3786,17 @@ export class AuthService implements OnModuleInit {
         await tx.storeRevenuePlan.createMany({ data: planRows });
       }
 
+      await tx.storeEquipmentCustomType.deleteMany();
+      if (this.storeEquipmentCustomTypes.length > 0) {
+        await tx.storeEquipmentCustomType.createMany({
+          data: this.storeEquipmentCustomTypes.map((t, index) => ({
+            id: t.id,
+            label: t.label,
+            sortOrder: index,
+          })),
+        });
+      }
+
       await tx.storeEquipment.deleteMany();
       const equipmentRows = DEMO_STORE_NAMES.map((sn) => {
         const e = this.storeEquipmentByStore[sn] ?? emptyStoreEquipmentCounts();
@@ -3592,6 +3810,7 @@ export class AuthService implements OnModuleInit {
           mouse: e.mouse,
           keyboard: e.keyboard,
           cardReader: e.cardReader,
+          extra: e.extra ?? {},
         };
       });
       await tx.storeEquipment.createMany({ data: equipmentRows });

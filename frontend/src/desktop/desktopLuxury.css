@@ -1,0 +1,368 @@
+/**
+ * Десктоп: тёмная изумрудная тема (только .app--desktop).
+ * Подключается последним — перебивает shell/pages/native.
+ */
+
+.app.app--desktop {
+  --dt-bg: #0d1814;
+  --dt-bg-elevated: #122820;
+  --dt-bg-sidebar: #101c18;
+  --dt-bg-panel: #162a22;
+  --dt-bg-panel-hover: #1c3329;
+  --dt-bg-hover: rgba(62, 207, 154, 0.1);
+  --dt-bg-active: rgba(62, 207, 154, 0.22);
+  --dt-border: rgba(91, 196, 154, 0.24);
+  --dt-border-subtle: rgba(91, 196, 154, 0.12);
+  --dt-border-hairline: rgba(255, 255, 255, 0.07);
+  --dt-text: #e8f5ef;
+  --dt-text-muted: #9ec4b3;
+  --dt-text-dim: #6f9585;
+  --dt-gold: #7dd4b0;
+  --dt-gold-soft: #5bc49a;
+  --dt-accent: #1f8f6a;
+  --dt-accent-hover: #2d9f78;
+  --dt-accent-bright: #3ecf9a;
+  --dt-accent-gradient: linear-gradient(168deg, #6ee7d8 0%, #2bb8a8 42%, #0f4d3a 100%);
+  --dt-accent-gradient-hover: linear-gradient(168deg, #8ef5e4 0%, #3ecf9a 40%, #146b52 100%);
+  --dt-accent-text: #04120d;
+  --dt-accent-edge: rgba(255, 255, 255, 0.28);
+  --dt-surface-shine: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --dt-surface-depth: 0 12px 40px rgba(0, 0, 0, 0.38);
+  --dt-radius-sm: 6px;
+  --dt-radius-md: 9px;
+  --dt-radius-lg: 12px;
+  -webkit-font-smoothing: antialiased;
+}
+
+html:has(.app--desktop),
+body:has(.app--desktop) {
+  background: #0d1814;
+}
+
+.app.app--desktop,
+.app.app--desktop.appWorkspace {
+  background:
+    radial-gradient(ellipse 130% 95% at 50% -28%, rgba(62, 207, 154, 0.2), transparent 56%),
+    radial-gradient(760px 500px at 96% 88%, rgba(44, 96, 79, 0.38), transparent 58%),
+    radial-gradient(560px 400px at 4% 92%, rgba(26, 88, 68, 0.22), transparent 54%),
+    linear-gradient(168deg, #0a1411 0%, #122820 44%, #183528 76%, #0d1814 100%) !important;
+}
+
+.desktopShellLayout,
+.desktopMainPane,
+.desktopMainScroll {
+  background: transparent !important;
+}
+
+.desktopSidebar {
+  background:
+    linear-gradient(180deg, rgba(24, 52, 42, 0.65) 0%, transparent 32%),
+    var(--dt-bg-sidebar) !important;
+  border-right: none !important;
+  box-shadow: inset -1px 0 0 var(--dt-border-hairline);
+}
+
+.desktopSidebarFooter {
+  border-top: none !important;
+  box-shadow: inset 0 1px 0 var(--dt-border-hairline);
+}
+
+.desktopSidebarUserCard {
+  background: rgba(0, 0, 0, 0.18) !important;
+  border: none !important;
+  box-shadow: var(--dt-surface-shine);
+}
+
+.desktopSidebarLogo {
+  background: var(--dt-accent-gradient) !important;
+  border: 1px solid var(--dt-accent-edge) !important;
+  color: var(--dt-accent-text) !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    0 6px 18px rgba(0, 0, 0, 0.3) !important;
+}
+
+.desktopSidebarLink--active {
+  background: linear-gradient(90deg, rgba(62, 207, 154, 0.28), rgba(62, 207, 154, 0.08)) !important;
+  color: #e8f8f0 !important;
+  box-shadow: inset 0 0 0 1px rgba(91, 196, 154, 0.18);
+}
+
+.desktopSidebarLink--active .desktopSidebarLinkIndicator {
+  background: linear-gradient(180deg, #6ee7d8, #1f8f6a) !important;
+  box-shadow: 0 0 10px rgba(62, 207, 154, 0.45);
+}
+
+.desktopTitlebar {
+  background:
+    linear-gradient(180deg, rgba(18, 40, 32, 0.98) 0%, rgba(12, 24, 20, 0.94) 100%) !important;
+  border-bottom: none !important;
+  box-shadow: inset 0 -1px 0 var(--dt-border-hairline);
+}
+
+.desktopTitlebarTitle {
+  color: var(--dt-text) !important;
+  letter-spacing: -0.02em;
+}
+
+.desktopMainScroll::-webkit-scrollbar-thumb {
+  background: rgba(91, 196, 154, 0.38);
+}
+
+/* Панели — глубина вместо рамок */
+.app.app--desktop .dashboard > .sectionCard,
+.app.app--desktop .sectionCard,
+.app.app--desktop .homePanelSection {
+  background:
+    linear-gradient(165deg, rgba(62, 207, 154, 0.07) 0%, transparent 38%),
+    var(--dt-bg-panel) !important;
+  border: none !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    var(--dt-surface-depth),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop .dashboard--warehouseDesktop > .teamPanelCard {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop.appWorkspace .homeStoreCard,
+.app.app--desktop.appWorkspace .homeStoresAggregateCard,
+.app.app--desktop.appWorkspace .adminSellerRegister,
+.app.app--desktop.appWorkspace .soldProductsBlock,
+.app.app--desktop.appWorkspace .teamMemberCard:not(.storeTeamMemberCard),
+.app.app--desktop.appWorkspace .shiftPanelCard,
+.app.app--desktop.appWorkspace .saleItem,
+.app.app--desktop .appWorkspace .opsCard:not(.financeOpsCard):not(.staffPanelRoot):not(.financeReportCard--desktop),
+.app.app--desktop.appWorkspace .directorApprovalsCarouselCard,
+.app.app--desktop.appWorkspace .directorCashflowCarouselCard {
+  background:
+    linear-gradient(165deg, rgba(62, 207, 154, 0.09) 0%, transparent 45%),
+    rgba(14, 28, 22, 0.72) !important;
+  border: none !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    0 6px 22px rgba(0, 0, 0, 0.24),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop > .teamPanelCard {
+  background:
+    linear-gradient(180deg, rgba(22, 44, 36, 0.95) 0%, rgba(14, 26, 22, 0.98) 100%) !important;
+  border: none !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    var(--dt-surface-depth),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop > .sectionCard {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop > .sectionCard > .shiftPanelCard--desktop,
+.app.app--desktop .dashboard--shiftDesktop > .sectionCard > .opsCard.staffPanelRoot.staffPanel--cards {
+  box-shadow:
+    var(--dt-surface-shine),
+    0 8px 28px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop h4.shiftColTitle {
+  border-bottom: none !important;
+  box-shadow: inset 0 -1px 0 var(--dt-border-hairline);
+  color: var(--dt-gold-soft) !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop .staffMgmtStrip {
+  border: none !important;
+  background: rgba(0, 0, 0, 0.16) !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+}
+
+/* Кнопки — изумрудный градиент */
+.app.app--desktop button.primaryAction,
+.app.app--desktop
+  button:not(.ghost):not(.addSaleQtyBtn):not(.paymentTypeBtn):not(.saleDeleteBtn):not(.saleDeleteRequestIconBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.messengerThreadRow):not(.messengerTgPill):not(.orgChatSendFab):not(.directorApprovalsCarouselDot):not(.directorCashflowCarouselDot):not(.desktopTitlebarBtn):not(.teamWarehouseStoreBtn):not(.statPercentToggleBtn):not(.teamMemberDeletePill):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.directorDemoAccountsListBtn):not(.desktopThemeToggleBtn):not(.directorDemoAccountsToggle):not(.directorDemoAccountsNavBtn):not(.directorDemoAccountsDot):not(.storeEquipAddTypeBtn):not(.storeEquipAddTypeCancel):not(.directorWarehouseAddProductBtn):not(.directorWarehouseAddProductCancel) {
+  color: var(--dt-accent-text) !important;
+  -webkit-text-fill-color: var(--dt-accent-text) !important;
+  background: var(--dt-accent-gradient) !important;
+  border: 1px solid var(--dt-accent-edge) !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    0 4px 14px rgba(0, 0, 0, 0.32) !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.app.app--desktop button.primaryAction:hover:not(:disabled),
+.app.app--desktop
+  button:not(.ghost):not(.addSaleQtyBtn):not(.paymentTypeBtn):not(.saleDeleteBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.desktopTitlebarBtn):not(.teamWarehouseStoreBtn):not(.statPercentToggleBtn):not(.teamMemberDeletePill):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.directorDemoAccountsListBtn):not(.desktopThemeToggleBtn):not(.directorDemoAccountsToggle):not(.directorDemoAccountsNavBtn):not(.directorDemoAccountsDot):hover:not(:disabled) {
+  background: var(--dt-accent-gradient-hover) !important;
+  filter: none;
+  border-color: rgba(255, 255, 255, 0.38) !important;
+}
+
+.app.app--desktop button.ghost {
+  color: var(--dt-text-muted) !important;
+  background: rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  box-shadow: var(--dt-surface-shine) !important;
+}
+
+.app.app--desktop button.ghost:hover:not(:disabled) {
+  color: var(--dt-text) !important;
+  border-color: var(--dt-border) !important;
+  background: rgba(62, 207, 154, 0.1) !important;
+}
+
+.app.app--desktop .paymentTypeBtn--desktop {
+  background: rgba(0, 0, 0, 0.22) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  color: var(--dt-text-muted) !important;
+  box-shadow: var(--dt-surface-shine) !important;
+}
+
+.app.app--desktop .paymentTypeBtn--desktop.paymentTypeBtnActive {
+  background: linear-gradient(180deg, rgba(110, 231, 216, 0.32), rgba(31, 143, 106, 0.24)) !important;
+  border-color: rgba(91, 196, 154, 0.5) !important;
+  color: #e8f8f0 !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    0 0 0 1px rgba(62, 207, 154, 0.22) !important;
+}
+
+/* Поля ввода */
+.app.app--desktop input:not([type='checkbox']):not([type='radio']):not(.financeOpsIncomeEntryInput):not(.financeOpsExpenseEntryInput),
+.app.app--desktop select,
+.app.app--desktop textarea,
+.app.app--desktop .staffMgmtInput,
+.app.app--desktop .staffMgmtSelect,
+.app.app--desktop .writeOffControl,
+.app.app--desktop .addSaleFieldSelect,
+.app.app--desktop .addSaleAmountInput {
+  background: rgba(6, 18, 14, 0.72) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  color: var(--dt-text) !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.28) !important;
+}
+
+.app.app--desktop input:focus:not(.financeOpsIncomeEntryInput):not(.financeOpsExpenseEntryInput),
+.app.app--desktop select:focus,
+.app.app--desktop textarea:focus,
+.app.app--desktop .writeOffControl:focus,
+.app.app--desktop .addSaleFieldSelect:focus,
+.app.app--desktop .addSaleAmountField:focus-within {
+  border-color: rgba(91, 196, 154, 0.55) !important;
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.28),
+    0 0 0 3px rgba(62, 207, 154, 0.18) !important;
+}
+
+.app.app--desktop .addSaleAmountField {
+  background: rgba(6, 18, 14, 0.55) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.26) !important;
+}
+
+/* Заголовки секций */
+.app.app--desktop .dtSectionTitle,
+.app.app--desktop .shiftColTitle,
+.app.app--desktop .shiftMgmtTitle,
+.app.app--desktop .staffMgmtGroupLabel,
+.app.app--desktop .writeOffClusterLabel,
+.app.app--desktop .homePanelTitle {
+  color: var(--dt-gold-soft) !important;
+}
+
+.app.app--desktop article.metricCard {
+  border: none !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop .metricCard strong,
+.app.app--desktop .homeProfileVal {
+  color: var(--dt-gold) !important;
+}
+
+/* Таблицы — тонкие разделители */
+.app.app--desktop .storeInventoryRoot .invTableStore thead th,
+.app.app--desktop .storeInventoryRoot .invTableStore tbody td,
+.app.app--desktop .shiftPanelCard--desktop .shiftSellerRow {
+  border-color: var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop .teamMemberCard--desktop {
+  box-shadow:
+    var(--dt-surface-shine),
+    0 6px 20px rgba(0, 0, 0, 0.22),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop.loginScreen {
+  background:
+    radial-gradient(ellipse 130% 95% at 50% -28%, rgba(62, 207, 154, 0.2), transparent 56%),
+    radial-gradient(760px 500px at 96% 88%, rgba(44, 96, 79, 0.38), transparent 58%),
+    linear-gradient(168deg, #0a1411 0%, #122820 44%, #183528 76%, #0d1814 100%) !important;
+}
+
+.app.app--desktop.loginScreen .loginScreenPanel {
+  border: none !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    0 28px 72px rgba(0, 0, 0, 0.48),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop .dashboard--financeReportDesktop > .sectionCard {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .dashboard--salesDesktop > .sectionCard--salesLog {
+  border-top: none !important;
+  box-shadow: inset 0 1px 0 var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop .addSaleProductCard {
+  background: rgba(0, 0, 0, 0.18) !important;
+  border: none !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop .addSaleProductCard--hasQty {
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px rgba(91, 196, 154, 0.38),
+    0 0 20px rgba(62, 207, 154, 0.14) !important;
+}
+
+.app.app--desktop .saleItem {
+  border: none !important;
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px var(--dt-border-hairline) !important;
+}
+
+.app.app--desktop .dashboard--teamDesktop .teamPanelZone {
+  border-bottom: none !important;
+  box-shadow: inset 0 -1px 0 var(--dt-border-hairline);
+}
+
+.app.app--desktop .dashboard--teamDesktop .teamPanelZone--equipment {
+  border-right: none !important;
+  box-shadow: inset -1px 0 0 var(--dt-border-hairline);
+}

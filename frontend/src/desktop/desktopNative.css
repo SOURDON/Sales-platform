@@ -1,0 +1,184 @@
+/**
+ * Десктоп: нативный вид приложения (перебивает веб «стекло», узкую колонку, тени).
+ * Только .app--desktop.appWorkspace
+ */
+
+.app.app--desktop.appWorkspace {
+  justify-content: stretch !important;
+  align-items: stretch !important;
+}
+
+.app.app--desktop .card.cardWorkspace,
+.app.app--desktop .card.cardWorkspace--desktop {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Снять веб-стекло со всех внутренних блоков */
+.app.app--desktop.appWorkspace .homeProfileCard,
+.app.app--desktop.appWorkspace .opsCard:not(.financeOpsCard):not(.financeReportCard--desktop),
+.app.app--desktop.appWorkspace .homeStoreCard,
+.app.app--desktop.appWorkspace .homeStoresAggregateCard,
+.app.app--desktop.appWorkspace .adminSellerRegister,
+.app.app--desktop.appWorkspace .soldProductsBlock,
+.app.app--desktop.appWorkspace .teamMemberCard:not(.storeTeamMemberCard),
+.app.app--desktop.appWorkspace .addSaleForm:not(.financeOpsIncomeBlock),
+.app.app--desktop.appWorkspace .writeOffForm:not(.writeOffFormCarousel):not(.writeOffForm--desktop),
+.app.app--desktop.appWorkspace .writeOffManager,
+.app.app--desktop.appWorkspace .saleItem,
+.app.app--desktop.appWorkspace .directorApprovalsCarouselCard,
+.app.app--desktop.appWorkspace .directorCashflowCarouselCard,
+.app.app--desktop.appWorkspace .shiftPanelCard,
+.app.app--desktop.appWorkspace .mobileAccordion {
+  background: var(--dt-bg-panel-hover) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  border-radius: var(--dt-radius-md) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.app.app--desktop.appWorkspace .opsCard.staffPanelRoot,
+.app.app--desktop.appWorkspace .writeOffForm.writeOffFormCarousel,
+.app.app--desktop.appWorkspace .writeOffForm.writeOffForm--desktop {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.app.app--desktop .desktopContentFrame {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 16px 20px 24px !important;
+}
+
+.app.app--desktop .pageOutlet {
+  gap: 12px !important;
+  min-height: 0 !important;
+}
+
+/* Страница = одна «панель» приложения, не плавающая карточка сайта */
+.app.app--desktop .dashboard > .sectionCard:not(.homeLogoutSection) {
+  margin: 0 !important;
+  background: var(--dt-bg-elevated) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Продажи (отчёт директора) — одно полотно */
+.app.app--desktop .dashboard--financeReportDesktop > .sectionCard {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+}
+
+.app.app--desktop.appWorkspace .opsCard.financeReportCard--desktop {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Продажи — один слой, без «коробки в коробке» */
+.app.app--desktop .dashboard--salesDesktop {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+}
+
+.app.app--desktop .dashboard--salesDesktop > .sectionCard--addSale,
+.app.app--desktop .dashboard--salesDesktop > .sectionCard--salesLog {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.app.app--desktop .dashboard--salesDesktop > .sectionCard--salesLog {
+  margin-top: 20px !important;
+  padding-top: 20px !important;
+  border-top: 1px solid var(--dt-border-subtle) !important;
+}
+
+.app.app--desktop.appWorkspace .dashboard--salesDesktop .addSaleForm,
+.app.app--desktop.appWorkspace .dashboard--salesDesktop .addSaleForm--hero {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.app.app--desktop .dashboard--shiftDesktop > .sectionCard {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.app.app--desktop .dashboard--teamDesktop > .sectionCard {
+  padding: 18px 20px !important;
+}
+
+.app.app--desktop .dashboard--warehouseDesktop > .teamPanelCard {
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Кнопки — см. desktopLuxury.css (золотой градиент) */
+
+.app.app--desktop .paymentTypeBtn--desktop.paymentTypeBtnActive {
+  background: linear-gradient(180deg, rgba(234, 216, 168, 0.35), rgba(166, 124, 50, 0.22)) !important;
+  border-color: rgba(91, 196, 154, 0.5) !important;
+  color: #f5f0e6 !important;
+  box-shadow: none !important;
+}
+
+.app.app--desktop .addSaleSaveBtn {
+  background: var(--dt-accent-gradient) !important;
+  color: var(--dt-accent-text, #0b1410) !important;
+  border: 1px solid var(--dt-accent-edge, rgba(255, 255, 255, 0.28)) !important;
+  box-shadow: var(--dt-surface-shine), 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+}
+
+.app.app--desktop .salesLog--desktop .dtSectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--dt-text-muted);
+  border: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+
+.app.app--desktop .shiftColTitle,
+.app.app--desktop .dtShiftSectionTitle,
+.app.app--desktop .shiftMgmtTitle {
+  letter-spacing: 0.04em;
+}

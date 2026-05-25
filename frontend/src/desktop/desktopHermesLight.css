@@ -1,0 +1,203 @@
+/**
+ * Светлая тема Hermès — доп. страницы и снятие тёмных/золотых наслоений luxury.css.
+ */
+
+/* Снять золотые/тёмные градиенты панелей luxury на светлой теме */
+html[data-dt-theme='light'] .app.app--desktop .homeDashboardDirectorSkin > .sectionCard.homePanelSection,
+html[data-dt-theme='light'] .app.app--desktop .financeOpsShell--desktop {
+  background: var(--hermes-white, #ffffff) !important;
+  border: 1px solid var(--hermes-line, #e8e8e8) !important;
+  box-shadow: 0 1px 2px rgba(26, 26, 26, 0.04), 0 8px 24px rgba(26, 26, 26, 0.06) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .homeDashboardDirectorSkin .homePanelTitle {
+  font-family: var(--dt-font-display) !important;
+  color: var(--hermes-black, #1a1a1a) !important;
+  box-shadow: inset 0 -1px 0 var(--hermes-line, #e8e8e8);
+}
+
+html[data-dt-theme='light'] .app.app--desktop .homeDashboardDirectorSkin .homeStoreCard,
+html[data-dt-theme='light'] .app.app--desktop .homeDashboardDirectorSkin .homeStoresAggregateCard,
+html[data-dt-theme='light'] .app.app--desktop .homeDashboardDirectorSkin .directorApprovalsCarouselCard,
+html[data-dt-theme='light'] .app.app--desktop .homeDashboardDirectorSkin .directorCashflowCarouselCard {
+  background: var(--hermes-white, #ffffff) !important;
+  border: 1px solid var(--hermes-line, #e8e8e8) !important;
+}
+
+/* Финансовый отчёт */
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop button.financeRangePresetBtn {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  color: var(--hermes-gray, #767676) !important;
+  -webkit-text-fill-color: var(--hermes-gray, #767676) !important;
+  background: var(--hermes-white, #ffffff) !important;
+  border: 1px solid var(--hermes-line, #e8e8e8) !important;
+  border-radius: 2px !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop button.financeRangePresetBtn:hover:not(:disabled) {
+  color: var(--hermes-black, #1a1a1a) !important;
+  -webkit-text-fill-color: var(--hermes-black, #1a1a1a) !important;
+  border-color: var(--hermes-charcoal, #333333) !important;
+  background: var(--hermes-cream, #fbf9f4) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop .financeReportExportBtn {
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+}
+
+/* Мессенджер */
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .orgChatSendFab {
+  background: var(--hermes-black, #1a1a1a) !important;
+  border: none !important;
+  color: #ffffff !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .orgChatSendFab:hover:not(:disabled) {
+  background: var(--hermes-charcoal, #333333) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadRow--active {
+  background: var(--hermes-cream, #fbf9f4) !important;
+  box-shadow: inset 3px 0 0 var(--hermes-orange, #f37021) !important;
+}
+
+/* Спецтехника бухгалтера */
+html[data-dt-theme='light'] .app.app--desktop .storeEquipAccountantRoot--desktop {
+  background: var(--hermes-white, #ffffff) !important;
+  border: 1px solid var(--hermes-line, #e8e8e8) !important;
+  box-shadow: var(--dt-surface-depth) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .storeEquipAccountantRoot--desktop .storeEquipAccountantHead {
+  background: var(--hermes-cream, #fbf9f4) !important;
+  border-bottom: 1px solid var(--hermes-line, #e8e8e8) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .storeEquipAccountantRoot--desktop .storeEquipAccountantLead {
+  font-family: var(--dt-font) !important;
+  font-size: 10px !important;
+  letter-spacing: var(--dt-label-tracking, 0.08em) !important;
+  text-transform: uppercase !important;
+  color: var(--hermes-gray, #767676) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .storeEquipStoreRail {
+  background: var(--hermes-cream, #fbf9f4) !important;
+  border-right: 1px solid var(--hermes-line, #e8e8e8) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .storeEquipStoreBtn--active {
+  background: var(--hermes-white, #ffffff) !important;
+  box-shadow: inset 3px 0 0 var(--hermes-orange, #f37021) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .storeEquipGrid--desktop .storeEquipGridRow--field {
+  background: var(--hermes-white, #ffffff) !important;
+  border: 1px solid var(--hermes-line, #e8e8e8) !important;
+}
+
+/* Переключатель темы */
+html[data-dt-theme='light'] .desktopThemeToggle {
+  background: var(--hermes-cream, #fbf9f4) !important;
+  border: 1px solid var(--hermes-line, #e8e8e8) !important;
+  border-radius: 4px !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopThemeToggleBtn {
+  font-size: 10px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopThemeToggleBtn--active {
+  background: var(--hermes-black, #1a1a1a) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopThemeToggleBtn:hover:not(:disabled):not(.desktopThemeToggleBtn--active) {
+  background: var(--hermes-white, #ffffff) !important;
+  color: var(--hermes-black, #1a1a1a) !important;
+}
+
+/* Склад */
+html[data-dt-theme='light'] .app.app--desktop .dashboard--warehouseDesktop .teamWarehouseStoreBtn:hover:not(.teamWarehouseStoreBtn--active) {
+  background: var(--hermes-cream, #fbf9f4) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .directorWarehouseAddProductBtn,
+html[data-dt-theme='light'] .app.app--desktop .directorWarehouseAddProductCancel {
+  font-size: 10px !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .directorWarehouseAddProductInput {
+  background: #ffffff !important;
+  border-color: #e8e8e8 !important;
+  color: #1a1a1a !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .directorWarehouseSubtitle {
+  color: #767676 !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .storeEquipAddTypeBtn {
+  font-size: 10px !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .invPrimaryMini,
+html[data-dt-theme='light'] .app.app--desktop .storeEquipEditorPanel .storeEquipSaveBtn,
+html[data-dt-theme='light'] .app.app--desktop .storeEquipAddTypeConfirm,
+html[data-dt-theme='light'] .app.app--desktop .directorWarehouseAddProductConfirm {
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%) !important;
+  border: 1px solid var(--hermes-black, #1a1a1a) !important;
+  box-shadow: none !important;
+}
+
+/* Карусель спецтехники (мобильный layout в desktop окне) */
+html[data-dt-theme='light'] .appWorkspace .storeEquipCarouselShell .storeEquipSaveBtn {
+  color: var(--hermes-black, #1a1a1a) !important;
+  background: var(--hermes-white, #ffffff) !important;
+  border: 1px solid var(--hermes-black, #1a1a1a) !important;
+}
+
+html[data-dt-theme='light'] .appWorkspace .storeEquipCarouselShell .storeEquipSaveBtn:hover:not(:disabled) {
+  background: var(--hermes-cream, #fbf9f4) !important;
+}
+
+/* Переключатель учёток директора */
+html[data-dt-theme='light'] .app.app--desktop .desktopDirectorSwitcherCard {
+  background: var(--hermes-white, #ffffff) !important;
+  border: 1px solid var(--hermes-line, #e8e8e8) !important;
+  box-shadow: 0 4px 20px rgba(26, 26, 26, 0.08) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopDirectorSwitcherCard:hover {
+  border-color: var(--hermes-charcoal, #333333) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopDirectorSwitcherStoreLine {
+  color: var(--hermes-gray, #767676) !important;
+}
+
+/* Ссылки и акценты */
+html[data-dt-theme='light'] .app.app--desktop a:not(.desktopSidebarLink):not(.ghost) {
+  color: var(--hermes-charcoal, #333333);
+  text-underline-offset: 3px;
+}
+
+html[data-dt-theme='light'] .app.app--desktop a:not(.desktopSidebarLink):not(.ghost):hover {
+  color: var(--hermes-orange, #f37021);
+}

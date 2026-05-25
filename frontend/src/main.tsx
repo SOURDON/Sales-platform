@@ -16,7 +16,11 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-if ('serviceWorker' in navigator) {
+const isTauriShell =
+  typeof window !== 'undefined' &&
+  ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+
+if ('serviceWorker' in navigator && !isTauriShell) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((error) => {
       console.error('Service worker registration failed:', error)

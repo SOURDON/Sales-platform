@@ -1,0 +1,269 @@
+/**
+ * Бухгалтер → Оперативка → спецтехника по точкам (десктоп).
+ */
+
+.app.app--desktop .dashboard--financeDesktop:has(.storeEquipAccountantRoot--desktop) {
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+.app.app--desktop .dashboard--financeDesktop:has(.storeEquipAccountantRoot--desktop) > .sectionCard {
+  flex: 1 1 auto !important;
+  min-height: min(100%, calc(100vh - var(--dt-titlebar-h) - 80px)) !important;
+}
+
+.app.app--desktop .dashboard--financeDesktop:has(.storeEquipAccountantRoot--desktop) > .sectionCard > .storeEquipAccountantRoot--desktop {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.app.app--desktop .storeEquipAccountantRoot--desktop {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  gap: 0;
+  background: var(--dt-bg-elevated);
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-lg);
+  box-shadow: var(--dt-surface-depth);
+  overflow: hidden;
+}
+
+.app.app--desktop .storeEquipAccountantRoot--desktop .storeEquipAccountantHead {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--dt-border-hairline);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.app.app--desktop .storeEquipAccountantRoot--desktop .storeEquipAccountantLead {
+  margin: 0;
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--dt-gold-soft);
+}
+
+.app.app--desktop .storeEquipAccountantRoot--desktop .storeEquipAccountantSub {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .storeEquipAccountantRoot--desktop .storeInvMessage {
+  margin: 0;
+  font-size: 11px;
+}
+
+.app.app--desktop .storeEquipAccountantWorkspace {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(168px, 200px) minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app.app--desktop .storeEquipStoreRail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--dt-border-hairline);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.app.app--desktop .storeEquipStoreList {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.app.app--desktop .storeEquipStoreBtn {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px !important;
+  min-height: 0 !important;
+  text-align: left;
+  border-radius: var(--dt-radius-sm) !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: var(--dt-text) !important;
+  -webkit-text-fill-color: var(--dt-text) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+
+.app.app--desktop .storeEquipStoreBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: var(--dt-border-subtle) !important;
+  transform: none !important;
+}
+
+.app.app--desktop .storeEquipStoreBtn--active {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--dt-border) !important;
+  box-shadow: inset 2px 0 0 var(--dt-gold-soft) !important;
+}
+
+.app.app--desktop .storeEquipStoreBtnName {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.app.app--desktop .storeEquipStoreBtnMeta {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--dt-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.app.app--desktop .storeEquipEditorMain {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app.app--desktop .storeEquipEditorPanel {
+  flex:  1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px 14px 12px;
+  overflow-y: auto;
+}
+
+.app.app--desktop .storeEquipEditorHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--dt-border-hairline);
+}
+
+.app.app--desktop .storeEquipEditorTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--dt-text);
+}
+
+.app.app--desktop .storeEquipEditorMeta {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--dt-text-muted);
+}
+
+.app.app--desktop .storeEquipGrid--desktop {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  padding: 0;
+}
+
+.app.app--desktop .storeEquipGrid--desktop .storeEquipGridRow--field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-sm);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.app.app--desktop .storeEquipGrid--desktop .storeEquipLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dt-text-muted);
+  line-height: 1.2;
+}
+
+.app.app--desktop .storeEquipGrid--desktop .storeEquipQtyInput {
+  max-width: none;
+  width: 100%;
+  min-height: 28px !important;
+  margin: 0 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  padding: 2px 6px !important;
+}
+
+.app.app--desktop .storeEquipActionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--dt-border-hairline);
+}
+
+.app.app--desktop .storeEquipAddTypeBtn {
+  min-height: 28px !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+.app.app--desktop .storeEquipAddTypeForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: min(100%, 280px);
+}
+
+.app.app--desktop .storeEquipAddTypeInput {
+  flex: 1 1 140px;
+  min-width: 120px;
+  min-height: 28px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+}
+
+.app.app--desktop .storeEquipAddTypeConfirm {
+  min-height: 28px !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
+}
+
+.app.app--desktop .storeEquipAddTypeCancel {
+  min-height: 28px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+}
+
+.app.app--desktop .storeEquipEditorPanel .storeEquipSaveBtn {
+  min-width: 120px !important;
+  min-height: 32px !important;
+  font-size: 12px !important;
+  margin-left: auto;
+}
+
+/* Светлая тема Hermès — см. desktopHermesLight.css */

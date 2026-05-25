@@ -1,0 +1,817 @@
+/**
+ * Только Tauri (класс app--desktop). Веб не затрагивается.
+ * Нативный shell: боковая панель, titlebar, плотная сетка контента.
+ */
+
+.app.app--desktop {
+  --dt-bg: #0d1814;
+  --dt-bg-elevated: #122820;
+  --dt-bg-sidebar: #101c18;
+  --dt-bg-panel: #162a22;
+  --dt-bg-panel-hover: #1c3329;
+  --dt-bg-hover: rgba(62, 207, 154, 0.1);
+  --dt-bg-active: rgba(62, 207, 154, 0.22);
+  --dt-border: rgba(91, 196, 154, 0.24);
+  --dt-border-subtle: rgba(91, 196, 154, 0.12);
+  --dt-border-hairline: rgba(255, 255, 255, 0.07);
+  --dt-text: #e8f5ef;
+  --dt-text-muted: #9ec4b3;
+  --dt-text-dim: #6f9585;
+  --dt-gold: #7dd4b0;
+  --dt-gold-soft: #5bc49a;
+  --dt-accent: #1f8f6a;
+  --dt-accent-hover: #2d9f78;
+  --dt-accent-bright: #3ecf9a;
+  --dt-accent-gradient: linear-gradient(168deg, #6ee7d8 0%, #2bb8a8 42%, #0f4d3a 100%);
+  --dt-accent-gradient-hover: linear-gradient(168deg, #8ef5e4 0%, #3ecf9a 40%, #146b52 100%);
+  --dt-accent-text: #04120d;
+  --dt-accent-edge: rgba(255, 255, 255, 0.28);
+  --dt-surface-shine: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --dt-surface-depth: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --dt-radius-sm: 6px;
+  --dt-radius-md: 9px;
+  --dt-radius-lg: 12px;
+  --dt-sidebar-w: 220px;
+  --dt-titlebar-h: 52px;
+  --dt-titlebar-inset-x: 72px;
+  --dt-control-h: 30px;
+  --dt-font:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, 'Segoe UI', sans-serif;
+  --dt-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-family: var(--dt-font);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--dt-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+html:has(.app--desktop),
+body:has(.app--desktop) {
+  overflow: hidden;
+  height: 100%;
+  background: var(--dt-bg);
+}
+
+#root:has(.app--desktop) {
+  height: 100vh;
+  width: 100%;
+}
+
+.app.app--desktop,
+.app.app--desktop.appWorkspace {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  width: 100% !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  max-height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  background: var(--dt-bg) !important;
+}
+
+.app.app--desktop .mobileDock,
+.app.app--desktop .desktopAppHeader,
+.app.app--desktop .quickNav.desktopNav {
+  display: none !important;
+}
+
+.app.app--desktop .cardWorkspace,
+.app.app--desktop .cardWorkspace--desktop {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  overflow: hidden !important;
+}
+
+/* ——— Login (отдельный экран приложения) ——— */
+.app.app--desktop.loginScreen {
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 32px !important;
+  background:
+    radial-gradient(ellipse 130% 95% at 50% -28%, rgba(62, 207, 154, 0.2), transparent 56%),
+    radial-gradient(760px 500px at 96% 88%, rgba(44, 96, 79, 0.38), transparent 58%),
+    linear-gradient(168deg, #0a1411 0%, #122820 44%, #183528 76%, #0d1814 100%) !important;
+}
+
+.app.app--desktop.loginScreen .desktopLoginStatus {
+  position: fixed;
+  top: 16px;
+  right: 20px;
+  z-index: 10;
+}
+
+.app.app--desktop.loginScreen .loginScreenPanel {
+  width: 100%;
+  max-width: 380px;
+  padding: 32px 32px 28px;
+  border-radius: var(--dt-radius-lg);
+  background: var(--dt-bg-panel);
+  border: none;
+  box-shadow:
+    var(--dt-surface-shine),
+    0 28px 72px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop.loginScreen .brandHeader {
+  max-width: none;
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.app.app--desktop.loginScreen .brandHeader h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--dt-gold);
+  letter-spacing: -0.03em;
+}
+
+.app.app--desktop.loginScreen .subtitle {
+  color: var(--dt-text-dim);
+  font-size: 13px;
+}
+
+.app.app--desktop.loginScreen .form {
+  gap: 14px;
+}
+
+.app.app--desktop.loginScreen label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dt-text-muted);
+}
+
+.app.app--desktop.loginScreen input:not([type='checkbox']) {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 14px;
+  border-radius: var(--dt-radius-md);
+  border: 1px solid var(--dt-border-subtle);
+  background: rgba(4, 12, 9, 0.8);
+  color: var(--dt-text);
+}
+
+.app.app--desktop.loginScreen .primaryAction {
+  min-height: 40px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+/* ——— Shell grid ——— */
+.desktopShellLayout {
+  display: grid;
+  grid-template-columns: var(--dt-sidebar-w) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--dt-bg);
+}
+
+/* ——— Sidebar ——— */
+.desktopSidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--dt-bg-sidebar);
+  border-right: 1px solid var(--dt-border-subtle);
+}
+
+.desktopSidebarBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 12px 10px;
+  flex-shrink: 0;
+}
+
+.desktopSidebarLogo {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dt-accent-text, #0b1410);
+  background: var(--dt-accent-gradient, var(--dt-accent));
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  box-shadow: none;
+}
+
+.desktopSidebarBrandText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.desktopSidebarTitle {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--dt-text);
+  line-height: 1.2;
+}
+
+.desktopSidebarTagline {
+  font-size: 11px;
+  color: var(--dt-text-dim);
+  letter-spacing: 0;
+}
+
+.desktopSidebarSectionLabel {
+  margin: 0 12px 4px;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--dt-text-dim);
+}
+
+.desktopSidebarNav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+
+.desktopSidebarLink {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3px 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 8px 0 2px;
+  border-radius: var(--dt-radius-sm);
+  text-decoration: none;
+  color: var(--dt-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  transition:
+    background 0.1s ease,
+    color 0.1s ease;
+}
+
+.desktopSidebarLinkIndicator {
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  background: transparent;
+  justify-self: center;
+}
+
+.desktopSidebarLink:hover {
+  background: var(--dt-bg-hover);
+  color: var(--dt-text);
+  transform: none;
+}
+
+.desktopSidebarLink--active {
+  background: var(--dt-bg-active);
+  color: #d4efe2;
+  font-weight: 600;
+}
+
+.desktopSidebarLink--active .desktopSidebarLinkIndicator {
+  background: var(--dt-accent);
+  box-shadow: none;
+}
+
+.desktopSidebarNavIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+}
+
+.desktopSidebarLink--active .desktopSidebarNavIcon {
+  opacity: 1;
+  color: #9fd4b8;
+}
+
+.desktopSidebarNavIcon .dockSvg {
+  width: 18px;
+  height: 18px;
+}
+
+.desktopSidebarNavBadge {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--dt-gold-soft);
+  color: #0a1612;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.desktopSidebarFooter {
+  flex-shrink: 0;
+  padding: 12px 12px 14px;
+  border-top: 1px solid var(--dt-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.desktopSidebarUserCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--dt-radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--dt-border-subtle);
+}
+
+.desktopSidebarUserAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dt-gold);
+  background: rgba(62, 207, 154, 0.15);
+  flex-shrink: 0;
+}
+
+.desktopSidebarUserMeta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.desktopSidebarUserName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dt-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktopSidebarUserRole {
+  font-size: 11px;
+  color: var(--dt-text-dim);
+}
+
+.desktopSidebarLogout {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dt-text-muted);
+  background: transparent;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-md);
+  cursor: default;
+}
+
+.desktopSidebarLogout:hover:not(:disabled) {
+  background: rgba(127, 40, 40, 0.2);
+  border-color: rgba(248, 113, 113, 0.35);
+  color: #fecaca;
+  transform: none;
+}
+
+/* ——— Main pane ——— */
+.desktopMainPane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--dt-bg);
+}
+
+.desktopTitlebar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  min-height: var(--dt-titlebar-h);
+  padding: 0 20px 10px var(--dt-titlebar-inset-x);
+  border-bottom: 1px solid var(--dt-border-subtle);
+  background: var(--dt-bg-elevated);
+}
+
+.desktopTitlebarMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.desktopTitlebarDrag {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.desktopTitlebarTrailing {
+  flex-shrink: 0;
+}
+
+.desktopTitlebarTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--dt-text);
+  line-height: 1.15;
+}
+
+.desktopMainError {
+  flex-shrink: 0;
+  margin: 10px 24px 0;
+  padding: 10px 14px;
+  border-radius: var(--dt-radius-md);
+  font-size: 13px;
+}
+
+.desktopMainScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--dt-bg);
+}
+
+.desktopMainScroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.desktopMainScroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.desktopMainScroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+  background-clip: padding-box;
+}
+
+.desktopContentFrame {
+  padding: 16px 20px 24px;
+  min-height: min-content;
+}
+
+/* ——— Page layout: убираем «мобильный» стек ——— */
+.app.app--desktop .pageOutlet {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app.app--desktop .dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.app.app--desktop .homeLogoutSection,
+.app.app--desktop .directorHomeLogoutStrip {
+  display: none !important;
+}
+
+.app.app--desktop .sectionCard,
+.app.app--desktop .homePanelSection {
+  background: var(--dt-bg-panel);
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-lg);
+  padding: 18px 20px !important;
+  box-shadow: none;
+}
+
+.app.app--desktop .homePanelTitle {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dt-text-muted);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.app.app--desktop h3:not(.messengerHubTitle):not(.messengerThreadNavTitle),
+.app.app--desktop h4 {
+  color: var(--dt-text);
+  font-weight: 600;
+}
+
+.app.app--desktop .muted,
+.app.app--desktop .subtitle,
+.app.app--desktop .hint {
+  color: var(--dt-text-muted) !important;
+}
+
+/* Сетка метрик — как в десктоп-дашборде */
+.app.app--desktop .metrics,
+.app.app--desktop .homeMetricsTopLine,
+.app.app--desktop .homeMetricsTight {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.app.app--desktop article.metricCard {
+  padding: 12px 14px !important;
+  border-radius: var(--dt-radius-md) !important;
+  border: 1px solid var(--dt-border-subtle) !important;
+  background: var(--dt-bg-panel-hover) !important;
+  min-height: 72px;
+}
+
+.app.app--desktop .metricCard p {
+  font-size: 11px !important;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dt-text-dim) !important;
+  margin: 0 0 4px !important;
+}
+
+.app.app--desktop .metricCard strong,
+.app.app--desktop .homeProfileVal {
+  font-size: 1.25rem !important;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--dt-text) !important;
+}
+
+/* Директор: карусели → сетка карточек */
+.app.app--desktop .homeDashboardDirectorSkin .directorApprovalsCarousel,
+.app.app--desktop .homeDashboardDirectorSkin .directorCashflowCarousel {
+  display: block !important;
+  max-width: none !important;
+}
+
+.app.app--desktop .homeDashboardDirectorSkin .directorApprovalsCarouselViewport,
+.app.app--desktop .homeDashboardDirectorSkin .directorCashflowCarouselViewport {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
+  gap: 10px !important;
+  overflow: visible !important;
+}
+
+.app.app--desktop .homeDashboardDirectorSkin .directorApprovalsCarouselCard,
+.app.app--desktop .homeDashboardDirectorSkin .directorCashflowCarouselCard {
+  width: auto !important;
+  min-width: 0 !important;
+  flex: none !important;
+}
+
+.app.app--desktop .homeDashboardDirectorSkin .directorApprovalsCarouselDots,
+.app.app--desktop .homeDashboardDirectorSkin .directorCashflowCarouselDots {
+  display: none !important;
+}
+
+/* Главная / панели страниц — см. desktopPages.css */
+
+/* Формы: горизонтальные ряды */
+.app.app--desktop .inlineGrid,
+.app.app--desktop .inlineGridStaffBase,
+.app.app--desktop .addSaleRow {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: 12px !important;
+  align-items: end !important;
+}
+
+.app.app--desktop .financeOpsCard,
+.app.app--desktop .opsCard {
+  max-width: none !important;
+}
+
+.app.app--desktop .financeRangeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Аккордеоны → плоские панели */
+.app.app--desktop .mobileAccordion {
+  border: 1px solid var(--dt-border-subtle) !important;
+  border-radius: var(--dt-radius-lg) !important;
+  background: var(--dt-bg-panel) !important;
+  margin-bottom: 12px;
+}
+
+.app.app--desktop .mobileAccordion > summary {
+  padding: 12px 16px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--dt-text) !important;
+  border-bottom: 1px solid var(--dt-border-subtle) !important;
+}
+
+.app.app--desktop .mobileAccordion > .sectionCard {
+  padding: 14px 16px !important;
+}
+
+/* Склад / команда — сетка только если не единая панель учёта и не десктоп-склад */
+.app.app--desktop .teamPage:not(.dashboard--teamDesktop):not(.dashboard--warehouseDesktop) {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .app.app--desktop .teamPage:not(.dashboard--teamDesktop):not(.dashboard--warehouseDesktop) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.app.app--desktop .teamMemberCard {
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-md);
+  padding: 12px 14px;
+  background: var(--dt-bg-panel-hover);
+}
+
+/* Кнопки */
+.app.app--desktop button {
+  min-height: var(--dt-control-h);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--dt-radius-md);
+  cursor: default;
+}
+
+.app.app--desktop button:hover:not(:disabled) {
+  transform: none;
+}
+
+.app.app--desktop button.primaryAction,
+.app.app--desktop
+  button:not(.ghost):not(.addSaleQtyBtn):not(.saleDeleteRequestIconBtn):not(.saleDeleteBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.messengerThreadRow):not(.messengerTgPill):not(.orgChatSendFab):not(.directorApprovalsCarouselDot):not(.directorCashflowCarouselDot):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.desktopThemeToggleBtn) {
+  min-height: var(--dt-control-h);
+  font-weight: 600;
+  color: var(--dt-accent-text, #0b1410);
+  background: var(--dt-accent-gradient, linear-gradient(168deg, #8ef5e4 0%, #3ecf9a 40%, #1f8f6a 100%));
+  border: 1px solid var(--dt-accent-edge, rgba(255, 255, 255, 0.28));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.app.app--desktop button.ghost,
+.app.app--desktop a.ghost:not(.desktopSidebarLink) {
+  min-height: var(--dt-control-h);
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--dt-text);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--dt-border-subtle);
+}
+
+.app.app--desktop button.ghost:hover:not(:disabled),
+.app.app--desktop a.ghost:not(.desktopSidebarLink):hover {
+  background: var(--dt-bg-hover);
+  border-color: var(--dt-border);
+  color: var(--dt-gold-soft);
+}
+
+/* Поля */
+.app.app--desktop input:not([type='checkbox']):not([type='radio']):not(.financeOpsIncomeEntryInput):not(.financeOpsExpenseEntryInput),
+.app.app--desktop select,
+.app.app--desktop textarea:not(.orgChatInput--tg) {
+  min-height: var(--dt-control-h);
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: var(--dt-radius-md);
+  border: 1px solid var(--dt-border-subtle);
+  background: rgba(4, 12, 9, 0.65);
+  color: var(--dt-text);
+}
+
+.app.app--desktop label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dt-text-muted);
+  gap: 5px;
+}
+
+/* Таблицы */
+.app.app--desktop .tableWrap {
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-md);
+  overflow: hidden;
+  background: rgba(6, 14, 11, 0.5);
+}
+
+.app.app--desktop table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.app.app--desktop table th,
+.app.app--desktop table td {
+  padding: 8px 12px;
+  font-size: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--dt-border-subtle);
+}
+
+.app.app--desktop table th {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dt-text-dim);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.app.app--desktop table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Чат — см. desktopMessenger.css */
+
+/* Уведомления */
+.app.app--desktop .error {
+  background: rgba(127, 29, 29, 0.35);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  color: #fecaca;
+  border-radius: var(--dt-radius-md);
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.app.app--desktop .notice {
+  border-radius: var(--dt-radius-md);
+  border: 1px solid var(--dt-border);
+  background: rgba(62, 207, 154, 0.08);
+  color: var(--dt-gold-soft);
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+/* Сброс мобильных отступов под dock */
+.app.app--desktop .cardWorkspace {
+  padding-bottom: 0 !important;
+}
+
+@media (max-width: 720px) {
+  .desktopShellLayout {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .desktopSidebarBrandText,
+  .desktopSidebarSectionLabel,
+  .desktopSidebarNavLabel,
+  .desktopSidebarNavBadge,
+  .desktopSidebarUserMeta,
+  .desktopSidebarLogout {
+    display: none;
+  }
+
+  .desktopSidebarLink {
+    grid-template-columns: 3px 1fr;
+    justify-items: center;
+    padding: 10px 6px;
+  }
+
+  .desktopSidebarUserCard {
+    justify-content: center;
+    padding: 8px;
+  }
+}

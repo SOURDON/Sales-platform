@@ -1,0 +1,17 @@
+{
+  "name": "sales-platform-desktop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Tauri shell for Sales Platform (Windows + macOS)",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:frontend": "node scripts/build-frontend.mjs",
+    "icon": "tauri icon ../frontend/public/app-icon.svg",
+    "icons:mac": "bash scripts/generate-icons.sh",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0"
+  }
+}

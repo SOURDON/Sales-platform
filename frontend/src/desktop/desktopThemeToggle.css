@@ -1,0 +1,69 @@
+.desktopLoginTheme {
+  width: min(100%, 280px);
+  margin: 0 auto 12px;
+}
+
+.desktopThemeToggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--dt-border-subtle);
+}
+
+html[data-dt-theme='light'] .desktopThemeToggle {
+  background: var(--hermes-cream, #fbf9f4);
+  border-color: var(--hermes-line, #e8e8e8);
+  border-radius: 4px;
+}
+
+.app.app--desktop .desktopThemeToggleBtn {
+  min-height: 28px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--dt-text-dim) !important;
+  -webkit-text-fill-color: var(--dt-text-dim) !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+
+.app.app--desktop .desktopThemeToggleBtn:hover:not(:disabled) {
+  color: var(--dt-text-muted) !important;
+  -webkit-text-fill-color: var(--dt-text-muted) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  transform: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopThemeToggleBtn {
+  font-family: var(--dt-font, 'Manrope', sans-serif) !important;
+  font-size: 10px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  border-radius: 2px !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopThemeToggleBtn:hover:not(:disabled):not(.desktopThemeToggleBtn--active) {
+  background: var(--hermes-white, #ffffff) !important;
+  color: var(--hermes-black, #1a1a1a) !important;
+  -webkit-text-fill-color: var(--hermes-black, #1a1a1a) !important;
+}
+
+.app.app--desktop .desktopThemeToggleBtn--active {
+  color: var(--dt-text) !important;
+  -webkit-text-fill-color: var(--dt-text) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: inset 0 0 0 1px var(--dt-border-subtle) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopThemeToggleBtn--active {
+  background: var(--hermes-black, #1a1a1a) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: none !important;
+}

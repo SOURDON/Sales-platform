@@ -40,10 +40,14 @@ interface WriteOffBody {
   name?: string;
   qty?: number;
   reason?: 'Брак' | 'Поломка';
+  /** Idempotent offline sync — повтор не создаёт вторую заявку */
+  requestId?: string;
 }
 
 interface OpenShiftBody {
   assignedSellerIds?: number[];
+  /** Idempotent offline sync — тот же id смены при повторной отправке */
+  clientShiftId?: string;
 }
 
 interface CloseShiftBody {
@@ -106,6 +110,7 @@ interface FinanceExpenseBody {
   title?: string;
   amount?: number;
   comment?: string;
+  expenseId?: string;
 }
 
 interface FinanceIncomeBody {
@@ -113,10 +118,16 @@ interface FinanceIncomeBody {
   amount?: number;
   workDay?: string;
   comment?: string;
+  incomeId?: string;
 }
 
 interface StoreEquipmentPutBody extends Partial<StoreEquipmentCounts> {
   storeName?: string;
+  extra?: Record<string, number>;
+}
+
+interface StoreEquipmentTypePostBody {
+  label?: string;
 }
 
 interface OrgChatPostBody {
@@ -145,6 +156,27 @@ export class AdminController {
   getProducts(@Headers('authorization') authorization?: string) {
     this.requireFinanceRead(authorization);
     return this.authService.productCatalog;
+  }
+
+  @Post('products')
+  postProduct(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { name?: string; price?: number },
+  ) {
+    const session = this.requireDirectorOrAccountantAccess(authorization);
+    const result = this.authService.addProductToCatalog(
+      String(body.name ?? ''),
+      Number(body.price),
+      session.nickname,
+    );
+    if ('error' in result) {
+      throw new BadRequestException(result.error);
+    }
+    return {
+      product: result,
+      catalog: this.authService.productCatalog,
+      overview: this.authService.getInventoryOverview(),
+    };
   }
 
   @Get('inventory/overview')
@@ -180,16 +212,41 @@ export class AdminController {
     if (!storeName) {
       throw new BadRequestException('Не удалось определить точку');
     }
-    return { equipment: this.authService.getStoreEquipmentForStore(storeName) };
+    return {
+      equipment: this.authService.getStoreEquipmentForStore(storeName),
+      customTypes: this.authService.getStoreEquipmentCustomTypes(),
+    };
   }
 
   @Get('store-equipment')
   listStoreEquipmentAll(@Headers('authorization') authorization?: string) {
-    const session = this.requireFinanceRead(authorization);
-    if (session.role !== 'ACCOUNTANT') {
-      throw new ForbiddenException('Свод по технике доступен бухгалтеру');
+    this.requireDirectorOrAccountantAccess(authorization);
+    return {
+      stores: this.authService.getAllStoresEquipmentForAccountant(),
+      customTypes: this.authService.getStoreEquipmentCustomTypes(),
+    };
+  }
+
+  @Get('store-equipment/types')
+  listStoreEquipmentTypes(@Headers('authorization') authorization?: string) {
+    this.requireDirectorOrAccountantAccess(authorization);
+    return { customTypes: this.authService.getStoreEquipmentCustomTypes() };
+  }
+
+  @Post('store-equipment/types')
+  postStoreEquipmentType(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: StoreEquipmentTypePostBody,
+  ) {
+    const session = this.requireDirectorOrAccountantAccess(authorization);
+    const result = this.authService.addStoreEquipmentCustomType(
+      String(body.label ?? ''),
+      session.nickname,
+    );
+    if ('error' in result) {
+      throw new BadRequestException(result.error);
     }
-    return { stores: this.authService.getAllStoresEquipmentForAccountant() };
+    return { type: result, customTypes: this.authService.getStoreEquipmentCustomTypes() };
   }
 
   @Put('store-equipment')
@@ -197,32 +254,28 @@ export class AdminController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: StoreEquipmentPutBody,
   ) {
-    const session = this.requireFinanceRead(authorization);
-    if (session.role !== 'ACCOUNTANT') {
-      throw new ForbiddenException('Редактирование учёта техники доступно бухгалтеру');
-    }
+    const session = this.requireDirectorOrAccountantAccess(authorization);
     const storeName = String(body.storeName ?? '').trim();
     if (!storeName) {
       throw new BadRequestException('Укажите точку');
     }
-    const keys: (keyof StoreEquipmentCounts)[] = [
-      'pc',
-      'camera',
-      'printer',
-      'sdCard',
-      'monitor',
-      'mouse',
-      'keyboard',
-      'cardReader',
-    ];
     const cur = this.authService.getStoreEquipmentForStore(storeName);
-    const patch: Partial<StoreEquipmentCounts> = {};
-    for (const k of keys) {
-      const v = body[k];
-      if (v !== undefined && v !== null) {
-        patch[k] = Number(v);
-      } else {
-        patch[k] = cur[k];
+    const patch: Partial<StoreEquipmentCounts> = {
+      pc: body.pc !== undefined ? Number(body.pc) : cur.pc,
+      camera: body.camera !== undefined ? Number(body.camera) : cur.camera,
+      printer: body.printer !== undefined ? Number(body.printer) : cur.printer,
+      sdCard: body.sdCard !== undefined ? Number(body.sdCard) : cur.sdCard,
+      monitor: body.monitor !== undefined ? Number(body.monitor) : cur.monitor,
+      mouse: body.mouse !== undefined ? Number(body.mouse) : cur.mouse,
+      keyboard: body.keyboard !== undefined ? Number(body.keyboard) : cur.keyboard,
+      cardReader: body.cardReader !== undefined ? Number(body.cardReader) : cur.cardReader,
+      extra: { ...cur.extra },
+    };
+    if (body.extra && typeof body.extra === 'object') {
+      for (const [id, qty] of Object.entries(body.extra)) {
+        if (patch.extra && id) {
+          patch.extra[id] = Number(qty);
+        }
       }
     }
     const next = this.authService.updateStoreEquipmentByAccountant(storeName, patch, session.nickname);
@@ -414,6 +467,7 @@ export class AdminController {
         title: body.title,
         amount: body.amount,
         comment: body.comment,
+        expenseId: body.expenseId,
       },
       session.nickname,
     );
@@ -440,6 +494,7 @@ export class AdminController {
         amount: body.amount,
         workDay,
         comment: body.comment,
+        incomeId: body.incomeId,
       },
       session.nickname,
     );
@@ -464,6 +519,7 @@ export class AdminController {
     const shift = this.authService.openShift(
       session.nickname,
       body.assignedSellerIds ?? [],
+      body.clientShiftId,
     );
     if (!shift) {
       throw new BadRequestException('Failed to open shift');
@@ -835,7 +891,7 @@ export class AdminController {
   }
 
   @Post('sales')
-  createSale(
+  async createSale(
     @Headers('authorization') authorization: string | undefined,
     @Body() body: CreateSaleBody,
   ) {
@@ -853,7 +909,7 @@ export class AdminController {
         : body.paymentType === 'TRANSFER'
           ? 'TRANSFER'
           : 'CASH';
-    const result = this.authService.addAdminSale(
+    const result = await this.authService.addAdminSale(
       body.sellerId,
       body.items,
       body.totalAmount,
@@ -912,6 +968,7 @@ export class AdminController {
       body.qty,
       body.reason,
       session.nickname,
+      body.requestId,
     );
     if (!result) {
       throw new BadRequestException(

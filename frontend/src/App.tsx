@@ -1,10 +1,48 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode, TouchEvent } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 import './App.css';
 import { scheduleIosVisualViewportBumps } from './iosVisualViewportHeight';
-import { appendOfflineSale, readOfflineQueue, writeOfflineQueue, type OfflineQueuedSale } from './offlineSalesQueue';
+import { ChatOfflineNotice } from './desktop/ChatOfflineNotice';
+import { ConnectionBanner } from './desktop/ConnectionBanner';
+import { DesktopAppLayout } from './desktop/DesktopAppLayout';
+import { DirectorAccountSwitcher } from './desktop/DirectorAccountSwitcher';
+import { isTauriRuntime } from './desktop/tauri';
+import {
+  applyDesktopTheme,
+  getStoredDesktopTheme,
+  storeDesktopTheme,
+  type DesktopTheme,
+} from './desktop/desktopTheme';
+import { DesktopThemeToggle } from './desktop/DesktopThemeToggle';
+
+if (isTauriRuntime()) {
+  applyDesktopTheme(getStoredDesktopTheme());
+}
+import { useDesktopConnection } from './desktop/useDesktopConnection';
+import { fetchWithTimeout } from './sync/fetchTimeout';
+import {
+  appendOfflineSale,
+  readOfflineQueue,
+  writeOfflineQueue,
+  type OfflineQueuedSale,
+} from './offlineSalesQueue';
+import {
+  isLikelyOfflineFetchError as isOfflineFetchError,
+  listAdminSalesQueue,
+  loadAdminCache,
+  loadAdminResource,
+  loadSyncCache,
+  loadSyncResource,
+  newClientId,
+  runAdminMutation,
+  startSyncEngine,
+} from './sync';
+import {
+  loadRevenuePlansWithCache,
+  patchRevenuePlansCache,
+  type StoreRevenuePlanRow,
+} from './sync/admin/revenuePlans';
 
 /** Календарный день в Europe/Moscow (как на backend для смен), YYYY-MM-DD */
 function calendarDayKeyMoscow(iso: string): string {
@@ -105,6 +143,7 @@ function staffAssignedStores(member: StaffMember): string[] {
 /**
  * Сводка для админа на «Главной» считается на клиенте (продавцы, продажи, смены),
  * чтобы UI совпадал с запросом даже при старом ответе /dashboard/overview на сервере.
+ * «Кассы сотрудников» — сумма продаж за сегодня (все виды оплаты), не комиссия.
  */
 function buildAdminHomeDashboard(
   api: DashboardResponse,
@@ -170,16 +209,30 @@ function buildAdminHomeDashboard(
     },
   ];
 
+  const sellerRegisterToday = (sellerId: number) => {
+    let total = 0;
+    for (const sale of sales) {
+      if (sale.sellerId !== sellerId) {
+        continue;
+      }
+      if (calendarDayKeyMoscow(sale.createdAt) !== today) {
+        continue;
+      }
+      total += sale.totalAmount;
+    }
+    return total;
+  };
+
   const sellerRegister = [...storeSellers]
     .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'))
     .map((s) => ({
       fullName: s.fullName,
-      salary: formatRub(s.commissionAmount),
+      cash: formatRub(sellerRegisterToday(s.id)),
     }));
   for (const r of retoucherStaff) {
     sellerRegister.push({
       fullName: r.fullName,
-      salary: formatRub(Math.round(r.earningsAmount)),
+      cash: formatRub(0),
     });
   }
   sellerRegister.sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
@@ -237,7 +290,7 @@ type DashboardResponse = {
     qty: number;
     reason: 'Брак' | 'Поломка';
   }>;
-  sellerRegister?: Array<{ fullName: string; salary: string }>;
+  sellerRegister?: Array<{ fullName: string; cash: string }>;
 };
 
 type SellerProfile = {
@@ -290,6 +343,16 @@ type StoreInventoryDetailResponse = {
   }>;
 };
 
+type StoreEquipmentBuiltinKey =
+  | 'pc'
+  | 'camera'
+  | 'printer'
+  | 'sdCard'
+  | 'monitor'
+  | 'mouse'
+  | 'keyboard'
+  | 'cardReader';
+
 type StoreEquipmentCounts = {
   pc: number;
   camera: number;
@@ -299,9 +362,16 @@ type StoreEquipmentCounts = {
   mouse: number;
   keyboard: number;
   cardReader: number;
+  extra: Record<string, number>;
 };
 
-const STORE_EQUIPMENT_ROWS: Array<{ key: keyof StoreEquipmentCounts; label: string }> = [
+type StoreEquipmentCustomType = { id: string; label: string };
+
+type StoreEquipmentField =
+  | { kind: 'builtin'; key: StoreEquipmentBuiltinKey; label: string }
+  | { kind: 'custom'; id: string; label: string };
+
+const STORE_EQUIPMENT_ROWS: Array<{ key: StoreEquipmentBuiltinKey; label: string }> = [
   { key: 'pc', label: 'ПК' },
   { key: 'camera', label: 'Фотоаппарат' },
   { key: 'printer', label: 'Принтер' },
@@ -311,6 +381,24 @@ const STORE_EQUIPMENT_ROWS: Array<{ key: keyof StoreEquipmentCounts; label: stri
   { key: 'keyboard', label: 'Клавиатура' },
   { key: 'cardReader', label: 'Картридер' },
 ];
+
+function buildStoreEquipmentFields(customTypes: StoreEquipmentCustomType[]): StoreEquipmentField[] {
+  return [
+    ...STORE_EQUIPMENT_ROWS.map((row) => ({ kind: 'builtin' as const, key: row.key, label: row.label })),
+    ...customTypes.map((t) => ({ kind: 'custom' as const, id: t.id, label: t.label })),
+  ];
+}
+
+function storeEquipmentQty(counts: StoreEquipmentCounts, field: StoreEquipmentField): number {
+  if (field.kind === 'builtin') {
+    return counts[field.key] ?? 0;
+  }
+  return counts.extra?.[field.id] ?? 0;
+}
+
+function storeEquipmentTotal(counts: StoreEquipmentCounts, fields: StoreEquipmentField[]): number {
+  return fields.reduce((sum, field) => sum + storeEquipmentQty(counts, field), 0);
+}
 
 type ProductProcurementCost = { name: string; cost: number };
 type StoreRevenuePlan = { dayKey: string; storeName: string; planRevenue: number };
@@ -388,10 +476,7 @@ function offlineQueueToAdminSales(queue: OfflineQueuedSale[], sellers: SellerPro
 }
 
 function isLikelyOfflineFetchError(error: unknown): boolean {
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    return true;
-  }
-  return error instanceof TypeError;
+  return isOfflineFetchError(error);
 }
 
 /** Заработок ретушёра по точке: сумма по календарным дням (доля от выручки точки за каждый день). */
@@ -519,6 +604,28 @@ const API_CONFIG_ERROR =
     ? 'Сборка без адреса API: в Vercel добавьте переменную VITE_API_URL = https://… (URL backend на Render) и сделайте Redeploy.'
     : '';
 
+function describeLoginFetchError(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.name === 'AbortError') {
+      return 'Сервер не ответил за 15 секунд. На Render сервис мог «засыпать» — подождите 30 секунд и войдите снова.';
+    }
+    const msg = error.message.trim().toLowerCase();
+    if (
+      msg === 'load failed' ||
+      msg.includes('failed to fetch') ||
+      msg.includes('networkerror') ||
+      msg.includes('network request failed')
+    ) {
+      if (import.meta.env.DEV) {
+        return 'Приложение не достучалось до сервера (это не ошибка пароля). В dev-режиме нужен CORS для http://localhost:5173 на Render — см. docs/DESKTOP_START_HERE.md или соберите .dmg.';
+      }
+      return 'Приложение не достучалось до сервера (это не ошибка пароля). Обновите backend на Render или добавьте в CORS_ORIGIN: tauri://localhost,https://tauri.localhost';
+    }
+    return error.message;
+  }
+  return 'Не удалось войти. Проверьте интернет и доступность сервера.';
+}
+
 function navTabClass({ isActive }: { isActive: boolean }) {
   return isActive ? 'ghost navActive' : 'ghost';
 }
@@ -533,6 +640,7 @@ type MobileNavItem = {
 
 const SESSION_STORAGE_KEY = 'sales-platform-session-v1';
 const SESSION_PERSISTENCE_KEY = 'sales-platform-session-persistence-v1';
+const SESSION_DIRECTOR_ROOT_KEY = 'sales-platform-director-root-v1';
 
 type SessionPersistence = 'local' | 'session';
 
@@ -562,6 +670,36 @@ function readSessionPersistence(): SessionPersistence {
     return 'session';
   }
   return window.localStorage.getItem(SESSION_PERSISTENCE_KEY) === 'local' ? 'local' : 'session';
+}
+
+function readDirectorRootSession(): LoginResponse | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_DIRECTOR_ROOT_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as LoginResponse;
+    if (!parsed?.token || parsed.user?.role !== 'DIRECTOR') {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeDirectorRootSession(data: LoginResponse | null) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  if (!data) {
+    window.sessionStorage.removeItem(SESSION_DIRECTOR_ROOT_KEY);
+    return;
+  }
+  window.sessionStorage.setItem(SESSION_DIRECTOR_ROOT_KEY, JSON.stringify(data));
 }
 
 function DockIcon({ children }: { children: ReactNode }) {
@@ -622,17 +760,60 @@ function SalesIcon() {
   );
 }
 
-function TeamIcon() {
+function EquipmentIcon() {
   return (
     <DockIcon>
-      <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
-        <circle cx="8.1" cy="9.1" r="2.3" stroke="currentColor" strokeWidth="1.8" />
-        <circle cx="15.9" cy="9.1" r="2.3" stroke="currentColor" strokeWidth="1.8" />
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg" aria-hidden>
+        <rect x="4" y="5" width="16" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M8 19h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M9.5 9h5M9.5 12h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    </DockIcon>
+  );
+}
+
+function ProcurementIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg" aria-hidden>
         <path
-          d="M4.2 17.8c.6-1.9 2.3-3.2 4.4-3.2 2 0 3.7 1.2 4.4 3M11 17.6c.6-1.7 2.2-2.9 4.1-2.9 1.9 0 3.5 1.2 4.2 3"
+          d="M5 8.5h14v10H5z"
           stroke="currentColor"
           strokeWidth="1.8"
-          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M8 8.5V6.8c0-1 .8-1.8 1.8-1.8h4.4c1 0 1.8.8 1.8 1.8V8.5"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <path d="M9 13h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    </DockIcon>
+  );
+}
+
+function WarehouseIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg" aria-hidden>
+        <path
+          d="M4.5 9.2 12 5l7.5 4.2v9.1L12 22l-7.5-3.7V9.2z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12 5v17M4.5 9.2 12 13l7.5-3.8"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M9 11.8h6v4.2H9z"
+          stroke="currentColor"
+          strokeWidth="1.8"
           strokeLinejoin="round"
         />
       </svg>
@@ -698,12 +879,63 @@ function App() {
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [error, setError] = useState('');
   const [session, setSession] = useState<LoginResponse | null>(restoredSession);
+  const [directorRootSession, setDirectorRootSession] = useState<LoginResponse | null>(() =>
+    readDirectorRootSession(),
+  );
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [sellers, setSellers] = useState<SellerProfile[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [productProcurementCosts, setProductProcurementCosts] = useState<ProductProcurementCost[]>([]);
   const [sales, setSales] = useState<AdminSale[]>([]);
   const [offlineQueueTick, setOfflineQueueTick] = useState(0);
+  const [offlinePendingSales, setOfflinePendingSales] = useState<OfflineQueuedSale[]>([]);
+  const [outboxSyncing, setOutboxSyncing] = useState(false);
+  const [apiReachable, setApiReachable] = useState(
+    () => typeof navigator !== 'undefined' && navigator.onLine,
+  );
+  const isDesktopShell = isTauriRuntime();
+  const [desktopTheme, setDesktopTheme] = useState<DesktopTheme>(() =>
+    isTauriRuntime() ? getStoredDesktopTheme() : 'dark',
+  );
+
+  useEffect(() => {
+    if (!isDesktopShell) {
+      return;
+    }
+    applyDesktopTheme(desktopTheme);
+  }, [isDesktopShell, desktopTheme]);
+
+  const handleDesktopThemeChange = useCallback((theme: DesktopTheme) => {
+    setDesktopTheme(theme);
+    storeDesktopTheme(theme);
+    applyDesktopTheme(theme);
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopShell) {
+      return;
+    }
+    void import('./desktop/desktopShell.css');
+    void import('./desktop/desktopPages.css');
+    void import('./desktop/desktopNative.css');
+    void import('./desktop/desktopLuxury.css');
+    void import('./desktop/desktopDirectorHome.css');
+    void import('./desktop/desktopFinanceOps.css');
+    void import('./desktop/desktopFinanceReport.css');
+    void import('./desktop/desktopTeamWarehouse.css');
+    void import('./desktop/desktopMessenger.css');
+    void import('./desktop/desktopDirectorAccountSwitcher.css');
+    void import('./desktop/desktopThemes.css');
+    void import('./desktop/desktopHermesLight.css');
+    void import('./desktop/desktopThemeToggle.css');
+    void import('./desktop/desktopStoreEquipment.css');
+    void import('./desktop/desktopAcquiring.css');
+  }, [isDesktopShell]);
+
+  const desktopConnection = useDesktopConnection(
+    outboxSyncing,
+    isDesktopShell ? apiReachable : undefined,
+  );
   const [commissionRequests, setCommissionRequests] = useState<CommissionRequest[]>([]);
   const [shifts, setShifts] = useState<ShiftInfo[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -714,7 +946,7 @@ function App() {
   const [acquiringPercent, setAcquiringPercent] = useState('1.8');
   const [acquiringPercentDetkov, setAcquiringPercentDetkov] = useState('1.8');
   const [acquiringPercentPutintsevSber, setAcquiringPercentPutintsevSber] = useState('1.8');
-  const [salesExpanded, setSalesExpanded] = useState(false);
+  const [salesExpanded, setSalesExpanded] = useState(() => isTauriRuntime());
   const [financeOps, setFinanceOps] = useState<FinanceOpsSnapshot>({
     accounts: [],
     expenses: [],
@@ -737,7 +969,7 @@ function App() {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/chat/inbox`, {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/admin/chat/inbox`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -786,12 +1018,110 @@ function App() {
     }
   }, [location.pathname]);
 
-  const pendingOfflineSales = useMemo(() => {
-    if (!session?.user?.id) {
-      return [] as AdminSale[];
+  const refreshOfflinePending = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (userId === undefined) {
+      setOfflinePendingSales([]);
+      return;
     }
-    return offlineQueueToAdminSales(readOfflineQueue(session.user.id), sellers);
-  }, [session?.user?.id, sellers, offlineQueueTick]);
+    if (isDesktopShell) {
+      setOfflinePendingSales(await listAdminSalesQueue(userId));
+      return;
+    }
+    setOfflinePendingSales(readOfflineQueue(userId));
+  }, [session?.user?.id, isDesktopShell]);
+
+  const refreshAdminFromCache = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!isDesktopShell || session?.user?.role !== 'ADMIN' || userId === undefined) {
+      return;
+    }
+    const [cachedSellers, cachedProducts, cachedStaff, cachedShifts, cachedSales, cachedInv, cachedGlobal] =
+      await Promise.all([
+        loadAdminCache<SellerProfile[]>(userId, 'sellers'),
+        loadAdminCache<ProductItem[]>(userId, 'products'),
+        loadAdminCache<StaffMember[]>(userId, 'staff'),
+        loadAdminCache<ShiftInfo[]>(userId, 'shifts'),
+        loadAdminCache<AdminSale[]>(userId, 'sales'),
+        loadAdminCache<StoreInventoryDetailResponse | null>(userId, 'storeInventory'),
+        loadAdminCache<GlobalEmployee[]>(userId, 'globalEmployees'),
+      ]);
+    if (cachedSellers) {
+      setSellers(cachedSellers);
+    }
+    if (cachedProducts) {
+      setProducts(cachedProducts);
+    }
+    if (cachedStaff) {
+      setStaff(cachedStaff);
+    }
+    if (cachedShifts) {
+      setShifts(cachedShifts);
+    }
+    if (cachedSales) {
+      setSales(cachedSales);
+    }
+    if (cachedInv !== null) {
+      setStoreInventory(cachedInv);
+    }
+    if (cachedGlobal) {
+      setGlobalEmployees(cachedGlobal);
+    }
+  }, [isDesktopShell, session?.user?.id, session?.user?.role]);
+
+  const refreshFinanceFromCache = useCallback(async () => {
+    const userId = session?.user?.id;
+    const role = session?.user?.role;
+    if (!isDesktopShell || userId === undefined) {
+      return;
+    }
+    if (role === 'MANAGER') {
+      const cachedDashboard = await loadSyncCache<DashboardResponse>(userId, 'dashboard');
+      if (cachedDashboard) {
+        setDashboard(cachedDashboard);
+      }
+      return;
+    }
+    if (role !== 'DIRECTOR' && role !== 'ACCOUNTANT') {
+      return;
+    }
+    const [cachedDashboard, cachedFinance, cachedInventory, cachedCommission, cachedSellers] =
+      await Promise.all([
+        loadSyncCache<DashboardResponse>(userId, 'dashboard'),
+        loadSyncCache<FinanceOpsSnapshot>(userId, 'financeOps'),
+        loadSyncCache<InventoryOverviewResponse>(userId, 'inventoryOverview'),
+        role === 'DIRECTOR'
+          ? loadSyncCache<CommissionRequest[]>(userId, 'commissionRequests')
+          : Promise.resolve(null),
+        loadSyncCache<SellerProfile[]>(userId, 'sellers'),
+      ]);
+    if (cachedDashboard) {
+      setDashboard(cachedDashboard);
+    }
+    if (cachedFinance) {
+      setFinanceOps(cachedFinance);
+    }
+    if (cachedInventory) {
+      setInventoryOverview(cachedInventory);
+    }
+    if (cachedCommission) {
+      setCommissionRequests(cachedCommission);
+    }
+    if (cachedSellers) {
+      setSellers(cachedSellers);
+    }
+  }, [isDesktopShell, session?.user?.id, session?.user?.role]);
+
+  useEffect(() => {
+    void refreshOfflinePending();
+    void refreshAdminFromCache();
+    void refreshFinanceFromCache();
+  }, [refreshOfflinePending, refreshAdminFromCache, refreshFinanceFromCache, offlineQueueTick]);
+
+  const pendingOfflineSales = useMemo(
+    () => offlineQueueToAdminSales(offlinePendingSales, sellers),
+    [offlinePendingSales, sellers],
+  );
 
   const salesMerged = useMemo(
     () => [...sales, ...pendingOfflineSales],
@@ -911,19 +1241,33 @@ function App() {
 
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/overview`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+    const fetcher = async () => {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/dashboard/overview`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!response.ok) {
         throw new Error('Dashboard error');
       }
-
-      const data = (await response.json()) as DashboardResponse;
-      setDashboard(data);
+      return (await response.json()) as DashboardResponse;
+    };
+    const role = session?.user?.role;
+    const desktopDashboardCache =
+      isDesktopShell &&
+      (role === 'DIRECTOR' || role === 'ACCOUNTANT' || role === 'MANAGER') &&
+      session?.user?.id != null;
+    try {
+      if (desktopDashboardCache) {
+        const result = await loadSyncResource(
+          API_BASE_URL,
+          session.user.id,
+          'dashboard',
+          fetcher,
+          null as unknown as DashboardResponse,
+        );
+        setDashboard(result.data);
+      } else {
+        setDashboard(await fetcher());
+      }
     } catch {
       setDashboard(null);
     } finally {
@@ -932,17 +1276,32 @@ function App() {
   };
 
   const loadSellers = async (token: string) => {
-    try {
+    const fetcher = async () => {
       const response = await fetch(`${API_BASE_URL}/admin/sellers`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
         throw new Error('sellers error');
       }
-      const data = (await response.json()) as SellerProfile[];
-      setSellers(data);
+      return (await response.json()) as SellerProfile[];
+    };
+    const role = session?.user?.role;
+    if (
+      isDesktopShell &&
+      (role === 'ADMIN' || role === 'DIRECTOR' || role === 'ACCOUNTANT') &&
+      session?.user?.id != null
+    ) {
+      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'sellers', fetcher, []);
+      setSellers(result.data);
+      if (role === 'ADMIN') {
+        setAdminError(
+          result.fromCache && result.data.length === 0 ? 'Нет сети — продавцы из кэша недоступны.' : '',
+        );
+      }
+      return;
+    }
+    try {
+      setSellers(await fetcher());
       setAdminError('');
     } catch {
       setSellers([]);
@@ -951,39 +1310,120 @@ function App() {
   };
 
   const loadProducts = async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/products`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error('products error');
+    const fetcher = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error('products error');
+      }
+      return (await response.json()) as ProductItem[];
+    };
+    if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
+      const result = await loadAdminResource(API_BASE_URL, session.user.id, 'products', fetcher, []);
+      setProducts(result.data);
+      return;
     }
-    const data = (await response.json()) as ProductItem[];
-    setProducts(data);
+    setProducts(await fetcher());
   };
 
-  const loadInventoryOverview = useCallback(async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/inventory/overview`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      setInventoryOverview(null);
-      return;
-    }
-    setInventoryOverview((await response.json()) as InventoryOverviewResponse);
-  }, []);
+  const loadInventoryOverview = useCallback(
+    async (token: string) => {
+      const fetcher = async () => {
+        const response = await fetch(`${API_BASE_URL}/admin/inventory/overview`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          throw new Error('inventory overview error');
+        }
+        return (await response.json()) as InventoryOverviewResponse;
+      };
+      const role = session?.user?.role;
+      if (
+        isDesktopShell &&
+        (role === 'DIRECTOR' || role === 'ACCOUNTANT') &&
+        session?.user?.id != null
+      ) {
+        const result = await loadSyncResource(
+          API_BASE_URL,
+          session.user.id,
+          'inventoryOverview',
+          fetcher,
+          null as unknown as InventoryOverviewResponse,
+        );
+        setInventoryOverview(result.data);
+        return;
+      }
+      try {
+        setInventoryOverview(await fetcher());
+      } catch {
+        setInventoryOverview(null);
+      }
+    },
+    [isDesktopShell, session?.user?.id, session?.user?.role],
+  );
 
-  const loadStoreInventory = useCallback(async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/inventory/my-store`, {
-      headers: { Authorization: `Bearer ${token}` },
+  const loadStoreInventory = useCallback(
+    async (token: string) => {
+      const fetcher = async () => {
+        const response = await fetch(`${API_BASE_URL}/admin/inventory/my-store`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          throw new Error('store inventory error');
+        }
+        return (await response.json()) as StoreInventoryDetailResponse;
+      };
+      if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
+        const result = await loadAdminResource(
+          API_BASE_URL,
+          session.user.id,
+          'storeInventory',
+          fetcher,
+          null,
+        );
+        setStoreInventory(result.data);
+        return;
+      }
+      try {
+        setStoreInventory(await fetcher());
+      } catch {
+        setStoreInventory(null);
+      }
+    },
+    [isDesktopShell, session?.user?.id, session?.user?.role],
+  );
+
+  const addCatalogProduct = async (token: string, name: string, priceStr: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/products`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name,
+        price: Math.max(0, Number(priceStr.replace(',', '.')) || 0),
+      }),
     });
     if (!response.ok) {
-      setStoreInventory(null);
-      return;
+      const errBody = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+      const msg = Array.isArray(errBody?.message) ? errBody.message[0] : errBody?.message;
+      throw new Error(typeof msg === 'string' ? msg : 'Не удалось добавить товар');
     }
-    setStoreInventory((await response.json()) as StoreInventoryDetailResponse);
-  }, []);
+    const data = (await response.json()) as {
+      catalog: ProductItem[];
+      overview: InventoryOverviewResponse;
+    };
+    setProducts(data.catalog);
+    setInventoryOverview(data.overview);
+    const costsResponse = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (costsResponse.ok) {
+      setProductProcurementCosts((await costsResponse.json()) as ProductProcurementCost[]);
+    }
+  };
 
   const replenishWarehouse = async (token: string, name: string, qtyStr: string) => {
     const qty = Number(String(qtyStr).replace(',', '.'));
@@ -1058,14 +1498,27 @@ function App() {
   };
 
   const loadRevenuePlans = async (token: string, dayKey: string) => {
-    const response = await fetch(
-      `${API_BASE_URL}/admin/revenue-plans?dayKey=${encodeURIComponent(dayKey)}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    if (!response.ok) {
-      throw new Error('load revenue plans error');
+    const fetcher = async () => {
+      const response = await fetch(
+        `${API_BASE_URL}/admin/revenue-plans?dayKey=${encodeURIComponent(dayKey)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!response.ok) {
+        throw new Error('load revenue plans error');
+      }
+      return (await response.json()) as StoreRevenuePlan[];
+    };
+    const uid = session?.user?.id;
+    const role = session?.user?.role;
+    if (
+      isDesktopShell &&
+      uid != null &&
+      (role === 'DIRECTOR' || role === 'ACCOUNTANT')
+    ) {
+      const result = await loadRevenuePlansWithCache(API_BASE_URL, uid, dayKey, fetcher);
+      return result.data as StoreRevenuePlan[];
     }
-    return (await response.json()) as StoreRevenuePlan[];
+    return fetcher();
   };
 
   const saveRevenuePlans = async (
@@ -1073,18 +1526,48 @@ function App() {
     dayKey: string,
     items: Array<{ storeName: string; planRevenue: number }>,
   ) => {
-    const response = await fetch(`${API_BASE_URL}/admin/revenue-plans`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ dayKey, items }),
-    });
-    if (!response.ok) {
-      throw new Error('save revenue plans error');
+    const putOnline = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/revenue-plans`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ dayKey, items }),
+      });
+      if (!response.ok) {
+        throw new Error('save revenue plans error');
+      }
+      return (await response.json()) as StoreRevenuePlan[];
+    };
+    const uid = session?.user?.id;
+    const role = session?.user?.role;
+    if (
+      isDesktopShell &&
+      uid != null &&
+      (role === 'DIRECTOR' || role === 'ACCOUNTANT')
+    ) {
+      const patchId = newClientId('rev-plan');
+      const payload = {
+        patchId,
+        dayKey,
+        items,
+        createdAt: new Date().toISOString(),
+      };
+      const mode = await runAdminMutation(uid, patchId, 'MANAGER_REVENUE_PLANS', payload, async () => {
+        await putOnline();
+      });
+      if (mode === 'queued') {
+        const rows: StoreRevenuePlanRow[] = items.map((item) => ({
+          dayKey,
+          storeName: item.storeName,
+          planRevenue: item.planRevenue,
+        }));
+        await patchRevenuePlansCache(uid, dayKey, rows);
+        return rows;
+      }
     }
-    return (await response.json()) as StoreRevenuePlan[];
+    return putOnline();
   };
 
   const loadAcquiringPercent = async (token: string) => {
@@ -1170,26 +1653,41 @@ function App() {
     setAcquiringPercentPutintsevSber(String(data.percent));
   };
 
+  const normalizeFinanceOps = (raw: Partial<FinanceOpsSnapshot>): FinanceOpsSnapshot => ({
+    accounts: raw.accounts ?? [],
+    expenses: raw.expenses ?? [],
+    incomes: raw.incomes ?? [],
+    totals: {
+      cash: raw.totals?.cash ?? 0,
+      bank: raw.totals?.bank ?? 0,
+      balance: raw.totals?.balance ?? 0,
+      expenses: raw.totals?.expenses ?? 0,
+      incomes: raw.totals?.incomes ?? 0,
+    },
+  });
+
   const loadFinanceOps = async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/finance/ops`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      throw new Error('finance ops error');
+    const fetcher = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/finance/ops`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error('finance ops error');
+      }
+      return normalizeFinanceOps((await response.json()) as Partial<FinanceOpsSnapshot>);
+    };
+    const role = session?.user?.role;
+    const empty = normalizeFinanceOps({});
+    if (
+      isDesktopShell &&
+      (role === 'DIRECTOR' || role === 'ACCOUNTANT') &&
+      session?.user?.id != null
+    ) {
+      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'financeOps', fetcher, empty);
+      setFinanceOps(result.data);
+      return;
     }
-    const raw = (await response.json()) as Partial<FinanceOpsSnapshot>;
-    setFinanceOps({
-      accounts: raw.accounts ?? [],
-      expenses: raw.expenses ?? [],
-      incomes: raw.incomes ?? [],
-      totals: {
-        cash: raw.totals?.cash ?? 0,
-        bank: raw.totals?.bank ?? 0,
-        balance: raw.totals?.balance ?? 0,
-        expenses: raw.totals?.expenses ?? 0,
-        incomes: raw.totals?.incomes ?? 0,
-      },
-    });
+    setFinanceOps(await fetcher());
   };
 
   const addFinanceIncome = async (
@@ -1200,21 +1698,50 @@ function App() {
     if (!Number.isFinite(num) || num <= 0) {
       return;
     }
-    const response = await fetch(`${API_BASE_URL}/admin/finance/incomes`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        accountId: payload.accountId,
-        amount: num,
-        workDay: payload.workDay,
-        comment: payload.comment,
-      }),
-    });
-    if (!response.ok) {
-      throw new Error('add finance income error');
+    const uid = session?.user?.id;
+    const financeOffline =
+      isDesktopShell &&
+      (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'ACCOUNTANT') &&
+      uid !== undefined;
+    const incomeId = newClientId('finc');
+    const createdAt = new Date().toISOString();
+    const body = {
+      accountId: payload.accountId,
+      amount: num,
+      workDay: payload.workDay,
+      comment: payload.comment,
+      incomeId,
+      createdAt,
+    };
+
+    const post = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/finance/incomes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          accountId: payload.accountId,
+          amount: num,
+          workDay: payload.workDay,
+          comment: payload.comment,
+          incomeId,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('add finance income error');
+      }
+    };
+
+    if (financeOffline) {
+      const mode = await runAdminMutation(uid, incomeId, 'FINANCE_INCOME', body, post);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await post();
     }
     await loadFinanceOps(token);
   };
@@ -1227,21 +1754,50 @@ function App() {
     if (!Number.isFinite(amount) || amount <= 0) {
       return;
     }
-    const response = await fetch(`${API_BASE_URL}/admin/finance/expenses`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        accountId: payload.accountId,
-        title: payload.title,
-        amount,
-        comment: payload.comment,
-      }),
-    });
-    if (!response.ok) {
-      throw new Error('add finance expense error');
+    const uid = session?.user?.id;
+    const financeOffline =
+      isDesktopShell &&
+      (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'ACCOUNTANT') &&
+      uid !== undefined;
+    const expenseId = newClientId('fexp');
+    const createdAt = new Date().toISOString();
+    const body = {
+      expenseId,
+      accountId: payload.accountId,
+      title: payload.title,
+      amount,
+      comment: payload.comment,
+      createdAt,
+    };
+
+    const post = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/finance/expenses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          accountId: payload.accountId,
+          title: payload.title,
+          amount,
+          comment: payload.comment,
+          expenseId,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('add finance expense error');
+      }
+    };
+
+    if (financeOffline) {
+      const mode = await runAdminMutation(uid, expenseId, 'FINANCE_EXPENSE', body, post);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await post();
     }
     await loadFinanceOps(token);
   };
@@ -1251,72 +1807,62 @@ function App() {
     if (!Number.isFinite(num) || num < 0) {
       return;
     }
-    const response = await fetch(`${API_BASE_URL}/admin/finance/accounts/${encodeURIComponent(accountId)}/balance`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ balance: num }),
-    });
-    if (!response.ok) {
-      throw new Error('set finance account balance error');
-    }
-    await loadFinanceOps(token);
-  };
+    const uid = session?.user?.id;
+    const directorOffline = isDesktopShell && session?.user?.role === 'DIRECTOR' && uid !== undefined;
+    const patchId = newClientId('fbal');
+    const createdAt = new Date().toISOString();
+    const body = { patchId, accountId, balance: num, createdAt };
 
-  const loadSales = useCallback(async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/sales?ts=${Date.now()}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      cache: 'no-store',
-    });
-    if (!response.ok) {
-      throw new Error('sales error');
-    }
-    const data = (await response.json()) as AdminSale[];
-    setSales(data);
-  }, []);
-
-  const flushOfflineSalesQueue = useCallback(async (token: string, userId: number) => {
-    const queueBefore = readOfflineQueue(userId);
-    if (queueBefore.length === 0) {
-      return;
-    }
-    const remaining: OfflineQueuedSale[] = [];
-    for (const entry of queueBefore) {
-      try {
-        const response = await fetch(`${API_BASE_URL}/admin/sales`, {
-          method: 'POST',
+    const put = async () => {
+      const response = await fetch(
+        `${API_BASE_URL}/admin/finance/accounts/${encodeURIComponent(accountId)}/balance`,
+        {
+          method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            sellerId: entry.sellerId,
-            items: entry.items,
-            totalAmount: entry.totalAmount,
-            paymentType: entry.paymentType,
-            saleId: entry.saleId,
-          }),
+          body: JSON.stringify({ balance: num }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error('set finance account balance error');
+      }
+    };
+
+    if (directorOffline) {
+      const mode = await runAdminMutation(uid, patchId, 'FINANCE_ACCOUNT_BALANCE', body, put);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await put();
+    }
+    await loadFinanceOps(token);
+  };
+
+  const loadSales = useCallback(
+    async (token: string) => {
+      const fetcher = async () => {
+        const response = await fetch(`${API_BASE_URL}/admin/sales?ts=${Date.now()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
         });
         if (!response.ok) {
-          remaining.push(entry);
+          throw new Error('sales error');
         }
-      } catch {
-        remaining.push(entry);
+        return (await response.json()) as AdminSale[];
+      };
+      if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
+        const result = await loadAdminResource(API_BASE_URL, session.user.id, 'sales', fetcher, []);
+        setSales(result.data);
+        return;
       }
-    }
-    writeOfflineQueue(userId, remaining);
-    try {
-      await loadSales(token);
-      await loadSellers(token);
-    } catch {
-      // нет сети — очередь уже короче, продажи подтянутся при следующем онлайне
-    }
-    setOfflineQueueTick((x) => x + 1);
-  }, [loadSales]);
+      setSales(await fetcher());
+    },
+    [isDesktopShell, session?.user?.id, session?.user?.role],
+  );
 
   const refreshFinanceInputs = useCallback(async () => {
     if (!session?.token) {
@@ -1326,53 +1872,112 @@ function App() {
   }, [session?.token, loadSales, loadProductProcurementCosts]);
 
   const loadCommissionRequests = async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/commission-requests`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error('requests error');
+    const fetcher = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/commission-requests`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error('requests error');
+      }
+      return (await response.json()) as CommissionRequest[];
+    };
+    if (isDesktopShell && session?.user?.role === 'DIRECTOR' && session.user.id != null) {
+      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'commissionRequests', fetcher, []);
+      setCommissionRequests(result.data);
+      return;
     }
-    const data = (await response.json()) as CommissionRequest[];
-    setCommissionRequests(data);
+    setCommissionRequests(await fetcher());
   };
 
   const loadShifts = async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/shifts`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error('shifts error');
-    setShifts((await response.json()) as ShiftInfo[]);
+    const fetcher = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/shifts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error('shifts error');
+      }
+      return (await response.json()) as ShiftInfo[];
+    };
+    if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
+      const result = await loadAdminResource(API_BASE_URL, session.user.id, 'shifts', fetcher, []);
+      setShifts(result.data);
+      return;
+    }
+    setShifts(await fetcher());
   };
 
   const loadStaff = async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/staff`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error('staff error');
-    setStaff((await response.json()) as StaffMember[]);
+    const fetcher = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/staff`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error('staff error');
+      }
+      return (await response.json()) as StaffMember[];
+    };
+    if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
+      const result = await loadAdminResource(API_BASE_URL, session.user.id, 'staff', fetcher, []);
+      setStaff(result.data);
+      return;
+    }
+    setStaff(await fetcher());
   };
 
   const loadGlobalEmployees = async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/employees/global`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error('global employees error');
-    setGlobalEmployees((await response.json()) as GlobalEmployee[]);
+    const fetcher = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/employees/global`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error('global employees error');
+      }
+      return (await response.json()) as GlobalEmployee[];
+    };
+    if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
+      const result = await loadAdminResource(
+        API_BASE_URL,
+        session.user.id,
+        'globalEmployees',
+        fetcher,
+        [],
+      );
+      setGlobalEmployees(result.data);
+      return;
+    }
+    setGlobalEmployees(await fetcher());
   };
 
   const setDirectorPercent = async (token: string, sellerId: number, ratePercent: number) => {
-    const response = await fetch(`${API_BASE_URL}/admin/sellers/percent`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ sellerId, ratePercent }),
-    });
-    if (!response.ok) {
-      throw new Error('set percent error');
+    const uid = session?.user?.id;
+    const directorOffline = isDesktopShell && session?.user?.role === 'DIRECTOR' && uid !== undefined;
+    const clientId = newClientId('pct');
+    const createdAt = new Date().toISOString();
+    const body = { clientId, sellerId, ratePercent, createdAt };
+
+    const put = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/sellers/percent`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sellerId, ratePercent }),
+      });
+      if (!response.ok) {
+        throw new Error('set percent error');
+      }
+    };
+
+    if (directorOffline) {
+      const mode = await runAdminMutation(uid, clientId, 'DIRECTOR_SET_PERCENT', body, put);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await put();
     }
     await loadSellers(token);
     await loadStaff(token);
@@ -1380,19 +1985,37 @@ function App() {
   };
 
   const decideRequest = async (token: string, requestId: string, decision: 'APPROVE' | 'REJECT') => {
-    const response = await fetch(
-      `${API_BASE_URL}/director/commission-requests/${requestId}/decision`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+    const uid = session?.user?.id;
+    const directorOffline = isDesktopShell && session?.user?.role === 'DIRECTOR' && uid !== undefined;
+    const clientId = `${requestId}-${decision}`;
+    const createdAt = new Date().toISOString();
+    const body = { requestId, decision, createdAt };
+
+    const post = async () => {
+      const response = await fetch(
+        `${API_BASE_URL}/director/commission-requests/${requestId}/decision`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ decision }),
         },
-        body: JSON.stringify({ decision }),
-      },
-    );
-    if (!response.ok) {
-      throw new Error('decision error');
+      );
+      if (!response.ok) {
+        throw new Error('decision error');
+      }
+    };
+
+    if (directorOffline) {
+      const mode = await runAdminMutation(uid, clientId, 'DIRECTOR_COMMISSION_DECISION', body, post);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await post();
     }
     await loadSellers(token);
     await loadCommissionRequests(token);
@@ -1405,12 +2028,19 @@ function App() {
     totalAmount: number,
     paymentType: 'CASH' | 'NON_CASH' | 'TRANSFER',
   ) => {
-    const saleId =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `offline-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const saleId = newClientId('sale');
+    const entry: OfflineQueuedSale = {
+      saleId,
+      sellerId,
+      items,
+      totalAmount,
+      paymentType,
+      createdAt: new Date().toISOString(),
+    };
+    const uid = session?.user?.id;
+    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
 
-    try {
+    const postSale = async () => {
       const response = await fetch(`${API_BASE_URL}/admin/sales`, {
         method: 'POST',
         headers: {
@@ -1432,21 +2062,25 @@ function App() {
         }
         throw new Error(message);
       }
-    } catch (error) {
-      const uid = session?.user?.id;
-      if (uid !== undefined && isLikelyOfflineFetchError(error)) {
-        appendOfflineSale(uid, {
-          saleId,
-          sellerId,
-          items,
-          totalAmount,
-          paymentType,
-          createdAt: new Date().toISOString(),
-        });
+    };
+
+    if (adminDesktop) {
+      const mode = await runAdminMutation(uid, saleId, 'ADMIN_SALE', entry, postSale);
+      if (mode === 'queued') {
         setOfflineQueueTick((x) => x + 1);
         return;
       }
-      throw error instanceof Error ? error : new Error('Не удалось сохранить продажу');
+    } else {
+      try {
+        await postSale();
+      } catch (error) {
+        if (uid !== undefined && isLikelyOfflineFetchError(error)) {
+          appendOfflineSale(uid, entry);
+          setOfflineQueueTick((x) => x + 1);
+          return;
+        }
+        throw error instanceof Error ? error : new Error('Не удалось сохранить продажу');
+      }
     }
 
     try {
@@ -1456,7 +2090,7 @@ function App() {
         await loadStoreInventory(token);
       }
     } catch {
-      // продажа уже записана на сервере; список обновится при следующей загрузке или офлайн-синке
+      // продажа уже на сервере
     }
   };
 
@@ -1466,26 +2100,45 @@ function App() {
     qty: number,
     reason: 'Брак' | 'Поломка',
   ) => {
-    const response = await fetch(`${API_BASE_URL}/admin/write-offs`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ name, qty, reason }),
-    });
-    if (!response.ok) {
-      let message = 'Не удалось отправить заявку на списание';
-      try {
-        const parsed = (await response.json()) as { message?: string | string[] };
-        if (typeof parsed.message === 'string') {
-          message = parsed.message;
+    const uid = session?.user?.id;
+    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const requestId = newClientId('wo');
+    const createdAt = new Date().toISOString();
+    const payload = { requestId, name, qty, reason, createdAt };
+
+    const postWriteOff = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/write-offs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name, qty, reason, requestId }),
+      });
+      if (!response.ok) {
+        let message = 'Не удалось отправить заявку на списание';
+        try {
+          const parsed = (await response.json()) as { message?: string | string[] };
+          if (typeof parsed.message === 'string') {
+            message = parsed.message;
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
+        throw new Error(message);
       }
-      throw new Error(message);
+    };
+
+    if (adminDesktop) {
+      const mode = await runAdminMutation(uid, requestId, 'ADMIN_WRITE_OFF', payload, postWriteOff);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await postWriteOff();
     }
+
     await loadDashboard(token);
     if (session?.user.role === 'ADMIN') {
       await loadStoreInventory(token);
@@ -1520,66 +2173,365 @@ function App() {
   };
 
   const openShift = async (token: string, assignedSellerIds: number[]) => {
-    const response = await fetch(`${API_BASE_URL}/admin/shifts/open`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ assignedSellerIds }),
-    });
-    if (!response.ok) throw new Error('open shift error');
+    const uid = session?.user?.id;
+    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const clientShiftId = newClientId('shift');
+    const createdAt = new Date().toISOString();
+    const payload = { clientShiftId, assignedSellerIds, createdAt };
+
+    const postOpen = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/shifts/open`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ assignedSellerIds, clientShiftId }),
+      });
+      if (!response.ok) {
+        throw new Error('open shift error');
+      }
+    };
+
+    if (adminDesktop) {
+      const mode = await runAdminMutation(uid, clientShiftId, 'ADMIN_SHIFT_OPEN', payload, postOpen);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await postOpen();
+    }
     await Promise.all([loadShifts(token), loadStaff(token)]);
   };
 
   const closeShift = async (token: string, assignedSellerIds: number[] = []) => {
-    const response = await fetch(`${API_BASE_URL}/admin/shifts/close`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ assignedSellerIds }),
-    });
-    if (!response.ok) throw new Error('close shift error');
+    const uid = session?.user?.id;
+    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const closeId = newClientId('shift-close');
+    const createdAt = new Date().toISOString();
+    const payload = { assignedSellerIds, createdAt };
+
+    const postClose = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/shifts/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ assignedSellerIds }),
+      });
+      if (!response.ok) {
+        throw new Error('close shift error');
+      }
+    };
+
+    if (adminDesktop) {
+      const mode = await runAdminMutation(uid, closeId, 'ADMIN_SHIFT_CLOSE', payload, postClose);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await postClose();
+    }
     await Promise.all([loadShifts(token), loadStaff(token)]);
   };
 
   const addStaffMember = async (token: string, fullName: string, nickname: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/staff`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ fullName, nickname }),
-    });
-    if (!response.ok) throw new Error('add staff error');
+    const uid = session?.user?.id;
+    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const clientMemberId = newClientId('staff');
+    const createdAt = new Date().toISOString();
+    const payload = { clientMemberId, fullName, nickname, createdAt };
+
+    const postStaff = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ fullName, nickname }),
+      });
+      if (!response.ok) {
+        throw new Error('add staff error');
+      }
+    };
+
+    if (adminDesktop) {
+      const mode = await runAdminMutation(uid, clientMemberId, 'ADMIN_STAFF_ADD', payload, postStaff);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await postStaff();
+    }
     await loadStaff(token);
     await loadSellers(token);
     await loadGlobalEmployees(token);
   };
 
   const addStaffFromBase = async (token: string, employeeId: number) => {
-    const response = await fetch(`${API_BASE_URL}/admin/staff/from-base`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ employeeId }),
-    });
-    if (!response.ok) throw new Error('add from base error');
+    const uid = session?.user?.id;
+    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const clientId = newClientId('staff-base');
+    const createdAt = new Date().toISOString();
+    const payload = { employeeId, createdAt };
+
+    const postFromBase = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/staff/from-base`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ employeeId }),
+      });
+      if (!response.ok) {
+        throw new Error('add from base error');
+      }
+    };
+
+    if (adminDesktop) {
+      const mode = await runAdminMutation(uid, clientId, 'ADMIN_STAFF_FROM_BASE', payload, postFromBase);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await postFromBase();
+    }
     await loadStaff(token);
     await loadSellers(token);
   };
 
   const removeStaffFromStore = async (token: string, id: number, storeName?: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/staff/${id}/remove-from-store`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ storeName }),
-    });
-    if (!response.ok) throw new Error('remove staff from store error');
+    const uid = session?.user?.id;
+    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const clientId = newClientId('staff-remove');
+    const createdAt = new Date().toISOString();
+    const payload = { staffId: id, storeName, createdAt };
+
+    const postRemove = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/staff/${id}/remove-from-store`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ storeName }),
+      });
+      if (!response.ok) {
+        throw new Error('remove staff from store error');
+      }
+    };
+
+    if (adminDesktop) {
+      const mode = await runAdminMutation(uid, clientId, 'ADMIN_STAFF_REMOVE', payload, postRemove);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await postRemove();
+    }
     await Promise.all([loadStaff(token), loadSellers(token), loadShifts(token), loadGlobalEmployees(token)]);
   };
 
   const restoreStaffToStore = async (token: string, staffId: number, storeName: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/staff/${staffId}/restore-to-store`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ storeName }),
-    });
-    if (!response.ok) throw new Error('restore staff to store error');
+    const uid = session?.user?.id;
+    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const clientId = newClientId('staff-restore');
+    const createdAt = new Date().toISOString();
+    const payload = { staffId, storeName, createdAt };
+
+    const postRestore = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/staff/${staffId}/restore-to-store`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ storeName }),
+      });
+      if (!response.ok) {
+        throw new Error('restore staff to store error');
+      }
+    };
+
+    if (adminDesktop) {
+      const mode = await runAdminMutation(uid, clientId, 'ADMIN_STAFF_RESTORE', payload, postRestore);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+    } else {
+      await postRestore();
+    }
     await Promise.all([loadStaff(token), loadSellers(token), loadShifts(token), loadGlobalEmployees(token)]);
+  };
+
+  const loadDashboardWithRetry = async (token: string) => {
+    try {
+      await loadDashboard(token);
+      return true;
+    } catch {
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+      try {
+        await loadDashboard(token);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  };
+
+  const bootstrapLoggedInUser = async (data: LoginResponse) => {
+    setSession(data);
+    const dashboardLoaded = await loadDashboardWithRetry(data.token);
+    if (!dashboardLoaded) {
+      setAdminError('Вход выполнен, но сводка загрузится с задержкой. Обновите страницу через пару секунд.');
+    }
+    if (
+      data.user.role === 'ADMIN' ||
+      data.user.role === 'DIRECTOR' ||
+      data.user.role === 'ACCOUNTANT' ||
+      data.user.role === 'MANAGER'
+    ) {
+      setAdminError('');
+      const baseLoads = await Promise.allSettled([
+        loadSellers(data.token),
+        loadProducts(data.token),
+        loadProductProcurementCosts(data.token),
+        loadSales(data.token),
+        loadCommissionRequests(data.token),
+        loadShifts(data.token),
+        loadStaff(data.token),
+        loadGlobalEmployees(data.token),
+      ]);
+
+      await Promise.allSettled([
+        ...(data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT'
+          ? [loadInventoryOverview(data.token)]
+          : []),
+        ...(data.user.role === 'ADMIN' ? [loadStoreInventory(data.token)] : []),
+      ]);
+
+      if (data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
+        const financeLoads = await Promise.allSettled([
+          loadAcquiringPercent(data.token),
+          loadFinanceOps(data.token),
+        ]);
+        const hasFinanceFailure = financeLoads.some((item) => item.status === 'rejected');
+        if (hasFinanceFailure) {
+          setAcquiringPercent('1.8');
+          setAcquiringPercentDetkov('1.8');
+          setAcquiringPercentPutintsevSber('1.8');
+          setFinanceOps({
+            accounts: [],
+            expenses: [],
+            incomes: [],
+            totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
+          });
+        }
+      } else {
+        setAcquiringPercent('1.8');
+        setAcquiringPercentDetkov('1.8');
+        setAcquiringPercentPutintsevSber('1.8');
+        setFinanceOps({
+          accounts: [],
+          expenses: [],
+          incomes: [],
+          totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
+        });
+      }
+
+      const hasBaseFailure = baseLoads.some((item) => item.status === 'rejected');
+      if (hasBaseFailure) {
+        setAdminError('Часть данных загрузилась с задержкой. Обновите страницу, если что-то не появилось.');
+      }
+    } else {
+      setSellers([]);
+      setProducts([]);
+      setSales([]);
+      setProductProcurementCosts([]);
+      setCommissionRequests([]);
+      setShifts([]);
+      setStaff([]);
+      setAcquiringPercent('1.8');
+      setAcquiringPercentDetkov('1.8');
+      setAcquiringPercentPutintsevSber('1.8');
+      setFinanceOps({
+        accounts: [],
+        expenses: [],
+        incomes: [],
+        totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
+      });
+      setInventoryOverview(null);
+      setStoreInventory(null);
+    }
+  };
+
+  const loginWithNicknamePassword = async (loginNick: string, loginPwd: string) => {
+    if (!API_BASE_URL) {
+      throw new Error(API_CONFIG_ERROR || 'Адрес сервера не задан.');
+    }
+
+    const loginRequest = async (path = '/auth/login') => {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+      try {
+        return await fetch(`${API_BASE_URL}${path}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ nickname: loginNick, password: loginPwd }),
+          signal: controller.signal,
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    };
+
+    let response: Response;
+    try {
+      response = await loginRequest();
+    } catch (firstError) {
+      try {
+        response = await loginRequest();
+      } catch (secondError) {
+        throw secondError instanceof Error ? secondError : firstError;
+      }
+    }
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        response = await loginRequest('/api/auth/login');
+      }
+    }
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Неверный логин или пароль');
+      }
+      if (response.status === 404) {
+        throw new Error(
+          'Сервер авторизации недоступен (404). Проверьте VITE_API_URL и что backend запущен.',
+        );
+      }
+      throw new Error(`Ошибка входа: ${response.status}`);
+    }
+
+    return (await response.json()) as LoginResponse;
+  };
+
+  const handleDirectorSwitchAccount = async (targetNickname: string, targetPassword: string) => {
+    if (!session) {
+      return;
+    }
+    if (session.user.role === 'DIRECTOR') {
+      writeDirectorRootSession(session);
+      setDirectorRootSession(session);
+    }
+    const data = await loginWithNicknamePassword(targetNickname, targetPassword);
+    await bootstrapLoggedInUser(data);
+    navigate('/home', { replace: true });
+  };
+
+  const handleDirectorReturnToDirector = async () => {
+    const root = directorRootSession ?? readDirectorRootSession();
+    if (!root) {
+      return;
+    }
+    await bootstrapLoggedInUser(root);
+    writeDirectorRootSession(null);
+    setDirectorRootSession(null);
+    navigate('/home', { replace: true });
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1592,150 +2544,12 @@ function App() {
     setLoading(true);
 
     try {
-      const loadDashboardWithRetry = async (token: string) => {
-        try {
-          await loadDashboard(token);
-          return true;
-        } catch {
-          await new Promise((resolve) => window.setTimeout(resolve, 350));
-          try {
-            await loadDashboard(token);
-            return true;
-          } catch {
-            return false;
-          }
-        }
-      };
-
-      const loginRequest = async (path = '/auth/login') => {
-        const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), 15000);
-        try {
-          return await fetch(`${API_BASE_URL}${path}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ nickname, password }),
-            signal: controller.signal,
-          });
-        } finally {
-          window.clearTimeout(timeoutId);
-        }
-      };
-
-      let response: Response;
-      try {
-        response = await loginRequest();
-      } catch {
-        // Однократный повтор помогает при кратковременной сетевой просадке.
-        response = await loginRequest();
-      }
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          response = await loginRequest('/api/auth/login');
-        }
-      }
-
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          throw new Error('Неверный логин или пароль');
-        }
-        if (response.status === 404) {
-          throw new Error(
-            'Сервер авторизации недоступен (404). Проверьте VITE_API_URL и что backend запущен.',
-          );
-        }
-        throw new Error(`Ошибка входа: ${response.status}`);
-      }
-
-      const data = (await response.json()) as LoginResponse;
-      setSession(data);
+      const data = await loginWithNicknamePassword(nickname, password);
+      writeDirectorRootSession(null);
+      setDirectorRootSession(null);
       setPassword('');
       navigate('/home', { replace: true });
-      const dashboardLoaded = await loadDashboardWithRetry(data.token);
-      if (!dashboardLoaded) {
-        setAdminError('Вход выполнен, но сводка загрузится с задержкой. Обновите страницу через пару секунд.');
-      }
-      if (
-        data.user.role === 'ADMIN' ||
-        data.user.role === 'DIRECTOR' ||
-        data.user.role === 'ACCOUNTANT' ||
-        data.user.role === 'MANAGER'
-      ) {
-        setAdminError('');
-        const baseLoads = await Promise.allSettled([
-          loadSellers(data.token),
-          loadProducts(data.token),
-          loadProductProcurementCosts(data.token),
-          loadSales(data.token),
-          loadCommissionRequests(data.token),
-          loadShifts(data.token),
-          loadStaff(data.token),
-          loadGlobalEmployees(data.token),
-        ]);
-
-        await Promise.allSettled([
-          ...(data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT'
-            ? [loadInventoryOverview(data.token)]
-            : []),
-          ...(data.user.role === 'ADMIN' ? [loadStoreInventory(data.token)] : []),
-        ]);
-
-        if (data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
-          const financeLoads = await Promise.allSettled([
-            loadAcquiringPercent(data.token),
-            loadFinanceOps(data.token),
-          ]);
-          const hasFinanceFailure = financeLoads.some((item) => item.status === 'rejected');
-          if (hasFinanceFailure) {
-            setAcquiringPercent('1.8');
-            setAcquiringPercentDetkov('1.8');
-            setAcquiringPercentPutintsevSber('1.8');
-            setFinanceOps({
-              accounts: [],
-              expenses: [],
-              incomes: [],
-              totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
-            });
-          }
-        } else {
-          setAcquiringPercent('1.8');
-          setAcquiringPercentDetkov('1.8');
-          setAcquiringPercentPutintsevSber('1.8');
-          setFinanceOps({
-            accounts: [],
-            expenses: [],
-            incomes: [],
-            totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
-          });
-        }
-
-        const hasBaseFailure = baseLoads.some((item) => item.status === 'rejected');
-        if (hasBaseFailure) {
-          setAdminError('Часть данных загрузилась с задержкой. Обновите страницу, если что-то не появилось.');
-        }
-      } else {
-        setSellers([]);
-        setProducts([]);
-        setSales([]);
-        setProductProcurementCosts([]);
-        setCommissionRequests([]);
-        setShifts([]);
-        setStaff([]);
-        setAcquiringPercent('1.8');
-        setAcquiringPercentDetkov('1.8');
-        setAcquiringPercentPutintsevSber('1.8');
-        setFinanceOps({
-          accounts: [],
-          expenses: [],
-          incomes: [],
-          totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
-        });
-        setInventoryOverview(null);
-        setStoreInventory(null);
-      }
+      await bootstrapLoggedInUser(data);
     } catch (e) {
       setSession(null);
       setDashboard(null);
@@ -1752,13 +2566,7 @@ function App() {
       setAcquiringPercentPutintsevSber('1.8');
       setInventoryOverview(null);
       setStoreInventory(null);
-      const errorText =
-        e instanceof Error && e.message
-          ? e.message
-          : 'Не удалось войти. Проверьте логин/пароль, что backend запущен, в Vercel задан VITE_API_URL (https://…), в Render у backend в CORS_ORIGIN — адрес фронта.';
-      setError(
-        errorText,
-      );
+      setError(describeLoginFetchError(e));
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       window.localStorage.removeItem(SESSION_PERSISTENCE_KEY);
@@ -1769,6 +2577,8 @@ function App() {
 
   const handleLogout = () => {
     setSalesNotice('');
+    writeDirectorRootSession(null);
+    setDirectorRootSession(null);
     setSession(null);
     setDashboard(null);
     setSellers([]);
@@ -1818,18 +2628,101 @@ function App() {
   }, [rememberMe, session]);
 
   useEffect(() => {
-    if (!session?.token || session.user.id == null) {
+    if (!isDesktopShell || !session?.token || session.user.id == null) {
       return;
     }
     const token = session.token;
     const userId = session.user.id;
-    const run = () => {
-      void flushOfflineSalesQueue(token, userId);
+    const stop = startSyncEngine({
+      apiBaseUrl: API_BASE_URL,
+      token,
+      userId,
+      onSyncingChange: setOutboxSyncing,
+      onReachableChange: setApiReachable,
+      onFlushed: () => {
+        setOfflineQueueTick((x) => x + 1);
+        if (session.user.role === 'ADMIN') {
+          void Promise.allSettled([
+            loadSales(token),
+            loadSellers(token),
+            loadProducts(token),
+            loadShifts(token),
+            loadStaff(token),
+            loadStoreInventory(token),
+            loadGlobalEmployees(token),
+          ]);
+        } else if (session.user.role === 'MANAGER') {
+          void loadDashboard(token).catch(() => undefined);
+        } else if (session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT') {
+          void Promise.allSettled([
+            loadDashboard(token),
+            loadFinanceOps(token),
+            loadInventoryOverview(token),
+            loadSellers(token),
+            ...(session.user.role === 'DIRECTOR'
+              ? [loadCommissionRequests(token)]
+              : []),
+          ]);
+        } else {
+          void loadSales(token).catch(() => undefined);
+          void loadSellers(token).catch(() => undefined);
+        }
+      },
+    });
+    return stop;
+  }, [isDesktopShell, session?.token, session?.user?.id, session?.user?.role]);
+
+  useEffect(() => {
+    if (isDesktopShell || !session?.token || session.user.id == null) {
+      return;
+    }
+    const token = session.token;
+    const userId = session.user.id;
+    const run = async () => {
+      const queueBefore = readOfflineQueue(userId);
+      if (
+        queueBefore.length === 0 ||
+        (typeof navigator !== 'undefined' && !navigator.onLine)
+      ) {
+        return;
+      }
+      const remaining: OfflineQueuedSale[] = [];
+      for (const entry of queueBefore) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/admin/sales`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              sellerId: entry.sellerId,
+              items: entry.items,
+              totalAmount: entry.totalAmount,
+              paymentType: entry.paymentType,
+              saleId: entry.saleId,
+            }),
+          });
+          if (!response.ok) {
+            remaining.push(entry);
+          }
+        } catch {
+          remaining.push(entry);
+        }
+      }
+      writeOfflineQueue(userId, remaining);
+      setOfflineQueueTick((x) => x + 1);
+      try {
+        await loadSales(token);
+        await loadSellers(token);
+      } catch {
+        // offline
+      }
     };
-    run();
+    void run();
     window.addEventListener('online', run);
     return () => window.removeEventListener('online', run);
-  }, [session?.token, session?.user?.id, flushOfflineSalesQueue]);
+  }, [isDesktopShell, session?.token, session?.user?.id, loadSales, loadSellers]);
 
   useEffect(() => {
     if (!restoredSession || !session || restoredSession.token !== session.token) {
@@ -1877,10 +2770,52 @@ function App() {
       return;
     }
     const r = session.user.role;
-    if ((r === 'DIRECTOR' || r === 'ACCOUNTANT') && location.pathname === '/sales') {
+    if (
+      (r === 'DIRECTOR' || r === 'ACCOUNTANT') &&
+      (location.pathname === '/sales' || location.pathname === '/accounting/procurement')
+    ) {
       void loadInventoryOverview(session.token);
     }
   }, [loadInventoryOverview, location.pathname, session]);
+
+  useEffect(() => {
+    if (!isDesktopShell || !session?.token) {
+      return;
+    }
+    const token = session.token;
+    const role = session.user.role;
+    void (async () => {
+      const loads: Promise<unknown>[] = [loadDashboard(token)];
+      if (role === 'DIRECTOR' || role === 'ACCOUNTANT') {
+        loads.push(
+          loadFinanceOps(token),
+          loadSellers(token),
+          loadSales(token),
+          loadProductProcurementCosts(token),
+          loadInventoryOverview(token),
+          loadAcquiringPercent(token),
+          loadProducts(token),
+        );
+      } else if (role === 'ADMIN') {
+        loads.push(
+          loadSellers(token),
+          loadProducts(token),
+          loadSales(token),
+          loadShifts(token),
+          loadStaff(token),
+          loadStoreInventory(token),
+          loadGlobalEmployees(token),
+        );
+      } else if (role === 'MANAGER') {
+        loads.push(loadSellers(token), loadSales(token));
+      }
+      if (role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER') {
+        loads.push(refreshMessengerInbox());
+      }
+      await Promise.allSettled(loads);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- один прогон при входе / смене роли
+  }, [isDesktopShell, session?.token, session?.user?.role]);
 
   const mobileNavItems = useMemo((): MobileNavItem[] => {
     if (!session?.user) {
@@ -1905,23 +2840,42 @@ function App() {
         { to: '/shift', label: 'Смена', icon: <ShiftIcon /> },
       ];
     }
-    return [
+    const base: MobileNavItem[] = [
       { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
       { to: '/shift', label: shiftL, icon: <ShiftIcon /> },
       { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
-      { to: '/team', label: 'Команда', icon: <TeamIcon /> },
+    ];
+    if (r === 'DIRECTOR') {
+      base.push(
+        { to: '/accounting/equipment', label: 'Спецтехника', icon: <EquipmentIcon /> },
+        { to: '/accounting/procurement', label: 'Закупки и склад', icon: <ProcurementIcon /> },
+      );
+    }
+    base.push(
+      { to: '/team', label: 'Склад', icon: <WarehouseIcon /> },
       {
         to: '/control',
         label: controlL,
         icon: usesOrgChat ? <OrgChatDockIcon /> : <ControlIcon />,
         badge: chatBadge,
       },
-    ];
+    );
+    return base;
   }, [session, messengerUnreadTotal]);
 
   if (!session) {
     return (
-      <main className="app loginScreen">
+      <main className={`app loginScreen${isDesktopShell ? ' app--desktop' : ''}`}>
+        {isDesktopShell ? (
+          <div className="desktopLoginStatus">
+            <ConnectionBanner {...desktopConnection} variant="pill" />
+          </div>
+        ) : null}
+        {isDesktopShell ? (
+          <div className="desktopLoginTheme">
+            <DesktopThemeToggle theme={desktopTheme} onChange={handleDesktopThemeChange} />
+          </div>
+        ) : null}
         <section className="loginScreenPanel">
           <header className="brandHeader">
             <h1>Фотографы</h1>
@@ -1985,55 +2939,11 @@ function App() {
   const shiftLabel = isFinanceViewer || isManager ? 'Оперативка' : 'Смена';
   const usesOrgChat = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER';
   const controlLabel = usesOrgChat ? 'Чат' : isReadOnlyObserver ? 'Отчёт' : 'Контроль';
-  const messengerChromeLayout = usesOrgChat && location.pathname === '/control';
+  const messengerChromeLayout =
+    !isDesktopShell && usesOrgChat && location.pathname === '/control';
 
-  return (
-    <main
-      className={`app appWorkspace${messengerChromeLayout ? ' appWorkspace--messengerChrome' : ''}${
-        messengerChromeLayout && chatComposerSurfaceActive ? ' appWorkspace--messengerComposerGrip' : ''
-      }`}
-    >
-      <section
-        className={`card cardWorkspace${messengerChromeLayout ? ' cardWorkspace--messengerChrome' : ''}`}
-      >
-        {!messengerChromeLayout ? (
-          <header className="brandHeader">
-            <h1>Фотографы</h1>
-          </header>
-        ) : null}
-
-        <div className="quickNav desktopNav" role="tablist" aria-label="Разделы">
-          <NavLink to="/home" className={navTabClass} end>
-            Главная
-          </NavLink>
-          {!isRetoucher && (
-            <NavLink to="/shift" className={navTabClass}>
-              {shiftLabel}
-            </NavLink>
-          )}
-          {!isRetoucher && !isSellerOnly && (
-            <>
-              <NavLink to="/sales" className={navTabClass}>
-                Продажи
-              </NavLink>
-              <NavLink to="/team" className={navTabClass}>
-                Команда
-              </NavLink>
-              <NavLink to="/control" className={navTabClass}>
-                {controlLabel}
-                {usesOrgChat && messengerUnreadTotal > 0 ? (
-                  <span className="desktopChatBadge">
-                    {messengerUnreadTotal > 99 ? '99+' : messengerUnreadTotal}
-                  </span>
-                ) : null}
-              </NavLink>
-            </>
-          )}
-        </div>
-
-        {adminError && <p className="error">{adminError}</p>}
-
-        <div className="pageOutlet">
+  const routesOutlet = (
+    <div className="pageOutlet">
           <Routes>
             <Route path="/" element={<Navigate to="/home" replace />} />
             <Route
@@ -2051,8 +2961,11 @@ function App() {
                   <section className="sectionCard homePanelSection">
                     {dashboardLoading ? (
                       <p className="muted">Загружаем сводку...</p>
+                    ) : !homeDashboard ? (
+                      <p className="muted">
+                        Не удалось загрузить сводку. Проверьте интернет и нажмите «Выйти», затем войдите снова.
+                      </p>
                     ) : (
-                      homeDashboard && (
                         <>
                           {homeDashboard.sellerDataManagedByAdmin && homeDashboard.role === 'SELLER' && (
                             <p className="notice">Данные продавца заполняет администратор точки.</p>
@@ -2061,6 +2974,7 @@ function App() {
                           {homeDashboard.role === 'DIRECTOR' && session ? (
                             <DirectorHomeApprovalsCarousel
                               token={session.token}
+                              userId={session.user.id}
                               onDecided={() => {
                                 void loadDashboard(session.token);
                               }}
@@ -2152,8 +3066,7 @@ function App() {
                                 </article>
                               ))}
                             </div>
-                          ) : homeDashboard.role === 'DIRECTOR' ||
-                            homeDashboard.role === 'ACCOUNTANT' ? (
+                          ) : homeDashboard.role === 'ACCOUNTANT' ? (
                             <div className="homeStoresAggregateCard">
                               <h4 className="homeStoresAggregateTitle">Выручка по точкам</h4>
                               <ul className="homeStoresMiniList">
@@ -2165,6 +3078,38 @@ function App() {
                                 ))}
                               </ul>
                             </div>
+                          ) : homeDashboard.role === 'DIRECTOR' ? (
+                            isDesktopShell ? (
+                              <div className="directorHomeMidRow">
+                                <div className="homeStoresAggregateCard directorHomeZone">
+                                  <h4 className="directorHomeSectionTitle">Выручка по точкам</h4>
+                                  <ul className="homeStoresMiniList">
+                                    {homeDashboard.stores.map((store) => (
+                                      <li key={store.name} className="homeStoresMiniRow">
+                                        <span className="homeStoresMiniName">{store.name}</span>
+                                        <span className="homeStoresMiniValue">{store.revenue}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                <DirectorCashflowPanel pages={directorCashflowPages} />
+                              </div>
+                            ) : (
+                              <>
+                                <div className="homeStoresAggregateCard">
+                                  <h4 className="homeStoresAggregateTitle">Выручка по точкам</h4>
+                                  <ul className="homeStoresMiniList">
+                                    {homeDashboard.stores.map((store) => (
+                                      <li key={store.name} className="homeStoresMiniRow">
+                                        <span className="homeStoresMiniName">{store.name}</span>
+                                        <span className="homeStoresMiniValue">{store.revenue}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                <DirectorCashflowPanel pages={directorCashflowPages} />
+                              </>
+                            )
                           ) : homeDashboard.role === 'MANAGER' ? null : (
                             <div className="homeStoresList">
                               {homeDashboard.stores.map((store) => (
@@ -2180,12 +3125,8 @@ function App() {
                             </div>
                           )}
 
-                          {homeDashboard.role === 'DIRECTOR' ? (
-                            <DirectorCashflowCarousel pages={directorCashflowPages} />
-                          ) : null}
-
-                          {homeDashboard.role === 'DIRECTOR' && session ? (
-                            <DirectorDemoAccountsPanel token={session.token} />
+                          {homeDashboard.role === 'DIRECTOR' && session && !isDesktopShell ? (
+                            <DirectorDemoAccountsPanel token={session.token} userId={session.user.id} />
                           ) : null}
 
                           {homeDashboard.role === 'ADMIN' ? (
@@ -2197,7 +3138,7 @@ function App() {
                                     {homeDashboard.sellerRegister.map((row) => (
                                       <li key={row.fullName}>
                                         <span className="adminSellerRegisterName">{row.fullName}</span>
-                                        <span className="adminSellerRegisterAmount">{row.salary}</span>
+                                        <span className="adminSellerRegisterAmount">{row.cash}</span>
                                       </li>
                                     ))}
                                   </ul>
@@ -2222,7 +3163,6 @@ function App() {
                             </>
                           ) : null}
                         </>
-                      )
                     )}
                   </section>
                   <section
@@ -2242,7 +3182,17 @@ function App() {
             <Route
               path="/shift"
               element={
-                <div className="dashboard">
+                <div
+                  className={`dashboard${
+                    isDesktopShell && role === 'ADMIN'
+                      ? ' dashboard--shiftDesktop'
+                      : isDesktopShell && role === 'ACCOUNTANT'
+                        ? ' dashboard--financeDesktop dashboard--accountantEquip'
+                        : isDesktopShell && isFinanceViewer
+                          ? ' dashboard--financeDesktop'
+                          : ''
+                  }`}
+                >
                   <section className="sectionCard">
                     {isManager ? null : role === 'ACCOUNTANT' ? (
                       <AccountantStoreEquipmentStoresPanel token={session.token} />
@@ -2309,12 +3259,16 @@ function App() {
                 isSellerOnly ? (
                   <Navigate to="/home" replace />
                 ) : (
-                  <div className="dashboard">
+                  <div
+                    className={`dashboard${
+                      isDesktopShell && !isFinanceViewer && !isReadOnlyObserver ? ' dashboard--salesDesktop' : ''
+                    }${isDesktopShell && isFinanceViewer ? ' dashboard--financeReportDesktop' : ''}`}
+                  >
                     {!isReadOnlyObserver && (
                       <>
                         {!isFinanceViewer && (
                           <>
-                            <section className="sectionCard">
+                            <section className="sectionCard sectionCard--addSale">
                               <AddSaleForm
                                 sellers={(() => {
                                   const open = shifts.find((s) => s.status === 'OPEN');
@@ -2356,15 +3310,20 @@ function App() {
                             <DirectorWarehousePanel
                               token={session.token}
                               overview={inventoryOverview}
-                              onReload={() => loadInventoryOverview(session.token)}
-                              onReplenish={replenishWarehouse}
-                            />
-                          </section>
-                          <section className="sectionCard">
-                            <AccountantProcurementPanel
-                              token={session.token}
                               products={products}
                               procurementCosts={productProcurementCosts}
+                              onReload={async () => {
+                                await loadInventoryOverview(session.token);
+                                await loadProducts(session.token);
+                              }}
+                              onReplenish={replenishWarehouse}
+                              onSaveProcurementCosts={saveProductProcurementCosts}
+                              onAddProduct={addCatalogProduct}
+                            />
+                          </section>
+                          <section className="sectionCard sectionCard--acquiring">
+                            <AccountantProcurementPanel
+                              token={session.token}
                               acquiringPercent={acquiringPercent}
                               acquiringPercentDetkov={acquiringPercentDetkov}
                               acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
@@ -2374,28 +3333,39 @@ function App() {
                               onSaveAcquiringPercent={saveAcquiringPercent}
                               onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
                               onSaveAcquiringPercentPutintsevSber={saveAcquiringPercentPutintsevSber}
-                              onSave={saveProductProcurementCosts}
                             />
                           </section>
                         </>
                       )
                     ) : (
                       <>
-                        <section className="sectionCard">
-                          <div className="salesLog">
+                        <section className="sectionCard sectionCard--salesLog">
+                          <div className={`salesLog${isDesktopShell ? ' salesLog--desktop' : ''}`}>
                             {salesNotice ? <p className="notice saleRequestNotice">{salesNotice}</p> : null}
-                            <button
-                              type="button"
-                              className={`salesToggle ${salesExpanded ? 'salesToggleOpen' : ''}`}
-                              onClick={() => setSalesExpanded((current) => !current)}
-                              aria-expanded={salesExpanded}
+                            {isDesktopShell ? (
+                              <h4 className="dtSectionTitle">
+                                Продажи за сегодня · {session.user.storeName}
+                              </h4>
+                            ) : (
+                              <button
+                                type="button"
+                                className={`salesToggle ${salesExpanded ? 'salesToggleOpen' : ''}`}
+                                onClick={() => setSalesExpanded((current) => !current)}
+                                aria-expanded={salesExpanded}
+                              >
+                                <span>Продажи за сегодня · {session.user.storeName}</span>
+                                <span className="salesToggleIcon" aria-hidden>
+                                  ▾
+                                </span>
+                              </button>
+                            )}
+                            <div
+                              className={
+                                isDesktopShell
+                                  ? 'salesLogBody'
+                                  : `salesAccordion ${salesExpanded ? 'salesAccordionOpen' : ''}`
+                              }
                             >
-                              <span>Продажи за сегодня · {session.user.storeName}</span>
-                              <span className="salesToggleIcon" aria-hidden>
-                                ▾
-                              </span>
-                            </button>
-                            <div className={`salesAccordion ${salesExpanded ? 'salesAccordionOpen' : ''}`}>
                               {todayStoreSales.length === 0 ? (
                                 <p className="muted">За сегодня по этой точке продаж нет</p>
                               ) : (
@@ -2422,7 +3392,7 @@ function App() {
                                           {role === 'ADMIN' && !sale.pendingSync ? (
                                             <button
                                               type="button"
-                                              className="saleDeleteRequestIconBtn"
+                                              className="saleDeleteBtn"
                                               title="Запросить у директора удаление этой продажи"
                                               aria-label="Запросить у директора удаление этой продажи"
                                               onClick={() => {
@@ -2438,20 +3408,16 @@ function App() {
                                               }}
                                             >
                                               <svg
-                                                className="saleDeleteRequestIconSvg"
-                                                width="14"
-                                                height="14"
+                                                className="saleDeleteBtnIcon"
                                                 viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
+                                                width="16"
+                                                height="16"
                                                 aria-hidden
                                               >
-                                                <path d="M3 6h18" />
-                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                                <path d="M10 11v6M14 11v6" />
+                                                <path
+                                                  fill="currentColor"
+                                                  d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 5h2v10h-2V8zm4 0h2v10h-2V8zM6 8h12v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8z"
+                                                />
                                               </svg>
                                             </button>
                                           ) : null}
@@ -2481,13 +3447,85 @@ function App() {
               }
             />
             <Route
+              path="/accounting/equipment"
+              element={
+                role !== 'DIRECTOR' ? (
+                  <Navigate to="/home" replace />
+                ) : (
+                  <div
+                    className={`dashboard${
+                      isDesktopShell ? ' dashboard--financeDesktop dashboard--accountantEquip' : ''
+                    }`}
+                  >
+                    <section className="sectionCard">
+                      <AccountantStoreEquipmentStoresPanel token={session.token} />
+                    </section>
+                  </div>
+                )
+              }
+            />
+            <Route
+              path="/accounting/procurement"
+              element={
+                role !== 'DIRECTOR' ? (
+                  <Navigate to="/home" replace />
+                ) : (
+                  <div className={`dashboard${isDesktopShell ? ' dashboard--financeDesktop' : ''}`}>
+                    <section className="sectionCard inventorySectionCard">
+                      <DirectorWarehousePanel
+                        token={session.token}
+                        overview={inventoryOverview}
+                        products={products}
+                        procurementCosts={productProcurementCosts}
+                        onReload={async () => {
+                          await loadInventoryOverview(session.token);
+                          await loadProducts(session.token);
+                        }}
+                        onReplenish={replenishWarehouse}
+                        onSaveProcurementCosts={saveProductProcurementCosts}
+                        onAddProduct={addCatalogProduct}
+                      />
+                    </section>
+                    <section className="sectionCard sectionCard--acquiring">
+                      <AccountantProcurementPanel
+                        token={session.token}
+                        acquiringPercent={acquiringPercent}
+                        acquiringPercentDetkov={acquiringPercentDetkov}
+                        acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
+                        onAcquiringPercentChange={setAcquiringPercent}
+                        onAcquiringPercentDetkovChange={setAcquiringPercentDetkov}
+                        onAcquiringPercentPutintsevSberChange={setAcquiringPercentPutintsevSber}
+                        onSaveAcquiringPercent={saveAcquiringPercent}
+                        onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
+                        onSaveAcquiringPercentPutintsevSber={saveAcquiringPercentPutintsevSber}
+                      />
+                    </section>
+                  </div>
+                )
+              }
+            />
+            <Route
               path="/team"
               element={
                 isSellerOnly ? (
                   <Navigate to="/home" replace />
                 ) : (
-                  <div className="dashboard teamPage">
-                    <section className="sectionCard teamPanelCard">
+                  <div
+                    className={`dashboard teamPage${
+                      isDesktopShell && role === 'ADMIN' ? ' dashboard--teamDesktop' : ''
+                    }${
+                      isDesktopShell && (isFinanceViewer || isManager)
+                        ? ' dashboard--warehouseDesktop'
+                        : ''
+                    }`}
+                  >
+                    <section
+                      className={
+                        isDesktopShell && (isFinanceViewer || isManager)
+                          ? 'teamPanelCard teamPanelCard--warehouseDesktop'
+                          : 'sectionCard teamPanelCard'
+                      }
+                    >
                       {isFinanceViewer || isManager ? (
                         <TeamStoresOverview
                           token={session.token}
@@ -2507,7 +3545,7 @@ function App() {
                       ) : (
                         role === 'ADMIN' ? (
                           <>
-                            <div className="inventorySectionCard">
+                            <div className="inventorySectionCard teamPanelZone teamPanelZone--inventory">
                               <StoreInventoryControlPanel
                                 token={session.token}
                                 detail={storeInventory}
@@ -2516,10 +3554,10 @@ function App() {
                                 onReceiveFromWarehouse={transferFromWarehouseToStore}
                               />
                             </div>
-                            <div className="inventorySectionCard storeEquipReadWrap">
+                            <div className="inventorySectionCard storeEquipReadWrap teamPanelZone teamPanelZone--equipment">
                               <StoreEquipmentReadAccordion token={session.token} />
                             </div>
-                            <div>
+                            <div className="teamPanelZone teamPanelZone--writeoff">
                               <WriteOffForm
                                 products={products}
                                 token={session.token}
@@ -2572,6 +3610,7 @@ function App() {
                         refreshInbox={refreshMessengerInbox}
                         persistedThreadKey={messengerPersistThreadKey}
                         persistedThreadTitle={messengerPersistThreadTitle}
+                        messagingOnline={!isDesktopShell || desktopConnection.online}
                         onComposerFocusChange={setChatComposerSurfaceActive}
                         onPersistThreadOpen={(key, title) => {
                           setMessengerPersistThreadKey(key);
@@ -2605,8 +3644,122 @@ function App() {
             />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Routes>
-        </div>
+    </div>
+  );
 
+  const desktopRoleLabel =
+    session.user.role === 'ADMIN'
+      ? 'Администратор точки'
+      : session.user.role === 'DIRECTOR'
+        ? 'Директор'
+        : session.user.role === 'ACCOUNTANT'
+          ? 'Бухгалтер'
+          : session.user.role === 'MANAGER'
+            ? 'Управляющий'
+            : session.user.role === 'SELLER'
+              ? 'Продавец'
+              : session.user.role === 'RETOUCHER'
+                ? 'Ретушёр'
+                : session.user.role;
+
+  const directorSwitcherToken =
+    directorRootSession?.token ?? (session.user.role === 'DIRECTOR' ? session.token : null);
+  const showDirectorAccountSwitcher =
+    isDesktopShell && (session.user.role === 'DIRECTOR' || Boolean(directorRootSession));
+
+  if (isDesktopShell) {
+    return (
+      <main className="app appWorkspace app--desktop">
+        <section className="card cardWorkspace cardWorkspace--desktop">
+          <DesktopAppLayout
+            connection={desktopConnection}
+            adminError={adminError || undefined}
+            navItems={mobileNavItems}
+            userLabel={session.user.nickname}
+            roleLabel={desktopRoleLabel}
+            onLogout={handleLogout}
+            desktopTheme={desktopTheme}
+            onDesktopThemeChange={handleDesktopThemeChange}
+            directorAccountSwitcher={
+              showDirectorAccountSwitcher && directorSwitcherToken ? (
+                <DirectorAccountSwitcher
+                  apiBaseUrl={API_BASE_URL}
+                  directorToken={directorSwitcherToken}
+                  activeNickname={session.user.nickname}
+                  activeRole={session.user.role}
+                  isImpersonating={Boolean(directorRootSession)}
+                  userId={directorRootSession?.user.id ?? session.user.id}
+                  onSwitchAccount={handleDirectorSwitchAccount}
+                  onReturnToDirector={() => void handleDirectorReturnToDirector()}
+                />
+              ) : undefined
+            }
+          >
+            {routesOutlet}
+          </DesktopAppLayout>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main
+      className={`app appWorkspace${messengerChromeLayout ? ' appWorkspace--messengerChrome' : ''}${
+        messengerChromeLayout && chatComposerSurfaceActive ? ' appWorkspace--messengerComposerGrip' : ''
+      }`}
+    >
+      <section
+        className={`card cardWorkspace${messengerChromeLayout ? ' cardWorkspace--messengerChrome' : ''}`}
+      >
+        {!messengerChromeLayout ? (
+          <header className="desktopAppHeader">
+            <div className="brandHeader">
+              <h1>Фотографы</h1>
+            </div>
+            <div className="quickNav desktopNav" role="tablist" aria-label="Разделы">
+              <NavLink to="/home" className={navTabClass} end>
+                Главная
+              </NavLink>
+              {!isRetoucher && (
+                <NavLink to="/shift" className={navTabClass}>
+                  {shiftLabel}
+                </NavLink>
+              )}
+              {!isRetoucher && !isSellerOnly && (
+                <>
+                  <NavLink to="/sales" className={navTabClass}>
+                    Продажи
+                  </NavLink>
+                  {role === 'DIRECTOR' ? (
+                    <>
+                      <NavLink to="/accounting/equipment" className={navTabClass}>
+                        Спецтехника
+                      </NavLink>
+                      <NavLink to="/accounting/procurement" className={navTabClass}>
+                        Закупки и склад
+                      </NavLink>
+                    </>
+                  ) : null}
+                  <NavLink to="/team" className={navTabClass}>
+                    Склад
+                  </NavLink>
+                  <NavLink to="/control" className={navTabClass}>
+                    {controlLabel}
+                    {usesOrgChat && messengerUnreadTotal > 0 ? (
+                      <span className="desktopChatBadge">
+                        {messengerUnreadTotal > 99 ? '99+' : messengerUnreadTotal}
+                      </span>
+                    ) : null}
+                  </NavLink>
+                </>
+              )}
+            </div>
+          </header>
+        ) : null}
+
+        {adminError ? <p className="error">{adminError}</p> : null}
+
+        {routesOutlet}
       </section>
       <nav
         className={`mobileDock${chatComposerSurfaceActive ? ' mobileDock--hiddenForChat' : ''}`}
@@ -2632,6 +3785,63 @@ function App() {
         ))}
       </nav>
     </main>
+  );
+}
+
+function AddSaleProductStepper({
+  name,
+  value,
+  onChange,
+}: {
+  name: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const parsed = Math.max(0, Math.floor(Number(value) || 0));
+
+  const setQty = (next: number) => {
+    onChange(next > 0 ? String(next) : '');
+  };
+
+  const hasQty = parsed > 0;
+
+  return (
+    <div className={`addSaleProductCard${hasQty ? ' addSaleProductCard--hasQty' : ''}`}>
+      <span className="addSaleProductName" title={name}>
+        {name}
+      </span>
+      <div className="addSaleQtyStepper" role="group" aria-label={`Количество: ${name}`}>
+        <button
+          type="button"
+          className="ghost addSaleQtyBtn addSaleQtyBtn--minus"
+          aria-label={`Меньше: ${name}`}
+          onClick={() => setQty(parsed - 1)}
+        >
+          −
+        </button>
+        <input
+          className="addSaleQtyInput"
+          inputMode="numeric"
+          value={value}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (next === '' || /^\d+$/.test(next)) {
+              onChange(next);
+            }
+          }}
+          placeholder="0"
+          aria-label={`Количество: ${name}`}
+        />
+        <button
+          type="button"
+          className="ghost addSaleQtyBtn addSaleQtyBtn--plus"
+          aria-label={`Больше: ${name}`}
+          onClick={() => setQty(parsed + 1)}
+        >
+          +
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -2663,7 +3873,6 @@ function AddSaleForm({
 
   const resolvedSeller = sellers.find((s) => s.id === sellerId) ?? sellers[0] ?? null;
   const selectSellerId = resolvedSeller?.id ?? '';
-
   const updateQty = (name: string, value: string) => {
     setQty((current) => ({ ...current, [name]: value }));
   };
@@ -2709,98 +3918,191 @@ function AddSaleForm({
     }
   };
 
-  return (
-    <div className="addSaleForm">
-      <h4>Добавить продажу</h4>
+  const desktopSale = isTauriRuntime();
+
+  const paymentButtons = (
+    <div className={`paymentTypeRow${desktopSale ? ' paymentTypeRow--desktop' : ''}`} role="group" aria-label="Вид оплаты">
+      <button
+        type="button"
+        className={`ghost paymentTypeBtn ${desktopSale ? 'paymentTypeBtn--desktop' : ''} ${paymentType === 'CASH' ? 'paymentTypeBtnActive' : ''}`}
+        onClick={() => setPaymentType('CASH')}
+      >
+        {desktopSale ? 'Наличные' : 'Нал'}
+      </button>
+      <button
+        type="button"
+        className={`ghost paymentTypeBtn ${desktopSale ? 'paymentTypeBtn--desktop' : ''} ${paymentType === 'NON_CASH' ? 'paymentTypeBtnActive' : ''}`}
+        onClick={() => setPaymentType('NON_CASH')}
+      >
+        Безнал
+      </button>
+      <button
+        type="button"
+        className={`ghost paymentTypeBtn ${desktopSale ? 'paymentTypeBtn--desktop' : ''} ${paymentType === 'TRANSFER' ? 'paymentTypeBtnActive' : ''}`}
+        onClick={() => setPaymentType('TRANSFER')}
+      >
+        Перевод
+      </button>
+    </div>
+  );
+
+  const shiftAlerts = (
+    <>
       {!hasOpenShift && (
-        <p className="error" role="alert">
+        <p className="error addSaleAlert" role="alert">
           Нет открытой смены — откройте её в разделе «Смена».
         </p>
       )}
       {hasOpenShift && sellers.length === 0 && (
-        <p className="error" role="alert">
+        <p className="error addSaleAlert" role="alert">
           В смене пока никого нет. В «Смене» нажмите «Добавить в смену» и отметьте продавцов.
         </p>
       )}
-      <div className="addSaleRow">
-        <label>
-          Продавец
-          <select
-            value={selectSellerId}
-            onChange={(event) => setSellerId(Number(event.target.value))}
-            disabled={sellers.length === 0}
-          >
-            {sellers.length === 0 ? (
-              <option value="">—</option>
-            ) : (
-              sellers.map((seller) => (
-                <option key={seller.id} value={seller.id}>
-                  {seller.fullName}
-                </option>
-              ))
-            )}
-          </select>
-        </label>
-        <label>
-          Вид оплаты
-          <div className="paymentTypeRow" role="group" aria-label="Вид оплаты">
-            <button
-              type="button"
-              className={`ghost paymentTypeBtn ${paymentType === 'CASH' ? 'paymentTypeBtnActive' : ''}`}
-              onClick={() => setPaymentType('CASH')}
-            >
-              Нал
-            </button>
-            <button
-              type="button"
-              className={`ghost paymentTypeBtn ${paymentType === 'NON_CASH' ? 'paymentTypeBtnActive' : ''}`}
-              onClick={() => setPaymentType('NON_CASH')}
-            >
-              Безнал
-            </button>
-            <button
-              type="button"
-              className={`ghost paymentTypeBtn ${paymentType === 'TRANSFER' ? 'paymentTypeBtnActive' : ''}`}
-              onClick={() => setPaymentType('TRANSFER')}
-            >
-              Перевод
-            </button>
+    </>
+  );
+
+  return (
+    <div className={`addSaleForm${desktopSale ? ' addSaleForm--desktop addSaleForm--hero' : ''}`}>
+      {desktopSale ? (
+        <>
+          {shiftAlerts}
+          <div className="addSaleHeroRow addSaleHeroRow--who">
+            <label className="addSaleField addSaleField--seller" htmlFor="add-sale-seller">
+              <span className="addSaleFieldLabel">Кто продал</span>
+              <div className="addSaleFieldControl addSaleFieldControl--select">
+                <select
+                  id="add-sale-seller"
+                  className="addSaleFieldSelect"
+                  value={selectSellerId}
+                  onChange={(event) => setSellerId(Number(event.target.value))}
+                  disabled={sellers.length === 0}
+                >
+                  {sellers.length === 0 ? (
+                    <option value="">Нет в смене</option>
+                  ) : (
+                    sellers.map((seller) => (
+                      <option key={seller.id} value={seller.id}>
+                        {seller.fullName}
+                        {seller.nickname ? ` · ${seller.nickname}` : ''}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+            </label>
+            <div className="addSaleField addSaleField--payment">
+              <span className="addSaleFieldLabel">Как оплатили</span>
+              {paymentButtons}
+            </div>
           </div>
-        </label>
-        <label>
-          Итоговая сумма продажи (₽)
-          <input
-            inputMode="decimal"
-            value={totalAmount}
-            onChange={(event) => setTotalAmount(event.target.value)}
-            placeholder="Например, 4250"
-          />
-        </label>
-      </div>
-      {formError && <p className="error">{formError}</p>}
-      <div className="productGrid">
-        {products.map((item) => (
-          <label key={item.name} className="productCell">
-            <div className="productRow">
-              <span className="productName">{item.name}</span>
+          <label className="addSaleAmountBlock" htmlFor="add-sale-total">
+            <span className="addSaleAmountLabel">Сколько заплатил клиент</span>
+            <div className="addSaleAmountField">
               <input
-                inputMode="numeric"
-                value={qty[item.name] ?? ''}
-                onChange={(event) => updateQty(item.name, event.target.value)}
+                id="add-sale-total"
+                className="addSaleAmountInput"
+                inputMode="decimal"
+                value={totalAmount}
+                onChange={(event) => setTotalAmount(event.target.value)}
                 placeholder="0"
+                autoComplete="off"
               />
+              <span className="addSaleAmountCurrency" aria-hidden>
+                ₽
+              </span>
             </div>
           </label>
-        ))}
-      </div>
-      <button
-        className="primaryAction addSaleSubmitBottom"
-        type="button"
-        onClick={submit}
-        disabled={busy || !hasOpenShift || sellers.length === 0}
-      >
-        Сохранить продажу
-      </button>
+          <section className="addSaleProductsSection" aria-label="Что продали">
+            <div className="addSaleProductsGrid">
+              {products.map((item) => (
+                <AddSaleProductStepper
+                  key={item.name}
+                  name={item.name}
+                  value={qty[item.name] ?? ''}
+                  onChange={(next) => updateQty(item.name, next)}
+                />
+              ))}
+            </div>
+          </section>
+          {formError ? (
+            <p className="error addSaleAlert" role="alert">
+              {formError}
+            </p>
+          ) : null}
+          <div className="addSaleSaveWrap">
+            <button
+              className="primaryAction addSaleSaveBtn"
+              type="button"
+              onClick={submit}
+              disabled={busy || !hasOpenShift || sellers.length === 0}
+            >
+              {busy ? 'Сохраняем…' : 'Сохранить продажу'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <h4>Добавить продажу</h4>
+          {shiftAlerts}
+          <div className="addSaleRow">
+            <label>
+              Продавец
+              <select
+                value={selectSellerId}
+                onChange={(event) => setSellerId(Number(event.target.value))}
+                disabled={sellers.length === 0}
+              >
+                {sellers.length === 0 ? (
+                  <option value="">—</option>
+                ) : (
+                  sellers.map((seller) => (
+                    <option key={seller.id} value={seller.id}>
+                      {seller.fullName}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
+            <label>
+              Вид оплаты
+              {paymentButtons}
+            </label>
+            <label>
+              Итоговая сумма (₽)
+              <input
+                inputMode="decimal"
+                value={totalAmount}
+                onChange={(event) => setTotalAmount(event.target.value)}
+                placeholder="Например, 4250"
+              />
+            </label>
+          </div>
+          {formError && <p className="error">{formError}</p>}
+          <div className="productGrid">
+            {products.map((item) => (
+              <label key={item.name} className="productCell">
+                <div className="productRow">
+                  <span className="productName">{item.name}</span>
+                  <input
+                    inputMode="numeric"
+                    value={qty[item.name] ?? ''}
+                    onChange={(event) => updateQty(item.name, event.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              </label>
+            ))}
+          </div>
+          <button
+            className="primaryAction addSaleSubmitBottom"
+            type="button"
+            onClick={submit}
+            disabled={busy || !hasOpenShift || sellers.length === 0}
+          >
+            {busy ? 'Сохраняем…' : 'Сохранить продажу'}
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -2879,9 +4181,11 @@ function ManagerRevenuePlanComplianceCard({
 
 function DirectorHomeApprovalsCarousel({
   token,
+  userId,
   onDecided,
 }: {
   token: string;
+  userId?: number;
   onDecided: () => void;
 }) {
   const [items, setItems] = useState<DirectorControlRequest[]>([]);
@@ -2919,25 +4223,48 @@ function DirectorHomeApprovalsCarousel({
     setBanner('');
     setBusyId(id);
     try {
-      const response = await fetch(`${API_BASE_URL}/director/control-requests/${id}/decision`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ decision }),
-      });
-      if (!response.ok) {
-        let message = 'Не удалось применить решение';
-        try {
-          const parsed = (await response.json()) as { message?: string | string[] };
-          if (typeof parsed.message === 'string') {
-            message = parsed.message;
+      const createdAt = new Date().toISOString();
+      const clientId = `${id}-${decision}`;
+      const body = { requestId: id, decision, createdAt };
+      const post = async () => {
+        const response = await fetch(`${API_BASE_URL}/director/control-requests/${id}/decision`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ decision }),
+        });
+        if (!response.ok) {
+          let message = 'Не удалось применить решение';
+          try {
+            const parsed = (await response.json()) as { message?: string | string[] };
+            if (typeof parsed.message === 'string') {
+              message = parsed.message;
+            }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
+          throw new Error(message);
         }
-        throw new Error(message);
+      };
+      if (isTauriRuntime() && userId !== undefined) {
+        const mode = await runAdminMutation(
+          userId,
+          clientId,
+          'DIRECTOR_CONTROL_DECISION',
+          body,
+          post,
+        );
+        if (mode === 'queued') {
+          setItems((prev) => prev.filter((row) => row.id !== id));
+          onDecided();
+          setBanner('Сохранено офлайн — отправится при подключении');
+          window.setTimeout(() => setBanner(''), 4000);
+          return;
+        }
+      } else {
+        await post();
       }
       await load();
       onDecided();
@@ -2974,13 +4301,56 @@ function DirectorHomeApprovalsCarousel({
     return null;
   }
 
+  const formatApprovalTime = (iso: string) =>
+    new Date(iso).toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+  const renderApprovalCard = (item: DirectorControlRequest) => (
+    <article className="directorApprovalsCarouselCard" key={item.id}>
+      <p className="directorApprovalsCarouselKind">
+        {item.kind === 'SALE_DELETE' ? 'Отмена продажи' : 'Списание товара'}
+      </p>
+      <p className="directorApprovalsCarouselSummary">{item.summary}</p>
+      <p className="directorApprovalsCarouselMeta">{formatApprovalTime(item.createdAt)}</p>
+      <div className="directorApprovalsCarouselActions">
+        <button
+          type="button"
+          className="directorApprovalsCarouselBtn directorApprovalsCarouselBtnReject"
+          disabled={busyId === item.id}
+          onClick={() => void decide(item.id, 'REJECT')}
+        >
+          Отклонить
+        </button>
+        <button
+          type="button"
+          className="directorApprovalsCarouselBtn directorApprovalsCarouselBtnApprove"
+          disabled={busyId === item.id}
+          onClick={() => void decide(item.id, 'APPROVE')}
+        >
+          {busyId === item.id ? '…' : 'Согласовать'}
+        </button>
+      </div>
+    </article>
+  );
+
+  if (isTauriRuntime()) {
+    return (
+      <section className="directorApprovalsPanel directorHomeZone" aria-label="Запросы на согласование">
+        <div className="directorApprovalsPanelHead">
+          <h4 className="directorHomeSectionTitle">Согласования</h4>
+          <span className="directorApprovalsPanelBadge">{items.length}</span>
+        </div>
+        {banner ? <p className="notice directorApprovalsCarouselBanner">{banner}</p> : null}
+        <div className="directorApprovalsGrid">{items.map((item) => renderApprovalCard(item))}</div>
+      </section>
+    );
+  }
+
   const current = items[index] ?? items[0];
-  const at = new Date(current.createdAt).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 
   return (
     <div className="directorApprovalsCarousel" aria-label="Запросы на согласование">
@@ -2996,31 +4366,7 @@ function DirectorHomeApprovalsCarousel({
         role="region"
         aria-roledescription="carousel"
       >
-        <article className="directorApprovalsCarouselCard" key={current.id}>
-          <p className="directorApprovalsCarouselKind">
-            {current.kind === 'SALE_DELETE' ? 'Отмена продажи' : 'Списание товара'}
-          </p>
-          <p className="directorApprovalsCarouselSummary">{current.summary}</p>
-          <p className="directorApprovalsCarouselMeta">{at}</p>
-          <div className="directorApprovalsCarouselActions">
-            <button
-              type="button"
-              className="directorApprovalsCarouselBtn directorApprovalsCarouselBtnReject"
-              disabled={busyId === current.id}
-              onClick={() => void decide(current.id, 'REJECT')}
-            >
-              Отклонить
-            </button>
-            <button
-              type="button"
-              className="directorApprovalsCarouselBtn directorApprovalsCarouselBtnApprove"
-              disabled={busyId === current.id}
-              onClick={() => void decide(current.id, 'APPROVE')}
-            >
-              {busyId === current.id ? '…' : 'Согласовать'}
-            </button>
-          </div>
-        </article>
+        {renderApprovalCard(current)}
       </div>
       {items.length > 1 ? (
         <div className="directorApprovalsCarouselDots" role="tablist" aria-label="Выбор заявки">
@@ -3141,6 +4487,7 @@ function MessengerHub({
   refreshInbox,
   persistedThreadKey,
   persistedThreadTitle,
+  messagingOnline = true,
   onPersistThreadOpen,
   onPersistThreadClose,
   onComposerFocusChange,
@@ -3150,6 +4497,8 @@ function MessengerHub({
   refreshInbox: () => Promise<void>;
   persistedThreadKey: string | null;
   persistedThreadTitle: string;
+  /** В десктопе false при отсутствии сети — чат только онлайн. */
+  messagingOnline?: boolean;
   onPersistThreadOpen: (threadKey: string, title: string) => void;
   onPersistThreadClose: () => void;
   onComposerFocusChange?: (surfaceActive: boolean) => void;
@@ -3233,11 +4582,11 @@ function MessengerHub({
   };
 
   const loadThreadMessages = useCallback(async () => {
-    if (!threadKey) {
+    if (!threadKey || !messagingOnline) {
       return;
     }
     try {
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `${API_BASE_URL}/admin/chat/messages?threadKey=${encodeURIComponent(threadKey)}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
@@ -3252,12 +4601,16 @@ function MessengerHub({
     } finally {
       setLoadingThread(false);
     }
-  }, [token, threadKey]);
+  }, [token, threadKey, messagingOnline]);
 
   useEffect(() => {
     if (!threadKey) {
       setMessages([]);
       setThreadError('');
+      setLoadingThread(false);
+      return;
+    }
+    if (!messagingOnline) {
       setLoadingThread(false);
       return;
     }
@@ -3297,7 +4650,7 @@ function MessengerHub({
       document.removeEventListener('visibilitychange', onVisibility);
       window.clearInterval(intervalId);
     };
-  }, [threadKey, loadThreadMessages, refreshInbox, token]);
+  }, [threadKey, loadThreadMessages, refreshInbox, token, messagingOnline]);
 
   useEffect(() => {
     if (stickToBottomRef.current) {
@@ -3319,13 +4672,13 @@ function MessengerHub({
   const handleThreadSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const text = draft.trim();
-    if (!text || sendBusy || !threadKey) {
+    if (!text || sendBusy || !threadKey || !messagingOnline) {
       return;
     }
     setSendBusy(true);
     setThreadError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/chat/messages`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/admin/chat/messages`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -3347,58 +4700,59 @@ function MessengerHub({
     }
   };
 
-  if (!threadKey) {
-    return (
-      <section className="sectionCard messengerHub" aria-label="Чат">
-        <header className="messengerHubHeader">
-          <div className="messengerHubHeaderInner">
-            <h3 className="messengerHubTitle messengerHubTitle--chatMark">Чат</h3>
-          </div>
-        </header>
+  const desktopMessenger = isTauriRuntime();
 
-        <ul className="messengerThreadList" aria-label="Чаты">
-          {threads.map((t) => {
-            const initial = (t.title.trim()[0] ?? '?').toUpperCase();
-            const unread = t.unreadCount > 0;
-            const senderLine = messengerListSenderLine(t);
-            const previewLine = messengerPreviewBodyLine(t);
-            const hasMsg = Boolean((t.lastMessageBody ?? '').trim());
-            return (
-              <li key={t.threadKey}>
-                <button
-                  type="button"
-                  className="messengerThreadRow"
-                  onClick={() => openThread(t.threadKey, t.title)}
-                >
-                  <span
-                    className={`messengerAvatar ${messengerAvatarToneClass(t.threadKey)}`}
-                    aria-hidden
-                  >
-                    {initial}
-                  </span>
-                  <span className="messengerThreadTextCol">
-                    <span className="messengerTgTitleRow">
-                      <span className="messengerThreadName">{t.title}</span>
-                    </span>
-                    {senderLine ? <span className="messengerThreadSender">{senderLine}</span> : null}
-                    <span className="messengerThreadPreview">{previewLine}</span>
-                  </span>
-                  <span className="messengerThreadRightCol">
-                    {hasMsg ? (
-                      <span className="messengerThreadTime">{formatMessengerInboxTime(t.lastMessageAt)}</span>
-                    ) : null}
-                    {unread ? (
-                      <span className="messengerUnreadBadge">{formatMessengerUnreadCount(t.unreadCount)}</span>
-                    ) : null}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-    );
-  }
+  const threadListHeader = (
+    <header className="messengerHubHeader">
+      <div className="messengerHubHeaderInner">
+        <h3 className="messengerHubTitle messengerHubTitle--chatMark">Чат</h3>
+      </div>
+    </header>
+  );
+
+  const threadListMarkup = (
+    <ul className="messengerThreadList" aria-label="Чаты">
+      {threads.map((t) => {
+        const initial = (t.title.trim()[0] ?? '?').toUpperCase();
+        const unread = t.unreadCount > 0;
+        const senderLine = messengerListSenderLine(t);
+        const previewLine = messengerPreviewBodyLine(t);
+        const hasMsg = Boolean((t.lastMessageBody ?? '').trim());
+        const isActive = threadKey === t.threadKey;
+        return (
+          <li key={t.threadKey}>
+            <button
+              type="button"
+              className={`messengerThreadRow${isActive ? ' messengerThreadRow--active' : ''}`}
+              onClick={() => openThread(t.threadKey, t.title)}
+            >
+              <span
+                className={`messengerAvatar ${messengerAvatarToneClass(t.threadKey)}`}
+                aria-hidden
+              >
+                {initial}
+              </span>
+              <span className="messengerThreadTextCol">
+                <span className="messengerTgTitleRow">
+                  <span className="messengerThreadName">{t.title}</span>
+                </span>
+                {senderLine ? <span className="messengerThreadSender">{senderLine}</span> : null}
+                <span className="messengerThreadPreview">{previewLine}</span>
+              </span>
+              <span className="messengerThreadRightCol">
+                {hasMsg ? (
+                  <span className="messengerThreadTime">{formatMessengerInboxTime(t.lastMessageAt)}</span>
+                ) : null}
+                {unread ? (
+                  <span className="messengerUnreadBadge">{formatMessengerUnreadCount(t.unreadCount)}</span>
+                ) : null}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
 
   const placeholder =
     threadKey === 'general'
@@ -3409,34 +4763,8 @@ function MessengerHub({
     threadKey === 'general' ? 'Общий чат сети' : 'Личные сообщения';
   const navAvatarLetter = (threadTitleResolved.trim()[0] ?? '?').toUpperCase();
 
-  return (
-    <section
-      className={`sectionCard messengerHub messengerHubThread${
-        composerFocused ? ' messengerHubThread--composerFocused' : ''
-      }`}
-      aria-label={threadTitleResolved}
-    >
-      <header className="messengerTgFloatingHeader">
-        <button type="button" className="messengerTgPill messengerTgPillBack" onClick={openList} aria-label="Назад">
-          <svg className="messengerTgBackSvg" viewBox="0 0 24 24" width="20" height="20" aria-hidden>
-            <path
-              fill="currentColor"
-              d="M15.5 19.5 8 12l7.5-7.5 1.4 1.4L10.8 12l6.1 6.1-1.4 1.4z"
-            />
-          </svg>
-        </button>
-        <div className="messengerTgPill messengerTgPillTitle">
-          <h3 className="messengerThreadNavTitle">{threadTitleResolved}</h3>
-          <p className="messengerThreadNavSubtitle">{threadSubtitle}</p>
-        </div>
-        <div
-          className={`messengerTgNavAvatar ${messengerAvatarToneClass(threadKey)}`}
-          aria-hidden
-        >
-          {navAvatarLetter}
-        </div>
-      </header>
-
+  const threadConversationPane = !threadKey ? null : (
+    <>
       {threadError ? (
         <p className="error orgChatError" role="alert">
           {threadError}
@@ -3505,13 +4833,13 @@ function MessengerHub({
                 scheduleIosVisualViewportBumps();
               }, 320);
             }}
-            disabled={sendBusy}
+            disabled={sendBusy || !messagingOnline}
             aria-label="Текст сообщения"
           />
           <button
             type="submit"
             className="orgChatSendFab"
-            disabled={sendBusy || !draft.trim()}
+            disabled={sendBusy || !draft.trim() || !messagingOnline}
             aria-label={sendBusy ? 'Отправка' : 'Отправить'}
             onMouseDown={(event) => {
               if (!sendBusy && draft.trim()) {
@@ -3535,6 +4863,94 @@ function MessengerHub({
           </button>
         </div>
       </form>
+    </>
+  );
+
+  if (desktopMessenger) {
+    return (
+      <section className="sectionCard messengerHub messengerHub--desktop" aria-label="Чат">
+        {!messagingOnline ? <ChatOfflineNotice /> : null}
+        <div className="messengerHubDesktopSplit">
+          <aside className="messengerHubDesktopRail">
+            {threadListHeader}
+            {threadListMarkup}
+          </aside>
+          <div
+            className="messengerHubDesktopMain"
+            aria-label={threadKey ? threadTitleResolved : 'Переписка'}
+          >
+            {threadKey ? (
+              <>
+                <header className="messengerHubDesktopThreadHead">
+                  <div className="messengerHubDesktopThreadHeadText">
+                    <h3 className="messengerThreadNavTitle">{threadTitleResolved}</h3>
+                    <p className="messengerThreadNavSubtitle">{threadSubtitle}</p>
+                  </div>
+                  <div
+                    className={`messengerTgNavAvatar ${messengerAvatarToneClass(threadKey)}`}
+                    aria-hidden
+                  >
+                    {navAvatarLetter}
+                  </div>
+                </header>
+                {threadConversationPane}
+              </>
+            ) : (
+              <div className="messengerHubDesktopPlaceholder">
+                <span className="messengerHubDesktopPlaceholderIcon" aria-hidden>
+                  Ч
+                </span>
+                <h4 className="messengerHubDesktopPlaceholderTitle">Выберите чат</h4>
+                <p className="messengerHubDesktopPlaceholderHint">
+                  Общий канал сети или переписка с точкой — выберите диалог в списке слева.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!threadKey) {
+    return (
+      <section className="sectionCard messengerHub" aria-label="Чат">
+        {!messagingOnline ? <ChatOfflineNotice /> : null}
+        {threadListHeader}
+        {threadListMarkup}
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className={`sectionCard messengerHub messengerHubThread${
+        composerFocused ? ' messengerHubThread--composerFocused' : ''
+      }`}
+      aria-label={threadTitleResolved}
+    >
+      {!messagingOnline ? <ChatOfflineNotice /> : null}
+      <header className="messengerTgFloatingHeader">
+        <button type="button" className="messengerTgPill messengerTgPillBack" onClick={openList} aria-label="Назад">
+          <svg className="messengerTgBackSvg" viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+            <path
+              fill="currentColor"
+              d="M15.5 19.5 8 12l7.5-7.5 1.4 1.4L10.8 12l6.1 6.1-1.4 1.4z"
+            />
+          </svg>
+        </button>
+        <div className="messengerTgPill messengerTgPillTitle">
+          <h3 className="messengerThreadNavTitle">{threadTitleResolved}</h3>
+          <p className="messengerThreadNavSubtitle">{threadSubtitle}</p>
+        </div>
+        <div
+          className={`messengerTgNavAvatar ${messengerAvatarToneClass(threadKey)}`}
+          aria-hidden
+        >
+          {navAvatarLetter}
+        </div>
+      </header>
+      {threadConversationPane}
     </section>
   );
 }
@@ -3558,9 +4974,10 @@ function directorDemoRoleLabel(role: string): string {
   }
 }
 
-function DirectorDemoAccountsPanel({ token }: { token: string }) {
+function DirectorDemoAccountsPanel({ token, userId }: { token: string; userId?: number }) {
   type Row = { nickname: string; fullName: string; role: string; storeName: string; password: string };
-  const [open, setOpen] = useState(false);
+  const desktopDirectorHome = isTauriRuntime();
+  const [open, setOpen] = useState(desktopDirectorHome);
   const [rows, setRows] = useState<Row[]>([]);
   const [idx, setIdx] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -3625,37 +5042,157 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
     setErr('');
     setHint('');
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/director/demo-accounts/${encodeURIComponent(current.nickname)}/password`,
-        {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
+      const patchId = newClientId('dpwd');
+      const createdAt = new Date().toISOString();
+      const body = { patchId, nickname: current.nickname, password: pwd, createdAt };
+      const patch = async () => {
+        const res = await fetch(
+          `${API_BASE_URL}/director/demo-accounts/${encodeURIComponent(current.nickname)}/password`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ password: pwd }),
           },
-          body: JSON.stringify({ password: pwd }),
-        },
-      );
-      if (!res.ok) {
-        let msg = 'Не удалось сохранить пароль';
-        try {
-          const j = (await res.json()) as { message?: string | string[] };
-          if (j.message) {
-            msg = Array.isArray(j.message) ? j.message[0] : j.message;
+        );
+        if (!res.ok) {
+          let msg = 'Не удалось сохранить пароль';
+          try {
+            const j = (await res.json()) as { message?: string | string[] };
+            if (j.message) {
+              msg = Array.isArray(j.message) ? j.message[0] : j.message;
+            }
+          } catch {
+            /* ignore */
           }
-        } catch {
-          /* ignore */
+          throw new Error(msg);
         }
-        setErr(msg);
-        return;
+      };
+      if (isTauriRuntime() && userId !== undefined) {
+        const mode = await runAdminMutation(userId, patchId, 'DIRECTOR_DEMO_PASSWORD', body, patch);
+        if (mode === 'queued') {
+          setDraftPwd('');
+          setHint('Сохранено офлайн — отправится при подключении');
+          return;
+        }
+      } else {
+        await patch();
       }
       setDraftPwd('');
       setHint('Пароль обновлён');
       await load();
-    } catch {
-      setErr('Не удалось сохранить пароль');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Не удалось сохранить пароль');
     }
   };
+
+  const messages = (
+    <>
+      {err ? (
+        <p className="error directorDemoAccountsMsg" role="alert">
+          {err}
+        </p>
+      ) : null}
+      {hint ? (
+        <p className="notice directorDemoAccountsMsg" role="status">
+          {hint}
+        </p>
+      ) : null}
+      {loading ? <p className="muted directorDemoAccountsMsg">Загрузка…</p> : null}
+    </>
+  );
+
+  const passwordEditor = current ? (
+    <>
+      <div className="directorDemoAccountsPwdRow">
+        <code className="directorDemoAccountsPwd">{current.password}</code>
+        <button type="button" className="ghost directorDemoAccountsCopyBtn" onClick={() => void copyPassword()}>
+          Копировать
+        </button>
+      </div>
+      <label className="directorDemoAccountsNewLabel">
+        <span className="directorDemoAccountsNewLabelText">Новый пароль</span>
+        <input
+          type="password"
+          autoComplete="new-password"
+          value={draftPwd}
+          onChange={(e) => setDraftPwd(e.target.value)}
+          placeholder="Минимум 10 символов"
+        />
+      </label>
+      <button
+        type="button"
+        className="primaryAction directorDemoAccountsSaveBtn"
+        onClick={() => void applyPassword()}
+      >
+        Сохранить
+      </button>
+    </>
+  ) : null;
+
+  if (desktopDirectorHome) {
+    return (
+      <section className="directorDemoAccountsPanel directorDemoAccountsPanel--desktop directorHomeZone">
+        <header className="directorDemoAccountsPanelHead">
+          <div>
+            <h4 className="directorHomeSectionTitle">Пароли доступа</h4>
+            <p className="directorDemoAccountsPanelSub">
+              Директор · бухгалтер · управляющий · админы точек
+            </p>
+          </div>
+        </header>
+        {messages}
+        {!loading && rows.length === 0 ? <p className="muted directorDemoAccountsMsg">Записей нет</p> : null}
+        {rows.length > 0 && !loading ? (
+          <div className="directorDemoAccountsSplit">
+            <ul className="directorDemoAccountsList" aria-label="Учётные записи">
+              {rows.map((row, i) => (
+                <li key={row.nickname}>
+                  <button
+                    type="button"
+                    className={`directorDemoAccountsListBtn${i === idx ? ' directorDemoAccountsListBtn--active' : ''}`}
+                    onClick={() => {
+                      setIdx(i);
+                      setErr('');
+                      setHint('');
+                      setDraftPwd('');
+                    }}
+                  >
+                    <span className="directorDemoAccountsListNick">{row.nickname}</span>
+                    <span className="directorDemoAccountsRolePill">{directorDemoRoleLabel(row.role)}</span>
+                    <span className="directorDemoAccountsListStore">{row.storeName}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="directorDemoAccountsDetail">
+              {current ? (
+                <>
+                  <div className="directorDemoAccountsDetailHead">
+                    <p className="directorDemoAccountsNick">{current.nickname}</p>
+                    <p className="directorDemoAccountsFull">{current.fullName}</p>
+                    <p className="directorDemoAccountsRole">
+                      <span className="directorDemoAccountsRolePill">{directorDemoRoleLabel(current.role)}</span>
+                      <span className="directorDemoAccountsStoreSep" aria-hidden>
+                        ·
+                      </span>
+                      <span className="directorDemoAccountsStore">{current.storeName}</span>
+                    </p>
+                  </div>
+                  {passwordEditor}
+                </>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        <p className="directorDemoAccountsScopeHint">
+          Продавцы и ретушёры здесь не показываются.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <div className="directorDemoAccountsStrip">
@@ -3679,17 +5216,7 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
       </button>
       {open ? (
         <div className="directorDemoAccountsBody">
-          {err ? (
-            <p className="error directorDemoAccountsMsg" role="alert">
-              {err}
-            </p>
-          ) : null}
-          {hint ? (
-            <p className="notice directorDemoAccountsMsg" role="status">
-              {hint}
-            </p>
-          ) : null}
-          {loading ? <p className="muted directorDemoAccountsMsg">Загрузка…</p> : null}
+          {messages}
           {current && !loading ? (
             <p className="muted directorDemoAccountsScopeHint">
               Только директор, бухгалтер, управляющий и админы точек; продавцы и ретушёры здесь не показываются.
@@ -3719,12 +5246,7 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
                     </p>
                     <p className="directorDemoAccountsFull muted">{current.fullName}</p>
                   </div>
-                  <div className="directorDemoAccountsPwdRow">
-                    <code className="directorDemoAccountsPwd">{current.password}</code>
-                    <button type="button" className="ghost directorDemoAccountsCopyBtn" onClick={() => void copyPassword()}>
-                      Копировать
-                    </button>
-                  </div>
+                  {passwordEditor}
                   {total > 1 ? (
                     <div className="directorDemoAccountsDots" role="tablist" aria-label="Учётные записи">
                       {Array.from({ length: total }, (_, i) => (
@@ -3740,23 +5262,6 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
                       ))}
                     </div>
                   ) : null}
-                  <label className="directorDemoAccountsNewLabel">
-                    Новый пароль
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      value={draftPwd}
-                      onChange={(e) => setDraftPwd(e.target.value)}
-                      placeholder="Минимум 10 символов"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="primaryAction directorDemoAccountsSaveBtn"
-                    onClick={() => void applyPassword()}
-                  >
-                    Сохранить
-                  </button>
                 </div>
                 <button
                   type="button"
@@ -3776,6 +5281,34 @@ function DirectorDemoAccountsPanel({ token }: { token: string }) {
       ) : null}
     </div>
   );
+}
+
+function DirectorCashflowPanel({
+  pages,
+}: {
+  pages: Array<{ key: string; title: string; amount: number }>;
+}) {
+  if (pages.length === 0) {
+    return null;
+  }
+
+  if (isTauriRuntime()) {
+    return (
+      <section className="directorCashflowStrip directorHomeZone" aria-label="Итоги по всем точкам">
+        <h4 className="directorHomeSectionTitle">Итоги по всем точкам</h4>
+        <div className="directorCashflowChips">
+          {pages.map((page) => (
+            <article key={page.key} className="directorCashflowChip">
+              <span className="directorCashflowChipLabel">{page.title}</span>
+              <strong className="directorCashflowChipValue">{formatRub(page.amount)}</strong>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return <DirectorCashflowCarousel pages={pages} />;
 }
 
 function DirectorCashflowCarousel({
@@ -3904,30 +5437,70 @@ function WriteOffForm({
     }
   };
 
-  return (
-    <div className={`writeOffForm writeOffFormCarousel ${expanded ? 'writeOffFormCarouselOpen' : ''}`}>
-      <button
-        type="button"
-        className={`writeOffCarouselToggle ${expanded ? 'writeOffCarouselToggleOpen' : ''}`}
-        onClick={() => setExpanded((current) => !current)}
-        aria-expanded={expanded}
-        aria-controls="write-off-carousel-body"
-      >
-        <span className="writeOffCarouselToggleTitle">Списание товара (поштучно)</span>
-        <span className="writeOffCarouselToggleIcon" aria-hidden>
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="currentColor" d="M7 10l5 5 5-5z" />
-          </svg>
-        </span>
-      </button>
-      <div
-        id="write-off-carousel-body"
-        className={`writeOffCarouselBody ${expanded ? 'writeOffCarouselBodyOpen' : ''}`}
-      >
-        <p className="muted writeOffPolicyHint">
-          Списание со склада точки возможно только после согласования директора.
-        </p>
-        {formOk ? <p className="notice writeOffOk">{formOk}</p> : null}
+  const desktopTeam = isTauriRuntime();
+
+  const writeOffFields = desktopTeam ? (
+    <>
+      {formOk ? <p className="notice writeOffOk">{formOk}</p> : null}
+      <div className="writeOffRow writeOffRow--desktop">
+        <div className="writeOffCluster writeOffCluster--product">
+          <span className="writeOffClusterLabel">Товар</span>
+          <div className="writeOffSelectWrap">
+            <select
+              className="writeOffControl writeOffSelect"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              aria-label="Товар для списания"
+            >
+              {products.map((item) => (
+                <option key={item.name} value={item.name}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="writeOffCluster writeOffCluster--qty">
+          <span className="writeOffClusterLabel">Кол-во</span>
+          <input
+            className="writeOffControl writeOffInput"
+            inputMode="numeric"
+            value={qty}
+            onChange={(event) => setQty(event.target.value)}
+            aria-label="Количество для списания, штук"
+          />
+        </div>
+        <div className="writeOffCluster writeOffCluster--reason">
+          <span className="writeOffClusterLabel">Причина</span>
+          <div className="writeOffSelectWrap">
+            <select
+              className="writeOffControl writeOffSelect"
+              value={reason}
+              onChange={(event) => setReason(event.target.value as 'Брак' | 'Поломка')}
+              aria-label="Причина списания"
+            >
+              <option value="Брак">Брак</option>
+              <option value="Поломка">Поломка</option>
+            </select>
+          </div>
+        </div>
+        <button
+          className="primaryAction writeOffSubmitBtn"
+          type="button"
+          onClick={submit}
+          disabled={busy}
+        >
+          {busy ? '…' : 'Списать'}
+        </button>
+      </div>
+      {formError ? <p className="error writeOffError">{formError}</p> : null}
+    </>
+  ) : (
+    <>
+      <p className="muted writeOffPolicyHint">
+        Списание со склада точки возможно только после согласования директора.
+      </p>
+      {formOk ? <p className="notice writeOffOk">{formOk}</p> : null}
         <div className="writeOffRow">
           <label>
             Товар
@@ -3961,7 +5534,45 @@ function WriteOffForm({
             Списать
           </button>
         </div>
-        {formError && <p className="error">{formError}</p>}
+      {formError && <p className="error">{formError}</p>}
+    </>
+  );
+
+  if (desktopTeam) {
+    return (
+      <div className="writeOffForm writeOffForm--desktop">
+        <div className="writeOffFormHead">
+          <h4 className="dtSectionTitle">Списание товара</h4>
+          <p className="writeOffPolicyHint">
+            Списание со склада точки возможно только после согласования директора.
+          </p>
+        </div>
+        {writeOffFields}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`writeOffForm writeOffFormCarousel ${expanded ? 'writeOffFormCarouselOpen' : ''}`}>
+      <button
+        type="button"
+        className={`writeOffCarouselToggle ${expanded ? 'writeOffCarouselToggleOpen' : ''}`}
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+        aria-controls="write-off-carousel-body"
+      >
+        <span className="writeOffCarouselToggleTitle">Списание товара (поштучно)</span>
+        <span className="writeOffCarouselToggleIcon" aria-hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M7 10l5 5 5-5z" />
+          </svg>
+        </span>
+      </button>
+      <div
+        id="write-off-carousel-body"
+        className={`writeOffCarouselBody ${expanded ? 'writeOffCarouselBodyOpen' : ''}`}
+      >
+        {writeOffFields}
       </div>
     </div>
   );
@@ -3980,8 +5591,48 @@ const FINANCE_EXPENSE_CATEGORY_LABELS = [
   'Налоги',
   'ЗП',
   'Расходка',
+  'Ремонт',
+  'Техника',
+  'Хоз-товары',
+  'Попилили',
   'Прочие траты',
 ] as const;
+
+function formatFinanceWorkDay(workDay: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(workDay.trim());
+  if (match) {
+    return `${match[3]}.${match[2]}`;
+  }
+  return workDay;
+}
+
+function FinanceOpsHistoryStrip({
+  title,
+  emptyLabel,
+  items,
+}: {
+  title: string;
+  emptyLabel: string;
+  items: Array<{ key: string; meta: string; value: string }>;
+}) {
+  return (
+    <div className="financeOpsHistoryMini">
+      <p className="financeOpsHistoryMiniTitle">{title}</p>
+      <div className="financeOpsHistoryMiniTrack" role="list" aria-label={title}>
+        {items.length === 0 ? (
+          <p className="financeOpsHistoryMiniEmpty">{emptyLabel}</p>
+        ) : (
+          items.map((item) => (
+            <article key={item.key} className="financeOpsHistoryMiniChip" role="listitem">
+              <span className="financeOpsHistoryMiniChipMeta">{item.meta}</span>
+              <strong className="financeOpsHistoryMiniChipValue">{item.value}</strong>
+            </article>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
 
 function FinanceOpsPanel({
   token,
@@ -4026,6 +5677,7 @@ function FinanceOpsPanel({
 
   const [incomeDraftsByAccount, setIncomeDraftsByAccount] = useState<Record<string, string>>({});
   const [selectedIncomeAccountId, setSelectedIncomeAccountId] = useState('');
+  const [selectedFlowAccountId, setSelectedFlowAccountId] = useState('');
   const [expenseAccountId, setExpenseAccountId] = useState(snapshot.accounts[0]?.id ?? '');
   const [expenseTitle, setExpenseTitle] = useState<
     (typeof FINANCE_EXPENSE_CATEGORY_LABELS)[number]
@@ -4034,23 +5686,15 @@ function FinanceOpsPanel({
   const [busyId, setBusyId] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
-  const [balanceAdjustOpen, setBalanceAdjustOpen] = useState(false);
-  const [adjustAccountId, setAdjustAccountId] = useState(snapshot.accounts[0]?.id ?? '');
+  const [adjustingAccountId, setAdjustingAccountId] = useState<string | null>(null);
   const [adjustNewBalance, setAdjustNewBalance] = useState('');
+  const [adjustConfirmPending, setAdjustConfirmPending] = useState(false);
   const [adjustBusy, setAdjustBusy] = useState(false);
   const [adjustError, setAdjustError] = useState('');
   const [incomesHistoryOpen, setIncomesHistoryOpen] = useState(false);
   const [expensesHistoryOpen, setExpensesHistoryOpen] = useState(false);
-  const [expenseArticlesSheetOpen, setExpenseArticlesSheetOpen] = useState(false);
-
-  useEffect(() => {
-    if (snapshot.accounts.length === 0) {
-      return;
-    }
-    if (!adjustAccountId || !snapshot.accounts.some((a) => a.id === adjustAccountId)) {
-      setAdjustAccountId(snapshot.accounts[0]!.id);
-    }
-  }, [adjustAccountId, snapshot.accounts]);
+  const desktopFinance = isTauriRuntime();
+  const [expenseArticlesSheetOpen, setExpenseArticlesSheetOpen] = useState(desktopFinance);
 
   useEffect(() => {
     if (!expenseAccountId && snapshot.accounts.length > 0) {
@@ -4080,6 +5724,9 @@ function FinanceOpsPanel({
       return;
     }
     setSelectedIncomeAccountId((cur) =>
+      primaryFinanceAccounts.some((a) => a.id === cur) ? cur : primaryFinanceAccounts[0]!.id,
+    );
+    setSelectedFlowAccountId((cur) =>
       primaryFinanceAccounts.some((a) => a.id === cur) ? cur : primaryFinanceAccounts[0]!.id,
     );
   }, [primaryFinanceAccounts]);
@@ -4122,31 +5769,108 @@ function FinanceOpsPanel({
     [expenseTotalsByArticle],
   );
 
+  const recentIncomeHistoryItems = useMemo(() => {
+    const accountNames = new Map(snapshot.accounts.map((a) => [a.id, a.name?.trim() || 'Счёт']));
+    return [...(snapshot.incomes ?? [])]
+      .sort((a, b) => b.workDay.localeCompare(a.workDay) || b.id.localeCompare(a.id))
+      .slice(0, 24)
+      .map((item) => ({
+        key: item.id,
+        meta: `${accountNames.get(item.accountId) ?? 'Счёт'} · ${formatFinanceWorkDay(item.workDay)}`,
+        value: fmt(item.amount),
+      }));
+  }, [snapshot.incomes, snapshot.accounts]);
+
+  const recentExpenseHistoryItems = useMemo(() => {
+    return [...snapshot.expenses]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+      .slice(0, 24)
+      .map((item) => {
+        const when = new Date(item.createdAt).toLocaleString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        return {
+          key: item.id,
+          meta: `${item.title} · ${when}`,
+          value: fmt(item.amount),
+        };
+      });
+  }, [snapshot.expenses]);
+
+  const startBalanceAdjust = (acc: FinanceAccount) => {
+    setAdjustError('');
+    setAdjustConfirmPending(false);
+    setAdjustingAccountId(acc.id);
+    setAdjustNewBalance(String(acc.balance));
+  };
+
+  const cancelBalanceAdjust = () => {
+    setAdjustingAccountId(null);
+    setAdjustConfirmPending(false);
+    setAdjustNewBalance('');
+    setAdjustError('');
+  };
+
+  const prepareBalanceAdjust = () => {
+    setAdjustError('');
+    const n = Number(String(adjustNewBalance).replace(',', '.'));
+    if (!Number.isFinite(n) || n < 0) {
+      setAdjustError('Укажите корректный остаток');
+      return;
+    }
+    setAdjustConfirmPending(true);
+  };
+
+  const confirmBalanceAdjust = async () => {
+    if (!adjustingAccountId) {
+      return;
+    }
+    setAdjustBusy(true);
+    setAdjustError('');
+    setStatus('');
+    try {
+      await onSetAccountBalance(token, adjustingAccountId, adjustNewBalance);
+      const acc = snapshot.accounts.find((a) => a.id === adjustingAccountId);
+      setStatus(acc ? `Остаток «${acc.name}» обновлён.` : 'Остаток обновлён.');
+      cancelBalanceAdjust();
+    } catch {
+      setAdjustError('Не удалось сохранить остаток. Нужны права директора.');
+      setAdjustConfirmPending(false);
+    } finally {
+      setAdjustBusy(false);
+    }
+  };
+
+  const activeFlowAccountId = desktopFinance ? selectedFlowAccountId : selectedIncomeAccountId;
+
   const submitIncomeForSelectedAccount = async () => {
     setError('');
     setStatus('');
-    if (!selectedIncomeAccountId) {
+    if (!activeFlowAccountId) {
       setError('Выберите счёт');
       return;
     }
-    const amountStr = incomeDraftsByAccount[selectedIncomeAccountId] ?? '';
+    const amountStr = incomeDraftsByAccount[activeFlowAccountId] ?? '';
     const n = Number(String(amountStr).replace(',', '.'));
     if (!Number.isFinite(n) || n <= 0) {
       setError('Укажите сумму прихода');
       return;
     }
-    setBusyId(`income-${selectedIncomeAccountId}`);
+    setBusyId(`income-${activeFlowAccountId}`);
     try {
       await onAddIncome(token, {
-        accountId: selectedIncomeAccountId,
+        accountId: activeFlowAccountId,
         amount: amountStr,
         workDay: todayKeyMoscow(),
       });
       setIncomeDraftsByAccount((prev) => ({
         ...prev,
-        [selectedIncomeAccountId]: '',
+        [activeFlowAccountId]: '',
       }));
-      const acc = snapshot.accounts.find((a) => a.id === selectedIncomeAccountId);
+      const acc = snapshot.accounts.find((a) => a.id === activeFlowAccountId);
       setStatus(acc ? `Приход на «${acc.name}» записан, баланс обновлён.` : 'Приход записан.');
     } catch {
       setError('Не удалось записать приход');
@@ -4155,386 +5879,550 @@ function FinanceOpsPanel({
     }
   };
 
+  const submitExpense = async () => {
+    const accountId = desktopFinance ? selectedFlowAccountId : expenseAccountId;
+    if (!accountId) {
+      setError('Выберите счёт');
+      return;
+    }
+    setBusyId('expense');
+    setError('');
+    setStatus('');
+    try {
+      await onAddExpense(token, {
+        accountId,
+        title: expenseTitle,
+        amount: expenseAmount,
+      });
+      setExpenseTitle(FINANCE_EXPENSE_CATEGORY_LABELS[0]);
+      setExpenseAmount('');
+      const acc = snapshot.accounts.find((a) => a.id === accountId);
+      setStatus(acc ? `Расход со счёта «${acc.name}» добавлен.` : 'Расход добавлен.');
+    } catch {
+      setError('Не удалось добавить расход');
+    } finally {
+      setBusyId('');
+    }
+  };
+
   return (
-    <div className={`opsCard financeOpsCard ${isDirector ? 'financeOpsCardDirector' : ''}`}>
-      <div className="financeOpsShell">
-      <h4>Оперативные финансы</h4>
-      <div className="financeOpsBankTotalCallout" role="note">
-        <span className="financeOpsBankTotalCalloutLabel">общее</span>
-        <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.balance)}</span>
-      </div>
-
-      <div className="financeOpsBalancesGrid">
-        {primaryFinanceAccounts.map((acc) => (
-          <article key={acc.id} className="metricCard financeOpsBalanceCard">
-            <p>{acc.name?.trim() || 'Счёт'}</p>
-            <strong>{fmt(acc.balance)}</strong>
-          </article>
-        ))}
-      </div>
-
-      <div className="financeOpsIncomeBlock addSaleForm">
-        <h4>Приход за день по счетам</h4>
-        <label className="financeOpsAccountsPick">
-          Счёт прихода
-          <div className="financeOpsAccountBtnRow" role="group" aria-label="Счёт для записи прихода">
-            {primaryFinanceAccounts.map((acc) => (
-              <button
-                key={acc.id}
-                type="button"
-                className={`ghost paymentTypeBtn financeOpsAccountPickBtn ${
-                  selectedIncomeAccountId === acc.id ? 'paymentTypeBtnActive' : ''
-                }`}
-                onClick={() => setSelectedIncomeAccountId(acc.id)}
-              >
-                {acc.name}
-              </button>
-            ))}
+    <div
+      className={`opsCard financeOpsCard ${isDirector ? 'financeOpsCardDirector' : ''}${
+        desktopFinance ? ' financeOpsCard--desktop' : ''
+      }`}
+    >
+      <div className={`financeOpsShell${desktopFinance ? ' financeOpsShell--desktop' : ''}`}>
+      <header className="financeOpsHero">
+        <h4 className="financeOpsPageTitle">Оперативные финансы</h4>
+        <div className="financeOpsHeroMain">
+          <div className="financeOpsBankTotalCallout" role="note">
+            <span className="financeOpsBankTotalCalloutLabel">Общий остаток</span>
+            <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.balance)}</span>
           </div>
-        </label>
-        <div className="addSaleRow financeOpsIncomeFieldsRow">
-          <label>
-            Сумма прихода (₽)
-            <input
-              inputMode="decimal"
-              value={incomeDraftsByAccount[selectedIncomeAccountId] ?? ''}
-              onChange={(event) =>
-                setIncomeDraftsByAccount((prev) => ({
-                  ...prev,
-                  [selectedIncomeAccountId]: event.target.value,
-                }))
-              }
-              placeholder="Например, 15000"
-            />
-          </label>
+          <div className="financeOpsBalancesGrid">
+            {primaryFinanceAccounts.map((acc) => {
+              const isAdjusting = isDirector && adjustingAccountId === acc.id;
+              return (
+                <article
+                  key={acc.id}
+                  className={`metricCard financeOpsBalanceCard${
+                    isAdjusting ? ' financeOpsBalanceCard--adjusting' : ''
+                  }`}
+                >
+                  <p>{acc.name?.trim() || 'Счёт'}</p>
+                  {isAdjusting ? (
+                    <div className="financeOpsBalanceAdjust">
+                      {!adjustConfirmPending ? (
+                        <>
+                          <input
+                            className="financeOpsBalanceAdjustInput"
+                            inputMode="decimal"
+                            aria-label="Новый остаток"
+                            value={adjustNewBalance}
+                            onChange={(event) => setAdjustNewBalance(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                prepareBalanceAdjust();
+                              }
+                            }}
+                          />
+                          <div className="financeOpsBalanceAdjustActions">
+                            <button
+                              type="button"
+                              className="primaryAction financeOpsBalanceAdjustPrimary"
+                              disabled={adjustBusy}
+                              onClick={prepareBalanceAdjust}
+                            >
+                              Сохранить остаток
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost financeOpsBalanceAdjustCancel"
+                              disabled={adjustBusy}
+                              onClick={cancelBalanceAdjust}
+                            >
+                              Отмена
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="financeOpsBalanceAdjustConfirm">
+                            Точно скорректировать остаток?
+                          </p>
+                          <p className="financeOpsBalanceAdjustPreview">
+                            {fmt(Number(String(adjustNewBalance).replace(',', '.')) || 0)}
+                          </p>
+                          <div className="financeOpsBalanceAdjustActions">
+                            <button
+                              type="button"
+                              className="primaryAction financeOpsBalanceAdjustPrimary"
+                              disabled={adjustBusy}
+                              onClick={() => void confirmBalanceAdjust()}
+                            >
+                              Точно скорректировать
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost financeOpsBalanceAdjustCancel"
+                              disabled={adjustBusy}
+                              onClick={() => setAdjustConfirmPending(false)}
+                            >
+                              Назад
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {adjustError ? <p className="error financeOpsBalanceAdjustError">{adjustError}</p> : null}
+                    </div>
+                  ) : (
+                    <div className="financeOpsBalanceCardTail">
+                      <strong>{fmt(acc.balance)}</strong>
+                      {isDirector ? (
+                        <button
+                          type="button"
+                          className="ghost financeOpsBalanceAdjustBtn"
+                          aria-label={`Корректировка остатка: ${acc.name}`}
+                          title="Корректировка остатка"
+                          onClick={() => startBalanceAdjust(acc)}
+                        >
+                          ✎
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
         </div>
-        <button
-          type="button"
-          className="primaryAction addSaleSubmitBottom"
-          disabled={
-            !selectedIncomeAccountId ||
-            busyId === `income-${selectedIncomeAccountId}` ||
-            primaryFinanceAccounts.length === 0
-          }
-          onClick={submitIncomeForSelectedAccount}
-        >
-          Записать приход
-        </button>
-      </div>
+      </header>
 
-      {isDirector && (
-        <div className="balanceAdjustBlock">
-          <button
-            type="button"
-            className={`primaryAction financeBalanceAdjustToggle ${balanceAdjustOpen ? 'financeBalanceAdjustToggleOpen' : ''}`}
-            onClick={() => {
-                setAdjustError('');
-                setBalanceAdjustOpen((open) => {
-                  if (open) {
-                    return false;
+      {desktopFinance ? (
+        <section className="financeOpsZone financeOpsZone--flows addSaleForm">
+          <h4 className="financeOpsZoneTitle">Приход и расход</h4>
+          <div className="financeOpsFlowsMain">
+            <div className="financeOpsExpenseEntryCallout">
+              <span className="financeOpsEntryCalloutLabel">Расход</span>
+              <label className="financeOpsFlowSideField">
+                <span className="financeOpsFlowSideFieldLabel">Статья расхода</span>
+                <select
+                  className="financeOpsExpenseCategoryInline"
+                  value={expenseTitle}
+                  onChange={(event) =>
+                    setExpenseTitle(
+                      event.target.value as (typeof FINANCE_EXPENSE_CATEGORY_LABELS)[number],
+                    )
                   }
-                  const id = adjustAccountId || snapshot.accounts[0]?.id;
-                  if (id) {
-                    const acc = snapshot.accounts.find((a) => a.id === id);
-                    if (acc) {
-                      setAdjustNewBalance(String(acc.balance));
-                    }
-                    if (!adjustAccountId) {
-                      setAdjustAccountId(id);
-                    }
-                  }
-                  return true;
-                });
-              }}
-          >
-            {balanceAdjustOpen ? 'Скрыть корректировку' : 'Корректировка остатка'}
-          </button>
-          {balanceAdjustOpen ? (
-            <div className="addSaleForm">
-              <p className="hint">
-                Запишите фактический остаток по выбранному счёту. Событие попадает в журнал аудита.
-              </p>
-              <div className="inlineGrid">
-                <label>
-                  Счёт
-                  <select
-                    value={adjustAccountId}
-                    onChange={(event) => {
-                      const id = event.target.value;
-                      setAdjustAccountId(id);
-                      const acc = snapshot.accounts.find((a) => a.id === id);
-                      if (acc) {
-                        setAdjustNewBalance(String(acc.balance));
-                      }
-                    }}
-                  >
-                    {snapshot.accounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Новый остаток, ₽
-                  <input
-                    value={adjustNewBalance}
-                    onChange={(event) => setAdjustNewBalance(event.target.value)}
-                    inputMode="decimal"
-                  />
-                </label>
-              </div>
-              <div className="inlineActions">
-                <button
-                  type="button"
-                  className="primaryAction"
-                  disabled={adjustBusy}
-                  onClick={async () => {
-                    if (!adjustAccountId) {
-                      setAdjustError('Нет доступных счетов');
-                      return;
-                    }
-                    setAdjustBusy(true);
-                    setAdjustError('');
-                    setStatus('');
-                    try {
-                      await onSetAccountBalance(token, adjustAccountId, adjustNewBalance);
-                      setStatus('Остаток обновлён.');
-                      setBalanceAdjustOpen(false);
-                    } catch {
-                      setAdjustError('Не удалось сохранить остаток. Нужны права директора.');
-                    } finally {
-                      setAdjustBusy(false);
+                  aria-label="Статья расхода"
+                >
+                  {FINANCE_EXPENSE_CATEGORY_LABELS.map((label) => (
+                    <option key={label} value={label}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="financeOpsFlowSideField financeOpsFlowSideField--amount">
+                <span className="financeOpsFlowSideFieldLabel">Сумма, ₽</span>
+                <input
+                  className="financeOpsExpenseEntryInput"
+                inputMode="decimal"
+                aria-label="Сумма расхода"
+                value={expenseAmount}
+                onChange={(event) => setExpenseAmount(event.target.value)}
+                placeholder="0"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void submitExpense();
                     }
                   }}
-                >
-                  Сохранить остаток
-                </button>
-              </div>
-              {adjustError ? <p className="error">{adjustError}</p> : null}
+                />
+              </label>
+              <button
+                type="button"
+                className="primaryAction financeOpsExpenseSubmit"
+                disabled={!selectedFlowAccountId || busyId === 'expense'}
+                onClick={() => void submitExpense()}
+              >
+                Добавить расход
+              </button>
             </div>
-          ) : null}
-        </div>
+            <div
+              className="financeOpsFlowAccountsGrid"
+              role="group"
+              aria-label="Счёт для прихода и расхода"
+            >
+              {primaryFinanceAccounts.map((acc) => (
+                <button
+                  key={acc.id}
+                  type="button"
+                  className={`ghost financeOpsFlowAccountChip${
+                    selectedFlowAccountId === acc.id ? ' financeOpsFlowAccountChip--active' : ''
+                  }`}
+                  onClick={() => setSelectedFlowAccountId(acc.id)}
+                >
+                  {acc.name?.trim() || 'Счёт'}
+                </button>
+              ))}
+            </div>
+            <div className="financeOpsIncomeEntryCallout">
+              <label className="financeOpsFlowSideField financeOpsFlowSideField--amount financeOpsFlowSideField--income">
+                <span className="financeOpsEntryCalloutLabel">Сумма прихода</span>
+                <input
+                  className="financeOpsIncomeEntryInput"
+                  inputMode="decimal"
+                  aria-label="Сумма прихода за день"
+                  value={incomeDraftsByAccount[selectedFlowAccountId] ?? ''}
+                  onChange={(event) =>
+                    setIncomeDraftsByAccount((prev) => ({
+                      ...prev,
+                      [selectedFlowAccountId]: event.target.value,
+                    }))
+                  }
+                  placeholder="0"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void submitIncomeForSelectedAccount();
+                    }
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className="primaryAction financeOpsIncomeSubmit"
+                disabled={
+                  !selectedFlowAccountId ||
+                  busyId === `income-${selectedFlowAccountId}` ||
+                  primaryFinanceAccounts.length === 0
+                }
+                onClick={submitIncomeForSelectedAccount}
+              >
+                Записать приход
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <>
+          <section className="financeOpsZone financeOpsZone--income financeOpsIncomeBlock addSaleForm">
+            <h4 className="financeOpsZoneTitle">Приход за день</h4>
+            <label className="financeOpsAccountsPick">
+              <span className="financeOpsFieldLabel">Счёт прихода</span>
+              <div className="financeOpsAccountBtnRow" role="group" aria-label="Счёт для записи прихода">
+                {primaryFinanceAccounts.map((acc) => (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    className={`ghost paymentTypeBtn financeOpsAccountPickBtn ${
+                      selectedIncomeAccountId === acc.id ? 'paymentTypeBtnActive' : ''
+                    }`}
+                    onClick={() => setSelectedIncomeAccountId(acc.id)}
+                  >
+                    {acc.name}
+                  </button>
+                ))}
+              </div>
+            </label>
+            <div className="addSaleRow financeOpsIncomeFieldsRow">
+              <label className="financeOpsAmountField">
+                <span className="financeOpsFieldLabel">Сумма, ₽</span>
+                <input
+                  inputMode="decimal"
+                  value={incomeDraftsByAccount[selectedIncomeAccountId] ?? ''}
+                  onChange={(event) =>
+                    setIncomeDraftsByAccount((prev) => ({
+                      ...prev,
+                      [selectedIncomeAccountId]: event.target.value,
+                    }))
+                  }
+                  placeholder="Например, 15000"
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              className="primaryAction addSaleSubmitBottom"
+              disabled={
+                !selectedIncomeAccountId ||
+                busyId === `income-${selectedIncomeAccountId}` ||
+                primaryFinanceAccounts.length === 0
+              }
+              onClick={submitIncomeForSelectedAccount}
+            >
+              Записать приход
+            </button>
+          </section>
+
+          <section className="financeOpsZone financeOpsZone--expense addSaleForm">
+            <h4 className="financeOpsZoneTitle">Расход</h4>
+            <div className="financeOpsExpensePickRow">
+              <label className="financeOpsExpenseUnifiedPick">
+                <span className="financeOpsExpenseUnifiedPickCaption">Счёт списания</span>
+                <select
+                  className="financeOpsExpenseUnifiedSelect"
+                  value={expenseAccountId}
+                  onChange={(event) => setExpenseAccountId(event.target.value)}
+                  aria-label="Счёт списания"
+                >
+                  {snapshot.accounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="financeOpsExpenseUnifiedPick">
+                <span className="financeOpsExpenseUnifiedPickCaption">Статья расхода</span>
+                <select
+                  className="financeOpsExpenseUnifiedSelect"
+                  value={expenseTitle}
+                  onChange={(event) =>
+                    setExpenseTitle(
+                      event.target.value as (typeof FINANCE_EXPENSE_CATEGORY_LABELS)[number],
+                    )
+                  }
+                  aria-label="Статья расхода"
+                >
+                  {FINANCE_EXPENSE_CATEGORY_LABELS.map((label) => (
+                    <option key={label} value={label}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="addSaleRow financeOpsExpenseAmountRow">
+              <label className="financeOpsAmountField">
+                <span className="financeOpsFieldLabel">Сумма, ₽</span>
+                <input
+                  inputMode="decimal"
+                  value={expenseAmount}
+                  onChange={(event) => setExpenseAmount(event.target.value)}
+                  placeholder="Например, 5000"
+                />
+              </label>
+            </div>
+            <div className="inlineActions financeOpsExpenseActions">
+              <button
+                type="button"
+                className="primaryAction"
+                disabled={busyId === 'expense'}
+                onClick={() => void submitExpense()}
+              >
+                Добавить расход
+              </button>
+            </div>
+          </section>
+        </>
       )}
 
-      <div className="addSaleForm">
-        <h4>Добавить расход</h4>
-        <div className="financeOpsExpensePickRow">
-          <label className="financeOpsExpenseUnifiedPick">
-            <span className="financeOpsExpenseUnifiedPickCaption">Счёт списания</span>
-            <select
-              className="financeOpsExpenseUnifiedSelect"
-              value={expenseAccountId}
-              onChange={(event) => setExpenseAccountId(event.target.value)}
-              aria-label="Счёт списания"
-            >
-              {snapshot.accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="financeOpsExpenseUnifiedPick">
-            <span className="financeOpsExpenseUnifiedPickCaption">Статья расхода</span>
-            <select
-              className="financeOpsExpenseUnifiedSelect"
-              value={expenseTitle}
-              onChange={(event) =>
-                setExpenseTitle(
-                  event.target.value as (typeof FINANCE_EXPENSE_CATEGORY_LABELS)[number],
-                )
-              }
-              aria-label="Статья расхода"
-            >
-              {FINANCE_EXPENSE_CATEGORY_LABELS.map((label) => (
-                <option key={label} value={label}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+      {status || error ? (
+        <div className="financeOpsStatusBar" role="status">
+          {status ? <p className="success financeOpsStatusMsg">{status}</p> : null}
+          {error ? <p className="error financeOpsStatusMsg">{error}</p> : null}
         </div>
-        <div className="addSaleRow financeOpsExpenseAmountRow">
-          <label>
-            Сумма
-            <input
-              inputMode="decimal"
-              value={expenseAmount}
-              onChange={(event) => setExpenseAmount(event.target.value)}
-              placeholder="Например, 5000"
-            />
-          </label>
-        </div>
-        <div className="inlineActions financeOpsExpenseActions">
-          <button
-            type="button"
-            className="primaryAction"
-            disabled={busyId === 'expense'}
-            onClick={async () => {
-              setBusyId('expense');
-              setError('');
-              setStatus('');
-              try {
-                await onAddExpense(token, {
-                  accountId: expenseAccountId,
-                  title: expenseTitle,
-                  amount: expenseAmount,
-                });
-                setExpenseTitle(FINANCE_EXPENSE_CATEGORY_LABELS[0]);
-                setExpenseAmount('');
-                setStatus('Расход добавлен.');
-              } catch {
-                setError('Не удалось добавить расход');
-              } finally {
-                setBusyId('');
-              }
-            }}
-          >
-            Добавить расход
-          </button>
-        </div>
-      </div>
-
-      {status && <p className="success">{status}</p>}
-      {error && <p className="error">{error}</p>}
-
-      <div className="financeHistoryAccordions">
-        <section className={`procurementAccordion ${incomesHistoryOpen ? '' : 'procurementAccordion--collapsed'}`}>
-          <button
-            type="button"
-            className="procurementAccordionTrigger"
-            aria-expanded={incomesHistoryOpen}
-            onClick={() => setIncomesHistoryOpen((open) => !open)}
-          >
-            <span className="procurementAccordionTriggerTitle financeHistoryAccordionTitle">
-              Последние приходы по счетам
-            </span>
-            <span className="procurementAccordionChevron" aria-hidden>
-              <svg viewBox="0 0 24 24" width="18" height="18">
-                <path fill="currentColor" d="M7 10l5 5 5-5z" />
-              </svg>
-            </span>
-          </button>
-          <div className="procurementAccordionPanel">
-            <div className="procurementAccordionPanelInner">
-              <div className="procurementAccordionBody financeHistoryAccordionBody">
-                {accountsForIncomeHistory.length === 0 ? (
-                  <p className="muted">Счетов нет — приходы не настроены.</p>
-                ) : (
-                  accountsForIncomeHistory.map((acc) => {
-                    const list = (snapshot.incomes ?? []).filter((item) => item.accountId === acc.id);
-                    return (
-                      <div className="incomeHistorySection" key={acc.id}>
-                        <h5 className="incomeHistoryHeading">{acc.name}</h5>
-                        <div className="opsList">
-                          {list.length === 0 ? (
-                            <p className="muted">По этому счёту приходов пока нет.</p>
-                          ) : (
-                            list.slice(0, 20).map((item) => (
-                              <p key={item.id}>
-                                День {item.workDay} | {fmt(item.amount)}
-                                {item.comment ? ` | ${item.comment}` : ''}
-                              </p>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className={`procurementAccordion ${expensesHistoryOpen ? '' : 'procurementAccordion--collapsed'}`}>
-          <button
-            type="button"
-            className="procurementAccordionTrigger"
-            aria-expanded={expensesHistoryOpen}
-            onClick={() => setExpensesHistoryOpen((open) => !open)}
-          >
-            <span className="procurementAccordionTriggerTitle financeHistoryAccordionTitle">
-              Последние расходы
-            </span>
-            <span className="procurementAccordionChevron" aria-hidden>
-              <svg viewBox="0 0 24 24" width="18" height="18">
-                <path fill="currentColor" d="M7 10l5 5 5-5z" />
-              </svg>
-            </span>
-          </button>
-          <div className="procurementAccordionPanel">
-            <div className="procurementAccordionPanelInner">
-              <div className="procurementAccordionBody financeHistoryAccordionBody">
-                <div className="opsList">
-                  {snapshot.expenses.length === 0 ? (
-                    <p className="muted">Расходов пока нет.</p>
-                  ) : (
-                    snapshot.expenses.slice(0, 20).map((item) => (
-                      <p key={item.id}>
-                        {new Date(item.createdAt).toLocaleString('ru-RU')} | {item.title} | {fmt(item.amount)} |{' '}
-                        {item.accountName}
-                      </p>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
+      ) : null}
 
       <section
-        className={`financeOpsExpenseArticlesSheet ${
-          expenseArticlesSheetOpen ? 'financeOpsExpenseArticlesSheet--open' : ''
-        }`}
+        className={`financeOpsZone financeOpsZone--articles financeOpsExpenseArticlesSheet${
+          desktopFinance ? ' financeOpsExpenseArticlesSheet--desktop' : ''
+        }${expenseArticlesSheetOpen ? ' financeOpsExpenseArticlesSheet--open' : ''}`}
       >
-        <button
-          type="button"
-          className="financeOpsExpenseArticlesSheetHandle"
-          aria-expanded={expenseArticlesSheetOpen}
-          aria-controls="finance-ops-expense-articles-panel"
-          onClick={() => setExpenseArticlesSheetOpen((open) => !open)}
-        >
-          <span className="financeOpsExpenseArticlesSheetHandleLabel">Расходы по статьям</span>
-          <span className="financeOpsExpenseArticlesSheetHandleRight">
-            <span className="financeOpsExpenseArticlesSheetHandleTotal">{fmt(expensesGrandTotal)}</span>
-            <span className="financeOpsExpenseArticlesSheetHandleChevron" aria-hidden>
-              <svg viewBox="0 0 24 24" width="20" height="20">
-                <path fill="currentColor" d="M7 10l5 5 5-5z" />
-              </svg>
-            </span>
-          </span>
-        </button>
-        <div
-          className="financeOpsExpenseArticlesSheetPanel"
-          id="finance-ops-expense-articles-panel"
-          aria-hidden={!expenseArticlesSheetOpen}
-        >
-          <div className="financeOpsExpenseArticlesSheetPanelInner">
-            <p className="financeOpsExpenseArticlesSheetHint">
-              Прокрутите вбок — суммы по каждой статье за всё время учёта.
-            </p>
+        {desktopFinance ? (
+          <>
+            <div className="financeOpsArticlesHead">
+              <h4 className="financeOpsZoneTitle">Расходы по статьям</h4>
+              <span className="financeOpsArticlesTotal">{fmt(expensesGrandTotal)}</span>
+            </div>
             <div
-              className="financeOpsExpenseArticlesCarousel"
+              className="financeOpsExpenseArticlesCarousel financeOpsExpenseArticlesCarousel--desktop"
               role="list"
               aria-label="Суммы расходов по статьям"
             >
               {expenseTotalsByArticle.map((row) => (
-                <article
-                  key={row.title}
-                  className="financeOpsExpenseArticlesChip"
-                  role="listitem"
-                >
+                <article key={row.title} className="financeOpsExpenseArticlesChip" role="listitem">
                   <span className="financeOpsExpenseArticlesChipTitle">{row.title}</span>
                   <strong className="financeOpsExpenseArticlesChipAmount">{fmt(row.total)}</strong>
                 </article>
               ))}
             </div>
-          </div>
-        </div>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="financeOpsExpenseArticlesSheetHandle"
+              aria-expanded={expenseArticlesSheetOpen}
+              aria-controls="finance-ops-expense-articles-panel"
+              onClick={() => setExpenseArticlesSheetOpen((open) => !open)}
+            >
+              <span className="financeOpsExpenseArticlesSheetHandleLabel">Расходы по статьям</span>
+              <span className="financeOpsExpenseArticlesSheetHandleRight">
+                <span className="financeOpsExpenseArticlesSheetHandleTotal">{fmt(expensesGrandTotal)}</span>
+                <span className="financeOpsExpenseArticlesSheetHandleChevron" aria-hidden>
+                  <svg viewBox="0 0 24 24" width="20" height="20">
+                    <path fill="currentColor" d="M7 10l5 5 5-5z" />
+                  </svg>
+                </span>
+              </span>
+            </button>
+            <div
+              className="financeOpsExpenseArticlesSheetPanel"
+              id="finance-ops-expense-articles-panel"
+              aria-hidden={!expenseArticlesSheetOpen}
+            >
+              <div className="financeOpsExpenseArticlesSheetPanelInner">
+                <p className="financeOpsExpenseArticlesSheetHint">
+                  Прокрутите вбок — суммы по каждой статье за всё время учёта.
+                </p>
+                <div
+                  className="financeOpsExpenseArticlesCarousel"
+                  role="list"
+                  aria-label="Суммы расходов по статьям"
+                >
+                  {expenseTotalsByArticle.map((row) => (
+                    <article
+                      key={row.title}
+                      className="financeOpsExpenseArticlesChip"
+                      role="listitem"
+                    >
+                      <span className="financeOpsExpenseArticlesChipTitle">{row.title}</span>
+                      <strong className="financeOpsExpenseArticlesChipAmount">{fmt(row.total)}</strong>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </section>
+
+      {desktopFinance ? (
+        <section className="financeOpsZone financeOpsZone--historyMini">
+          <div className="financeOpsHistoryMiniRow">
+            <FinanceOpsHistoryStrip
+              title="Последние приходы по счетам"
+              emptyLabel="Приходов пока нет"
+              items={recentIncomeHistoryItems}
+            />
+            <FinanceOpsHistoryStrip
+              title="Последние расходы"
+              emptyLabel="Расходов пока нет"
+              items={recentExpenseHistoryItems}
+            />
+          </div>
+        </section>
+      ) : (
+        <section className="financeOpsZone financeOpsZone--history financeHistoryAccordions">
+          <section className={`procurementAccordion ${incomesHistoryOpen ? '' : 'procurementAccordion--collapsed'}`}>
+            <button
+              type="button"
+              className="procurementAccordionTrigger"
+              aria-expanded={incomesHistoryOpen}
+              onClick={() => setIncomesHistoryOpen((open) => !open)}
+            >
+              <span className="procurementAccordionTriggerTitle financeHistoryAccordionTitle">
+                Последние приходы по счетам
+              </span>
+              <span className="procurementAccordionChevron" aria-hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18">
+                  <path fill="currentColor" d="M7 10l5 5 5-5z" />
+                </svg>
+              </span>
+            </button>
+            <div className="procurementAccordionPanel">
+              <div className="procurementAccordionPanelInner">
+                <div className="procurementAccordionBody financeHistoryAccordionBody">
+                  {accountsForIncomeHistory.length === 0 ? (
+                    <p className="muted">Счетов нет — приходы не настроены.</p>
+                  ) : (
+                    accountsForIncomeHistory.map((acc) => {
+                      const list = (snapshot.incomes ?? []).filter((item) => item.accountId === acc.id);
+                      return (
+                        <div className="incomeHistorySection" key={acc.id}>
+                          <h5 className="incomeHistoryHeading">{acc.name}</h5>
+                          <div className="opsList">
+                            {list.length === 0 ? (
+                              <p className="muted">По этому счёту приходов пока нет.</p>
+                            ) : (
+                              list.slice(0, 20).map((item) => (
+                                <p key={item.id}>
+                                  День {item.workDay} | {fmt(item.amount)}
+                                  {item.comment ? ` | ${item.comment}` : ''}
+                                </p>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className={`procurementAccordion ${expensesHistoryOpen ? '' : 'procurementAccordion--collapsed'}`}>
+            <button
+              type="button"
+              className="procurementAccordionTrigger"
+              aria-expanded={expensesHistoryOpen}
+              onClick={() => setExpensesHistoryOpen((open) => !open)}
+            >
+              <span className="procurementAccordionTriggerTitle financeHistoryAccordionTitle">
+                Последние расходы
+              </span>
+              <span className="procurementAccordionChevron" aria-hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18">
+                  <path fill="currentColor" d="M7 10l5 5 5-5z" />
+                </svg>
+              </span>
+            </button>
+            <div className="procurementAccordionPanel">
+              <div className="procurementAccordionPanelInner">
+                <div className="procurementAccordionBody financeHistoryAccordionBody">
+                  <div className="opsList">
+                    {snapshot.expenses.length === 0 ? (
+                      <p className="muted">Расходов пока нет.</p>
+                    ) : (
+                      snapshot.expenses.slice(0, 20).map((item) => (
+                        <p key={item.id}>
+                          {new Date(item.createdAt).toLocaleString('ru-RU')} | {item.title} | {fmt(item.amount)} |{' '}
+                          {item.accountName}
+                        </p>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+      )}
       </div>
     </div>
   );
@@ -4571,13 +6459,17 @@ function ShiftPanel({
     );
   };
 
+  const desktopShift = isTauriRuntime();
+
   return (
-    <div className="opsCard shiftPanelCard">
-      <h4 className="shiftPanelHeading">Открытие/закрытие смены</h4>
+    <div className={`opsCard shiftPanelCard${desktopShift ? ' shiftPanelCard--desktop' : ''}`}>
+      <h4 className={desktopShift ? 'dtSectionTitle shiftColTitle' : 'shiftPanelHeading'}>
+        Открытие/закрытие смены
+      </h4>
       {readOnly && (
         <p className="notice">Роль «Бухгалтер»: только просмотр, без открытия и закрытия смен.</p>
       )}
-      {openShift && !readOnly && (
+      {openShift && !readOnly && !desktopShift && (
         <p className="notice shiftNotice">
           Смена уже идёт. Отметьте ещё сотрудников и нажмите «Добавить в смену» — все выбранные
           останутся на одной смене.
@@ -4694,9 +6586,11 @@ function TeamMemberCard({
     }
   };
 
+  const desktopCard = isTauriRuntime();
+
   return (
     <article
-      className={`teamMemberCard ${isShiftOpen ? 'teamMemberCardShiftOpen' : 'teamMemberCardShiftClosed'}`}
+      className={`teamMemberCard${desktopCard ? ' teamMemberCard--desktop' : ''} ${isShiftOpen ? 'teamMemberCardShiftOpen' : 'teamMemberCardShiftClosed'}`}
     >
       <div className="teamMemberTop">
         <div>
@@ -4837,6 +6731,8 @@ function TeamStoresOverview({
   const [restoreBusyId, setRestoreBusyId] = useState<number | null>(null);
 
   const [storeAccordionOpen, setStoreAccordionOpen] = useState<Record<string, boolean>>({});
+  const desktopWarehouse = isTauriRuntime();
+  const [selectedStoreName, setSelectedStoreName] = useState('');
 
   /** По умолчанию секции свёрнуты; открыто только при явном `true`. */
   const isStoreAccordionOpen = (name: string) => storeAccordionOpen[name] === true;
@@ -4871,311 +6767,373 @@ function TeamStoresOverview({
     a.localeCompare(b, 'ru-RU'),
   );
 
+  useEffect(() => {
+    if (storesSorted.length === 0) {
+      setSelectedStoreName('');
+      return;
+    }
+    setSelectedStoreName((cur) => (storesSorted.includes(cur) ? cur : storesSorted[0]!));
+  }, [storesSorted]);
+
+  const membersForStore = (storeName: string) =>
+    staff
+      .filter((member) => member.isActive && staffAssignedStores(member).includes(storeName))
+      .slice()
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
+
   const removedStaffRows = staff.filter((member) => {
     const assigns = staffAssignedStores(member);
     return !member.isActive || assigns.length === 0;
   });
   removedStaffRows.sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
 
-  return (
-    <div className="staffPanelRoot staffPanelStoresOverview">
-      <h4 className="staffPanelTitle">Команда по магазинам</h4>
-      {onReportDayKeyChange ? (
-        <div className="teamReportDateBar">
-          <label className="teamReportDateLabel">
-            <span>Дата отчётности</span>
-            <input
-              type="date"
-              value={reportDayKey ?? todayActual}
-              onChange={(event) => onReportDayKeyChange(event.target.value)}
-            />
-          </label>
+  const reportDateBar = onReportDayKeyChange ? (
+    <div className="teamReportDateBar">
+      <label className="teamReportDateLabel">
+        <span>Дата отчётности</span>
+        <input
+          type="date"
+          value={reportDayKey ?? todayActual}
+          onChange={(event) => onReportDayKeyChange(event.target.value)}
+        />
+      </label>
+    </div>
+  ) : null;
+
+  const renderWarehouseMember = (member: StaffMember, storeName: string) => {
+    const seller = sellerById.get(member.id);
+    const isRetoucher = member.staffPosition === 'RETOUCHER';
+    const isShiftOpen = Boolean(openShiftId && member.assignedShiftId === openShiftId);
+    const ratePctRetoucher = member.retoucherRatePercent ?? 5;
+    const retoucherEarn = isRetoucher
+      ? retoucherEarnRubSnapshot(storeName, sellers, sales, ratePctRetoucher, calendarReportKey)
+      : null;
+    if (managerPayrollView) {
+      const salaryDayRub = isRetoucher
+        ? (retoucherEarn?.todayRub ?? 0)
+        : Math.round(((todaySalesBySellerId.get(member.id) ?? 0) * (seller?.ratePercent ?? 0)) / 100);
+      const compactName = member.fullName
+        .replace(` — ${storeName}`, '')
+        .replace(` - ${storeName}`, '')
+        .trim();
+      return (
+        <div key={`${storeName}-${member.id}`} className="teamManagerPayrollRow">
+          <span className="teamManagerPayrollName">{compactName || member.fullName}</span>
+          <span className="teamManagerPayrollSalary">{salaryDayRub.toLocaleString('ru-RU')} ₽</span>
         </div>
-      ) : null}
-      <div className="teamStoresBoard">
-        {storesSorted.map((storeName) => {
-          const members = staff.filter(
-            (member) =>
-              member.isActive && staffAssignedStores(member).includes(storeName),
-          );
-          if (members.length === 0) {
-            return null;
-          }
-          const accordionExpanded = isStoreAccordionOpen(storeName);
-          return (
-          <section
-            key={storeName}
-            className={`teamStoreSection ${accordionExpanded ? '' : 'teamStoreSection--collapsed'}`}
-          >
-            <button
-              type="button"
-              className="teamStoreAccordionTrigger"
-              aria-expanded={accordionExpanded}
-              onClick={() => toggleStoreAccordion(storeName)}
-            >
-              <span className="teamStoreTitleText">{storeName}</span>
-              <span className="teamStoreAccordionChevron" aria-hidden>
-                <svg viewBox="0 0 24 24" width="18" height="18">
-                  <path fill="currentColor" d="M7 10l5 5 5-5z" />
-                </svg>
-              </span>
-            </button>
-            <div className="teamStoreAccordionPanel">
-              <div className="teamStoreAccordionPanelInner">
-                <div className={managerPayrollView ? 'teamManagerPayrollList' : 'teamStoreGrid'}>
-                    {managerPayrollView ? (
-                      <div className="teamManagerPayrollHeader">
-                        <span>Имя</span>
-                        <span>Зарплата за день</span>
-                      </div>
-                    ) : null}
-              {members
-                .slice()
-                .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'))
-                .map((member) => {
-                  const seller = sellerById.get(member.id);
-                  const isRetoucher = member.staffPosition === 'RETOUCHER';
-                  const isShiftOpen = Boolean(openShiftId && member.assignedShiftId === openShiftId);
-                  const ratePctRetoucher = member.retoucherRatePercent ?? 5;
-                  const retoucherEarn = isRetoucher
-                    ? retoucherEarnRubSnapshot(storeName, sellers, sales, ratePctRetoucher, calendarReportKey)
-                    : null;
-                  if (managerPayrollView) {
-                    const salaryDayRub = isRetoucher
-                      ? (retoucherEarn?.todayRub ?? 0)
-                      : Math.round(
-                          ((todaySalesBySellerId.get(member.id) ?? 0) * (seller?.ratePercent ?? 0)) / 100,
-                        );
-                    const compactName = member.fullName
-                      .replace(` — ${storeName}`, '')
-                      .replace(` - ${storeName}`, '')
-                      .trim();
-                    return (
-                      <div key={`${storeName}-${member.id}`} className="teamManagerPayrollRow">
-                        <span className="teamManagerPayrollName">{compactName || member.fullName}</span>
-                        <span className="teamManagerPayrollSalary">
-                          {salaryDayRub.toLocaleString('ru-RU')} ₽
-                        </span>
-                      </div>
-                    );
-                  }
-                  const todaySales = todaySalesBySellerId.get(member.id) ?? 0;
-                  const lifetimeSalesSeller = sellerLifetimeSalesRub(seller, sales);
-                  const statPrimaryLabel = isRetoucher
-                    ? reportIsToday
-                      ? 'Заработок за сегодня'
-                      : 'Заработок за выбранный день'
-                    : reportIsToday
-                      ? 'Продажи за сегодня'
-                      : 'Продажи за выбранный день';
-                  const statPrimaryRub = isRetoucher ? retoucherEarn!.todayRub : todaySales;
-                  const statSecondaryLabel = isRetoucher ? 'Заработок за всё время' : 'Продажи за всё время';
-                  const statSecondaryRub = isRetoucher ? retoucherEarn!.lifetimeRub : lifetimeSalesSeller;
-                  const baselinePercent = seller?.ratePercent ?? member.retoucherRatePercent ?? 5;
-                  const currentPercent = baselinePercent;
-                  const percentEditable = canEditPercent && Boolean(seller || isRetoucher);
+      );
+    }
+    const todaySales = todaySalesBySellerId.get(member.id) ?? 0;
+    const lifetimeSalesSeller = sellerLifetimeSalesRub(seller, sales);
+    const statPrimaryLabel = isRetoucher
+      ? reportIsToday
+        ? 'Заработок за сегодня'
+        : 'Заработок за выбранный день'
+      : reportIsToday
+        ? 'Продажи за сегодня'
+        : 'Продажи за выбранный день';
+    const statPrimaryRub = isRetoucher ? retoucherEarn!.todayRub : todaySales;
+    const statSecondaryLabel = isRetoucher ? 'Заработок за всё время' : 'Продажи за всё время';
+    const statSecondaryRub = isRetoucher ? retoucherEarn!.lifetimeRub : lifetimeSalesSeller;
+    const baselinePercent = seller?.ratePercent ?? member.retoucherRatePercent ?? 5;
+    const currentPercent = baselinePercent;
+    const percentEditable = canEditPercent && Boolean(seller || isRetoucher);
+    const cardDesktopClass = desktopWarehouse ? ' teamMemberCard--desktop' : '';
 
-                  return (
-                    <article
-                      key={`${storeName}-${member.id}`}
-                      className={`teamMemberCard storeTeamMemberCard ${isShiftOpen ? 'teamMemberCardShiftOpen' : 'teamMemberCardShiftClosed'}`}
-                    >
-                      <div className="teamMemberTop">
-                        <div>
-                          <p className="teamMemberName">
-                            <strong>{member.fullName}</strong>{' '}
-                            <span className="teamMemberNick">({member.nickname})</span>
-                            {isRetoucher ? (
-                              <span className="statusPill statusPillOn retoucherBadge">Ретушёр</span>
-                            ) : null}
-                          </p>
-                          <p className={`teamMemberShiftState ${isShiftOpen ? 'shiftOpen' : 'shiftClosed'}`}>
-                            {isShiftOpen ? 'Смена открыта' : 'Смена закрыта'}
-                          </p>
-                        </div>
-                        {!readOnlyTeamActions ? (
-                          <div className="teamMemberTopActions">
-                            <button
-                              type="button"
-                              className="teamMemberDeletePill"
-                              aria-label="Убрать из магазина"
-                              disabled={removingMemberId === member.id}
-                              title="Убрать сотрудника из этого магазина"
-                              onClick={async () => {
-                                const ok = window.confirm(
-                                  `Убрать «${member.fullName}» из точки «${storeName}»?`,
-                                );
-                                if (!ok) {
-                                  return;
-                                }
-                                setRemovingMemberId(member.id);
-                                try {
-                                  await onRemoveFromStore(token, member.id, storeName);
-                                } finally {
-                                  setRemovingMemberId(null);
-                                }
-                              }}
-                            >
-                              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
-                                <path
-                                  d="M4 7h16M9 3h6M10 11v6M14 11v6M6.5 7l1 13h9l1-13"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <div className="teamMemberStats">
-                        <div className="statCell">
-                          <span className="statLabel">{statPrimaryLabel}</span>
-                          <span className="statValue">{statPrimaryRub.toLocaleString('ru-RU')} ₽</span>
-                        </div>
-                        <div className="statCell">
-                          <span className="statLabel">{statSecondaryLabel}</span>
-                          <span className="statValue">{statSecondaryRub.toLocaleString('ru-RU')} ₽</span>
-                        </div>
-                        {percentEditable ? (
-                          percentEditingId === member.id ? (
-                            <div className="statCell statCellPercentEdit">
-                              <span className="statLabel">Текущий %</span>
-                              <input
-                                className="statPercentInlineInput"
-                                value={draftPercent[member.id] ?? String(currentPercent)}
-                                disabled={busyPercentMemberId === member.id}
-                                autoFocus
-                                inputMode="decimal"
-                                onChange={(event) =>
-                                  setDraftPercent((prev) => ({
-                                    ...prev,
-                                    [member.id]: event.target.value,
-                                  }))
-                                }
-                                onBlur={async () => {
-                                  if (skipPercentBlurSave.current) {
-                                    skipPercentBlurSave.current = false;
-                                    return;
-                                  }
-                                  if (percentEditingId !== member.id) {
-                                    return;
-                                  }
-                                  const raw = (draftPercent[member.id] ?? '').trim().replace(',', '.');
-                                  setPercentEditingId(null);
-                                  if (!raw) {
-                                    setDraftPercent((prev) => {
-                                      const next = { ...prev };
-                                      delete next[member.id];
-                                      return next;
-                                    });
-                                    return;
-                                  }
-                                  const next = Number(raw);
-                                  const safe = Number.isFinite(next) ? next : baselinePercent;
-                                  if (safe !== baselinePercent) {
-                                    setBusyPercentMemberId(member.id);
-                                    try {
-                                      await onDirectorSetPercent(token, member.id, safe);
-                                    } finally {
-                                      setBusyPercentMemberId(null);
-                                    }
-                                  }
-                                }}
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Escape') {
-                                    event.preventDefault();
-                                    skipPercentBlurSave.current = true;
-                                    setPercentEditingId(null);
-                                    setDraftPercent((prev) => {
-                                      const next = { ...prev };
-                                      delete next[member.id];
-                                      return next;
-                                    });
-                                  }
-                                  if (event.key === 'Enter') {
-                                    (event.target as HTMLInputElement).blur();
-                                  }
-                                }}
-                              />
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              className="statCell statPercentToggleBtn"
-                              disabled={busyPercentMemberId === member.id}
-                              onClick={() => {
-                                setPercentEditingId(member.id);
-                                setDraftPercent((prev) => ({
-                                  ...prev,
-                                  [member.id]: String(baselinePercent),
-                                }));
-                              }}
-                            >
-                              <span className="statLabel">Текущий %</span>
-                              <span className="statValue strong">{currentPercent}%</span>
-                            </button>
-                          )
-                        ) : (
-                          <div className="statCell">
-                            <span className="statLabel">Текущий %</span>
-                            <span className="statValue strong">{currentPercent}%</span>
-                          </div>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-                </div>
-              </div>
-            </div>
-          </section>
-          );
-        })}
-      </div>
-
-      {!hideRemovedStaff ? (
-      <section
-        className={`teamStoresRemovedWrap ${removedStaffAccordionOpen ? '' : 'teamStoresRemovedWrap--collapsed'}`}
+    return (
+      <article
+        key={`${storeName}-${member.id}`}
+        className={`teamMemberCard storeTeamMemberCard${cardDesktopClass} ${isShiftOpen ? 'teamMemberCardShiftOpen' : 'teamMemberCardShiftClosed'}`}
       >
-        <button
-          type="button"
-          id="team-stores-removed-heading"
-          className="teamStoresRemovedAccordionTrigger"
-          aria-expanded={removedStaffAccordionOpen}
-          aria-controls="team-stores-removed-panel"
-          onClick={() => setRemovedStaffAccordionOpen((open) => !open)}
-        >
-          <span className="teamStoresRemovedTriggerTitle">Удалённые сотрудники</span>
-          <span className="teamStoresRemovedAccordionChevron" aria-hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <path fill="currentColor" d="M7 10l5 5 5-5z" />
-            </svg>
-          </span>
-        </button>
+        <div className="teamMemberTop">
+          <div>
+            <p className="teamMemberName">
+              <strong>{member.fullName}</strong>{' '}
+              <span className="teamMemberNick">({member.nickname})</span>
+              {isRetoucher ? (
+                <span className="statusPill statusPillOn retoucherBadge">Ретушёр</span>
+              ) : null}
+            </p>
+            <p className={`teamMemberShiftState ${isShiftOpen ? 'shiftOpen' : 'shiftClosed'}`}>
+              {isShiftOpen ? 'Смена открыта' : 'Смена закрыта'}
+            </p>
+          </div>
+          {!readOnlyTeamActions ? (
+            <div className="teamMemberTopActions">
+              <button
+                type="button"
+                className="teamMemberDeletePill"
+                aria-label="Убрать из магазина"
+                disabled={removingMemberId === member.id}
+                title="Убрать сотрудника из этого магазина"
+                onClick={async () => {
+                  const ok = window.confirm(`Убрать «${member.fullName}» из точки «${storeName}»?`);
+                  if (!ok) {
+                    return;
+                  }
+                  setRemovingMemberId(member.id);
+                  try {
+                    await onRemoveFromStore(token, member.id, storeName);
+                  } finally {
+                    setRemovingMemberId(null);
+                  }
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
+                  <path
+                    d="M4 7h16M9 3h6M10 11v6M14 11v6M6.5 7l1 13h9l1-13"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="teamMemberStats">
+          <div className="statCell">
+            <span className="statLabel">{statPrimaryLabel}</span>
+            <span className="statValue">{statPrimaryRub.toLocaleString('ru-RU')} ₽</span>
+          </div>
+          <div className="statCell">
+            <span className="statLabel">{statSecondaryLabel}</span>
+            <span className="statValue">{statSecondaryRub.toLocaleString('ru-RU')} ₽</span>
+          </div>
+          {percentEditable ? (
+            percentEditingId === member.id ? (
+              <div className="statCell statCellPercentEdit">
+                <span className="statLabel">Текущий %</span>
+                <input
+                  className="statPercentInlineInput"
+                  value={draftPercent[member.id] ?? String(currentPercent)}
+                  disabled={busyPercentMemberId === member.id}
+                  autoFocus
+                  inputMode="decimal"
+                  onChange={(event) =>
+                    setDraftPercent((prev) => ({
+                      ...prev,
+                      [member.id]: event.target.value,
+                    }))
+                  }
+                  onBlur={async () => {
+                    if (skipPercentBlurSave.current) {
+                      skipPercentBlurSave.current = false;
+                      return;
+                    }
+                    if (percentEditingId !== member.id) {
+                      return;
+                    }
+                    const raw = (draftPercent[member.id] ?? '').trim().replace(',', '.');
+                    setPercentEditingId(null);
+                    if (!raw) {
+                      setDraftPercent((prev) => {
+                        const next = { ...prev };
+                        delete next[member.id];
+                        return next;
+                      });
+                      return;
+                    }
+                    const next = Number(raw);
+                    const safe = Number.isFinite(next) ? next : baselinePercent;
+                    if (safe !== baselinePercent) {
+                      setBusyPercentMemberId(member.id);
+                      try {
+                        await onDirectorSetPercent(token, member.id, safe);
+                      } finally {
+                        setBusyPercentMemberId(null);
+                      }
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      skipPercentBlurSave.current = true;
+                      setPercentEditingId(null);
+                      setDraftPercent((prev) => {
+                        const next = { ...prev };
+                        delete next[member.id];
+                        return next;
+                      });
+                    }
+                    if (event.key === 'Enter') {
+                      (event.target as HTMLInputElement).blur();
+                    }
+                  }}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="statCell statPercentToggleBtn"
+                disabled={busyPercentMemberId === member.id}
+                onClick={() => {
+                  setPercentEditingId(member.id);
+                  setDraftPercent((prev) => ({
+                    ...prev,
+                    [member.id]: String(baselinePercent),
+                  }));
+                }}
+              >
+                <span className="statLabel">Текущий %</span>
+                <span className="statValue strong">{currentPercent}%</span>
+              </button>
+            )
+          ) : (
+            <div className="statCell">
+              <span className="statLabel">Текущий %</span>
+              <span className="statValue strong">{currentPercent}%</span>
+            </div>
+          )}
+        </div>
+      </article>
+    );
+  };
+
+  const renderRemovedStaffSection = () => {
+    if (hideRemovedStaff) {
+      return null;
+    }
+    return (
+      <section
+        className={`teamWarehouseRemoved${desktopWarehouse ? '' : ` teamStoresRemovedWrap ${removedStaffAccordionOpen ? '' : 'teamStoresRemovedWrap--collapsed'}`}`}
+      >
+        {desktopWarehouse ? (
+          <>
+            <div className="teamWarehouseRemovedHead">
+              <h5 className="teamWarehouseRemovedTitle">Удалённые сотрудники</h5>
+              <span className="teamWarehouseRemovedCount">{removedStaffRows.length}</span>
+            </div>
+            <p className="teamStoresRemovedIntro">
+              Отключённые учётные записи и те, у кого не осталось привязки ни к одной точке.
+            </p>
+          </>
+        ) : (
+          <button
+            type="button"
+            id="team-stores-removed-heading"
+            className="teamStoresRemovedAccordionTrigger"
+            aria-expanded={removedStaffAccordionOpen}
+            aria-controls="team-stores-removed-panel"
+            onClick={() => setRemovedStaffAccordionOpen((open) => !open)}
+          >
+            <span className="teamStoresRemovedTriggerTitle">Удалённые сотрудники</span>
+            <span className="teamStoresRemovedAccordionChevron" aria-hidden>
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path fill="currentColor" d="M7 10l5 5 5-5z" />
+              </svg>
+            </span>
+          </button>
+        )}
         <div
           id="team-stores-removed-panel"
-          className="teamStoresRemovedAccordionPanel"
+          className={desktopWarehouse ? 'teamWarehouseRemovedBody' : 'teamStoresRemovedAccordionPanel'}
           role="region"
           aria-labelledby="team-stores-removed-heading"
         >
-          <div className="teamStoresRemovedAccordionPanelInner">
-            <p className="teamStoresRemovedIntro">
-              Отключённые учётные записи и те, у кого не осталось привязки ни к одной точке после исключения из
-              состава.
-            </p>
+          <div
+            className={
+              desktopWarehouse ? 'teamWarehouseRemovedBodyInner' : 'teamStoresRemovedAccordionPanelInner'
+            }
+          >
+            {!desktopWarehouse ? (
+              <p className="teamStoresRemovedIntro">
+                Отключённые учётные записи и те, у кого не осталось привязки ни к одной точке после
+                исключения из состава.
+              </p>
+            ) : null}
             {removedStaffRows.length === 0 ? (
               <p className="teamStoresRemovedEmpty">Записей пока нет.</p>
             ) : (
-              <ul className="teamStoresRemovedList">
+              <ul
+                className={
+                  desktopWarehouse ? 'teamWarehouseRemovedGrid' : 'teamStoresRemovedList'
+                }
+              >
                 {removedStaffRows.map((member) => {
                   const isRetoucher = member.staffPosition === 'RETOUCHER';
                   const reasonLabel = !member.isActive ? 'Отключён' : 'Не привязан к точкам';
-                  const chosenStore =
-                    restorePickStore[member.id] ?? restoreStoreChoices[0] ?? '';
+                  const chosenStore = restorePickStore[member.id] ?? restoreStoreChoices[0] ?? '';
+                  if (desktopWarehouse) {
+                    return (
+                      <li key={`removed-${member.id}`} className="teamWarehouseRemovedCard">
+                        <div className="teamWarehouseRemovedCardMain">
+                          <p className="teamWarehouseRemovedName">
+                            <strong>{member.fullName}</strong>
+                            <span className="teamMemberNick">({member.nickname})</span>
+                          </p>
+                          <div className="teamWarehouseRemovedMeta">
+                            <span
+                              className={`teamWarehouseRemovedTag${
+                                isRetoucher ? ' teamWarehouseRemovedTag--retoucher' : ''
+                              }`}
+                            >
+                              {isRetoucher ? 'Ретушёр' : 'Продавец'}
+                            </span>
+                            <span
+                              className={`teamWarehouseRemovedReason${
+                                !member.isActive ? ' teamWarehouseRemovedReason--off' : ''
+                              }`}
+                            >
+                              {reasonLabel}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="teamWarehouseRemovedActions">
+                          <select
+                            className="teamWarehouseRestoreSelect"
+                            aria-label={`Точка для восстановления ${member.fullName}`}
+                            value={chosenStore}
+                            onChange={(event) =>
+                              setRestorePickStore((prev) => ({
+                                ...prev,
+                                [member.id]: event.target.value,
+                              }))
+                            }
+                            disabled={restoreStoreChoices.length === 0 || restoreBusyId === member.id}
+                          >
+                            {restoreStoreChoices.length === 0 ? (
+                              <option value="">Нет точек</option>
+                            ) : (
+                              restoreStoreChoices.map((sn) => (
+                                <option key={sn} value={sn}>
+                                  {sn}
+                                </option>
+                              ))
+                            )}
+                          </select>
+                          <button
+                            type="button"
+                            className="ghost teamWarehouseRestoreBtn"
+                            disabled={
+                              restoreStoreChoices.length === 0 ||
+                              !chosenStore ||
+                              restoreBusyId === member.id
+                            }
+                            onClick={async () => {
+                              const ok = window.confirm(
+                                `Вернуть «${member.fullName}» в точку «${chosenStore}»? Учётная запись будет активна.`,
+                              );
+                              if (!ok) {
+                                return;
+                              }
+                              setRestoreBusyId(member.id);
+                              try {
+                                await onRestoreStaffToStore(token, member.id, chosenStore);
+                              } finally {
+                                setRestoreBusyId(null);
+                              }
+                            }}
+                          >
+                            {restoreBusyId === member.id ? '…' : 'Вернуть'}
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  }
                   return (
                     <li key={`removed-${member.id}`} className="teamStoresRemovedRow">
                       <span className="teamStoresRemovedName">
@@ -5247,7 +7205,132 @@ function TeamStoresOverview({
           </div>
         </div>
       </section>
-      ) : null}
+    );
+  };
+
+  if (desktopWarehouse) {
+    const activeStore = selectedStoreName || storesSorted[0] || '';
+    const activeMembers = activeStore ? membersForStore(activeStore) : [];
+    const openShiftsInStore = activeMembers.filter(
+      (m) => openShiftId && m.assignedShiftId === openShiftId,
+    ).length;
+
+    return (
+      <div className="teamWarehouseShell teamWarehouseShell--desktop staffPanelRoot staffPanelStoresOverview">
+        <header className="teamWarehouseHead">
+          <h4 className="teamWarehouseTitle">Команда по магазинам</h4>
+          {reportDateBar}
+        </header>
+        <div className="teamWarehouseWorkspace">
+          <aside className="teamWarehouseStoresRail" role="tablist" aria-label="Точки продаж">
+            {storesSorted.map((storeName) => {
+              const count = membersForStore(storeName).length;
+              const isActive = storeName === activeStore;
+              return (
+                <button
+                  key={storeName}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`teamWarehouseStoreBtn${isActive ? ' teamWarehouseStoreBtn--active' : ''}`}
+                  onClick={() => setSelectedStoreName(storeName)}
+                >
+                  <span className="teamWarehouseStoreBtnName">{storeName}</span>
+                  <span className="teamWarehouseStoreBtnMeta">{count} чел.</span>
+                </button>
+              );
+            })}
+          </aside>
+          <main className="teamWarehouseDetail" role="tabpanel">
+            {activeStore ? (
+              <>
+                <div className="teamWarehouseDetailHead">
+                  <h5 className="teamWarehouseDetailTitle">{activeStore}</h5>
+                  <div className="teamWarehouseDetailBadges">
+                    <span className="teamWarehouseDetailBadge">{activeMembers.length} сотрудников</span>
+                    {openShiftsInStore > 0 ? (
+                      <span className="teamWarehouseDetailBadge teamWarehouseDetailBadge--open">
+                        {openShiftsInStore} в смене
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <div
+                  className={
+                    managerPayrollView ? 'teamManagerPayrollList teamWarehousePayroll' : 'teamWarehouseMemberGrid'
+                  }
+                >
+                  {managerPayrollView ? (
+                    <div className="teamManagerPayrollHeader">
+                      <span>Имя</span>
+                      <span>Зарплата за день</span>
+                    </div>
+                  ) : null}
+                  {activeMembers.length === 0 ? (
+                    <p className="teamWarehouseEmpty">В этой точке нет активных сотрудников.</p>
+                  ) : (
+                    activeMembers.map((member) => renderWarehouseMember(member, activeStore))
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="teamWarehouseEmpty">Нет привязанных точек.</p>
+            )}
+          </main>
+        </div>
+        {renderRemovedStaffSection()}
+      </div>
+    );
+  }
+
+  return (
+    <div className="staffPanelRoot staffPanelStoresOverview">
+      <h4 className="staffPanelTitle">Команда по магазинам</h4>
+      {reportDateBar}
+      <div className="teamStoresBoard">
+        {storesSorted.map((storeName) => {
+          const members = membersForStore(storeName);
+          if (members.length === 0) {
+            return null;
+          }
+          const accordionExpanded = isStoreAccordionOpen(storeName);
+          return (
+          <section
+            key={storeName}
+            className={`teamStoreSection ${accordionExpanded ? '' : 'teamStoreSection--collapsed'}`}
+          >
+            <button
+              type="button"
+              className="teamStoreAccordionTrigger"
+              aria-expanded={accordionExpanded}
+              onClick={() => toggleStoreAccordion(storeName)}
+            >
+              <span className="teamStoreTitleText">{storeName}</span>
+              <span className="teamStoreAccordionChevron" aria-hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18">
+                  <path fill="currentColor" d="M7 10l5 5 5-5z" />
+                </svg>
+              </span>
+            </button>
+            <div className="teamStoreAccordionPanel">
+              <div className="teamStoreAccordionPanelInner">
+                <div className={managerPayrollView ? 'teamManagerPayrollList' : 'teamStoreGrid'}>
+                    {managerPayrollView ? (
+                      <div className="teamManagerPayrollHeader">
+                        <span>Имя</span>
+                        <span>Зарплата за день</span>
+                      </div>
+                    ) : null}
+              {members.map((member) => renderWarehouseMember(member, storeName))}
+                </div>
+              </div>
+            </div>
+          </section>
+          );
+        })}
+      </div>
+
+      {renderRemovedStaffSection()}
     </div>
   );
 }
@@ -5310,8 +7393,230 @@ function StaffPanel({
   const shouldRenderCards = !hideCards || showOnlyCards;
   const [staffCardsBlockOpen, setStaffCardsBlockOpen] = useState(false);
   const [managementAccordionOpen, setManagementAccordionOpen] = useState(false);
+  const desktopFlat = isTauriRuntime();
+
+  const staffRosterCards = staff.map((member) => {
+    const seller = sellers.find((item) => item.id === member.id);
+    return (
+      <TeamMemberCard
+        key={
+          member.staffPosition === 'RETOUCHER'
+            ? `reto-${member.id}`
+            : seller
+              ? `${member.id}-${seller.ratePercent}`
+              : String(member.id)
+        }
+        token={token}
+        member={member}
+        seller={seller}
+        role={role}
+        openShiftId={openShift?.id}
+        onDirectorSetPercent={onDirectorSetPercent}
+      />
+    );
+  });
+
+  const staffManagementForms = readOnly ? (
+    <p className="staffPanelIntro">Просмотр персонала (бухгалтер).</p>
+  ) : desktopFlat ? (
+    <div className="staffMgmtStrip staffMgmtStrip--centered" role="group" aria-label="Управление персоналом">
+      <div className="staffMgmtStripInner">
+        <div className="staffMgmtGroup staffMgmtGroup--add">
+          <span className="staffMgmtGroupLabel">Новый</span>
+          <input
+            className="staffMgmtInput staffMgmtInput--name"
+            value={fullName}
+            onChange={(event) => setFullName(event.target.value)}
+            placeholder="ФИО"
+            aria-label="ФИО нового сотрудника"
+          />
+          <input
+            className="staffMgmtInput staffMgmtInput--nick"
+            value={nickname}
+            onChange={(event) => setNickname(event.target.value)}
+            placeholder="Ник"
+            aria-label="Ник нового сотрудника"
+          />
+          <button
+            className="primaryAction staffMgmtBtn"
+            type="button"
+            onClick={async () => {
+              await onAdd(token, fullName, nickname);
+              setFullName('');
+              setNickname('');
+            }}
+          >
+            Добавить
+          </button>
+        </div>
+        <div className="staffMgmtGroup staffMgmtGroup--base">
+          <span className="staffMgmtGroupLabel">Из базы</span>
+          <div className="staffMgmtSelectWrap">
+            <select
+              className="staffMgmtSelect"
+              value={selectedEmployeeId}
+              onChange={(event) => setPickedEmployeeId(Number(event.target.value))}
+              aria-label="Сотрудник из общей базы"
+            >
+              {baseCandidates.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.fullName} ({employee.nickname})
+                  {staffIds.has(employee.id) ? ' · на точке' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            className="primaryAction staffMgmtBtn"
+            type="button"
+            disabled={!selectedEmployeeId || alreadyInStore}
+            title={
+              baseCandidates.length === 0
+                ? 'В общей базе нет доступных продавцов'
+                : alreadyInStore
+                  ? 'Уже на этой точке'
+                  : undefined
+            }
+            onClick={() => selectedEmployeeId && onAddFromBase(token, selectedEmployeeId)}
+          >
+            На точку
+          </button>
+        </div>
+        <div className="staffMgmtGroup staffMgmtGroup--remove">
+          <span className="staffMgmtGroupLabel">Убрать</span>
+          <div className="staffMgmtSelectWrap">
+            <select
+              className="staffMgmtSelect"
+              value={selectedRemovalStaffId}
+              onChange={(event) => setPickedRemovalStaffId(Number(event.target.value))}
+              aria-label="Продавец для удаления с точки"
+            >
+              {removableSalesStaff.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.fullName} ({member.nickname})
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            className="primaryAction staffMgmtBtn"
+            disabled={!selectedRemovalStaffId}
+            title={removableSalesStaff.length === 0 ? 'Нет продавцов для удаления' : undefined}
+            onClick={async () => {
+              if (!selectedRemovalStaff) {
+                return;
+              }
+              await onRemoveFromStore(token, selectedRemovalStaff.id, selectedRemovalStaff.storeName);
+              setPickedRemovalStaffId(null);
+            }}
+          >
+            Убрать
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : (
+    <>
+      <div className="inlineGrid staffPanelAddRow dtMgmtBlock">
+        <label className="staffPanelAddField">
+          <span>ФИО</span>
+          <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
+        </label>
+        <label className="staffPanelAddField">
+          <span>Ник</span>
+          <input value={nickname} onChange={(event) => setNickname(event.target.value)} />
+        </label>
+        <button
+          className="primaryAction"
+          type="button"
+          onClick={async () => {
+            await onAdd(token, fullName, nickname);
+            setFullName('');
+            setNickname('');
+          }}
+        >
+          Добавить сотрудника
+        </button>
+      </div>
+      <div className="staffMgmtGrid">
+        <div className="inlineGrid inlineGridStaffBase staffBaseBlock dtMgmtBlock">
+          <label>
+            Сотрудник из общей базы
+            <select
+              value={selectedEmployeeId}
+              onChange={(event) => setPickedEmployeeId(Number(event.target.value))}
+            >
+              {baseCandidates.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.fullName} ({employee.nickname}) - {employee.homeStore}
+                  {staffIds.has(employee.id) ? ' [уже в этой точке]' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="primaryAction"
+            type="button"
+            disabled={!selectedEmployeeId || alreadyInStore}
+            onClick={() => selectedEmployeeId && onAddFromBase(token, selectedEmployeeId)}
+          >
+            Добавить из общей базы
+          </button>
+          <p className="inlineStatus">
+            {baseCandidates.length === 0
+              ? 'Доступных продавцов в общей базе нет'
+              : alreadyInStore
+                ? 'Уже добавлен в эту точку'
+                : ''}
+          </p>
+        </div>
+        <div className="inlineGrid inlineGridStaffBase staffBaseBlock dtMgmtBlock">
+          <label>
+            Убрать продавца из магазина
+            <select
+              value={selectedRemovalStaffId}
+              onChange={(event) => setPickedRemovalStaffId(Number(event.target.value))}
+            >
+              {removableSalesStaff.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.fullName} ({member.nickname}) - {member.storeName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="ghost"
+            disabled={!selectedRemovalStaffId}
+            onClick={async () => {
+              if (!selectedRemovalStaff) {
+                return;
+              }
+              await onRemoveFromStore(token, selectedRemovalStaff.id, selectedRemovalStaff.storeName);
+              setPickedRemovalStaffId(null);
+            }}
+          >
+            Убрать из магазина
+          </button>
+          <p className="inlineStatus">
+            {removableSalesStaff.length === 0 ? 'Нет продавцов для удаления из точки' : ''}
+          </p>
+        </div>
+      </div>
+    </>
+  );
 
   if (showOnlyCards) {
+    if (desktopFlat) {
+      return (
+        <div className="opsCard staffPanelRoot staffPanel--desktopSection staffPanel--cards">
+          <h4 className="dtSectionTitle shiftColTitle">Сотрудники</h4>
+          <div className="teamRoster dtTeamRosterGrid">{staffRosterCards}</div>
+        </div>
+      );
+    }
+
     return (
       <div className="opsCard staffPanelRoot">
         <section
@@ -5332,28 +7637,7 @@ function StaffPanel({
           </button>
           <div className="staffCardsBlockAccordionPanel">
             <div className="staffCardsBlockAccordionPanelInner">
-              <div className="opsList teamRoster">
-                {staff.map((member) => {
-                  const seller = sellers.find((item) => item.id === member.id);
-                  return (
-                    <TeamMemberCard
-                      key={
-                        member.staffPosition === 'RETOUCHER'
-                          ? `reto-${member.id}`
-                          : seller
-                            ? `${member.id}-${seller.ratePercent}`
-                            : String(member.id)
-                      }
-                      token={token}
-                      member={member}
-                      seller={seller}
-                      role={role}
-                      openShiftId={openShift?.id}
-                      onDirectorSetPercent={onDirectorSetPercent}
-                    />
-                  );
-                })}
-              </div>
+              <div className="opsList teamRoster">{staffRosterCards}</div>
             </div>
           </div>
         </section>
@@ -5364,6 +7648,12 @@ function StaffPanel({
   return (
     <div className="opsCard staffPanelRoot">
       {managementAccordion ? (
+        desktopFlat ? (
+          <div className="staffPanel--desktopSection staffPanel--management">
+            <h4 className="dtSectionTitle dtShiftSectionTitle shiftMgmtTitle">Управление персоналом</h4>
+            {staffManagementForms}
+          </div>
+        ) : (
         <section
           className={`staffManagementAccordion ${managementAccordionOpen ? '' : 'staffManagementAccordion--collapsed'}`}
         >
@@ -5381,101 +7671,10 @@ function StaffPanel({
             </span>
           </button>
           <div className="staffManagementAccordionPanel">
-            <div className="staffManagementAccordionPanelInner">
-              {readOnly ? (
-                <p className="staffPanelIntro">Просмотр персонала (бухгалтер).</p>
-              ) : null}
-              {!readOnly && (
-                <>
-                  <div className="inlineGrid staffPanelAddRow">
-                    <label className="staffPanelAddField">
-                      <span>ФИО</span>
-                      <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
-                    </label>
-                    <label className="staffPanelAddField">
-                      <span>Ник</span>
-                      <input value={nickname} onChange={(event) => setNickname(event.target.value)} />
-                    </label>
-                    <button
-                      className="primaryAction"
-                      type="button"
-                      onClick={async () => {
-                        await onAdd(token, fullName, nickname);
-                        setFullName('');
-                        setNickname('');
-                      }}
-                    >
-                      Добавить сотрудника
-                    </button>
-                  </div>
-                  <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
-                    <label>
-                      Сотрудник из общей базы
-                      <select
-                        value={selectedEmployeeId}
-                        onChange={(event) => setPickedEmployeeId(Number(event.target.value))}
-                      >
-                        {baseCandidates.map((employee) => (
-                          <option key={employee.id} value={employee.id}>
-                            {employee.fullName} ({employee.nickname}) - {employee.homeStore}
-                            {staffIds.has(employee.id) ? ' [уже в этой точке]' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      className="primaryAction"
-                      type="button"
-                      disabled={!selectedEmployeeId || alreadyInStore}
-                      onClick={() => selectedEmployeeId && onAddFromBase(token, selectedEmployeeId)}
-                    >
-                      Добавить из общей базы
-                    </button>
-                    <p className="inlineStatus">
-                      {baseCandidates.length === 0
-                        ? 'Доступных продавцов в общей базе нет'
-                        : alreadyInStore
-                          ? 'Уже добавлен в эту точку'
-                          : ''}
-                    </p>
-                  </div>
-                  <div className="inlineGrid inlineGridStaffBase staffBaseBlock">
-                    <label>
-                      Убрать продавца из магазина
-                      <select
-                        value={selectedRemovalStaffId}
-                        onChange={(event) => setPickedRemovalStaffId(Number(event.target.value))}
-                      >
-                        {removableSalesStaff.map((member) => (
-                          <option key={member.id} value={member.id}>
-                            {member.fullName} ({member.nickname}) - {member.storeName}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      className="ghost"
-                      type="button"
-                      disabled={!selectedRemovalStaffId}
-                      onClick={async () => {
-                        if (!selectedRemovalStaff) {
-                          return;
-                        }
-                        await onRemoveFromStore(token, selectedRemovalStaff.id, selectedRemovalStaff.storeName);
-                        setPickedRemovalStaffId(null);
-                      }}
-                    >
-                      Убрать из магазина
-                    </button>
-                    <p className="inlineStatus">
-                      {removableSalesStaff.length === 0 ? 'Нет продавцов для удаления из точки' : ''}
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
+            <div className="staffManagementAccordionPanelInner">{staffManagementForms}</div>
           </div>
         </section>
+        )
       ) : (
         <>
           <h4 className="staffPanelTitle">Управление персоналом</h4>
@@ -5605,21 +7804,61 @@ function StaffPanel({
 function DirectorWarehousePanel({
   token,
   overview,
+  products = [],
+  procurementCosts = [],
   onReload,
   onReplenish,
+  onSaveProcurementCosts,
+  onAddProduct,
 }: {
   token: string;
   overview: InventoryOverviewResponse | null;
+  products?: ProductItem[];
+  procurementCosts?: ProductProcurementCost[];
   onReload: () => Promise<void>;
   onReplenish: (token: string, name: string, qtyStr: string) => Promise<void>;
+  onSaveProcurementCosts?: (
+    token: string,
+    items: Array<{ name: string; cost: number }>,
+  ) => Promise<void>;
+  onAddProduct?: (token: string, name: string, priceStr: string) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [replenishDraft, setReplenishDraft] = useState<Record<string, string>>({});
+  const [costDraft, setCostDraft] = useState<Record<string, string>>({});
   const [busyName, setBusyName] = useState<string | null>(null);
+  const [costSaving, setCostSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const [costStatus, setCostStatus] = useState('');
+  const [costError, setCostError] = useState('');
+  const [addingProduct, setAddingProduct] = useState(false);
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductPrice, setNewProductPrice] = useState('');
+  const [busyAddProduct, setBusyAddProduct] = useState(false);
 
-  const rows = overview?.products ?? [];
+  const showProcurement = Boolean(onSaveProcurementCosts);
+  const canAddProduct = Boolean(onAddProduct);
+  const warehouseRows = overview?.products ?? [];
+  const warehouseByName = new Map(warehouseRows.map((row) => [row.name.trim(), row]));
+  const costByName = new Map(procurementCosts.map((item) => [item.name.trim(), item.cost]));
+  const orderedNames = [
+    ...new Set([
+      ...warehouseRows.map((row) => row.name.trim()),
+      ...products.map((item) => item.name.trim()),
+    ]),
+  ].filter(Boolean);
+  const rows = orderedNames.map((name) => {
+    const warehouse = warehouseByName.get(name);
+    return {
+      name,
+      qtyWarehouse: warehouse?.qtyWarehouse ?? 0,
+      qtyInStores: warehouse?.qtyInStores ?? 0,
+      qtyGrandTotal: warehouse?.qtyGrandTotal ?? 0,
+      currentCost: costByName.get(name) ?? 0,
+    };
+  });
+  const colCount = showProcurement ? 6 : 5;
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -5638,8 +7877,8 @@ function DirectorWarehousePanel({
     setError('');
     setStatus('');
     try {
-      await onReplenish(token, name, draft[name] ?? '0');
-      setDraft((current) => ({ ...current, [name]: '' }));
+      await onReplenish(token, name, replenishDraft[name] ?? '0');
+      setReplenishDraft((current) => ({ ...current, [name]: '' }));
       setStatus(`Склад пополнен: ${name}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не удалось пополнить склад');
@@ -5648,22 +7887,131 @@ function DirectorWarehousePanel({
     }
   };
 
+  const handleAddProduct = async () => {
+    if (!onAddProduct) {
+      return;
+    }
+    const name = newProductName.trim();
+    if (!name) {
+      setError('Укажите название товара');
+      return;
+    }
+    setBusyAddProduct(true);
+    setError('');
+    setStatus('');
+    try {
+      await onAddProduct(token, name, newProductPrice);
+      setNewProductName('');
+      setNewProductPrice('');
+      setAddingProduct(false);
+      setStatus(`Товар «${name}» добавлен во все точки`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось добавить товар');
+    } finally {
+      setBusyAddProduct(false);
+    }
+  };
+
+  const saveProcurementCosts = async () => {
+    if (!onSaveProcurementCosts) {
+      return;
+    }
+    setCostSaving(true);
+    setCostError('');
+    setCostStatus('');
+    try {
+      const payload = rows.map((row) => ({
+        name: row.name,
+        cost: Math.max(0, Number(costDraft[row.name] ?? row.currentCost) || 0),
+      }));
+      await onSaveProcurementCosts(token, payload);
+      setCostDraft({});
+      setCostStatus('Закупочные цены сохранены.');
+    } catch (e) {
+      setCostError(e instanceof Error ? e.message : 'Не удалось сохранить закупочные цены');
+    } finally {
+      setCostSaving(false);
+    }
+  };
+
   return (
-    <div className="invGlassRoot directorWarehouseRoot">
+    <div
+      className={`invGlassRoot directorWarehouseRoot${showProcurement ? ' directorWarehouseRoot--withCosts' : ''}`}
+    >
       <div className="invGlassShell directorWarehouseShell">
         <header className="invGlassHeader directorWarehouseHeader">
-          <h3 className="invGlassTitle directorWarehouseTitle">Склад и остатки</h3>
-          <button
-            type="button"
-            className="invGhostBtn directorWarehouseRefreshBtn"
-            onClick={() => void handleRefresh()}
-            disabled={refreshing}
-            aria-label="Обновить"
-            title="Обновить"
-          >
-            {refreshing ? '…' : '↻'}
-          </button>
+          <div className="directorWarehouseHeaderMain">
+            <h3 className="invGlassTitle directorWarehouseTitle">Склад и остатки</h3>
+            <p className="directorWarehouseSubtitle">Каталог общий для склада и всех точек</p>
+          </div>
+          <div className="directorWarehouseHeaderActions">
+            {canAddProduct ? (
+              <button
+                type="button"
+                className="ghost directorWarehouseAddProductBtn"
+                onClick={() => {
+                  setAddingProduct((open) => !open);
+                  setError('');
+                }}
+              >
+                {addingProduct ? 'Скрыть' : '+ Товар'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="invGhostBtn directorWarehouseRefreshBtn"
+              onClick={() => void handleRefresh()}
+              disabled={refreshing}
+              aria-label="Обновить"
+              title="Обновить"
+            >
+              {refreshing ? '…' : '↻'}
+            </button>
+          </div>
         </header>
+
+        {canAddProduct && addingProduct ? (
+          <div className="directorWarehouseAddProductForm">
+            <input
+              type="text"
+              className="directorWarehouseAddProductInput"
+              value={newProductName}
+              onChange={(event) => setNewProductName(event.target.value)}
+              placeholder="Название товара"
+              maxLength={120}
+              aria-label="Название нового товара"
+            />
+            <input
+              type="text"
+              className="directorWarehouseAddProductInput directorWarehouseAddProductInput--price"
+              inputMode="decimal"
+              value={newProductPrice}
+              onChange={(event) => setNewProductPrice(event.target.value)}
+              placeholder="Цена продажи"
+              aria-label="Цена продажи"
+            />
+            <button
+              type="button"
+              className="invPrimaryMini directorWarehouseAddProductConfirm"
+              disabled={busyAddProduct}
+              onClick={() => void handleAddProduct()}
+            >
+              {busyAddProduct ? '…' : 'Добавить'}
+            </button>
+            <button
+              type="button"
+              className="ghost directorWarehouseAddProductCancel"
+              disabled={busyAddProduct}
+              onClick={() => {
+                setAddingProduct(false);
+                setNewProductName('');
+                setNewProductPrice('');
+              }}
+            >
+              Отмена
+            </button>
+          </div>
+        ) : null}
 
         {error ? (
           <p className="invInlineError" role="alert">
@@ -5671,6 +8019,12 @@ function DirectorWarehousePanel({
           </p>
         ) : null}
         {status ? <p className="invInlineOk">{status}</p> : null}
+        {costStatus ? <p className="invInlineOk">{costStatus}</p> : null}
+        {costError ? (
+          <p className="invInlineError" role="alert">
+            {costError}
+          </p>
+        ) : null}
 
         <div className="invTableScroll invTableScrollFit directorWarehouseTableWrap">
           <table className="invTable invTableWarehouse">
@@ -5686,6 +8040,11 @@ function DirectorWarehousePanel({
                 <th className="invThNum dwThNum" scope="col">
                   Всего
                 </th>
+                {showProcurement ? (
+                  <th className="invThNum dwThCost" scope="col" title="Закупочная цена, ₽">
+                    Закуп. цена
+                  </th>
+                ) : null}
                 <th className="invThAction dwThAction" scope="col" title="Количество и подтверждение пополнения">
                   Кол-во
                 </th>
@@ -5694,7 +8053,7 @@ function DirectorWarehousePanel({
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="invTableEmpty">
+                  <td colSpan={colCount} className="invTableEmpty">
                     {overview ? 'Нет позиций в каталоге' : 'Загрузка остатков…'}
                   </td>
                 </tr>
@@ -5711,15 +8070,34 @@ function DirectorWarehousePanel({
                     <td className="invTdNum dwTdNum">
                       <span className="dwQty dwQtyTotal">{row.qtyGrandTotal}</span>
                     </td>
+                    {showProcurement ? (
+                      <td className="invTdNum dwTdCost">
+                        <input
+                          className="dwCostInput procurementCostInput"
+                          inputMode="decimal"
+                          value={costDraft[row.name] ?? String(row.currentCost)}
+                          onChange={(event) =>
+                            setCostDraft((current) => ({
+                              ...current,
+                              [row.name]: event.target.value,
+                            }))
+                          }
+                          aria-label={`Закупочная цена: ${row.name}`}
+                        />
+                      </td>
+                    ) : null}
                     <td className="invTdAction dwTdAction">
                       <div className="dwReplenish" role="group" aria-label={`Пополнить склад: ${row.name}`}>
                         <input
                           className="dwReplenishInput"
                           inputMode="numeric"
                           placeholder="0"
-                          value={draft[row.name] ?? ''}
+                          value={replenishDraft[row.name] ?? ''}
                           onChange={(event) =>
-                            setDraft((current) => ({ ...current, [row.name]: event.target.value }))
+                            setReplenishDraft((current) => ({
+                              ...current,
+                              [row.name]: event.target.value,
+                            }))
                           }
                           aria-label={`Штук для пополнения: ${row.name}`}
                         />
@@ -5741,6 +8119,19 @@ function DirectorWarehousePanel({
             </tbody>
           </table>
         </div>
+
+        {showProcurement ? (
+          <div className="directorWarehouseProcurementFooter">
+            <button
+              type="button"
+              className="primaryAction directorWarehouseProcurementSaveBtn"
+              disabled={costSaving}
+              onClick={() => void saveProcurementCosts()}
+            >
+              {costSaving ? 'Сохраняем…' : 'Сохранить закупочные цены'}
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -5756,12 +8147,24 @@ function draftEmptyCounts(): StoreEquipmentCounts {
     mouse: 0,
     keyboard: 0,
     cardReader: 0,
+    extra: {},
+  };
+}
+
+function normalizeStoreEquipmentCounts(raw: Partial<StoreEquipmentCounts>): StoreEquipmentCounts {
+  const base = draftEmptyCounts();
+  return {
+    ...base,
+    ...raw,
+    extra: { ...base.extra, ...(raw.extra ?? {}) },
   };
 }
 
 function StoreEquipmentReadAccordion({ token }: { token: string }) {
+  const desktopTeam = isTauriRuntime();
   const [expanded, setExpanded] = useState(false);
   const [equipment, setEquipment] = useState<StoreEquipmentCounts | null>(null);
+  const [customTypes, setCustomTypes] = useState<StoreEquipmentCustomType[]>([]);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -5773,10 +8176,15 @@ function StoreEquipmentReadAccordion({ token }: { token: string }) {
       if (!response.ok) {
         throw new Error('load');
       }
-      const data = (await response.json()) as { equipment: StoreEquipmentCounts };
-      setEquipment(data.equipment);
+      const data = (await response.json()) as {
+        equipment: StoreEquipmentCounts;
+        customTypes?: StoreEquipmentCustomType[];
+      };
+      setEquipment(normalizeStoreEquipmentCounts(data.equipment));
+      setCustomTypes(data.customTypes ?? []);
     } catch {
       setEquipment(null);
+      setCustomTypes([]);
       setError('Не удалось загрузить данные');
     }
   }, [token]);
@@ -5784,6 +8192,40 @@ function StoreEquipmentReadAccordion({ token }: { token: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const readFields = useMemo(() => buildStoreEquipmentFields(customTypes), [customTypes]);
+
+  const equipmentBody = (
+    <>
+      {error ? (
+        <p className="invInlineError storeInvMessage" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className={`storeEquipGrid${desktopTeam ? ' storeEquipGrid--desktop' : ''}`}>
+        {readFields.map((field) => (
+          <div
+            className="storeEquipGridRow"
+            key={field.kind === 'builtin' ? field.key : field.id}
+          >
+            <span className="storeEquipLabel">{field.label}</span>
+            <span className="storeEquipVal">
+              {equipment !== null ? storeEquipmentQty(equipment, field) : '…'}
+            </span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
+  if (desktopTeam) {
+    return (
+      <div className="storeEquipRead storeEquipRead--desktop">
+        <h4 className="dtSectionTitle">Спецтехника на точке</h4>
+        {equipmentBody}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -5807,19 +8249,7 @@ function StoreEquipmentReadAccordion({ token }: { token: string }) {
         id="store-equipment-read-body"
         className={`writeOffCarouselBody ${expanded ? 'writeOffCarouselBodyOpen' : ''}`}
       >
-        {error ? (
-          <p className="invInlineError storeInvMessage" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <div className="storeEquipGrid">
-          {STORE_EQUIPMENT_ROWS.map(({ key, label }) => (
-            <div className="storeEquipGridRow" key={key}>
-              <span className="storeEquipLabel">{label}</span>
-              <span className="storeEquipVal">{equipment !== null ? equipment[key] : '…'}</span>
-            </div>
-          ))}
-        </div>
+        {equipmentBody}
       </div>
     </div>
   );
@@ -5827,13 +8257,20 @@ function StoreEquipmentReadAccordion({ token }: { token: string }) {
 
 function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
   type StoreRow = { storeName: string } & StoreEquipmentCounts;
+  const isDesktop = isTauriRuntime();
   const [stores, setStores] = useState<StoreRow[] | null>(null);
+  const [customTypes, setCustomTypes] = useState<StoreEquipmentCustomType[]>([]);
   const [draftByStore, setDraftByStore] = useState<Record<string, StoreEquipmentCounts>>({});
-  const [storeIndex, setStoreIndex] = useState(0);
+  const [selectedStore, setSelectedStore] = useState('');
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [busyStore, setBusyStore] = useState<string | null>(null);
+  const [addingType, setAddingType] = useState(false);
+  const [newTypeLabel, setNewTypeLabel] = useState('');
+  const [busyAddType, setBusyAddType] = useState(false);
   const swipeStartX = useRef<number | null>(null);
+
+  const equipmentFields = useMemo(() => buildStoreEquipmentFields(customTypes), [customTypes]);
 
   const sortedStores = useMemo(() => {
     if (!stores?.length) {
@@ -5844,24 +8281,52 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
 
   const load = useCallback(async () => {
     setError('');
+    setStatus('');
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/store-equipment`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/admin/store-equipment`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
-        throw new Error('load');
+        const errBody = (await response.json().catch(() => null)) as {
+          message?: string | string[];
+        } | null;
+        const msg = Array.isArray(errBody?.message)
+          ? errBody.message[0]
+          : errBody?.message;
+        if (response.status === 403) {
+          setError(
+            typeof msg === 'string' && msg.includes('бухгалтер')
+              ? 'Сервер ещё не обновлён: директору нужен деплой backend с доступом к спецтехнике. Бухгалтер видит этот раздел.'
+              : 'Нет доступа к своду по точкам',
+          );
+        } else if (response.status === 401) {
+          setError('Сессия истекла — выйдите и войдите снова');
+        } else {
+          setError(
+            typeof msg === 'string' && msg.length > 0
+              ? msg
+              : `Не удалось загрузить свод (${response.status})`,
+          );
+        }
+        setStores(null);
+        return;
       }
-      const data = (await response.json()) as { stores: StoreRow[] };
-      setStores(data.stores);
+      const data = (await response.json()) as {
+        stores?: StoreRow[];
+        customTypes?: StoreEquipmentCustomType[];
+      };
+      const rows = Array.isArray(data.stores) ? data.stores : [];
+      setStores(rows);
+      setCustomTypes(data.customTypes ?? []);
       const nextDraft: Record<string, StoreEquipmentCounts> = {};
-      for (const row of data.stores) {
+      for (const row of rows) {
         const { storeName, ...counts } = row;
-        nextDraft[storeName] = { ...counts };
+        nextDraft[storeName] = normalizeStoreEquipmentCounts(counts);
       }
       setDraftByStore(nextDraft);
     } catch {
       setStores(null);
-      setError('Не удалось загрузить свод по точкам');
+      setError('Не удалось загрузить свод по точкам — проверьте сеть и адрес API');
     }
   }, [token]);
 
@@ -5871,20 +8336,82 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
 
   useEffect(() => {
     if (!sortedStores.length) {
-      setStoreIndex(0);
+      setSelectedStore('');
       return;
     }
-    setStoreIndex((i) => Math.min(Math.max(0, i), sortedStores.length - 1));
+    setSelectedStore((current) => {
+      if (current && sortedStores.some((row) => row.storeName === current)) {
+        return current;
+      }
+      return sortedStores[0].storeName;
+    });
   }, [sortedStores]);
 
-  const updateDraft = (storeName: string, key: keyof StoreEquipmentCounts, raw: string) => {
+  const updateDraft = (storeName: string, field: StoreEquipmentField, raw: string) => {
     const trimmed = raw.trim();
     const parsed = trimmed === '' ? 0 : Math.floor(Number(trimmed.replace(',', '.')));
     const n = Number.isFinite(parsed) ? Math.max(0, Math.min(9999, parsed)) : 0;
-    setDraftByStore((current) => ({
-      ...current,
-      [storeName]: { ...(current[storeName] ?? draftEmptyCounts()), [key]: n },
-    }));
+    setDraftByStore((current) => {
+      const prev = current[storeName] ?? draftEmptyCounts();
+      if (field.kind === 'builtin') {
+        return { ...current, [storeName]: { ...prev, [field.key]: n } };
+      }
+      return {
+        ...current,
+        [storeName]: { ...prev, extra: { ...prev.extra, [field.id]: n } },
+      };
+    });
+  };
+
+  const addCustomType = async () => {
+    const label = newTypeLabel.trim();
+    if (!label) {
+      setError('Укажите название вида техники');
+      return;
+    }
+    setBusyAddType(true);
+    setError('');
+    setStatus('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/store-equipment/types`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ label }),
+      });
+      if (!response.ok) {
+        const errBody = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+        const msg = Array.isArray(errBody?.message)
+          ? errBody.message[0]
+          : errBody?.message;
+        throw new Error(typeof msg === 'string' ? msg : 'add');
+      }
+      const data = (await response.json()) as { customTypes: StoreEquipmentCustomType[] };
+      setCustomTypes(data.customTypes);
+      setDraftByStore((current) => {
+        const next = { ...current };
+        const newId = data.customTypes[data.customTypes.length - 1]?.id;
+        if (!newId) {
+          return next;
+        }
+        for (const sn of Object.keys(next)) {
+          next[sn] = {
+            ...next[sn],
+            extra: { ...next[sn].extra, [newId]: next[sn].extra[newId] ?? 0 },
+          };
+        }
+        return next;
+      });
+      setNewTypeLabel('');
+      setAddingType(false);
+      setStatus(`Добавлен вид: ${label}`);
+    } catch (e) {
+      setError(e instanceof Error && e.message !== 'add' ? e.message : 'Не удалось добавить вид техники');
+    } finally {
+      setBusyAddType(false);
+    }
   };
 
   const saveStore = async (storeName: string) => {
@@ -5911,7 +8438,10 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
         throw new Error('save');
       }
       const data = (await response.json()) as { storeName: string; equipment: StoreEquipmentCounts };
-      setDraftByStore((current) => ({ ...current, [data.storeName]: data.equipment }));
+      setDraftByStore((current) => ({
+        ...current,
+        [data.storeName]: normalizeStoreEquipmentCounts(data.equipment),
+      }));
       setStatus(`Сохранено: ${data.storeName}`);
     } catch {
       setError('Не удалось сохранить');
@@ -5920,8 +8450,17 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
     }
   };
 
-  const goPrev = () => setStoreIndex((i) => Math.max(0, i - 1));
-  const goNext = () => setStoreIndex((i) => Math.min(sortedStores.length - 1, i + 1));
+  const storeIndex = sortedStores.findIndex((row) => row.storeName === selectedStore);
+  const goPrev = () => {
+    if (storeIndex > 0) {
+      setSelectedStore(sortedStores[storeIndex - 1].storeName);
+    }
+  };
+  const goNext = () => {
+    if (storeIndex >= 0 && storeIndex < sortedStores.length - 1) {
+      setSelectedStore(sortedStores[storeIndex + 1].storeName);
+    }
+  };
 
   const onSwipeTouchStart = (event: TouchEvent) => {
     swipeStartX.current = event.touches[0].clientX;
@@ -5945,27 +8484,189 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
     return <p className="muted financeOpsHint">Загрузка учёта техники…</p>;
   }
 
-  const row = sortedStores[storeIndex];
-  const total = sortedStores.length;
-  const canNav = total > 1;
-  const draft = row ? (draftByStore[row.storeName] ?? row) : null;
+  const activeRow = sortedStores.find((row) => row.storeName === selectedStore);
+  const draft = activeRow ? (draftByStore[activeRow.storeName] ?? activeRow) : null;
+  const totalStores = sortedStores.length;
+  const canNav = totalStores > 1;
+  const activeTotal = draft ? storeEquipmentTotal(draft, equipmentFields) : 0;
+
+  const equipmentEditor = activeRow && draft ? (
+    <div className="storeEquipEditorPanel">
+      <div className="storeEquipEditorHead">
+        <div className="storeEquipEditorTitleWrap">
+          <h3 className="storeEquipEditorTitle">{activeRow.storeName}</h3>
+          <p className="storeEquipEditorMeta">
+            {isDesktop
+              ? `Всего единиц на точке: ${activeTotal}`
+              : `${storeIndex + 1} из ${totalStores} · всего ${activeTotal}`}
+          </p>
+        </div>
+        {!isDesktop && canNav ? (
+          <div className="storeEquipCarouselNav storeEquipCarouselNav--compact" role="group" aria-label="Выбор точки">
+            <button
+              type="button"
+              className="storeEquipCarouselNavBtn"
+              onClick={goPrev}
+              disabled={storeIndex <= 0}
+              aria-label="Предыдущая точка"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="storeEquipCarouselNavBtn"
+              onClick={goNext}
+              disabled={storeIndex >= totalStores - 1}
+              aria-label="Следующая точка"
+            >
+              ›
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div
+        className={`storeEquipGrid storeEquipGrid--accountant${isDesktop ? ' storeEquipGrid--desktop' : ''}`}
+        onTouchStart={isDesktop ? undefined : onSwipeTouchStart}
+        onTouchEnd={isDesktop ? undefined : onSwipeTouchEnd}
+      >
+        {equipmentFields.map((field) => (
+          <label
+            className="storeEquipGridRow storeEquipGridRow--field"
+            key={field.kind === 'builtin' ? field.key : field.id}
+          >
+            <span className="storeEquipLabel">{field.label}</span>
+            <input
+              className="invQtyInput invQtyInputTight storeEquipQtyInput"
+              inputMode="numeric"
+              aria-label={`${field.label}, ${activeRow.storeName}`}
+              value={String(storeEquipmentQty(draft, field))}
+              onChange={(event) => updateDraft(activeRow.storeName, field, event.target.value)}
+            />
+          </label>
+        ))}
+      </div>
+      <div className="storeEquipActionsRow">
+        {addingType ? (
+          <div className="storeEquipAddTypeForm">
+            <input
+              type="text"
+              className="storeEquipAddTypeInput"
+              value={newTypeLabel}
+              onChange={(event) => setNewTypeLabel(event.target.value)}
+              placeholder="Название, например Штатив"
+              maxLength={64}
+              aria-label="Название нового вида техники"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void addCustomType();
+                }
+                if (event.key === 'Escape') {
+                  setAddingType(false);
+                  setNewTypeLabel('');
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="invPrimaryMini storeEquipAddTypeConfirm"
+              disabled={busyAddType}
+              onClick={() => void addCustomType()}
+            >
+              {busyAddType ? '…' : 'Добавить'}
+            </button>
+            <button
+              type="button"
+              className="ghost storeEquipAddTypeCancel"
+              disabled={busyAddType}
+              onClick={() => {
+                setAddingType(false);
+                setNewTypeLabel('');
+              }}
+            >
+              Отмена
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="ghost storeEquipAddTypeBtn"
+            onClick={() => {
+              setAddingType(true);
+              setError('');
+            }}
+          >
+            + Вид техники
+          </button>
+        )}
+        <button
+          type="button"
+          className="invPrimaryMini storeEquipSaveBtn"
+          disabled={busyStore === activeRow.storeName}
+          onClick={() => void saveStore(activeRow.storeName)}
+        >
+          {busyStore === activeRow.storeName ? 'Сохранение…' : 'Сохранить'}
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   return (
-    <div className="storeEquipAccountantRoot storeEquipAccountantCarousel">
-      <p className="storeEquipAccountantLead">Спецтехника по точкам</p>
-      {error ? (
-        <p className="invInlineError storeInvMessage" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {status ? (
-        <p className="invInlineOk storeInvMessage" title={status}>
-          {status}
-        </p>
-      ) : null}
+    <div
+      className={`storeEquipAccountantRoot${
+        isDesktop ? ' storeEquipAccountantRoot--desktop' : ' storeEquipAccountantCarousel'
+      }`}
+    >
+      <header className="storeEquipAccountantHead">
+        <div>
+          <p className="storeEquipAccountantLead">Спецтехника по точкам</p>
+          {isDesktop && totalStores > 0 ? (
+            <p className="storeEquipAccountantSub">
+              {totalStores} {totalStores === 1 ? 'точка' : totalStores < 5 ? 'точки' : 'точек'} · выберите точку слева
+            </p>
+          ) : null}
+        </div>
+        {error ? (
+          <p className="invInlineError storeInvMessage" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {status ? (
+          <p className="invInlineOk storeInvMessage" title={status}>
+            {status}
+          </p>
+        ) : null}
+      </header>
+
       {stores && stores.length === 0 ? (
         <p className="muted financeOpsHint">Точек для учёта пока нет.</p>
-      ) : row && draft ? (
+      ) : isDesktop ? (
+        <div className="storeEquipAccountantWorkspace">
+          <aside className="storeEquipStoreRail" aria-label="Список точек">
+            <ul className="storeEquipStoreList">
+              {sortedStores.map((row) => {
+                const counts = draftByStore[row.storeName] ?? row;
+                const isActive = row.storeName === selectedStore;
+                return (
+                  <li key={row.storeName}>
+                    <button
+                      type="button"
+                      className={`storeEquipStoreBtn${isActive ? ' storeEquipStoreBtn--active' : ''}`}
+                      onClick={() => setSelectedStore(row.storeName)}
+                    >
+                      <span className="storeEquipStoreBtnName">{row.storeName}</span>
+                      <span className="storeEquipStoreBtnMeta">
+                        {storeEquipmentTotal(counts, equipmentFields)} ед.
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </aside>
+          <div className="storeEquipEditorMain">{equipmentEditor}</div>
+        </div>
+      ) : activeRow && draft ? (
         <div className="storeEquipCarouselShell">
           <div className="storeEquipCarouselNav" role="group" aria-label="Выбор точки">
             <button
@@ -5975,78 +8676,25 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
               disabled={!canNav || storeIndex <= 0}
               aria-label="Предыдущая точка"
             >
-              <svg
-                viewBox="0 0 24 24"
-                width="20"
-                height="20"
-                aria-hidden
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M14 7.5 9 12l5 4.5" />
-              </svg>
+              ‹
             </button>
             <div className="storeEquipCarouselTitleWrap" aria-live="polite">
-              <p className="storeEquipCarouselStoreName">{row.storeName}</p>
+              <p className="storeEquipCarouselStoreName">{activeRow.storeName}</p>
               <p className="storeEquipCarouselCounter">
-                {storeIndex + 1} из {total}
+                {storeIndex + 1} из {totalStores}
               </p>
             </div>
             <button
               type="button"
               className="storeEquipCarouselNavBtn"
               onClick={goNext}
-              disabled={!canNav || storeIndex >= total - 1}
+              disabled={!canNav || storeIndex >= totalStores - 1}
               aria-label="Следующая точка"
             >
-              <svg
-                viewBox="0 0 24 24"
-                width="20"
-                height="20"
-                aria-hidden
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="m10 7.5 5 4.5-5 4.5" />
-              </svg>
+              ›
             </button>
           </div>
-          <div
-            className="storeEquipCarouselSlide"
-            onTouchStart={onSwipeTouchStart}
-            onTouchEnd={onSwipeTouchEnd}
-          >
-            <div className="storeEquipGrid">
-              {STORE_EQUIPMENT_ROWS.map(({ key, label }) => (
-                <div className="storeEquipGridRow" key={key}>
-                  <span className="storeEquipLabel">{label}</span>
-                  <input
-                    className="invQtyInput invQtyInputTight storeEquipQtyInput"
-                    inputMode="numeric"
-                    aria-label={`${label}, ${row.storeName}`}
-                    value={String(draft[key] ?? 0)}
-                    onChange={(event) => updateDraft(row.storeName, key, event.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="storeEquipSaveRow">
-              <button
-                type="button"
-                className="invPrimaryMini storeEquipSaveBtn"
-                disabled={busyStore === row.storeName}
-                onClick={() => void saveStore(row.storeName)}
-              >
-                {busyStore === row.storeName ? '…' : 'Сохранить'}
-              </button>
-            </div>
-          </div>
+          {equipmentEditor}
         </div>
       ) : null}
     </div>
@@ -6101,19 +8749,34 @@ function StoreInventoryControlPanel({
     }
   };
 
+  const desktopTeam = isTauriRuntime();
+
   return (
-    <div className="invGlassRoot storeInventoryRoot storeInventoryPanel">
+    <div
+      className={`invGlassRoot storeInventoryRoot storeInventoryPanel${
+        desktopTeam ? ' storeInventoryPanel--desktop' : ''
+      }`}
+    >
       <div className="invGlassShell storeInventoryShell">
         <header className="invGlassHeader storeInventoryHeader">
           <div className="invGlassHeaderText storeInventoryHeaderText">
-            <h3 className="invGlassTitle">Учёт на точке</h3>
-            <p className="storeInvMetaLine" title={storeName}>
-              <strong>{storeName}</strong>
-            </p>
+            {desktopTeam ? (
+              <h4 className="dtSectionTitle storeInventoryTitleDesktop">
+                Учёт на точке
+                <span className="storeInventoryStoreName">{storeName}</span>
+              </h4>
+            ) : (
+              <>
+                <h3 className="invGlassTitle">Учёт на точке</h3>
+                <p className="storeInvMetaLine" title={storeName}>
+                  <strong>{storeName}</strong>
+                </p>
+              </>
+            )}
           </div>
           <button
             type="button"
-            className="invGhostBtn storeInventoryRefreshBtn"
+            className={`invGhostBtn storeInventoryRefreshBtn${desktopTeam ? ' ghost' : ''}`}
             onClick={() => void handleRefresh()}
             disabled={refreshing}
             aria-label="Обновить остатки"
@@ -6203,10 +8866,26 @@ function StoreInventoryControlPanel({
   );
 }
 
+const ACQUIRING_RATE_ROWS = [
+  {
+    id: 'putintsev-vtb',
+    label: 'Путинцев ВТБ',
+    placeholder: '1.94',
+  },
+  {
+    id: 'detkov-vtb',
+    label: 'Детков ВТБ',
+    placeholder: '2',
+  },
+  {
+    id: 'putintsev-sber',
+    label: 'Путинцев Сбербанк',
+    placeholder: '1.8',
+  },
+] as const;
+
 function AccountantProcurementPanel({
   token,
-  products,
-  procurementCosts,
   acquiringPercent,
   acquiringPercentDetkov,
   acquiringPercentPutintsevSber,
@@ -6216,11 +8895,8 @@ function AccountantProcurementPanel({
   onSaveAcquiringPercent,
   onSaveAcquiringPercentDetkov,
   onSaveAcquiringPercentPutintsevSber,
-  onSave,
 }: {
   token: string;
-  products: ProductItem[];
-  procurementCosts: ProductProcurementCost[];
   acquiringPercent: string;
   acquiringPercentDetkov: string;
   acquiringPercentPutintsevSber: string;
@@ -6230,211 +8906,83 @@ function AccountantProcurementPanel({
   onSaveAcquiringPercent: (token: string, value: string) => Promise<void>;
   onSaveAcquiringPercentDetkov: (token: string, value: string) => Promise<void>;
   onSaveAcquiringPercentPutintsevSber: (token: string, value: string) => Promise<void>;
-  onSave: (token: string, items: Array<{ name: string; cost: number }>) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState('');
-  const [error, setError] = useState('');
-  const [acquiringSaveError, setAcquiringSaveError] = useState('');
-  const [acquiringDetkovSaveError, setAcquiringDetkovSaveError] = useState('');
-  const [acquiringPutintsevSberSaveError, setAcquiringPutintsevSberSaveError] = useState('');
-  const [acquiringAccordionOpen, setAcquiringAccordionOpen] = useState(false);
-  const [costsAccordionOpen, setCostsAccordionOpen] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<Record<string, boolean>>({});
 
-  const byName = new Map(procurementCosts.map((item) => [item.name.trim(), item.cost]));
-  const rows = products.map((item) => ({
-    name: item.name,
-    currentCost: byName.get(item.name.trim()) ?? 0,
-  }));
+  const values: Record<(typeof ACQUIRING_RATE_ROWS)[number]['id'], string> = {
+    'putintsev-vtb': acquiringPercent,
+    'detkov-vtb': acquiringPercentDetkov,
+    'putintsev-sber': acquiringPercentPutintsevSber,
+  };
 
-  const save = async () => {
-    setBusy(true);
-    setError('');
-    setStatus('');
+  const setters: Record<(typeof ACQUIRING_RATE_ROWS)[number]['id'], (value: string) => void> = {
+    'putintsev-vtb': onAcquiringPercentChange,
+    'detkov-vtb': onAcquiringPercentDetkovChange,
+    'putintsev-sber': onAcquiringPercentPutintsevSberChange,
+  };
+
+  const savers: Record<(typeof ACQUIRING_RATE_ROWS)[number]['id'], (token: string, value: string) => Promise<void>> = {
+    'putintsev-vtb': onSaveAcquiringPercent,
+    'detkov-vtb': onSaveAcquiringPercentDetkov,
+    'putintsev-sber': onSaveAcquiringPercentPutintsevSber,
+  };
+
+  const persistRate = async (id: (typeof ACQUIRING_RATE_ROWS)[number]['id'], value: string) => {
+    setErrors((current) => ({ ...current, [id]: '' }));
     try {
-      const payload = rows.map((row) => ({
-        name: row.name,
-        cost: Math.max(0, Number(draft[row.name] ?? row.currentCost) || 0),
-      }));
-      await onSave(token, payload);
-      setStatus('Закупочные цены сохранены.');
-      setDraft({});
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось сохранить закупочные цены');
-    } finally {
-      setBusy(false);
+      await savers[id](token, value);
+      setSaved((current) => ({ ...current, [id]: true }));
+      window.setTimeout(() => {
+        setSaved((current) => ({ ...current, [id]: false }));
+      }, 1200);
+    } catch {
+      setErrors((current) => ({ ...current, [id]: 'Не удалось сохранить' }));
     }
   };
 
   return (
-    <div className="accountantProcurementRoot">
-      <section
-        className={`procurementAccordion ${acquiringAccordionOpen ? '' : 'procurementAccordion--collapsed'}`}
-      >
-        <button
-          type="button"
-          className="procurementAccordionTrigger"
-          aria-expanded={acquiringAccordionOpen}
-          onClick={() => setAcquiringAccordionOpen((open) => !open)}
-        >
-          <span className="procurementAccordionTriggerTitle">Эквайринг</span>
-          <span className="procurementAccordionChevron" aria-hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <path fill="currentColor" d="M7 10l5 5 5-5z" />
-            </svg>
-          </span>
-        </button>
-        <div className="procurementAccordionPanel">
-          <div className="procurementAccordionPanelInner">
-            <div className="procurementAccordionBody">
-              <div className="procurementAcquiringGrid">
-                <label className="procurementAcquiringField">
-                  <span className="procurementAcquiringLabel">Путинцев ВТБ</span>
-                  <input
-                    className="procurementAcquiringInput"
-                    inputMode="decimal"
-                    value={acquiringPercent}
-                    onChange={(event) => {
-                      setAcquiringSaveError('');
-                      onAcquiringPercentChange(event.target.value);
-                    }}
-                    onBlur={(event) => {
-                      const value = event.currentTarget.value;
-                      void (async () => {
-                        try {
-                          await onSaveAcquiringPercent(token, value);
-                        } catch {
-                          setAcquiringSaveError('Не удалось сохранить ставку');
-                        }
-                      })();
-                    }}
-                    placeholder="1.94"
-                  />
-                </label>
-                <label className="procurementAcquiringField">
-                  <span className="procurementAcquiringLabel">Детков ВТБ</span>
-                  <input
-                    className="procurementAcquiringInput"
-                    inputMode="decimal"
-                    value={acquiringPercentDetkov}
-                    onChange={(event) => {
-                      setAcquiringDetkovSaveError('');
-                      onAcquiringPercentDetkovChange(event.target.value);
-                    }}
-                    onBlur={(event) => {
-                      const value = event.currentTarget.value;
-                      void (async () => {
-                        try {
-                          await onSaveAcquiringPercentDetkov(token, value);
-                        } catch {
-                          setAcquiringDetkovSaveError('Не удалось сохранить ставку');
-                        }
-                      })();
-                    }}
-                    placeholder="2"
-                  />
-                </label>
-                <label className="procurementAcquiringField">
-                  <span className="procurementAcquiringLabel">Путинцев Сбербанк</span>
-                  <input
-                    className="procurementAcquiringInput"
-                    inputMode="decimal"
-                    value={acquiringPercentPutintsevSber}
-                    onChange={(event) => {
-                      setAcquiringPutintsevSberSaveError('');
-                      onAcquiringPercentPutintsevSberChange(event.target.value);
-                    }}
-                    onBlur={(event) => {
-                      const value = event.currentTarget.value;
-                      void (async () => {
-                        try {
-                          await onSaveAcquiringPercentPutintsevSber(token, value);
-                        } catch {
-                          setAcquiringPutintsevSberSaveError('Не удалось сохранить ставку');
-                        }
-                      })();
-                    }}
-                    placeholder="1.8"
-                  />
-                </label>
-              </div>
-              {(acquiringSaveError || acquiringDetkovSaveError || acquiringPutintsevSberSaveError) && (
-                <div className="procurementAcquiringErrors">
-                  {acquiringSaveError && (
-                    <p className="error procurementInlineError">{acquiringSaveError}</p>
-                  )}
-                  {acquiringDetkovSaveError && (
-                    <p className="error procurementInlineError">{acquiringDetkovSaveError}</p>
-                  )}
-                  {acquiringPutintsevSberSaveError && (
-                    <p className="error procurementInlineError">{acquiringPutintsevSberSaveError}</p>
-                  )}
-                </div>
-              )}
-            </div>
+    <div className="acquiringPanelRoot">
+      <div className="acquiringPanelShell">
+        <header className="acquiringPanelHead">
+          <div>
+            <h3 className="acquiringPanelTitle">Эквайринг</h3>
+            <p className="acquiringPanelLead">Комиссия банка, % от безналичной выручки</p>
           </div>
-        </div>
-      </section>
+        </header>
 
-      <section className={`procurementAccordion ${costsAccordionOpen ? '' : 'procurementAccordion--collapsed'}`}>
-        <button
-          type="button"
-          className="procurementAccordionTrigger"
-          aria-expanded={costsAccordionOpen}
-          onClick={() => setCostsAccordionOpen((open) => !open)}
-        >
-          <span className="procurementAccordionTriggerTitle">Закупочные цены товаров</span>
-          <span className="procurementAccordionChevron" aria-hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <path fill="currentColor" d="M7 10l5 5 5-5z" />
-            </svg>
-          </span>
-        </button>
-        <div className="procurementAccordionPanel">
-          <div className="procurementAccordionPanelInner">
-            <div className="procurementAccordionBody">
-              <div className="tableWrap procurementTableWrap">
-                <table className="procurementCostsTable">
-                  <thead>
-                    <tr>
-                      <th>Товар</th>
-                      <th>Закупочная цена</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => (
-                      <tr key={row.name}>
-                        <td>{row.name}</td>
-                        <td>
-                          <input
-                            className="procurementCostInput"
-                            inputMode="decimal"
-                            value={draft[row.name] ?? String(row.currentCost)}
-                            onChange={(event) =>
-                              setDraft((current) => ({
-                                ...current,
-                                [row.name]: event.target.value,
-                              }))
-                            }
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        <div className="acquiringPanelGrid">
+          {ACQUIRING_RATE_ROWS.map((row) => (
+            <div className="acquiringPanelCard" key={row.id}>
+              <span className="acquiringPanelCardLabel">{row.label}</span>
+              <div className="acquiringPanelCardField">
+                <input
+                  className="acquiringPanelInput"
+                  inputMode="decimal"
+                  value={values[row.id]}
+                  onChange={(event) => {
+                    setErrors((current) => ({ ...current, [row.id]: '' }));
+                    setters[row.id](event.target.value);
+                  }}
+                  onBlur={(event) => void persistRate(row.id, event.currentTarget.value)}
+                  placeholder={row.placeholder}
+                  aria-label={`${row.label}, процент`}
+                />
+                <span className="acquiringPanelUnit" aria-hidden>
+                  %
+                </span>
               </div>
-              <div className="procurementSaveRow">
-                <button type="button" className="primaryAction procurementSaveBtn" onClick={save} disabled={busy}>
-                  {busy ? 'Сохраняем...' : 'Сохранить закупочные цены'}
-                </button>
-              </div>
-              {status && <p className="success procurementStatusMsg">{status}</p>}
-              {error && <p className="error procurementStatusMsg">{error}</p>}
+              {errors[row.id] ? (
+                <p className="acquiringPanelError" role="alert">
+                  {errors[row.id]}
+                </p>
+              ) : saved[row.id] ? (
+                <p className="acquiringPanelSaved">Сохранено</p>
+              ) : null}
             </div>
-          </div>
+          ))}
         </div>
-      </section>
+      </div>
     </div>
   );
 }
@@ -6611,27 +9159,24 @@ function FinanceReportPanel({
     },
   );
 
-  const exportRows = rows.map((row) => ({
-    Период: `${fromDay}..${toDay}`,
-    Магазин: row.storeName,
-    'План выручки': Math.round(row.planRevenue),
-    'Факт выручки': Math.round(row.revenue),
-    Наличные: Math.round(row.cashRevenue),
-    Эквайринг: Math.round(row.nonCashRevenue),
-    Переводы: Math.round(row.transferRevenue),
-    'Отклонение (факт-план)': Math.round(row.revenue - row.planRevenue),
-    'Затраты на товар': Math.round(row.goodsSpent),
-    'К выплате зарплаты': Math.round(row.salaries),
-    'Затраты на эквайринг': Math.round(row.acquiringFee),
-    'Прибыль без товара': Math.round(row.profitWithoutGoods),
-    'Прибыль с товаром': Math.round(row.profitWithGoods),
-  }));
+  const [exportBusy, setExportBusy] = useState(false);
 
-  const exportXlsx = () => {
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Отчет');
-    XLSX.writeFile(wb, `finance-report-${fromDay}_${toDay}.xlsx`);
+  const exportXlsx = async () => {
+    setExportBusy(true);
+    try {
+      const { downloadFinanceReportXlsx } = await import('./export/financeReportXlsx');
+      await downloadFinanceReportXlsx({
+        fromDay,
+        toDay,
+        rows,
+        totals,
+        role,
+      });
+    } catch {
+      setPlansError('Не удалось сформировать Excel-файл');
+    } finally {
+      setExportBusy(false);
+    }
   };
 
   const savePlans = async () => {
@@ -6668,8 +9213,12 @@ function FinanceReportPanel({
     setRangeTo(y);
   };
 
+  const desktopFinanceReport = isTauriRuntime();
+
   return (
-    <div className="opsCard financeReportCard">
+    <div
+      className={`opsCard financeReportCard${desktopFinanceReport ? ' financeReportCard--desktop' : ''}`}
+    >
       <h4 className="financeReportCardTitle">
         {role === 'DIRECTOR' ? 'Финансовый отчёт директора' : 'Полный отчёт по магазинам'}
       </h4>
@@ -6713,8 +9262,13 @@ function FinanceReportPanel({
         >
           {plansBusy ? 'Сохраняем план...' : 'Сохранить план выручки'}
         </button>
-        <button type="button" className="ghost financeReportExportBtn" onClick={exportXlsx}>
-          Экспорт XLSX
+        <button
+          type="button"
+          className="ghost financeReportExportBtn"
+          disabled={exportBusy || rows.length === 0}
+          onClick={() => void exportXlsx()}
+        >
+          {exportBusy ? 'Формируем…' : 'Экспорт XLSX'}
         </button>
       </div>
       {plansStatus && <p className="success">{plansStatus}</p>}
@@ -6765,7 +9319,7 @@ function FinanceReportPanel({
                 <td>{row.profitWithGoods.toLocaleString('ru-RU')} ₽</td>
               </tr>
             ))}
-            <tr>
+            <tr className="financeReportTableRowTotal">
               <td>
                 <strong>Итого</strong>
               </td>

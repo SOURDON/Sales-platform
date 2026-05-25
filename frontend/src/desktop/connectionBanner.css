@@ -1,0 +1,83 @@
+.desktopConnPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.desktopConnPillDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.desktopConnPill--ok {
+  color: #9ed4b8;
+  background: rgba(62, 207, 154, 0.18);
+  border-color: rgba(62, 207, 154, 0.35);
+}
+
+.desktopConnPill--ok .desktopConnPillDot {
+  background: #5ecf9a;
+  box-shadow: 0 0 8px rgba(94, 207, 154, 0.55);
+}
+
+.desktopConnPill--sync {
+  color: #d4ebe3;
+  background: rgba(26, 69, 56, 0.55);
+  border-color: rgba(94, 180, 150, 0.35);
+}
+
+.desktopConnPill--sync .desktopConnPillDot {
+  background: #7ec8a8;
+  animation: desktopConnPulse 1.2s ease-in-out infinite;
+}
+
+.desktopConnPill--offline {
+  color: #ffe8cc;
+  background: rgba(92, 61, 30, 0.5);
+  border-color: rgba(212, 165, 109, 0.35);
+}
+
+.desktopConnPill--offline .desktopConnPillDot {
+  background: #e8a85c;
+}
+
+@keyframes desktopConnPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+.desktopConnectionBanner {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 7px 24px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.desktopConnectionBanner--offline {
+  background: rgba(92, 61, 30, 0.55);
+  color: #fff4e6;
+}
+
+.desktopConnectionBanner--sync {
+  background: rgba(26, 69, 56, 0.6);
+  color: #e8f5f0;
+}

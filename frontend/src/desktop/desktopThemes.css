@@ -1,0 +1,529 @@
+/**
+ * Светлая тема — эстетика Hermès (hermes.com): кремовые поверхности,
+ * чёрная типографика, оранжевый акцент #F37021, Manrope + Cormorant Garamond.
+ * data-dt-theme="light" на <html>
+ */
+
+html[data-dt-theme='light']:has(.app--desktop),
+html[data-dt-theme='light'] body:has(.app--desktop) {
+  background: #fbf9f4;
+}
+
+html[data-dt-theme='light'] .app.app--desktop,
+html[data-dt-theme='light'] .app.app--desktop.appWorkspace {
+  /* ——— Hermès palette ——— */
+  --hermes-cream: #fbf9f4;
+  --hermes-white: #ffffff;
+  --hermes-black: #1a1a1a;
+  --hermes-charcoal: #333333;
+  --hermes-gray: #767676;
+  --hermes-gray-light: #999999;
+  --hermes-line: #e8e8e8;
+  --hermes-line-soft: #f0f0f0;
+  --hermes-orange: #f37021;
+  --hermes-orange-hover: #d85f18;
+  --hermes-orange-soft: rgba(243, 112, 33, 0.1);
+
+  --dt-font: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --dt-font-display: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --dt-font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --dt-bg: var(--hermes-cream);
+  --dt-bg-elevated: var(--hermes-white);
+  --dt-bg-sidebar: var(--hermes-white);
+  --dt-bg-panel: var(--hermes-white);
+  --dt-bg-panel-hover: #faf8f5;
+  --dt-bg-hover: rgba(26, 26, 26, 0.04);
+  --dt-bg-active: var(--hermes-orange-soft);
+  --dt-border: var(--hermes-line);
+  --dt-border-subtle: var(--hermes-line-soft);
+  --dt-border-hairline: #f3f3f3;
+  --dt-text: var(--hermes-black);
+  --dt-text-muted: var(--hermes-gray);
+  --dt-text-dim: var(--hermes-gray-light);
+  --dt-gold: var(--hermes-charcoal);
+  --dt-gold-soft: var(--hermes-gray);
+  --dt-accent: var(--hermes-orange);
+  --dt-accent-hover: var(--hermes-orange-hover);
+  --dt-accent-bright: var(--hermes-orange);
+  --dt-accent-text: #ffffff;
+  --dt-accent-edge: rgba(26, 26, 26, 0.12);
+  --dt-accent-gradient: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+  --dt-accent-gradient-hover: linear-gradient(180deg, #404040 0%, #2a2a2a 100%);
+  --dt-surface-shine: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --dt-surface-depth: 0 1px 2px rgba(26, 26, 26, 0.04), 0 8px 24px rgba(26, 26, 26, 0.06);
+  --dt-radius-sm: 2px;
+  --dt-radius-md: 4px;
+  --dt-radius-lg: 6px;
+  --dt-label-tracking: 0.08em;
+
+  font-family: var(--dt-font) !important;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  background: var(--hermes-cream) !important;
+  color: var(--dt-text);
+}
+
+html[data-dt-theme='light'] .app.app--desktop.appWorkspace {
+  --ui-glass: rgba(255, 255, 255, 0.92);
+  --ui-glass-deep: var(--hermes-white);
+  --ui-glass-raised: var(--hermes-white);
+  --ui-edge-soft: var(--hermes-line);
+  --ui-edge-gold: var(--hermes-line);
+  --ui-text: var(--hermes-black);
+  --ui-muted: var(--hermes-gray);
+  --ui-dim: var(--hermes-gray-light);
+  --ui-gold: var(--hermes-charcoal);
+  --ui-gold-soft: var(--hermes-gray);
+  --ui-field: var(--hermes-white);
+  --ui-chip: #faf8f5;
+  --ui-glow: 0 0 0 1px var(--hermes-line);
+  --ui-gold-bar-text: #ffffff;
+  --ui-gold-bar-edge: rgba(26, 26, 26, 0.14);
+  --ui-gold-bar-bg: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+  --ui-gold-bar-bg-press: linear-gradient(180deg, #404040 0%, #2a2a2a 100%);
+}
+
+/* ——— Типографика (как на hermes.com: sans + serif заголовки) ——— */
+html[data-dt-theme='light'] .app.app--desktop .desktopTitlebarTitle,
+html[data-dt-theme='light'] .app.app--desktop .dtSectionTitle,
+html[data-dt-theme='light'] .app.app--desktop .financeOpsZoneTitle,
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop .financeReportCardTitle,
+html[data-dt-theme='light'] .app.app--desktop .directorHomeSectionTitle,
+html[data-dt-theme='light'] .app.app--desktop .dashboard--shiftDesktop h4.shiftColTitle,
+html[data-dt-theme='light'] .app.app--desktop .homePanelTitle,
+html[data-dt-theme='light'] .app.app--desktop .storeEquipAccountantLead,
+html[data-dt-theme='light'] .app.app--desktop .storeEquipEditorTitle,
+html[data-dt-theme='light'] .app.app--desktop.loginScreen h1 {
+  font-family: var(--dt-font-display) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: none !important;
+  color: var(--hermes-black) !important;
+  text-shadow: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeOpsPageTitle,
+html[data-dt-theme='light'] .app.app--desktop .shiftMgmtTitle,
+html[data-dt-theme='light'] .app.app--desktop .staffMgmtGroupLabel,
+html[data-dt-theme='light'] .app.app--desktop .writeOffClusterLabel,
+html[data-dt-theme='light'] .app.app--desktop .storeEquipStoreSearchLabel {
+  font-family: var(--dt-font) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: var(--dt-label-tracking) !important;
+  text-transform: uppercase !important;
+  color: var(--hermes-gray) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebarTitle {
+  font-family: var(--dt-font-display) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.04em !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebarSubtitle,
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebarUserRole {
+  font-size: 11px !important;
+  letter-spacing: 0.04em !important;
+  color: var(--hermes-gray) !important;
+}
+
+/* ——— Shell ——— */
+html[data-dt-theme='light'] .app.app--desktop .cardWorkspace--desktop,
+html[data-dt-theme='light'] .app.app--desktop .desktopShellLayout,
+html[data-dt-theme='light'] .app.app--desktop .desktopMainPane {
+  background: transparent !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebar {
+  background: var(--hermes-white) !important;
+  box-shadow: inset -1px 0 0 var(--hermes-line) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebarLogo {
+  background: var(--hermes-orange) !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-family: var(--dt-font-display) !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebarLink {
+  font-weight: 500 !important;
+  letter-spacing: 0.02em !important;
+  color: var(--hermes-charcoal) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebarLink--active {
+  background: var(--hermes-cream) !important;
+  color: var(--hermes-black) !important;
+  box-shadow: inset 3px 0 0 var(--hermes-orange) !important;
+  -webkit-text-fill-color: var(--hermes-black) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebarLink--active .desktopSidebarLinkIndicator {
+  background: var(--hermes-orange) !important;
+  box-shadow: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebarLink--active .desktopSidebarNavIcon {
+  color: var(--hermes-black) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebarLink:hover:not(.desktopSidebarLink--active) {
+  background: var(--dt-bg-hover) !important;
+  color: var(--hermes-black) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopTitlebar {
+  background: var(--hermes-white) !important;
+  box-shadow: inset 0 -1px 0 var(--hermes-line) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopTitlebarTitle {
+  font-size: 15px !important;
+  font-weight: 500 !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopMainScroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopMainScroll::-webkit-scrollbar-thumb {
+  background: #d4d4d4 !important;
+  border-radius: 3px;
+}
+
+html[data-dt-theme='light'] .app.app--desktop * {
+  scrollbar-color: #d4d4d4 transparent;
+}
+
+/* ——— Карточки и панели ——— */
+html[data-dt-theme='light'] .app.app--desktop .dashboard > .sectionCard,
+html[data-dt-theme='light'] .app.app--desktop .sectionCard,
+html[data-dt-theme='light'] .app.app--desktop .homePanelSection {
+  background: var(--hermes-white) !important;
+  border: 1px solid var(--hermes-line) !important;
+  border-radius: var(--dt-radius-lg) !important;
+  box-shadow: var(--dt-surface-depth) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop.appWorkspace .homeStoreCard,
+html[data-dt-theme='light'] .app.app--desktop.appWorkspace .homeStoresAggregateCard,
+html[data-dt-theme='light'] .app.app--desktop.appWorkspace .adminSellerRegister,
+html[data-dt-theme='light'] .app.app--desktop.appWorkspace .soldProductsBlock,
+html[data-dt-theme='light'] .app.app--desktop.appWorkspace .teamMemberCard:not(.storeTeamMemberCard),
+html[data-dt-theme='light'] .app.app--desktop.appWorkspace .shiftPanelCard,
+html[data-dt-theme='light'] .app.app--desktop.appWorkspace .saleItem,
+html[data-dt-theme='light'] .app.app--desktop .appWorkspace .opsCard:not(.financeOpsCard):not(.staffPanelRoot):not(.financeReportCard--desktop),
+html[data-dt-theme='light'] .app.app--desktop.appWorkspace .directorApprovalsCarouselCard,
+html[data-dt-theme='light'] .app.app--desktop.appWorkspace .directorCashflowCarouselCard {
+  background: var(--hermes-white) !important;
+  border: 1px solid var(--hermes-line) !important;
+  border-radius: var(--dt-radius-md) !important;
+  box-shadow: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .dashboard--teamDesktop > .teamPanelCard {
+  background: var(--hermes-white) !important;
+  border: 1px solid var(--hermes-line) !important;
+  box-shadow: var(--dt-surface-depth) !important;
+}
+
+/* ——— Кнопки ——— */
+html[data-dt-theme='light'] .app.app--desktop button.primaryAction,
+html[data-dt-theme='light'] .app.app--desktop
+  button:not(.ghost):not(.addSaleQtyBtn):not(.paymentTypeBtn):not(.saleDeleteBtn):not(.saleDeleteRequestIconBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.messengerThreadRow):not(.messengerTgPill):not(.orgChatSendFab):not(.directorApprovalsCarouselDot):not(.directorCashflowCarouselDot):not(.desktopTitlebarBtn):not(.teamWarehouseStoreBtn):not(.statPercentToggleBtn):not(.teamMemberDeletePill):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.directorDemoAccountsListBtn):not(.desktopThemeToggleBtn):not(.directorDemoAccountsToggle):not(.directorDemoAccountsNavBtn):not(.directorDemoAccountsDot) {
+  font-family: var(--dt-font) !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: var(--dt-accent-text) !important;
+  -webkit-text-fill-color: var(--dt-accent-text) !important;
+  background: var(--dt-accent-gradient) !important;
+  border: 1px solid var(--hermes-black) !important;
+  border-radius: var(--dt-radius-sm) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop button.primaryAction:hover:not(:disabled),
+html[data-dt-theme='light'] .app.app--desktop
+  button:not(.ghost):not(.addSaleQtyBtn):not(.paymentTypeBtn):not(.saleDeleteBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.desktopTitlebarBtn):not(.teamWarehouseStoreBtn):not(.statPercentToggleBtn):not(.teamMemberDeletePill):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.directorDemoAccountsListBtn):not(.desktopThemeToggleBtn):not(.directorDemoAccountsToggle):not(.directorDemoAccountsNavBtn):not(.directorDemoAccountsDot):hover:not(:disabled) {
+  background: var(--dt-accent-gradient-hover) !important;
+  border-color: var(--hermes-charcoal) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop button.ghost,
+html[data-dt-theme='light'] .app.app--desktop a.ghost:not(.desktopSidebarLink) {
+  font-weight: 500 !important;
+  letter-spacing: 0.04em !important;
+  color: var(--hermes-black) !important;
+  -webkit-text-fill-color: var(--hermes-black) !important;
+  background: var(--hermes-white) !important;
+  border: 1px solid var(--hermes-black) !important;
+  border-radius: var(--dt-radius-sm) !important;
+  box-shadow: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop button.ghost:hover:not(:disabled),
+html[data-dt-theme='light'] .app.app--desktop a.ghost:not(.desktopSidebarLink):hover {
+  background: var(--hermes-cream) !important;
+  border-color: var(--hermes-charcoal) !important;
+  color: var(--hermes-black) !important;
+}
+
+/* ——— Поля ввода ——— */
+html[data-dt-theme='light'] .app.app--desktop input:not([type='checkbox']):not([type='radio']):not(.financeOpsIncomeEntryInput):not(.financeOpsExpenseEntryInput),
+html[data-dt-theme='light'] .app.app--desktop select,
+html[data-dt-theme='light'] .app.app--desktop textarea:not(.orgChatInput--tg) {
+  font-family: var(--dt-font) !important;
+  background: var(--hermes-white) !important;
+  color: var(--hermes-black) !important;
+  -webkit-text-fill-color: var(--hermes-black) !important;
+  border: 1px solid var(--hermes-line) !important;
+  border-radius: var(--dt-radius-sm) !important;
+  box-shadow: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop input::placeholder,
+html[data-dt-theme='light'] .app.app--desktop textarea::placeholder {
+  color: var(--hermes-gray-light) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop input:focus,
+html[data-dt-theme='light'] .app.app--desktop select:focus,
+html[data-dt-theme='light'] .app.app--desktop textarea:focus {
+  border-color: var(--hermes-charcoal) !important;
+  box-shadow: 0 0 0 1px var(--hermes-orange-soft), inset 0 0 0 1px var(--hermes-charcoal) !important;
+  outline: none !important;
+}
+
+/* ——— Статус, баннеры ——— */
+html[data-dt-theme='light'] .desktopConnPill--ok {
+  color: var(--hermes-charcoal) !important;
+  background: var(--hermes-cream) !important;
+  border-color: var(--hermes-line) !important;
+}
+
+html[data-dt-theme='light'] .desktopConnPill--ok .desktopConnPillDot {
+  background: var(--hermes-orange) !important;
+  box-shadow: none !important;
+}
+
+html[data-dt-theme='light'] .desktopConnPill--sync {
+  color: var(--hermes-gray) !important;
+  background: var(--hermes-white) !important;
+  border-color: var(--hermes-line) !important;
+}
+
+html[data-dt-theme='light'] .desktopConnPill--sync .desktopConnPillDot {
+  background: var(--hermes-gray) !important;
+}
+
+html[data-dt-theme='light'] .desktopConnectionBanner--sync {
+  background: var(--hermes-cream) !important;
+  color: var(--hermes-black) !important;
+  border-bottom-color: var(--hermes-line) !important;
+}
+
+html[data-dt-theme='light'] .desktopConnectionBanner--offline {
+  background: var(--hermes-charcoal) !important;
+  color: #ffffff !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebarUserCard {
+  background: var(--hermes-cream) !important;
+  border: 1px solid var(--hermes-line) !important;
+  border-radius: var(--dt-radius-md) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopSidebarUserAvatar {
+  color: var(--hermes-black) !important;
+  background: var(--hermes-white) !important;
+  border: 1px solid var(--hermes-line) !important;
+  font-family: var(--dt-font-display) !important;
+}
+
+/* ——— Таблицы и отчёты ——— */
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop .financeReportTable table tbody td,
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop .financeReportTable table tbody td strong {
+  color: var(--hermes-black) !important;
+  -webkit-text-fill-color: var(--hermes-black) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop .financeReportTable tbody tr.financeReportTableRowTotal td,
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop .financeReportTable tbody tr.financeReportTableRowTotal td strong {
+  font-family: var(--dt-font) !important;
+  font-weight: 600 !important;
+  color: var(--hermes-black) !important;
+  -webkit-text-fill-color: var(--hermes-black) !important;
+  background: var(--hermes-cream) !important;
+  border-top-color: var(--hermes-line) !important;
+  box-shadow: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop .financeReportStoreLine,
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop .desktopDirectorSwitcherStoreLine {
+  color: var(--hermes-gray) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .tableWrap {
+  background: var(--hermes-white) !important;
+  border: 1px solid var(--hermes-line) !important;
+  border-radius: var(--dt-radius-md) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop table th {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: var(--dt-label-tracking) !important;
+  text-transform: uppercase !important;
+  background: var(--hermes-cream) !important;
+  color: var(--hermes-gray) !important;
+  border-color: var(--hermes-line) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop table tbody tr:hover td {
+  background: #faf8f5 !important;
+}
+
+/* ——— Оперативка / продажи ——— */
+html[data-dt-theme='light'] .app.app--desktop .financeOpsShell--desktop,
+html[data-dt-theme='light'] .app.app--desktop .financeOpsCard--desktop {
+  background: var(--hermes-white) !important;
+  border: none !important;
+  box-shadow: inset 0 -1px 0 var(--hermes-line) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeOpsBankTotalCallout strong,
+html[data-dt-theme='light'] .app.app--desktop .financeOpsBalanceCard strong,
+html[data-dt-theme='light'] .app.app--desktop .metricCard strong,
+html[data-dt-theme='light'] .app.app--desktop .homeStoreCard dd,
+html[data-dt-theme='light'] .app.app--desktop .homeStoresMiniValue {
+  font-family: var(--dt-font-display) !important;
+  font-weight: 500 !important;
+  color: var(--hermes-black) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeOpsExpenseEntryCallout,
+html[data-dt-theme='light'] .app.app--desktop .financeOpsIncomeEntryCallout,
+html[data-dt-theme='light'] .app.app--desktop .financeOpsBankTotalCallout {
+  background: var(--hermes-cream) !important;
+  border: 1px solid var(--hermes-line) !important;
+  border-radius: var(--dt-radius-md) !important;
+  box-shadow: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeOpsFlowAccountChip--active,
+html[data-dt-theme='light'] .app.app--desktop .teamWarehouseStoreBtn--active {
+  color: var(--hermes-black) !important;
+  -webkit-text-fill-color: var(--hermes-black) !important;
+  background: var(--hermes-cream) !important;
+  border-color: var(--hermes-line) !important;
+  box-shadow: inset 3px 0 0 var(--hermes-orange) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeOpsIncomeEntryInput,
+html[data-dt-theme='light'] .app.app--desktop .financeOpsIncomeEntryCallout .financeOpsIncomeEntryInput,
+html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop .financeReportPlanInput:focus {
+  font-family: var(--dt-font-display) !important;
+  color: var(--hermes-black) !important;
+  -webkit-text-fill-color: var(--hermes-black) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .financeOpsIncomeEntryInput:focus {
+  box-shadow: inset 0 -2px 0 var(--hermes-orange) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .paymentTypeBtnActive,
+html[data-dt-theme='light'] .app.app--desktop .financeOpsAccountPickBtn.paymentTypeBtnActive,
+html[data-dt-theme='light'] .app.app--desktop .paymentTypeBtn--desktop.paymentTypeBtnActive {
+  background: var(--hermes-cream) !important;
+  color: var(--hermes-black) !important;
+  -webkit-text-fill-color: var(--hermes-black) !important;
+  border-color: var(--hermes-black) !important;
+  box-shadow: inset 0 -2px 0 var(--hermes-orange) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .addSaleProductCard--hasQty {
+  box-shadow: inset 0 0 0 1px var(--hermes-charcoal) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .addSaleSaveBtn {
+  background: var(--dt-accent-gradient) !important;
+  border: 1px solid var(--hermes-black) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  box-shadow: none !important;
+}
+
+/* ——— Аккордеоны ——— */
+html[data-dt-theme='light'] .appWorkspace .staffManagementAccordionTrigger,
+html[data-dt-theme='light'] .appWorkspace .staffCardsBlockAccordionTrigger,
+html[data-dt-theme='light'] .appWorkspace .procurementAccordionTrigger {
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  border: 1px solid var(--hermes-line) !important;
+  background: var(--hermes-white) !important;
+  color: var(--hermes-black) !important;
+  -webkit-text-fill-color: var(--hermes-black) !important;
+}
+
+html[data-dt-theme='light'] .appWorkspace .staffManagementAccordion:not(.staffManagementAccordion--collapsed) .staffManagementAccordionTrigger,
+html[data-dt-theme='light'] .appWorkspace .staffCardsBlockAccordion:not(.staffCardsBlockAccordion--collapsed) .staffCardsBlockAccordionTrigger {
+  background: var(--hermes-cream) !important;
+  box-shadow: inset 0 -2px 0 var(--hermes-orange) !important;
+}
+
+/* ——— Логин ——— */
+html[data-dt-theme='light'] .app.app--desktop.loginScreen {
+  background: var(--hermes-cream) !important;
+  color: var(--hermes-black);
+}
+
+html[data-dt-theme='light'] .app.app--desktop.loginScreen .loginScreenPanel {
+  background: var(--hermes-white) !important;
+  border: 1px solid var(--hermes-line) !important;
+  border-radius: var(--dt-radius-lg) !important;
+  box-shadow: var(--dt-surface-depth) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop.loginScreen .subtitle {
+  font-family: var(--dt-font) !important;
+  color: var(--hermes-gray) !important;
+}
+
+/* ——— Прочее ——— */
+html[data-dt-theme='light'] .app.app--desktop .error {
+  background: #fff8f5 !important;
+  color: var(--hermes-black) !important;
+  border: 1px solid rgba(243, 112, 33, 0.35) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .notice,
+html[data-dt-theme='light'] .app.app--desktop .success {
+  color: var(--hermes-gray) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopDirectorSwitcherGear--active {
+  color: var(--hermes-orange) !important;
+  background: var(--hermes-orange-soft) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .desktopDirectorSwitcher--open .desktopDirectorSwitcherTrigger .desktopSidebarUserRole,
+html[data-dt-theme='light'] .app.app--desktop .desktopDirectorSwitcher--impersonating .desktopDirectorSwitcherTrigger .desktopSidebarUserRole {
+  color: var(--hermes-gray) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .teamWarehouseStoreBtn--active .teamWarehouseStoreBtnCount {
+  color: var(--hermes-orange) !important;
+}

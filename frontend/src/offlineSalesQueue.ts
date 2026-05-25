@@ -1,4 +1,7 @@
-/** Офлайн-очередь продаж (localStorage): при появлении сети отправляется тем же saleId (идемпотентность на сервере). */
+/**
+ * Офлайн-очередь продаж для веб-браузера (localStorage).
+ * В Tauri используется `frontend/src/sync/` (IndexedDB + outbox).
+ */
 
 export type OfflineQueuedSale = {
   saleId: string;

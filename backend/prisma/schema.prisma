@@ -265,6 +265,14 @@ model AuditLogItem {
   details   String
 }
 
+/// Дополнительный вид спецтехники (добавляет бухгалтер).
+model StoreEquipmentCustomType {
+  id        String   @id @default(cuid())
+  label     String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 /// Учёт спецтехники на торговой точке (редактирует бухгалтер; админ — только просмотр).
 model StoreEquipment {
   storeName  String   @id
@@ -276,6 +284,8 @@ model StoreEquipment {
   mouse      Int      @default(0)
   keyboard   Int      @default(0)
   cardReader Int      @default(0)
+  /// Количества по id из StoreEquipmentCustomType
+  extra      Json     @default("{}")
   updatedAt  DateTime @updatedAt
 }
 
