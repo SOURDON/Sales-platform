@@ -7714,6 +7714,105 @@ h1 {
   margin: 0;
 }
 
+/* ——— Сотрудники: зарплата управляющего ——— */
+.teamManagerCommissionCard {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(160deg, rgba(99, 102, 241, 0.14) 0%, rgba(0, 0, 0, 0.22) 70%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.teamManagerCommissionHead {
+  margin-bottom: 12px;
+}
+
+.teamManagerCommissionTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.teamManagerCommissionHint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.5));
+}
+
+.teamManagerCommissionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.teamManagerCommissionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.teamManagerCommissionStore {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.teamManagerCommissionInputWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.teamManagerCommissionInput {
+  width: 52px;
+  min-height: 30px;
+  padding: 4px 8px;
+  text-align: right;
+  font-size: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  color: inherit;
+}
+
+.teamManagerCommissionSuffix {
+  font-size: 11px;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.55));
+}
+
+.teamManagerCommissionSave {
+  width: 100%;
+  max-width: 320px;
+}
+
+.teamWarehouseShell--desktop .teamManagerCommissionCard {
+  margin-bottom: 14px;
+}
+
+.teamWarehouseShell--desktop:has(.teamManagerCommissionCard) .teamWarehouseWorkspace {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.staffPanelStoresOverview:has(.teamManagerCommissionCard) .teamStoresBoard {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .directorWarehouseHeaderActions {
   display: flex;
   align-items: center;

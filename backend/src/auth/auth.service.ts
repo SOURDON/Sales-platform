@@ -304,8 +304,6 @@ interface FinanceIncome {
   accountName: string;
 }
 
-const MANAGER_EXCLUDED_SALARY_STORES = new Set(['Сады морей тех зона', 'Метрополь']);
-
 @Injectable()
 export class AuthService implements OnModuleInit {
   public productCatalog: Array<{ name: string; price: number }> = [];
@@ -329,6 +327,8 @@ export class AuthService implements OnModuleInit {
   private productStockByLocation: Record<string, Record<string, number>> = {};
   private productProcurementCosts: Record<string, number> = {};
   private storeRevenuePlans: Record<string, Record<string, number>> = {};
+  /** Процент управляющего от дневной выручки точки (0 = не участвует). */
+  private managerStoreCommissions: Record<string, number> = {};
   private auditLog: AuditLogItem[] = [];
   private adminWriteOffs: WriteOffItem[] = [];
   private financeAccounts: FinanceAccount[] = [];
@@ -1157,15 +1157,52 @@ export class AuthService implements OnModuleInit {
     return revenue;
   }
 
+  private managerPercentForStore(storeName: string): number {
+    const raw = this.managerStoreCommissions[storeName];
+    if (raw === undefined || raw === null || !Number.isFinite(raw)) {
+      return 5;
+    }
+    return Math.max(0, Math.min(100, Math.round(raw * 1000) / 1000));
+  }
+
   private managerSalaryForDay(dayKey: string): number {
     let total = 0;
     for (const store of DEMO_STORE_NAMES) {
-      if (MANAGER_EXCLUDED_SALARY_STORES.has(store)) {
+      const pct = this.managerPercentForStore(store);
+      if (pct <= 0) {
         continue;
       }
-      total += this.getStoreRevenueForDay(store, dayKey);
+      const revenue = this.getStoreRevenueForDay(store, dayKey);
+      total += Math.round((revenue * pct) / 100);
     }
-    return Math.round((total * 5) / 100);
+    return total;
+  }
+
+  getManagerStoreCommissions() {
+    return DEMO_STORE_NAMES.map((storeName) => ({
+      storeName,
+      percent: this.managerPercentForStore(storeName),
+    }));
+  }
+
+  setManagerStoreCommissions(
+    items: Array<{ storeName: string; percent: number }>,
+    actor: string,
+  ) {
+    for (const item of items) {
+      const storeName = item.storeName?.trim();
+      if (!storeName || !(DEMO_STORE_NAMES as readonly string[]).includes(storeName)) {
+        continue;
+      }
+      const pct = Number(item.percent);
+      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+        continue;
+      }
+      this.managerStoreCommissions[storeName] = Math.round(pct * 1000) / 1000;
+    }
+    this.pushAudit(actor, 'MANAGER_STORE_COMMISSIONS_UPDATED', 'rates');
+    this.queuePersist();
+    return this.getManagerStoreCommissions();
   }
 
   getDashboardOverview(nickname: string) {
@@ -1242,14 +1279,15 @@ export class AuthService implements OnModuleInit {
       const planDayPlans = this.storeRevenuePlans[today] ?? {};
       const storeRows = DEMO_STORE_NAMES.map((name) => {
         const revenue = this.getStoreRevenueForDay(name, today);
-        const excluded = MANAGER_EXCLUDED_SALARY_STORES.has(name);
-        const salary = excluded ? 0 : Math.round((revenue * 5) / 100);
+        const pct = this.managerPercentForStore(name);
+        const salary = pct <= 0 ? 0 : Math.round((revenue * pct) / 100);
         return {
           name,
           revenue: this.formatCurrency(Math.round(revenue)),
-          salaries: excluded
-            ? `${this.formatCurrency(0)} (исключена)`
-            : this.formatCurrency(salary),
+          salaries:
+            pct <= 0
+              ? `${this.formatCurrency(0)} (0%)`
+              : `${this.formatCurrency(salary)} (${pct}%)`,
         };
       });
       const managerRevenuePlanCompliance = {
@@ -1271,7 +1309,10 @@ export class AuthService implements OnModuleInit {
         title: 'Сводка управляющего',
         metrics: [
           { label: 'Зарплата управляющего (сегодня)', value: this.formatCurrency(salaryToday) },
-          { label: 'Ставка', value: '5% от продаж точек' },
+          {
+            label: 'Ставка',
+            value: 'Процент с каждой точки (настраивает директор)',
+          },
         ],
         stores: storeRows,
         managerRevenuePlanCompliance,
@@ -3266,6 +3307,12 @@ export class AuthService implements OnModuleInit {
     );
     this.syncProcurementKeysWithCatalog();
     this.storeRevenuePlans = {};
+    this.managerStoreCommissions = Object.fromEntries(
+      DEMO_STORE_NAMES.map((storeName) => [
+        storeName,
+        storeName === 'Сады морей Тех. зона' || storeName === 'Метрополь' ? 0 : 5,
+      ]),
+    );
     this.demoUsers = buildDefaultDemoUserRows();
     this.sellerProfiles = buildDefaultSellerProfileRows().map((row) => ({
       id: row.id,
@@ -3376,6 +3423,7 @@ export class AuthService implements OnModuleInit {
       directorApprovals,
       storeEquipmentRows,
       storeEquipmentCustomTypeRows,
+      managerCommissionRows,
     ] = await this.prisma.$transaction([
       this.prisma.user.findMany(),
       this.prisma.sellerProfile.findMany(),
@@ -3402,6 +3450,7 @@ export class AuthService implements OnModuleInit {
       this.prisma.directorApprovalRequest.findMany({ orderBy: { createdAt: 'desc' } }),
       this.prisma.storeEquipment.findMany(),
       this.prisma.storeEquipmentCustomType.findMany({ orderBy: { sortOrder: 'asc' } }),
+      this.prisma.managerStoreCommission.findMany(),
     ]);
 
     const salesBySellerId = new Map<number, SaleRecord[]>();
@@ -3525,6 +3574,15 @@ export class AuthService implements OnModuleInit {
       const dayPlans = this.storeRevenuePlans[item.dayKey] ?? {};
       dayPlans[item.storeName] = item.planRevenue;
       this.storeRevenuePlans[item.dayKey] = dayPlans;
+    }
+    this.managerStoreCommissions = {};
+    for (const row of managerCommissionRows) {
+      this.managerStoreCommissions[row.storeName] = row.percent;
+    }
+    for (const storeName of DEMO_STORE_NAMES) {
+      if (this.managerStoreCommissions[storeName] === undefined) {
+        this.managerStoreCommissions[storeName] = 5;
+      }
     }
     this.commissionChangeRequests = requests.map((item) => ({
       id: item.id,
@@ -3906,6 +3964,14 @@ export class AuthService implements OnModuleInit {
       if (planRows.length > 0) {
         await tx.storeRevenuePlan.createMany({ data: planRows });
       }
+
+      await tx.managerStoreCommission.deleteMany();
+      await tx.managerStoreCommission.createMany({
+        data: DEMO_STORE_NAMES.map((storeName) => ({
+          storeName,
+          percent: this.managerPercentForStore(storeName),
+        })),
+      });
 
       await tx.storeEquipmentCustomType.deleteMany();
       if (this.storeEquipmentCustomTypes.length > 0) {

@@ -327,6 +327,8 @@ type CommissionRequest = {
 
 type ProductItem = { name: string; price: number };
 
+type ManagerStoreCommissionRow = { storeName: string; percent: number };
+
 type StoreInventoryDetailResponse = {
   storeName: string;
   warehouseKey: string;
@@ -954,6 +956,9 @@ function App() {
     totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
   });
   const [inventoryOverview, setInventoryOverview] = useState<InventoryOverviewResponse | null>(null);
+  const [managerStoreCommissions, setManagerStoreCommissions] = useState<ManagerStoreCommissionRow[]>(
+    [],
+  );
   const [storeInventory, setStoreInventory] = useState<StoreInventoryDetailResponse | null>(null);
   const [messengerInbox, setMessengerInbox] = useState<MessengerInboxResponse | null>(null);
   const [messengerUnreadTotal, setMessengerUnreadTotal] = useState(0);
@@ -1464,6 +1469,38 @@ function App() {
     if (costsResponse.ok) {
       setProductProcurementCosts((await costsResponse.json()) as ProductProcurementCost[]);
     }
+  };
+
+  const loadManagerStoreCommissions = useCallback(async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/manager-store-commissions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error('Не удалось загрузить проценты управляющего');
+    }
+    const data = (await response.json()) as { items: ManagerStoreCommissionRow[] };
+    setManagerStoreCommissions(Array.isArray(data.items) ? data.items : []);
+  }, []);
+
+  const saveManagerStoreCommissions = async (
+    token: string,
+    items: ManagerStoreCommissionRow[],
+  ) => {
+    const response = await fetch(`${API_BASE_URL}/admin/manager-store-commissions`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ items }),
+    });
+    if (!response.ok) {
+      const errBody = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+      const msg = Array.isArray(errBody?.message) ? errBody.message[0] : errBody?.message;
+      throw new Error(typeof msg === 'string' ? msg : 'Не удалось сохранить проценты');
+    }
+    const data = (await response.json()) as { items: ManagerStoreCommissionRow[] };
+    setManagerStoreCommissions(Array.isArray(data.items) ? data.items : []);
   };
 
   const replenishWarehouse = async (
@@ -2819,6 +2856,7 @@ function App() {
             ...(session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT'
               ? [loadInventoryOverview(session.token)]
               : []),
+            ...(session.user.role === 'DIRECTOR' ? [loadManagerStoreCommissions(session.token)] : []),
             ...(session.user.role === 'ADMIN' ? [loadStoreInventory(session.token)] : []),
           ]);
         }
@@ -2826,7 +2864,14 @@ function App() {
         setAdminError('Сессия восстановлена, но часть данных загрузится с задержкой.');
       }
     })();
-  }, [loadInventoryOverview, loadProductProcurementCosts, loadStoreInventory, restoredSession, session]);
+  }, [
+    loadInventoryOverview,
+    loadManagerStoreCommissions,
+    loadProductProcurementCosts,
+    loadStoreInventory,
+    restoredSession,
+    session,
+  ]);
 
   useEffect(() => {
     if (!session?.token) {
@@ -2840,6 +2885,12 @@ function App() {
       void loadInventoryOverview(session.token);
     }
   }, [loadInventoryOverview, location.pathname, session]);
+
+  useEffect(() => {
+    if (session?.user?.role === 'DIRECTOR' && session.token && location.pathname === '/team') {
+      void loadManagerStoreCommissions(session.token);
+    }
+  }, [loadManagerStoreCommissions, location.pathname, session]);
 
   useEffect(() => {
     if (!isDesktopShell || !session?.token) {
@@ -2856,6 +2907,7 @@ function App() {
           loadSales(token),
           loadProductProcurementCosts(token),
           loadInventoryOverview(token),
+          loadManagerStoreCommissions(token),
           loadAcquiringPercent(token),
           loadProducts(token),
         );
@@ -2914,8 +2966,9 @@ function App() {
         { to: '/accounting/procurement', label: 'Закупки и склад', icon: <ProcurementIcon /> },
       );
     }
+    const teamNavLabel = r === 'ADMIN' ? 'Склад' : 'Сотрудники';
     base.push(
-      { to: '/team', label: 'Склад', icon: <WarehouseIcon /> },
+      { to: '/team', label: teamNavLabel, icon: <WarehouseIcon /> },
       {
         to: '/control',
         label: controlL,
@@ -3599,6 +3652,8 @@ function App() {
                           sales={salesMerged}
                           shifts={shifts}
                           role={role}
+                          managerStoreCommissions={managerStoreCommissions}
+                          onSaveManagerStoreCommissions={saveManagerStoreCommissions}
                           onDirectorSetPercent={setDirectorPercent}
                           onRemoveFromStore={removeStaffFromStore}
                           onRestoreStaffToStore={restoreStaffToStore}
@@ -3806,7 +3861,7 @@ function App() {
                     </>
                   ) : null}
                   <NavLink to="/team" className={navTabClass}>
-                    Склад
+                    {role === 'ADMIN' ? 'Склад' : 'Сотрудники'}
                   </NavLink>
                   <NavLink to="/control" className={navTabClass}>
                     {controlLabel}
@@ -6807,6 +6862,89 @@ function TeamMemberCard({
   );
 }
 
+function ManagerStoreCommissionPanel({
+  token,
+  items,
+  onSave,
+}: {
+  token: string;
+  items: ManagerStoreCommissionRow[];
+  onSave: (token: string, items: ManagerStoreCommissionRow[]) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+
+  const rows = items.length > 0 ? items : [];
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    setStatus('');
+    try {
+      const payload = rows.map((row) => {
+        const raw = draft[row.storeName] ?? String(row.percent);
+        const percent = Math.max(0, Math.min(100, Number(String(raw).replace(',', '.')) || 0));
+        return { storeName: row.storeName, percent };
+      });
+      await onSave(token, payload);
+      setDraft({});
+      setStatus('Проценты управляющего сохранены');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось сохранить');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="teamManagerCommissionCard">
+      <header className="teamManagerCommissionHead">
+        <h4 className="teamManagerCommissionTitle">Зарплата управляющего</h4>
+        <p className="teamManagerCommissionHint">
+          Процент от дневной выручки каждой точки. Укажите <strong>0</strong>, если точка не участвует в
+          расчёте.
+        </p>
+      </header>
+      {error ? (
+        <p className="invInlineError" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {status ? <p className="invInlineOk">{status}</p> : null}
+      <div className="teamManagerCommissionGrid">
+        {rows.map((row) => (
+          <label key={row.storeName} className="teamManagerCommissionRow">
+            <span className="teamManagerCommissionStore">{row.storeName}</span>
+            <span className="teamManagerCommissionInputWrap">
+              <input
+                type="text"
+                inputMode="decimal"
+                className="teamManagerCommissionInput"
+                value={draft[row.storeName] ?? String(row.percent)}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, [row.storeName]: event.target.value }))
+                }
+                aria-label={`Процент управляющего: ${row.storeName}`}
+              />
+              <span className="teamManagerCommissionSuffix">%</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="primaryAction teamManagerCommissionSave"
+        disabled={saving || rows.length === 0}
+        onClick={() => void handleSave()}
+      >
+        {saving ? 'Сохраняем…' : 'Сохранить проценты'}
+      </button>
+    </section>
+  );
+}
+
 function TeamStoresOverview({
   token,
   staff,
@@ -6814,6 +6952,8 @@ function TeamStoresOverview({
   sales,
   shifts,
   role,
+  managerStoreCommissions = [],
+  onSaveManagerStoreCommissions,
   onDirectorSetPercent,
   onRemoveFromStore,
   onRestoreStaffToStore,
@@ -6828,6 +6968,11 @@ function TeamStoresOverview({
   sales: AdminSale[];
   shifts: ShiftInfo[];
   role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+  managerStoreCommissions?: ManagerStoreCommissionRow[];
+  onSaveManagerStoreCommissions?: (
+    token: string,
+    items: ManagerStoreCommissionRow[],
+  ) => Promise<void>;
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
   onRemoveFromStore: (token: string, id: number, storeName?: string) => Promise<void>;
   onRestoreStaffToStore: (token: string, staffId: number, storeName: string) => Promise<void>;
@@ -6870,6 +7015,14 @@ function TeamStoresOverview({
   const [storeAccordionOpen, setStoreAccordionOpen] = useState<Record<string, boolean>>({});
   const desktopWarehouse = isTauriRuntime();
   const [selectedStoreName, setSelectedStoreName] = useState('');
+  const managerCommissionBlock =
+    role === 'DIRECTOR' && onSaveManagerStoreCommissions ? (
+      <ManagerStoreCommissionPanel
+        token={token}
+        items={managerStoreCommissions}
+        onSave={onSaveManagerStoreCommissions}
+      />
+    ) : null;
 
   /** По умолчанию секции свёрнуты; открыто только при явном `true`. */
   const isStoreAccordionOpen = (name: string) => storeAccordionOpen[name] === true;
@@ -7355,9 +7508,10 @@ function TeamStoresOverview({
     return (
       <div className="teamWarehouseShell teamWarehouseShell--desktop staffPanelRoot staffPanelStoresOverview">
         <header className="teamWarehouseHead">
-          <h4 className="teamWarehouseTitle">Команда по магазинам</h4>
+          <h4 className="teamWarehouseTitle">Сотрудники по точкам</h4>
           {reportDateBar}
         </header>
+        {managerCommissionBlock}
         <div className="teamWarehouseWorkspace">
           <aside className="teamWarehouseStoresRail" role="tablist" aria-label="Точки продаж">
             {storesSorted.map((storeName) => {
@@ -7422,8 +7576,9 @@ function TeamStoresOverview({
 
   return (
     <div className="staffPanelRoot staffPanelStoresOverview">
-      <h4 className="staffPanelTitle">Команда по магазинам</h4>
+      <h4 className="staffPanelTitle">Сотрудники по точкам</h4>
       {reportDateBar}
+      {managerCommissionBlock}
       <div className="teamStoresBoard">
         {storesSorted.map((storeName) => {
           const members = membersForStore(storeName);

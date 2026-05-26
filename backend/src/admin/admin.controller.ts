@@ -198,6 +198,30 @@ export class AdminController {
     };
   }
 
+  @Get('manager-store-commissions')
+  getManagerStoreCommissions(@Headers('authorization') authorization?: string) {
+    this.requireDirectorAccess(authorization);
+    return { items: this.authService.getManagerStoreCommissions() };
+  }
+
+  @Put('manager-store-commissions')
+  putManagerStoreCommissions(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { items?: Array<{ storeName?: string; percent?: number }> },
+  ) {
+    const session = this.requireDirectorAccess(authorization);
+    const items = Array.isArray(body.items) ? body.items : [];
+    return {
+      items: this.authService.setManagerStoreCommissions(
+        items.map((row) => ({
+          storeName: String(row.storeName ?? ''),
+          percent: Number(row.percent),
+        })),
+        session.nickname,
+      ),
+    };
+  }
+
   @Get('inventory/overview')
   getInventoryOverview(@Headers('authorization') authorization?: string) {
     this.requireDirectorOrAccountantAccess(authorization);
@@ -1140,6 +1164,18 @@ export class AdminController {
         session.role !== 'ACCOUNTANT')
     ) {
       throw new UnauthorizedException('Only admin, director, or accountant allowed');
+    }
+    return session;
+  }
+
+  private requireDirectorAccess(authorization?: string) {
+    const token = authorization?.replace('Bearer ', '').trim();
+    if (!token) {
+      throw new UnauthorizedException('Missing token');
+    }
+    const session = this.authService.parseToken(token);
+    if (!session || session.role !== 'DIRECTOR') {
+      throw new UnauthorizedException('Only director allowed');
     }
     return session;
   }

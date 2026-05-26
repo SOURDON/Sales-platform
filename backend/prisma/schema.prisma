@@ -226,6 +226,12 @@ model ProductProcurementCost {
   cost Float
 }
 
+/// Процент управляющего от выручки точки за день (0 = точка не участвует в зарплате).
+model ManagerStoreCommission {
+  storeName String @id
+  percent   Float  @default(5)
+}
+
 model StoreRevenuePlan {
   dayKey     String
   storeName  String

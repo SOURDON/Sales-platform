@@ -201,6 +201,20 @@ async function ensureDemoWriteOffsIfEmpty(prisma: PrismaClient) {
   });
 }
 
+async function ensureManagerStoreCommissions(prisma: PrismaClient) {
+  const defaultPercent: Record<string, number> = {
+    'Сады морей Тех. зона': 0,
+    'Метрополь': 0,
+  };
+  for (const storeName of DEMO_STORE_NAMES) {
+    await prisma.managerStoreCommission.upsert({
+      where: { storeName },
+      create: { storeName, percent: defaultPercent[storeName] ?? 5 },
+      update: {},
+    });
+  }
+}
+
 async function ensureAppState(prisma: PrismaClient) {
   await prisma.appState.upsert({
     where: { id: 1 },
@@ -312,6 +326,7 @@ export async function ensureDemoData(prisma: PrismaClient) {
   await ensureProductCatalog(prisma);
   await ensureProductStockLocations(prisma);
   await ensureProductProcurementCosts(prisma);
+  await ensureManagerStoreCommissions(prisma);
   await ensureDemoWriteOffsIfEmpty(prisma);
   await ensureAppState(prisma);
 }
