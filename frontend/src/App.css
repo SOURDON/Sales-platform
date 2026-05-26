@@ -7885,103 +7885,128 @@ h1 {
   margin: 0;
 }
 
-/* ——— Сотрудники: зарплата управляющего ——— */
-.teamManagerCommissionCard {
-  margin: 0 0 16px;
-  padding: 14px 16px;
-  border-radius: 14px;
+/* ——— Сотрудники: зарплата управляющего (компактный блок внизу) ——— */
+.teamManagerCommissionCard--compact {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(160deg, rgba(99, 102, 241, 0.14) 0%, rgba(0, 0, 0, 0.22) 70%);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.teamManagerCommissionTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .teamManagerCommissionHead {
-  margin-bottom: 12px;
+  min-width: 0;
 }
 
 .teamManagerCommissionTitle {
   margin: 0;
-  font-size: 14px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .teamManagerCommissionHint {
-  margin: 6px 0 0;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--inv-muted, rgba(255, 255, 255, 0.5));
+  margin: 2px 0 0;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.45));
 }
 
-.teamManagerCommissionGrid {
+.teamManagerCommissionRefresh {
+  flex-shrink: 0;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+}
+
+.teamManagerCommissionMsg {
+  margin: 0 0 6px;
+  font-size: 11px;
+}
+
+.teamManagerCommissionWarn {
+  color: #e8b84a;
+  line-height: 1.35;
+}
+
+.teamManagerCommissionGrid--compact {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px 12px;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  margin-bottom: 8px;
+}
+
+@media (min-width: 900px) {
+  .teamManagerCommissionGrid--compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .teamManagerCommissionRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.18);
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .teamManagerCommissionStore {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 11px;
-  line-height: 1.3;
-  color: rgba(255, 255, 255, 0.82);
+  font-size: 10px;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .teamManagerCommissionInputWrap {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex-shrink: 0;
 }
 
 .teamManagerCommissionInput {
-  width: 52px;
-  min-height: 30px;
-  padding: 4px 8px;
+  width: 40px;
+  min-height: 26px;
+  padding: 2px 6px;
   text-align: right;
-  font-size: 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 11px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.28);
   color: inherit;
 }
 
 .teamManagerCommissionSuffix {
-  font-size: 11px;
-  color: var(--inv-muted, rgba(255, 255, 255, 0.55));
+  font-size: 10px;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.5));
 }
 
 .teamManagerCommissionSave {
-  width: 100%;
-  max-width: 320px;
+  width: auto;
+  min-width: 120px;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 12px;
 }
 
-.teamWarehouseShell--desktop .teamManagerCommissionCard {
-  margin-bottom: 14px;
-}
-
-.teamWarehouseShell--desktop:has(.teamManagerCommissionCard) .teamWarehouseWorkspace {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.staffPanelStoresOverview:has(.teamManagerCommissionCard) .teamStoresBoard {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+.teamWarehouseShell--desktop .teamManagerCommissionCard--compact {
+  margin-top: 12px;
+  flex-shrink: 0;
 }
 
 .directorWarehouseHeaderActions {

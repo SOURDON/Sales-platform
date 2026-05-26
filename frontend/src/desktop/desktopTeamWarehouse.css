@@ -507,6 +507,26 @@
   width: 100%;
 }
 
+/* ——— Зарплата управляющего (внизу страницы) ——— */
+.app.app--desktop .teamManagerCommissionCard--compact {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .teamManagerCommissionGrid--compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+}
+
+@media (min-width: 1100px) {
+  .app.app--desktop .teamManagerCommissionGrid--compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 /* ——— Удалённые сотрудники ——— */
 .app.app--desktop .teamWarehouseRemoved {
   flex: 0 0 auto;

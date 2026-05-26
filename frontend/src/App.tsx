@@ -20,6 +20,7 @@ import {
   normalizeInventoryOverview,
   WAREHOUSE_CENTER_KEY,
   WAREHOUSE_SADY_KEY,
+  DEFAULT_MANAGER_STORE_COMMISSIONS,
   type InventoryOverviewResponse,
 } from './inventory/normalizeInventoryOverview';
 
@@ -602,6 +603,18 @@ const API_CONFIG_ERROR =
     ? 'Сборка без адреса API: в Vercel добавьте переменную VITE_API_URL = https://… (URL backend на Render) и сделайте Redeploy.'
     : '';
 
+const MANAGER_COMMISSIONS_DEPLOY_HINT =
+  'На сервере (Render) ещё нет API для процентов управляющего. Сделайте Manual Deploy ветки main, подождите 2–3 минуты и нажмите ↻.';
+
+async function readApiErrorMessage(response: Response, fallback: string): Promise<string> {
+  const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+  const raw = Array.isArray(body?.message) ? body.message[0] : body?.message;
+  if (response.status === 404) {
+    return MANAGER_COMMISSIONS_DEPLOY_HINT;
+  }
+  return typeof raw === 'string' && raw.trim() ? raw : fallback;
+}
+
 function describeLoginFetchError(error: unknown): string {
   if (error instanceof Error) {
     if (error.name === 'AbortError') {
@@ -959,6 +972,7 @@ function App() {
   const [managerStoreCommissions, setManagerStoreCommissions] = useState<ManagerStoreCommissionRow[]>(
     [],
   );
+  const [managerCommissionsApiOnline, setManagerCommissionsApiOnline] = useState(true);
   const [storeInventory, setStoreInventory] = useState<StoreInventoryDetailResponse | null>(null);
   const [messengerInbox, setMessengerInbox] = useState<MessengerInboxResponse | null>(null);
   const [messengerUnreadTotal, setMessengerUnreadTotal] = useState(0);
@@ -1475,9 +1489,16 @@ function App() {
     const response = await fetch(`${API_BASE_URL}/admin/manager-store-commissions`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!response.ok) {
-      throw new Error('Не удалось загрузить проценты управляющего');
+    if (response.status === 404) {
+      setManagerCommissionsApiOnline(false);
+      setManagerStoreCommissions([]);
+      return;
     }
+    if (!response.ok) {
+      setManagerCommissionsApiOnline(false);
+      throw new Error(await readApiErrorMessage(response, 'Не удалось загрузить проценты управляющего'));
+    }
+    setManagerCommissionsApiOnline(true);
     const data = (await response.json()) as { items: ManagerStoreCommissionRow[] };
     setManagerStoreCommissions(Array.isArray(data.items) ? data.items : []);
   }, []);
@@ -1495,10 +1516,12 @@ function App() {
       body: JSON.stringify({ items }),
     });
     if (!response.ok) {
-      const errBody = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
-      const msg = Array.isArray(errBody?.message) ? errBody.message[0] : errBody?.message;
-      throw new Error(typeof msg === 'string' ? msg : 'Не удалось сохранить проценты');
+      if (response.status === 404) {
+        setManagerCommissionsApiOnline(false);
+      }
+      throw new Error(await readApiErrorMessage(response, 'Не удалось сохранить проценты'));
     }
+    setManagerCommissionsApiOnline(true);
     const data = (await response.json()) as { items: ManagerStoreCommissionRow[] };
     setManagerStoreCommissions(Array.isArray(data.items) ? data.items : []);
   };
@@ -3654,7 +3677,11 @@ function App() {
                           shifts={shifts}
                           role={role}
                           managerStoreCommissions={managerStoreCommissions}
+                          managerCommissionsApiOnline={managerCommissionsApiOnline}
                           onSaveManagerStoreCommissions={saveManagerStoreCommissions}
+                          onReloadManagerCommissions={async () => {
+                            await loadManagerStoreCommissions(session.token);
+                          }}
                           onDirectorSetPercent={setDirectorPercent}
                           onRemoveFromStore={removeStaffFromStore}
                           onRestoreStaffToStore={restoreStaffToStore}
@@ -6866,18 +6893,25 @@ function TeamMemberCard({
 function ManagerStoreCommissionPanel({
   token,
   items,
+  apiOnline = true,
   onSave,
+  onReload,
 }: {
   token: string;
   items: ManagerStoreCommissionRow[];
+  apiOnline?: boolean;
   onSave: (token: string, items: ManagerStoreCommissionRow[]) => Promise<void>;
+  onReload?: () => Promise<void>;
 }) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
 
-  const rows = items.length > 0 ? items : [];
+  const rows = useMemo(
+    () => (items.length > 0 ? items : [...DEFAULT_MANAGER_STORE_COMMISSIONS]),
+    [items],
+  );
 
   const handleSave = async () => {
     setSaving(true);
@@ -6900,24 +6934,41 @@ function ManagerStoreCommissionPanel({
   };
 
   return (
-    <section className="teamManagerCommissionCard">
-      <header className="teamManagerCommissionHead">
-        <h4 className="teamManagerCommissionTitle">Зарплата управляющего</h4>
-        <p className="teamManagerCommissionHint">
-          Процент от дневной выручки каждой точки. Укажите <strong>0</strong>, если точка не участвует в
-          расчёте.
+    <section className="teamManagerCommissionCard teamManagerCommissionCard--compact">
+      <div className="teamManagerCommissionTop">
+        <div className="teamManagerCommissionHead">
+          <h4 className="teamManagerCommissionTitle">Зарплата управляющего</h4>
+          <p className="teamManagerCommissionHint">% от выручки точки за день · 0 = не участвует</p>
+        </div>
+        {onReload ? (
+          <button
+            type="button"
+            className="invGhostBtn teamManagerCommissionRefresh"
+            onClick={() => void onReload()}
+            aria-label="Обновить проценты"
+            title="Обновить"
+          >
+            ↻
+          </button>
+        ) : null}
+      </div>
+      {!apiOnline ? (
+        <p className="teamManagerCommissionWarn teamManagerCommissionMsg" role="status">
+          {MANAGER_COMMISSIONS_DEPLOY_HINT}
         </p>
-      </header>
+      ) : null}
       {error ? (
-        <p className="invInlineError" role="alert">
+        <p className="invInlineError teamManagerCommissionMsg" role="alert">
           {error}
         </p>
       ) : null}
-      {status ? <p className="invInlineOk">{status}</p> : null}
-      <div className="teamManagerCommissionGrid">
+      {status ? <p className="invInlineOk teamManagerCommissionMsg">{status}</p> : null}
+      <div className="teamManagerCommissionGrid teamManagerCommissionGrid--compact">
         {rows.map((row) => (
           <label key={row.storeName} className="teamManagerCommissionRow">
-            <span className="teamManagerCommissionStore">{row.storeName}</span>
+            <span className="teamManagerCommissionStore" title={row.storeName}>
+              {row.storeName}
+            </span>
             <span className="teamManagerCommissionInputWrap">
               <input
                 type="text"
@@ -6937,10 +6988,10 @@ function ManagerStoreCommissionPanel({
       <button
         type="button"
         className="primaryAction teamManagerCommissionSave"
-        disabled={saving || rows.length === 0}
+        disabled={saving}
         onClick={() => void handleSave()}
       >
-        {saving ? 'Сохраняем…' : 'Сохранить проценты'}
+        {saving ? '…' : 'Сохранить'}
       </button>
     </section>
   );
@@ -6954,7 +7005,9 @@ function TeamStoresOverview({
   shifts,
   role,
   managerStoreCommissions = [],
+  managerCommissionsApiOnline = true,
   onSaveManagerStoreCommissions,
+  onReloadManagerCommissions,
   onDirectorSetPercent,
   onRemoveFromStore,
   onRestoreStaffToStore,
@@ -6970,10 +7023,12 @@ function TeamStoresOverview({
   shifts: ShiftInfo[];
   role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   managerStoreCommissions?: ManagerStoreCommissionRow[];
+  managerCommissionsApiOnline?: boolean;
   onSaveManagerStoreCommissions?: (
     token: string,
     items: ManagerStoreCommissionRow[],
   ) => Promise<void>;
+  onReloadManagerCommissions?: () => Promise<void>;
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
   onRemoveFromStore: (token: string, id: number, storeName?: string) => Promise<void>;
   onRestoreStaffToStore: (token: string, staffId: number, storeName: string) => Promise<void>;
@@ -7021,7 +7076,9 @@ function TeamStoresOverview({
       <ManagerStoreCommissionPanel
         token={token}
         items={managerStoreCommissions}
+        apiOnline={managerCommissionsApiOnline}
         onSave={onSaveManagerStoreCommissions}
+        onReload={onReloadManagerCommissions}
       />
     ) : null;
 
@@ -7512,7 +7569,6 @@ function TeamStoresOverview({
           <h4 className="teamWarehouseTitle">Сотрудники по точкам</h4>
           {reportDateBar}
         </header>
-        {managerCommissionBlock}
         <div className="teamWarehouseWorkspace">
           <aside className="teamWarehouseStoresRail" role="tablist" aria-label="Точки продаж">
             {storesSorted.map((storeName) => {
@@ -7571,6 +7627,7 @@ function TeamStoresOverview({
           </main>
         </div>
         {renderRemovedStaffSection()}
+        {managerCommissionBlock}
       </div>
     );
   }
@@ -7579,7 +7636,6 @@ function TeamStoresOverview({
     <div className="staffPanelRoot staffPanelStoresOverview">
       <h4 className="staffPanelTitle">Сотрудники по точкам</h4>
       {reportDateBar}
-      {managerCommissionBlock}
       <div className="teamStoresBoard">
         {storesSorted.map((storeName) => {
           const members = membersForStore(storeName);
@@ -7624,6 +7680,7 @@ function TeamStoresOverview({
       </div>
 
       {renderRemovedStaffSection()}
+      {managerCommissionBlock}
     </div>
   );
 }

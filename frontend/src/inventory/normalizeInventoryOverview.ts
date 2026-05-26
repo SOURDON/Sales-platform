@@ -11,6 +11,15 @@ const SADY_STORES = [
 
 const CENTER_STORES = ['Спортивнй', 'Центр пляж', 'Центр Тех. зона', 'Дельфин Тех. зона'] as const;
 
+export const ALL_DEMO_STORE_NAMES = [...SADY_STORES, ...CENTER_STORES] as const;
+
+/** Дефолтные % управляющего, если API ещё не ответил. */
+export const DEFAULT_MANAGER_STORE_COMMISSIONS: ReadonlyArray<{ storeName: string; percent: number }> =
+  ALL_DEMO_STORE_NAMES.map((storeName) => ({
+    storeName,
+    percent: storeName === 'Сады морей Тех. зона' || storeName === 'Метрополь' ? 0 : 5,
+  }));
+
 export const DEFAULT_INVENTORY_WAREHOUSES = [
   { key: WAREHOUSE_SADY_KEY, label: 'Сады моря', storeNames: [...SADY_STORES] },
   { key: WAREHOUSE_CENTER_KEY, label: 'Центр', storeNames: [...CENTER_STORES] },
