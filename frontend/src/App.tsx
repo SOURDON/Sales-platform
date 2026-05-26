@@ -3602,20 +3602,21 @@ function App() {
                         onSaveProcurementCosts={saveProductProcurementCosts}
                         onAddProduct={addCatalogProduct}
                         onDeleteProduct={deleteCatalogProduct}
-                      />
-                    </section>
-                    <section className="sectionCard sectionCard--acquiring">
-                      <AccountantProcurementPanel
-                        token={session.token}
-                        acquiringPercent={acquiringPercent}
-                        acquiringPercentDetkov={acquiringPercentDetkov}
-                        acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
-                        onAcquiringPercentChange={setAcquiringPercent}
-                        onAcquiringPercentDetkovChange={setAcquiringPercentDetkov}
-                        onAcquiringPercentPutintsevSberChange={setAcquiringPercentPutintsevSber}
-                        onSaveAcquiringPercent={saveAcquiringPercent}
-                        onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
-                        onSaveAcquiringPercentPutintsevSber={saveAcquiringPercentPutintsevSber}
+                        bottomAside={
+                          <AccountantProcurementPanel
+                            layout="vertical"
+                            token={session.token}
+                            acquiringPercent={acquiringPercent}
+                            acquiringPercentDetkov={acquiringPercentDetkov}
+                            acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
+                            onAcquiringPercentChange={setAcquiringPercent}
+                            onAcquiringPercentDetkovChange={setAcquiringPercentDetkov}
+                            onAcquiringPercentPutintsevSberChange={setAcquiringPercentPutintsevSber}
+                            onSaveAcquiringPercent={saveAcquiringPercent}
+                            onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
+                            onSaveAcquiringPercentPutintsevSber={saveAcquiringPercentPutintsevSber}
+                          />
+                        }
                       />
                     </section>
                   </div>
@@ -8103,6 +8104,7 @@ function DirectorWarehousePanel({
   onSaveProcurementCosts,
   onAddProduct,
   onDeleteProduct,
+  bottomAside,
 }: {
   token: string;
   overview: InventoryOverviewResponse | null;
@@ -8116,6 +8118,7 @@ function DirectorWarehousePanel({
   ) => Promise<void>;
   onAddProduct?: (token: string, name: string, priceStr: string) => Promise<void>;
   onDeleteProduct?: (token: string, name: string) => Promise<void>;
+  bottomAside?: ReactNode;
 }) {
   const [replenishDraft, setReplenishDraft] = useState<Record<string, string>>({});
   const [costDraft, setCostDraft] = useState<Record<string, string>>({});
@@ -8492,6 +8495,7 @@ function DirectorWarehousePanel({
           )}
 
           {showProcurement || canDeleteProduct ? (
+            <div className={`directorWarehouseFooterRow${bottomAside ? ' directorWarehouseFooterRow--withAside' : ''}`}>
             <section className="directorWarehouseCatalogCard">
               <header className="directorWarehouseCatalogHeader">
                 <h4 className="directorWarehouseCatalogTitle">Каталог товаров</h4>
@@ -8578,6 +8582,8 @@ function DirectorWarehousePanel({
                 </div>
               ) : null}
             </section>
+            {bottomAside ? <div className="directorWarehouseAside">{bottomAside}</div> : null}
+            </div>
           ) : null}
         </div>
       </div>
@@ -9337,6 +9343,7 @@ const ACQUIRING_RATE_ROWS = [
 ] as const;
 
 function AccountantProcurementPanel({
+  layout = 'horizontal',
   token,
   acquiringPercent,
   acquiringPercentDetkov,
@@ -9348,6 +9355,7 @@ function AccountantProcurementPanel({
   onSaveAcquiringPercentDetkov,
   onSaveAcquiringPercentPutintsevSber,
 }: {
+  layout?: 'horizontal' | 'vertical';
   token: string;
   acquiringPercent: string;
   acquiringPercentDetkov: string;
@@ -9393,8 +9401,10 @@ function AccountantProcurementPanel({
     }
   };
 
+  const isVertical = layout === 'vertical';
+
   return (
-    <div className="acquiringPanelRoot">
+    <div className={`acquiringPanelRoot${isVertical ? ' acquiringPanelRoot--vertical' : ''}`}>
       <div className="acquiringPanelShell">
         <header className="acquiringPanelHead">
           <div>
@@ -9403,7 +9413,7 @@ function AccountantProcurementPanel({
           </div>
         </header>
 
-        <div className="acquiringPanelGrid">
+        <div className={`acquiringPanelGrid${isVertical ? ' acquiringPanelGrid--vertical' : ''}`}>
           {ACQUIRING_RATE_ROWS.map((row) => (
             <div className="acquiringPanelCard" key={row.id}>
               <span className="acquiringPanelCardLabel">{row.label}</span>

@@ -7656,11 +7656,35 @@ h1 {
   text-overflow: ellipsis;
 }
 
+.directorWarehouseFooterRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 16px;
+  align-items: stretch;
+}
+
+.directorWarehouseFooterRow--withAside {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+@media (max-width: 960px) {
+  .directorWarehouseFooterRow--withAside {
+    grid-template-columns: 1fr;
+  }
+}
+
+.directorWarehouseAside {
+  min-width: 0;
+  height: 100%;
+}
+
 .directorWarehouseCatalogCard {
   border-radius: 14px;
-  padding: 14px;
+  padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.2);
+  min-width: 0;
 }
 
 .directorWarehouseCatalogHeader {
@@ -7682,6 +7706,153 @@ h1 {
 
 .directorWarehouseCatalogTableWrap {
   margin-top: 4px;
+  max-height: min(52vh, 340px);
+  overflow: auto;
+}
+
+.directorWarehouseFooterRow .directorWarehouseCatalogTableWrap .invTableCatalog tbody td {
+  padding: 6px 4px;
+  font-size: 11px;
+}
+
+.directorWarehouseFooterRow .directorWarehouseCatalogTableWrap .invTableCatalog thead th {
+  padding: 6px 4px;
+  font-size: 10px;
+}
+
+.directorWarehouseFooterRow .dwCostInput,
+.directorWarehouseFooterRow .procurementCostInput {
+  min-height: 28px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.directorWarehouseFooterRow .directorWarehouseDeleteBtn {
+  min-height: 26px;
+  padding: 0 8px;
+  font-size: 9px;
+}
+
+.directorWarehouseFooterRow .directorWarehouseProcurementSaveBtn {
+  min-height: 36px;
+  font-size: 12px;
+}
+
+/* Эквайринг: вертикальный блок рядом с каталогом */
+.acquiringPanelRoot--vertical {
+  height: 100%;
+}
+
+.acquiringPanelRoot--vertical .acquiringPanelShell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.acquiringPanelGrid--vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+}
+
+.acquiringPanelGrid--vertical .acquiringPanelCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  padding: 10px 12px;
+}
+
+.acquiringPanelGrid--vertical .acquiringPanelCardLabel {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.acquiringPanelGrid--vertical .acquiringPanelCardField {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.acquiringPanelGrid--vertical .acquiringPanelError,
+.acquiringPanelGrid--vertical .acquiringPanelSaved {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin: 0;
+  font-size: 10px;
+}
+
+.acquiringPanelShell {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.acquiringPanelHead {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.acquiringPanelTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.acquiringPanelLead {
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.45));
+}
+
+.acquiringPanelGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.acquiringPanelCard {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.acquiringPanelCardLabel {
+  display: block;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.acquiringPanelCardField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.acquiringPanelInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 13px;
+  text-align: right;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  color: inherit;
+}
+
+.acquiringPanelUnit {
+  font-size: 12px;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.55));
 }
 
 .directorWarehouseDeleteBtn {
