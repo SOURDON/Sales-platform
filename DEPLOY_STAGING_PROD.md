@@ -32,9 +32,11 @@ Build command in both services:
 
 `cd backend && npm install && npx prisma generate && npm run build`
 
-Start command:
+Start command (миграции + авто-починка P3009 для 0028):
 
-`cd backend && npx prisma migrate deploy && npm run start:prod`
+`cd backend && npm run start:prod:db`
+
+Не используйте отдельный `npx prisma migrate deploy` перед `start:prod` — при failed migration сервис не поднимется.
 
 If you see `Root directory "backend" does not exist`, keep Root Directory empty and run `Manual Deploy -> Clear build cache & deploy`.
 
