@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const backendRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const PRISMA_SCHEMA = 'prisma/schema.prisma';
 const MIGRATION_0028 = '0028_dual_regional_warehouses';
 
 function run(cmd, extra = {}) {
@@ -31,7 +32,7 @@ function runQuiet(cmd, extra = {}) {
 
 function tryMigrateDeploy() {
   try {
-    runQuiet('npx prisma migrate deploy');
+    runQuiet(`npx prisma migrate deploy --schema ${PRISMA_SCHEMA}`);
     return { ok: true, output: '' };
   } catch (error) {
     const stdout = error.stdout?.toString?.() ?? '';
@@ -50,8 +51,8 @@ function repairFailed0028() {
   );
   const sql = readFileSync(sqlPath, 'utf8');
   console.log(`[migrate] Repairing failed migration ${MIGRATION_0028}…`);
-  runQuiet('npx prisma db execute --stdin', { input: sql });
-  run('npx prisma migrate resolve --applied 0028_dual_regional_warehouses');
+  runQuiet(`npx prisma db execute --stdin --schema ${PRISMA_SCHEMA}`, { input: sql });
+  run(`npx prisma migrate resolve --applied ${MIGRATION_0028} --schema ${PRISMA_SCHEMA}`);
 }
 
 function main() {
