@@ -8314,7 +8314,7 @@ function DirectorWarehousePanel({
     setStatus('');
     try {
       await onResetWarehouse(token, warehouseKey);
-      setStatus(`Склад «${warehouseLabel}» обнулён`);
+      setStatus(`Склад «${warehouseLabel}» и все его точки обнулены`);
       setResetConfirm(null);
       setResetConfirmText('');
     } catch (e) {
@@ -8407,7 +8407,7 @@ function DirectorWarehousePanel({
         className="directorWarehouseResetBtn"
         disabled={Boolean(resetConfirm) || busy}
         onClick={onBegin}
-        title={label}
+        title={`${label}: склад и все точки региона`}
       >
         {label}
       </button>

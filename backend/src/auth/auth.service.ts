@@ -611,14 +611,21 @@ export class AuthService implements OnModuleInit {
       return null;
     }
     this.syncStockWithCatalog();
+    const storeNames = storesForWarehouse(warehouseKey);
+    const locationKeys = [warehouseKey, ...storeNames];
     for (const p of this.productCatalog) {
-      this.ensureStockCell(warehouseKey, p.name);
-      const row = this.productStockByLocation[warehouseKey];
-      row[p.name] = 0;
+      for (const loc of locationKeys) {
+        this.ensureStockCell(loc, p.name);
+        this.productStockByLocation[loc][p.name] = 0;
+      }
     }
-    this.pushAudit(actor, 'WAREHOUSE_RESET', `Обнулён склад «${warehouseLabelForKey(warehouseKey)}»`);
+    this.pushAudit(
+      actor,
+      'WAREHOUSE_RESET',
+      `Обнулён склад «${warehouseLabelForKey(warehouseKey)}» и ${storeNames.length} точек`,
+    );
     this.queuePersist();
-    return { ok: true as const };
+    return { ok: true as const, storeNames: [...storeNames] };
   }
 
   getWriteOffs(filters?: { reason?: 'Брак' | 'Поломка'; dateFrom?: string; dateTo?: string }) {
