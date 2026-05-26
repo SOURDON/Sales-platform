@@ -97,6 +97,10 @@ interface RevenuePlanBody {
   items?: Array<{ storeName: string; planRevenue: number }>;
 }
 
+interface WarehouseResetBody {
+  warehouseKey?: string;
+}
+
 interface AcquiringPercentBody {
   percent?: number;
 }
@@ -225,6 +229,20 @@ export class AdminController {
   @Get('inventory/overview')
   getInventoryOverview(@Headers('authorization') authorization?: string) {
     this.requireDirectorOrAccountantAccess(authorization);
+    return this.authService.getInventoryOverview();
+  }
+
+  @Post('inventory/warehouse/reset')
+  resetWarehouse(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: WarehouseResetBody,
+  ) {
+    const session = this.requireDirectorAccess(authorization);
+    const warehouseKey = String(body.warehouseKey ?? '');
+    const result = this.authService.resetWarehouseStock(warehouseKey, session.nickname);
+    if (!result) {
+      throw new BadRequestException('Не удалось обнулить склад');
+    }
     return this.authService.getInventoryOverview();
   }
 

@@ -606,6 +606,21 @@ export class AuthService implements OnModuleInit {
     return { ok: true as const };
   }
 
+  resetWarehouseStock(warehouseKey: string, actor: string) {
+    if (!isWarehouseKey(warehouseKey)) {
+      return null;
+    }
+    this.syncStockWithCatalog();
+    for (const p of this.productCatalog) {
+      this.ensureStockCell(warehouseKey, p.name);
+      const row = this.productStockByLocation[warehouseKey];
+      row[p.name] = 0;
+    }
+    this.pushAudit(actor, 'WAREHOUSE_RESET', `Обнулён склад «${warehouseLabelForKey(warehouseKey)}»`);
+    this.queuePersist();
+    return { ok: true as const };
+  }
+
   getWriteOffs(filters?: { reason?: 'Брак' | 'Поломка'; dateFrom?: string; dateTo?: string }) {
     return this.adminWriteOffs
       .filter((item) => {

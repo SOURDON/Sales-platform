@@ -8077,6 +8077,21 @@ h1 {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.directorWarehouseResetBtn {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(248, 113, 113, 0.95);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.directorWarehouseResetBtn:hover {
+  background: rgba(248, 113, 113, 0.08);
+}
+
 .directorWarehouseRoot .directorWarehouseTableWrap.invTableScrollFit {
   border: none;
   background: transparent;

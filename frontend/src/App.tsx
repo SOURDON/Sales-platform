@@ -1550,6 +1550,21 @@ function App() {
     await loadInventoryOverview(token);
   };
 
+  const resetWarehouseStock = async (token: string, warehouseKey: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/inventory/warehouse/reset`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ warehouseKey }),
+    });
+    if (!response.ok) {
+      throw new Error('Не удалось обнулить склад');
+    }
+    await loadInventoryOverview(token);
+  };
+
   const transferFromWarehouseToStore = async (
     token: string,
     storeName: string,
@@ -3456,6 +3471,7 @@ function App() {
                                 await loadProducts(session.token);
                               }}
                               onReplenish={replenishWarehouse}
+                              onResetWarehouse={resetWarehouseStock}
                               onSaveProcurementCosts={saveProductProcurementCosts}
                               onAddProduct={addCatalogProduct}
                               onDeleteProduct={deleteCatalogProduct}
@@ -3622,6 +3638,7 @@ function App() {
                           await loadProducts(session.token);
                         }}
                         onReplenish={replenishWarehouse}
+                        onResetWarehouse={resetWarehouseStock}
                         onSaveProcurementCosts={saveProductProcurementCosts}
                         onAddProduct={addCatalogProduct}
                         onDeleteProduct={deleteCatalogProduct}
@@ -8158,6 +8175,7 @@ function DirectorWarehousePanel({
   procurementCosts = [],
   onReload,
   onReplenish,
+  onResetWarehouse,
   onSaveProcurementCosts,
   onAddProduct,
   onDeleteProduct,
@@ -8169,6 +8187,7 @@ function DirectorWarehousePanel({
   procurementCosts?: ProductProcurementCost[];
   onReload: () => Promise<void>;
   onReplenish: (token: string, warehouseKey: string, name: string, qtyStr: string) => Promise<void>;
+  onResetWarehouse?: (token: string, warehouseKey: string) => Promise<void>;
   onSaveProcurementCosts?: (
     token: string,
     items: Array<{ name: string; cost: number }>,
@@ -8216,6 +8235,7 @@ function DirectorWarehousePanel({
   const stockColCount = 5;
 
   const replenishDraftKey = (warehouseKey: string, name: string) => `${warehouseKey}::${name}`;
+  const [resettingWarehouseKey, setResettingWarehouseKey] = useState<string | null>(null);
 
   const warehouseCardTone = (warehouseKey: string) => {
     if (warehouseKey === WAREHOUSE_SADY_KEY) {
@@ -8271,6 +8291,35 @@ function DirectorWarehousePanel({
       setError(e instanceof Error ? e.message : 'Не удалось пополнить склад');
     } finally {
       setBusyName(null);
+    }
+  };
+
+  const handleResetWarehouse = async (warehouseKey: string, warehouseLabel: string) => {
+    if (!onResetWarehouse) {
+      return;
+    }
+    const first = window.confirm(
+      `Обнулить склад «${warehouseLabel}»?\n\nЭто удалит все остатки на этом складе. Остатки по точкам не изменятся.`,
+    );
+    if (!first) {
+      return;
+    }
+    const text = window.prompt('Введите ОБНУЛИТЬ чтобы подтвердить', '');
+    if (text !== 'ОБНУЛИТЬ') {
+      setStatus('');
+      setError('Отменено');
+      return;
+    }
+    setResettingWarehouseKey(warehouseKey);
+    setError('');
+    setStatus('');
+    try {
+      await onResetWarehouse(token, warehouseKey);
+      setStatus(`Склад «${warehouseLabel}» обнулён`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось обнулить склад');
+    } finally {
+      setResettingWarehouseKey(null);
     }
   };
 
@@ -8452,6 +8501,17 @@ function DirectorWarehousePanel({
                         </span>
                         <h4 className="directorWarehouseCardTitle">Склад «{section.label}»</h4>
                       </div>
+                      {onResetWarehouse && section.key === WAREHOUSE_SADY_KEY ? (
+                        <button
+                          type="button"
+                          className="ghost directorWarehouseResetBtn"
+                          disabled={resettingWarehouseKey === section.key}
+                          onClick={() => void handleResetWarehouse(section.key, section.label)}
+                          title="Обнулить склад"
+                        >
+                          {resettingWarehouseKey === section.key ? '…' : 'Обнулить'}
+                        </button>
+                      ) : null}
                       <div className="directorWarehouseStoreChips">
                         {section.storeNames.map((store) => (
                           <span key={store} className="directorWarehouseStoreChip" title={store}>
