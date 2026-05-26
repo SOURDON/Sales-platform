@@ -18,6 +18,8 @@ import { DesktopThemeToggle } from './desktop/DesktopThemeToggle';
 import {
   DEFAULT_INVENTORY_WAREHOUSES,
   normalizeInventoryOverview,
+  WAREHOUSE_CENTER_KEY,
+  WAREHOUSE_SADY_KEY,
   type InventoryOverviewResponse,
 } from './inventory/normalizeInventoryOverview';
 
@@ -1410,6 +1412,45 @@ function App() {
       const errBody = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
       const msg = Array.isArray(errBody?.message) ? errBody.message[0] : errBody?.message;
       throw new Error(typeof msg === 'string' ? msg : 'Не удалось добавить товар');
+    }
+    const data = (await response.json()) as {
+      catalog: ProductItem[];
+      overview: InventoryOverviewResponse;
+    };
+    setProducts(data.catalog);
+    setInventoryOverview(normalizeInventoryOverview(data.overview));
+    const costsResponse = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (costsResponse.ok) {
+      setProductProcurementCosts((await costsResponse.json()) as ProductProcurementCost[]);
+    }
+  };
+
+  const deleteCatalogProduct = async (token: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new Error('Укажите товар');
+    }
+    if (
+      !window.confirm(
+        `Удалить «${trimmed}» из каталога?\n\nТовар исчезнет из всех складов и точек. Удаление возможно только при нулевых остатках.`,
+      )
+    ) {
+      return;
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/products`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    if (!response.ok) {
+      const errBody = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+      const msg = Array.isArray(errBody?.message) ? errBody.message[0] : errBody?.message;
+      throw new Error(typeof msg === 'string' ? msg : 'Не удалось удалить товар');
     }
     const data = (await response.json()) as {
       catalog: ProductItem[];
@@ -3341,6 +3382,7 @@ function App() {
                               onReplenish={replenishWarehouse}
                               onSaveProcurementCosts={saveProductProcurementCosts}
                               onAddProduct={addCatalogProduct}
+                              onDeleteProduct={deleteCatalogProduct}
                             />
                           </section>
                           <section className="sectionCard sectionCard--acquiring">
@@ -3506,6 +3548,7 @@ function App() {
                         onReplenish={replenishWarehouse}
                         onSaveProcurementCosts={saveProductProcurementCosts}
                         onAddProduct={addCatalogProduct}
+                        onDeleteProduct={deleteCatalogProduct}
                       />
                     </section>
                     <section className="sectionCard sectionCard--acquiring">
@@ -7904,6 +7947,7 @@ function DirectorWarehousePanel({
   onReplenish,
   onSaveProcurementCosts,
   onAddProduct,
+  onDeleteProduct,
 }: {
   token: string;
   overview: InventoryOverviewResponse | null;
@@ -7916,6 +7960,7 @@ function DirectorWarehousePanel({
     items: Array<{ name: string; cost: number }>,
   ) => Promise<void>;
   onAddProduct?: (token: string, name: string, priceStr: string) => Promise<void>;
+  onDeleteProduct?: (token: string, name: string) => Promise<void>;
 }) {
   const [replenishDraft, setReplenishDraft] = useState<Record<string, string>>({});
   const [costDraft, setCostDraft] = useState<Record<string, string>>({});
@@ -7930,9 +7975,11 @@ function DirectorWarehousePanel({
   const [newProductName, setNewProductName] = useState('');
   const [newProductPrice, setNewProductPrice] = useState('');
   const [busyAddProduct, setBusyAddProduct] = useState(false);
+  const [deletingName, setDeletingName] = useState<string | null>(null);
 
   const showProcurement = Boolean(onSaveProcurementCosts);
   const canAddProduct = Boolean(onAddProduct);
+  const canDeleteProduct = Boolean(onDeleteProduct);
   const warehouseSections =
     overview?.warehouses && overview.warehouses.length > 0
       ? overview.warehouses
@@ -7951,9 +7998,19 @@ function DirectorWarehousePanel({
     name,
     currentCost: costByName.get(name) ?? 0,
   }));
-  const colCount = showProcurement ? 6 : 5;
+  const stockColCount = 5;
 
   const replenishDraftKey = (warehouseKey: string, name: string) => `${warehouseKey}::${name}`;
+
+  const warehouseCardTone = (warehouseKey: string) => {
+    if (warehouseKey === WAREHOUSE_SADY_KEY) {
+      return 'sady';
+    }
+    if (warehouseKey === WAREHOUSE_CENTER_KEY) {
+      return 'center';
+    }
+    return 'default';
+  };
 
   const rowsForWarehouse = (warehouseKey: string) =>
     orderedNames.map((name) => {
@@ -8024,6 +8081,23 @@ function DirectorWarehousePanel({
       setError(e instanceof Error ? e.message : 'Не удалось добавить товар');
     } finally {
       setBusyAddProduct(false);
+    }
+  };
+
+  const handleDeleteProduct = async (name: string) => {
+    if (!onDeleteProduct) {
+      return;
+    }
+    setDeletingName(name);
+    setError('');
+    setStatus('');
+    try {
+      await onDeleteProduct(token, name);
+      setStatus(`Товар «${name}» удалён из каталога`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось удалить товар');
+    } finally {
+      setDeletingName(null);
     }
   };
 
@@ -8143,141 +8217,214 @@ function DirectorWarehousePanel({
           </p>
         ) : null}
 
-        {warehouseSections.length === 0 ? (
-          <p className="invTableEmpty directorWarehouseLoading">Загрузка остатков…</p>
-        ) : (
-          warehouseSections.map((section, sectionIndex) => {
-            const rows = rowsForWarehouse(section.key);
-            const sectionShowCosts = showProcurement && sectionIndex === 0;
-            return (
-              <section key={section.key} className="directorWarehouseRegion">
-                <header className="directorWarehouseRegionHeader">
-                  <h4 className="directorWarehouseRegionTitle">Склад «{section.label}»</h4>
-                  <p className="directorWarehouseRegionStores" title={section.storeNames.join(', ')}>
-                    Точки: {section.storeNames.join(' · ')}
-                  </p>
-                </header>
-                <div className="invTableScroll invTableScrollFit directorWarehouseTableWrap">
-                  <table className="invTable invTableWarehouse">
-                    <thead>
-                      <tr>
-                        <th scope="col">Товар</th>
-                        <th className="invThNum dwThNum" scope="col" title={`Склад «${section.label}»`}>
-                          Склад
-                        </th>
-                        <th className="invThNum dwThNum" scope="col" title="Сумма по точкам этого склада">
-                          Точки
-                        </th>
-                        <th className="invThNum dwThNum" scope="col">
-                          Всего
-                        </th>
-                        {sectionShowCosts ? (
-                          <th className="invThNum dwThCost" scope="col" title="Закупочная цена, ₽">
-                            Закуп. цена
-                          </th>
-                        ) : null}
-                        <th
-                          className="invThAction dwThAction"
-                          scope="col"
-                          title="Количество и подтверждение пополнения"
-                        >
-                          Кол-во
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.length === 0 ? (
-                        <tr>
-                          <td colSpan={sectionShowCosts ? colCount : colCount - 1} className="invTableEmpty">
-                            Нет позиций в каталоге
-                          </td>
-                        </tr>
-                      ) : (
-                        rows.map((row) => {
-                          const busyKey = replenishDraftKey(section.key, row.name);
-                          return (
-                            <tr key={`${section.key}-${row.name}`}>
-                              <td className="invTdName">{row.name}</td>
-                              <td className="invTdNum dwTdNum">
-                                <span className="dwQty">{row.qtyWarehouse}</span>
-                              </td>
-                              <td className="invTdNum dwTdNum">
-                                <span className="dwQty dwQtyMuted">{row.qtyInStores}</span>
-                              </td>
-                              <td className="invTdNum dwTdNum">
-                                <span className="dwQty dwQtyTotal">{row.qtyGrandTotal}</span>
-                              </td>
-                              {sectionShowCosts ? (
-                                <td className="invTdNum dwTdCost">
-                                  <input
-                                    className="dwCostInput procurementCostInput"
-                                    inputMode="decimal"
-                                    value={costDraft[row.name] ?? String(row.currentCost)}
-                                    onChange={(event) =>
-                                      setCostDraft((current) => ({
-                                        ...current,
-                                        [row.name]: event.target.value,
-                                      }))
-                                    }
-                                    aria-label={`Закупочная цена: ${row.name}`}
-                                  />
-                                </td>
-                              ) : null}
-                              <td className="invTdAction dwTdAction">
-                                <div
-                                  className="dwReplenish"
-                                  role="group"
-                                  aria-label={`Пополнить склад «${section.label}»: ${row.name}`}
-                                >
-                                  <input
-                                    className="dwReplenishInput"
-                                    inputMode="numeric"
-                                    placeholder="0"
-                                    value={replenishDraft[busyKey] ?? ''}
-                                    onChange={(event) =>
-                                      setReplenishDraft((current) => ({
-                                        ...current,
-                                        [busyKey]: event.target.value,
-                                      }))
-                                    }
-                                    aria-label={`Штук для пополнения: ${row.name}`}
-                                  />
-                                  <button
-                                    type="button"
-                                    className="dwReplenishBtn"
-                                    disabled={busyName === busyKey}
-                                    title={`Пополнить склад «${section.label}»`}
-                                    aria-label="Подтвердить пополнение"
-                                    onClick={() => void handleReplenish(section.key, section.label, row.name)}
-                                  >
-                                    {busyName === busyKey ? '…' : '✓'}
-                                  </button>
-                                </div>
+        <div className="directorWarehouseLayout">
+          {warehouseSections.length === 0 ? (
+            <p className="invTableEmpty directorWarehouseLoading">Загрузка остатков…</p>
+          ) : (
+            <div className="directorWarehouseCards">
+              {warehouseSections.map((section) => {
+                const rows = rowsForWarehouse(section.key);
+                const tone = warehouseCardTone(section.key);
+                return (
+                  <article
+                    key={section.key}
+                    className={`directorWarehouseCard directorWarehouseCard--${tone}`}
+                  >
+                    <header className="directorWarehouseCardHeader">
+                      <div className="directorWarehouseCardTitleRow">
+                        <span className="directorWarehouseCardBadge" aria-hidden>
+                          {tone === 'sady' ? 'SM' : tone === 'center' ? 'Ц' : '·'}
+                        </span>
+                        <h4 className="directorWarehouseCardTitle">Склад «{section.label}»</h4>
+                      </div>
+                      <div className="directorWarehouseStoreChips">
+                        {section.storeNames.map((store) => (
+                          <span key={store} className="directorWarehouseStoreChip" title={store}>
+                            {store}
+                          </span>
+                        ))}
+                      </div>
+                    </header>
+                    <div className="invTableScroll invTableScrollFit directorWarehouseTableWrap">
+                      <table className="invTable invTableWarehouse">
+                        <thead>
+                          <tr>
+                            <th scope="col">Товар</th>
+                            <th className="invThNum dwThNum" scope="col" title={`Склад «${section.label}»`}>
+                              Склад
+                            </th>
+                            <th className="invThNum dwThNum" scope="col" title="Сумма по точкам этого склада">
+                              Точки
+                            </th>
+                            <th className="invThNum dwThNum" scope="col">
+                              Всего
+                            </th>
+                            <th
+                              className="invThAction dwThAction"
+                              scope="col"
+                              title="Количество и подтверждение пополнения"
+                            >
+                              Пополнить
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.length === 0 ? (
+                            <tr>
+                              <td colSpan={stockColCount} className="invTableEmpty">
+                                Нет позиций в каталоге
                               </td>
                             </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            );
-          })
-        )}
+                          ) : (
+                            rows.map((row) => {
+                              const busyKey = replenishDraftKey(section.key, row.name);
+                              return (
+                                <tr key={`${section.key}-${row.name}`}>
+                                  <td className="invTdName">{row.name}</td>
+                                  <td className="invTdNum dwTdNum">
+                                    <span className="dwQty">{row.qtyWarehouse}</span>
+                                  </td>
+                                  <td className="invTdNum dwTdNum">
+                                    <span className="dwQty dwQtyMuted">{row.qtyInStores}</span>
+                                  </td>
+                                  <td className="invTdNum dwTdNum">
+                                    <span className="dwQty dwQtyTotal">{row.qtyGrandTotal}</span>
+                                  </td>
+                                  <td className="invTdAction dwTdAction">
+                                    <div
+                                      className="dwReplenish"
+                                      role="group"
+                                      aria-label={`Пополнить склад «${section.label}»: ${row.name}`}
+                                    >
+                                      <input
+                                        className="dwReplenishInput"
+                                        inputMode="numeric"
+                                        placeholder="0"
+                                        value={replenishDraft[busyKey] ?? ''}
+                                        onChange={(event) =>
+                                          setReplenishDraft((current) => ({
+                                            ...current,
+                                            [busyKey]: event.target.value,
+                                          }))
+                                        }
+                                        aria-label={`Штук для пополнения: ${row.name}`}
+                                      />
+                                      <button
+                                        type="button"
+                                        className="dwReplenishBtn"
+                                        disabled={busyName === busyKey}
+                                        title={`Пополнить склад «${section.label}»`}
+                                        aria-label="Подтвердить пополнение"
+                                        onClick={() =>
+                                          void handleReplenish(section.key, section.label, row.name)
+                                        }
+                                      >
+                                        {busyName === busyKey ? '…' : '✓'}
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
 
-        {showProcurement ? (
-          <div className="directorWarehouseProcurementFooter">
-            <button
-              type="button"
-              className="primaryAction directorWarehouseProcurementSaveBtn"
-              disabled={costSaving}
-              onClick={() => void saveProcurementCosts()}
-            >
-              {costSaving ? 'Сохраняем…' : 'Сохранить закупочные цены'}
-            </button>
-          </div>
-        ) : null}
+          {showProcurement || canDeleteProduct ? (
+            <section className="directorWarehouseCatalogCard">
+              <header className="directorWarehouseCatalogHeader">
+                <h4 className="directorWarehouseCatalogTitle">Каталог товаров</h4>
+                <p className="directorWarehouseCatalogHint">
+                  Закупочные цены общие для обоих складов. Удаление — только при нулевых остатках везде.
+                </p>
+              </header>
+              <div className="invTableScroll invTableScrollFit directorWarehouseCatalogTableWrap">
+                <table className="invTable invTableCatalog">
+                  <thead>
+                    <tr>
+                      <th scope="col">Товар</th>
+                      {showProcurement ? (
+                        <th className="invThNum dwThCost" scope="col" title="Закупочная цена, ₽">
+                          Закуп. цена
+                        </th>
+                      ) : null}
+                      {canDeleteProduct ? (
+                        <th className="invThAction dwThDelete" scope="col">
+                          Удалить
+                        </th>
+                      ) : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allRowsForCosts.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={(showProcurement ? 1 : 0) + (canDeleteProduct ? 1 : 0) + 1}
+                          className="invTableEmpty"
+                        >
+                          Нет товаров в каталоге
+                        </td>
+                      </tr>
+                    ) : (
+                      allRowsForCosts.map((row) => (
+                        <tr key={`catalog-${row.name}`}>
+                          <td className="invTdName">{row.name}</td>
+                          {showProcurement ? (
+                            <td className="invTdNum dwTdCost">
+                              <input
+                                className="dwCostInput procurementCostInput"
+                                inputMode="decimal"
+                                value={costDraft[row.name] ?? String(row.currentCost)}
+                                onChange={(event) =>
+                                  setCostDraft((current) => ({
+                                    ...current,
+                                    [row.name]: event.target.value,
+                                  }))
+                                }
+                                aria-label={`Закупочная цена: ${row.name}`}
+                              />
+                            </td>
+                          ) : null}
+                          {canDeleteProduct ? (
+                            <td className="invTdAction dwTdDelete">
+                              <button
+                                type="button"
+                                className="directorWarehouseDeleteBtn"
+                                disabled={deletingName === row.name}
+                                title="Удалить из каталога (остатки должны быть 0)"
+                                onClick={() => void handleDeleteProduct(row.name)}
+                              >
+                                {deletingName === row.name ? '…' : 'Удалить'}
+                              </button>
+                            </td>
+                          ) : null}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {showProcurement ? (
+                <div className="directorWarehouseProcurementFooter">
+                  <button
+                    type="button"
+                    className="primaryAction directorWarehouseProcurementSaveBtn"
+                    disabled={costSaving}
+                    onClick={() => void saveProcurementCosts()}
+                  >
+                    {costSaving ? 'Сохраняем…' : 'Сохранить закупочные цены'}
+                  </button>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+        </div>
       </div>
     </div>
   );

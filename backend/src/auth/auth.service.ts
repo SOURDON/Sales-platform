@@ -503,6 +503,45 @@ export class AuthService implements OnModuleInit {
     return item;
   }
 
+  removeProductFromCatalog(
+    name: string,
+    actor: string,
+  ): { ok: true } | { error: string } {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return { error: 'Укажите название товара' };
+    }
+    const product = this.productCatalog.find(
+      (p) => p.name.trim().toLocaleLowerCase('ru-RU') === trimmed.toLocaleLowerCase('ru-RU'),
+    );
+    if (!product) {
+      return { error: 'Товар не найден в каталоге' };
+    }
+    const catalogName = product.name;
+    let stockTotal = 0;
+    for (const loc of this.allStockLocationKeys()) {
+      stockTotal += this.getStockQty(loc, catalogName);
+    }
+    if (stockTotal > 0) {
+      return {
+        error: `Нельзя удалить: осталось ${stockTotal} шт. на складах и точках. Сначала спишите или переместите остатки.`,
+      };
+    }
+    this.productCatalog = this.productCatalog.filter((p) => p.name !== catalogName);
+    delete this.productProcurementCosts[catalogName];
+    for (const loc of Object.keys(this.productStockByLocation)) {
+      const row = this.productStockByLocation[loc];
+      if (row) {
+        delete row[catalogName];
+      }
+    }
+    this.syncProcurementKeysWithCatalog();
+    this.syncStockWithCatalog();
+    this.pushAudit(actor, 'PRODUCT_REMOVED', catalogName);
+    this.queuePersist();
+    return { ok: true };
+  }
+
   replenishWarehouseStock(
     productName: string,
     qty: number,

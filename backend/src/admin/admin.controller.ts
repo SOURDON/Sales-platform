@@ -179,6 +179,25 @@ export class AdminController {
     };
   }
 
+  @Delete('products')
+  deleteProduct(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { name?: string },
+  ) {
+    const session = this.requireDirectorOrAccountantAccess(authorization);
+    const result = this.authService.removeProductFromCatalog(
+      String(body.name ?? ''),
+      session.nickname,
+    );
+    if ('error' in result) {
+      throw new BadRequestException(result.error);
+    }
+    return {
+      catalog: this.authService.productCatalog,
+      overview: this.authService.getInventoryOverview(),
+    };
+  }
+
   @Get('inventory/overview')
   getInventoryOverview(@Headers('authorization') authorization?: string) {
     this.requireDirectorOrAccountantAccess(authorization);
