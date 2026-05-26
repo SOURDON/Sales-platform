@@ -15,6 +15,11 @@ import {
   type DesktopTheme,
 } from './desktop/desktopTheme';
 import { DesktopThemeToggle } from './desktop/DesktopThemeToggle';
+import {
+  DEFAULT_INVENTORY_WAREHOUSES,
+  normalizeInventoryOverview,
+  type InventoryOverviewResponse,
+} from './inventory/normalizeInventoryOverview';
 
 if (isTauriRuntime()) {
   applyDesktopTheme(getStoredDesktopTheme());
@@ -319,23 +324,6 @@ type CommissionRequest = {
 };
 
 type ProductItem = { name: string; price: number };
-
-type InventoryWarehouseSection = {
-  key: string;
-  label: string;
-  storeNames: string[];
-};
-
-type InventoryOverviewResponse = {
-  warehouses: InventoryWarehouseSection[];
-  storeNames: string[];
-  products: Array<{
-    name: string;
-    price: number;
-    stockByWarehouse: Record<string, { qtyWarehouse: number; qtyInStores: number }>;
-    qtyGrandTotal: number;
-  }>;
-};
 
 type StoreInventoryDetailResponse = {
   storeName: string;
@@ -1112,7 +1100,7 @@ function App() {
       setFinanceOps(cachedFinance);
     }
     if (cachedInventory) {
-      setInventoryOverview(cachedInventory);
+      setInventoryOverview(normalizeInventoryOverview(cachedInventory));
     }
     if (cachedCommission) {
       setCommissionRequests(cachedCommission);
@@ -1346,7 +1334,7 @@ function App() {
         if (!response.ok) {
           throw new Error('inventory overview error');
         }
-        return (await response.json()) as InventoryOverviewResponse;
+        return normalizeInventoryOverview(await response.json());
       };
       const role = session?.user?.role;
       if (
@@ -1361,7 +1349,9 @@ function App() {
           fetcher,
           null as unknown as InventoryOverviewResponse,
         );
-        setInventoryOverview(result.data);
+        setInventoryOverview(
+          result.data ? normalizeInventoryOverview(result.data) : null,
+        );
         return;
       }
       try {
@@ -1426,7 +1416,7 @@ function App() {
       overview: InventoryOverviewResponse;
     };
     setProducts(data.catalog);
-    setInventoryOverview(data.overview);
+    setInventoryOverview(normalizeInventoryOverview(data.overview));
     const costsResponse = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -7943,7 +7933,12 @@ function DirectorWarehousePanel({
 
   const showProcurement = Boolean(onSaveProcurementCosts);
   const canAddProduct = Boolean(onAddProduct);
-  const warehouseSections = overview?.warehouses ?? [];
+  const warehouseSections =
+    overview?.warehouses && overview.warehouses.length > 0
+      ? overview.warehouses
+      : overview
+        ? DEFAULT_INVENTORY_WAREHOUSES.map((w) => ({ ...w, storeNames: [...w.storeNames] }))
+        : [];
   const productRows = overview?.products ?? [];
   const costByName = new Map(procurementCosts.map((item) => [item.name.trim(), item.cost]));
   const orderedNames = [
@@ -8149,9 +8144,7 @@ function DirectorWarehousePanel({
         ) : null}
 
         {warehouseSections.length === 0 ? (
-          <p className="invTableEmpty directorWarehouseLoading">
-            {overview ? 'Нет складов в ответе сервера' : 'Загрузка остатков…'}
-          </p>
+          <p className="invTableEmpty directorWarehouseLoading">Загрузка остатков…</p>
         ) : (
           warehouseSections.map((section, sectionIndex) => {
             const rows = rowsForWarehouse(section.key);
