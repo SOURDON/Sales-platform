@@ -288,16 +288,23 @@ export class AdminController {
   @Post('inventory/warehouse/replenish')
   replenishWarehouse(
     @Headers('authorization') authorization: string | undefined,
-    @Body() body: { name?: string; qty?: number },
+    @Body() body: { warehouseKey?: string; name?: string; qty?: number },
   ) {
     const session = this.requireDirectorOrAccountantAccess(authorization);
+    const warehouseKey = String(body.warehouseKey ?? '').trim();
+    if (!warehouseKey) {
+      throw new BadRequestException('Укажите склад (warehouseKey)');
+    }
     const result = this.authService.replenishWarehouseStock(
       String(body.name ?? ''),
       Number(body.qty),
       session.nickname,
+      warehouseKey,
     );
     if (!result) {
-      throw new BadRequestException('Укажите товар из каталога и положительное количество');
+      throw new BadRequestException(
+        'Укажите склад, товар из каталога и положительное количество',
+      );
     }
     return result;
   }

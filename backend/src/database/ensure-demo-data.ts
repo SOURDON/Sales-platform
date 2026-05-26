@@ -6,7 +6,7 @@ import {
   buildDefaultStaffRows,
 } from '../auth/build-demo-entities';
 import { getDefaultDemoPassword } from '../auth/demo-password';
-import { CENTRAL_WAREHOUSE_LOCATION_KEY, DEMO_STORE_NAMES } from '../auth/demo-stores';
+import { DEMO_STORE_NAMES, WAREHOUSE_KEYS } from '../auth/demo-stores';
 import { migrateLegacyDemoNicknames } from './migrate-demo-nicknames';
 
 function toPrismaUserRole(role: ReturnType<typeof buildDefaultDemoUserRows>[0]['role']): UserRole {
@@ -135,15 +135,16 @@ async function ensureProductStockLocations(prisma: PrismaClient) {
   if (catalog.length === 0) {
     return;
   }
-  const warehouseRows = catalog.map((c) => ({
-    locationKey: CENTRAL_WAREHOUSE_LOCATION_KEY,
-    productName: c.name,
-    qty: 0,
-  }));
-  await prisma.productStockLocation.createMany({
-    data: warehouseRows,
-    skipDuplicates: true,
-  });
+  for (const warehouseKey of WAREHOUSE_KEYS) {
+    await prisma.productStockLocation.createMany({
+      data: catalog.map((c) => ({
+        locationKey: warehouseKey,
+        productName: c.name,
+        qty: 0,
+      })),
+      skipDuplicates: true,
+    });
+  }
   for (const storeName of DEMO_STORE_NAMES) {
     await prisma.productStockLocation.createMany({
       data: catalog.map((c) => ({

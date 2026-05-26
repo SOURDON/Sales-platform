@@ -212,7 +212,7 @@ model ProductCatalog {
   price Float
 }
 
-/// Остатки по локации: `CENTRAL_WAREHOUSE_LOCATION_KEY` — центральный склад; иначе — `storeName` точки.
+/// Остатки по локации: ключи `__WAREHOUSE_SADY__` / `__WAREHOUSE_CENTER__` — региональные склады; иначе — `storeName` точки.
 model ProductStockLocation {
   locationKey String
   productName String

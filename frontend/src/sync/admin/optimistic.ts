@@ -49,6 +49,7 @@ type ShiftLike = {
 type StoreInventoryLike = {
   storeName: string;
   warehouseKey: string;
+  warehouseLabel?: string;
   products: Array<{
     name: string;
     price: number;

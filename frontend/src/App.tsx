@@ -320,14 +320,19 @@ type CommissionRequest = {
 
 type ProductItem = { name: string; price: number };
 
+type InventoryWarehouseSection = {
+  key: string;
+  label: string;
+  storeNames: string[];
+};
+
 type InventoryOverviewResponse = {
-  warehouseKey: string;
+  warehouses: InventoryWarehouseSection[];
   storeNames: string[];
   products: Array<{
     name: string;
     price: number;
-    qtyWarehouse: number;
-    qtyInStores: number;
+    stockByWarehouse: Record<string, { qtyWarehouse: number; qtyInStores: number }>;
     qtyGrandTotal: number;
   }>;
 };
@@ -335,6 +340,7 @@ type InventoryOverviewResponse = {
 type StoreInventoryDetailResponse = {
   storeName: string;
   warehouseKey: string;
+  warehouseLabel: string;
   products: Array<{
     name: string;
     price: number;
@@ -1429,7 +1435,12 @@ function App() {
     }
   };
 
-  const replenishWarehouse = async (token: string, name: string, qtyStr: string) => {
+  const replenishWarehouse = async (
+    token: string,
+    warehouseKey: string,
+    name: string,
+    qtyStr: string,
+  ) => {
     const qty = Number(String(qtyStr).replace(',', '.'));
     if (!Number.isFinite(qty) || qty <= 0) {
       throw new Error('Укажите количество больше нуля');
@@ -1440,7 +1451,7 @@ function App() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ name, qty }),
+      body: JSON.stringify({ warehouseKey, name, qty }),
     });
     if (!response.ok) {
       throw new Error('Не удалось пополнить склад');
@@ -7909,7 +7920,7 @@ function DirectorWarehousePanel({
   products?: ProductItem[];
   procurementCosts?: ProductProcurementCost[];
   onReload: () => Promise<void>;
-  onReplenish: (token: string, name: string, qtyStr: string) => Promise<void>;
+  onReplenish: (token: string, warehouseKey: string, name: string, qtyStr: string) => Promise<void>;
   onSaveProcurementCosts?: (
     token: string,
     items: Array<{ name: string; cost: number }>,
@@ -7932,26 +7943,36 @@ function DirectorWarehousePanel({
 
   const showProcurement = Boolean(onSaveProcurementCosts);
   const canAddProduct = Boolean(onAddProduct);
-  const warehouseRows = overview?.products ?? [];
-  const warehouseByName = new Map(warehouseRows.map((row) => [row.name.trim(), row]));
+  const warehouseSections = overview?.warehouses ?? [];
+  const productRows = overview?.products ?? [];
   const costByName = new Map(procurementCosts.map((item) => [item.name.trim(), item.cost]));
   const orderedNames = [
     ...new Set([
-      ...warehouseRows.map((row) => row.name.trim()),
+      ...productRows.map((row) => row.name.trim()),
       ...products.map((item) => item.name.trim()),
     ]),
   ].filter(Boolean);
-  const rows = orderedNames.map((name) => {
-    const warehouse = warehouseByName.get(name);
-    return {
-      name,
-      qtyWarehouse: warehouse?.qtyWarehouse ?? 0,
-      qtyInStores: warehouse?.qtyInStores ?? 0,
-      qtyGrandTotal: warehouse?.qtyGrandTotal ?? 0,
-      currentCost: costByName.get(name) ?? 0,
-    };
-  });
+  const allRowsForCosts = orderedNames.map((name) => ({
+    name,
+    currentCost: costByName.get(name) ?? 0,
+  }));
   const colCount = showProcurement ? 6 : 5;
+
+  const replenishDraftKey = (warehouseKey: string, name: string) => `${warehouseKey}::${name}`;
+
+  const rowsForWarehouse = (warehouseKey: string) =>
+    orderedNames.map((name) => {
+      const stock = productRows.find((row) => row.name.trim() === name)?.stockByWarehouse[warehouseKey];
+      const qtyWarehouse = stock?.qtyWarehouse ?? 0;
+      const qtyInStores = stock?.qtyInStores ?? 0;
+      return {
+        name,
+        qtyWarehouse,
+        qtyInStores,
+        qtyGrandTotal: qtyWarehouse + qtyInStores,
+        currentCost: costByName.get(name) ?? 0,
+      };
+    });
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -7965,14 +7986,20 @@ function DirectorWarehousePanel({
     }
   };
 
-  const handleReplenish = async (name: string) => {
-    setBusyName(name);
+  const handleReplenish = async (warehouseKey: string, warehouseLabel: string, name: string) => {
+    const busyKey = replenishDraftKey(warehouseKey, name);
+    setBusyName(busyKey);
     setError('');
     setStatus('');
     try {
-      await onReplenish(token, name, replenishDraft[name] ?? '0');
-      setReplenishDraft((current) => ({ ...current, [name]: '' }));
-      setStatus(`Склад пополнен: ${name}`);
+      await onReplenish(
+        token,
+        warehouseKey,
+        name,
+        replenishDraft[replenishDraftKey(warehouseKey, name)] ?? '0',
+      );
+      setReplenishDraft((current) => ({ ...current, [replenishDraftKey(warehouseKey, name)]: '' }));
+      setStatus(`Склад «${warehouseLabel}» пополнен: ${name}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не удалось пополнить склад');
     } finally {
@@ -8013,7 +8040,7 @@ function DirectorWarehousePanel({
     setCostError('');
     setCostStatus('');
     try {
-      const payload = rows.map((row) => ({
+      const payload = allRowsForCosts.map((row) => ({
         name: row.name,
         cost: Math.max(0, Number(costDraft[row.name] ?? row.currentCost) || 0),
       }));
@@ -8035,7 +8062,9 @@ function DirectorWarehousePanel({
         <header className="invGlassHeader directorWarehouseHeader">
           <div className="directorWarehouseHeaderMain">
             <h3 className="invGlassTitle directorWarehouseTitle">Склад и остатки</h3>
-            <p className="directorWarehouseSubtitle">Каталог общий для склада и всех точек</p>
+            <p className="directorWarehouseSubtitle">
+              Два склада: «Сады моря» и «Центр». Точка списывает товар только со своего склада.
+            </p>
           </div>
           <div className="directorWarehouseHeaderActions">
             {canAddProduct ? (
@@ -8119,99 +8148,130 @@ function DirectorWarehousePanel({
           </p>
         ) : null}
 
-        <div className="invTableScroll invTableScrollFit directorWarehouseTableWrap">
-          <table className="invTable invTableWarehouse">
-            <thead>
-              <tr>
-                <th scope="col">Товар</th>
-                <th className="invThNum dwThNum" scope="col" title="Центральный склад">
-                  Склад
-                </th>
-                <th className="invThNum dwThNum" scope="col" title="Сумма по всем точкам">
-                  Точки
-                </th>
-                <th className="invThNum dwThNum" scope="col">
-                  Всего
-                </th>
-                {showProcurement ? (
-                  <th className="invThNum dwThCost" scope="col" title="Закупочная цена, ₽">
-                    Закуп. цена
-                  </th>
-                ) : null}
-                <th className="invThAction dwThAction" scope="col" title="Количество и подтверждение пополнения">
-                  Кол-во
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={colCount} className="invTableEmpty">
-                    {overview ? 'Нет позиций в каталоге' : 'Загрузка остатков…'}
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.name}>
-                    <td className="invTdName">{row.name}</td>
-                    <td className="invTdNum dwTdNum">
-                      <span className="dwQty">{row.qtyWarehouse}</span>
-                    </td>
-                    <td className="invTdNum dwTdNum">
-                      <span className="dwQty dwQtyMuted">{row.qtyInStores}</span>
-                    </td>
-                    <td className="invTdNum dwTdNum">
-                      <span className="dwQty dwQtyTotal">{row.qtyGrandTotal}</span>
-                    </td>
-                    {showProcurement ? (
-                      <td className="invTdNum dwTdCost">
-                        <input
-                          className="dwCostInput procurementCostInput"
-                          inputMode="decimal"
-                          value={costDraft[row.name] ?? String(row.currentCost)}
-                          onChange={(event) =>
-                            setCostDraft((current) => ({
-                              ...current,
-                              [row.name]: event.target.value,
-                            }))
-                          }
-                          aria-label={`Закупочная цена: ${row.name}`}
-                        />
-                      </td>
-                    ) : null}
-                    <td className="invTdAction dwTdAction">
-                      <div className="dwReplenish" role="group" aria-label={`Пополнить склад: ${row.name}`}>
-                        <input
-                          className="dwReplenishInput"
-                          inputMode="numeric"
-                          placeholder="0"
-                          value={replenishDraft[row.name] ?? ''}
-                          onChange={(event) =>
-                            setReplenishDraft((current) => ({
-                              ...current,
-                              [row.name]: event.target.value,
-                            }))
-                          }
-                          aria-label={`Штук для пополнения: ${row.name}`}
-                        />
-                        <button
-                          type="button"
-                          className="dwReplenishBtn"
-                          disabled={busyName === row.name}
-                          title="Пополнить склад"
-                          aria-label="Подтвердить пополнение"
-                          onClick={() => void handleReplenish(row.name)}
+        {warehouseSections.length === 0 ? (
+          <p className="invTableEmpty directorWarehouseLoading">
+            {overview ? 'Нет складов в ответе сервера' : 'Загрузка остатков…'}
+          </p>
+        ) : (
+          warehouseSections.map((section, sectionIndex) => {
+            const rows = rowsForWarehouse(section.key);
+            const sectionShowCosts = showProcurement && sectionIndex === 0;
+            return (
+              <section key={section.key} className="directorWarehouseRegion">
+                <header className="directorWarehouseRegionHeader">
+                  <h4 className="directorWarehouseRegionTitle">Склад «{section.label}»</h4>
+                  <p className="directorWarehouseRegionStores" title={section.storeNames.join(', ')}>
+                    Точки: {section.storeNames.join(' · ')}
+                  </p>
+                </header>
+                <div className="invTableScroll invTableScrollFit directorWarehouseTableWrap">
+                  <table className="invTable invTableWarehouse">
+                    <thead>
+                      <tr>
+                        <th scope="col">Товар</th>
+                        <th className="invThNum dwThNum" scope="col" title={`Склад «${section.label}»`}>
+                          Склад
+                        </th>
+                        <th className="invThNum dwThNum" scope="col" title="Сумма по точкам этого склада">
+                          Точки
+                        </th>
+                        <th className="invThNum dwThNum" scope="col">
+                          Всего
+                        </th>
+                        {sectionShowCosts ? (
+                          <th className="invThNum dwThCost" scope="col" title="Закупочная цена, ₽">
+                            Закуп. цена
+                          </th>
+                        ) : null}
+                        <th
+                          className="invThAction dwThAction"
+                          scope="col"
+                          title="Количество и подтверждение пополнения"
                         >
-                          {busyName === row.name ? '…' : '✓'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                          Кол-во
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.length === 0 ? (
+                        <tr>
+                          <td colSpan={sectionShowCosts ? colCount : colCount - 1} className="invTableEmpty">
+                            Нет позиций в каталоге
+                          </td>
+                        </tr>
+                      ) : (
+                        rows.map((row) => {
+                          const busyKey = replenishDraftKey(section.key, row.name);
+                          return (
+                            <tr key={`${section.key}-${row.name}`}>
+                              <td className="invTdName">{row.name}</td>
+                              <td className="invTdNum dwTdNum">
+                                <span className="dwQty">{row.qtyWarehouse}</span>
+                              </td>
+                              <td className="invTdNum dwTdNum">
+                                <span className="dwQty dwQtyMuted">{row.qtyInStores}</span>
+                              </td>
+                              <td className="invTdNum dwTdNum">
+                                <span className="dwQty dwQtyTotal">{row.qtyGrandTotal}</span>
+                              </td>
+                              {sectionShowCosts ? (
+                                <td className="invTdNum dwTdCost">
+                                  <input
+                                    className="dwCostInput procurementCostInput"
+                                    inputMode="decimal"
+                                    value={costDraft[row.name] ?? String(row.currentCost)}
+                                    onChange={(event) =>
+                                      setCostDraft((current) => ({
+                                        ...current,
+                                        [row.name]: event.target.value,
+                                      }))
+                                    }
+                                    aria-label={`Закупочная цена: ${row.name}`}
+                                  />
+                                </td>
+                              ) : null}
+                              <td className="invTdAction dwTdAction">
+                                <div
+                                  className="dwReplenish"
+                                  role="group"
+                                  aria-label={`Пополнить склад «${section.label}»: ${row.name}`}
+                                >
+                                  <input
+                                    className="dwReplenishInput"
+                                    inputMode="numeric"
+                                    placeholder="0"
+                                    value={replenishDraft[busyKey] ?? ''}
+                                    onChange={(event) =>
+                                      setReplenishDraft((current) => ({
+                                        ...current,
+                                        [busyKey]: event.target.value,
+                                      }))
+                                    }
+                                    aria-label={`Штук для пополнения: ${row.name}`}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="dwReplenishBtn"
+                                    disabled={busyName === busyKey}
+                                    title={`Пополнить склад «${section.label}»`}
+                                    aria-label="Подтвердить пополнение"
+                                    onClick={() => void handleReplenish(section.key, section.label, row.name)}
+                                  >
+                                    {busyName === busyKey ? '…' : '✓'}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          })
+        )}
 
         {showProcurement ? (
           <div className="directorWarehouseProcurementFooter">
@@ -8898,8 +8958,12 @@ function StoreInventoryControlPanel({
                 <th className="invThNum" scope="col" title="Остаток в магазине">
                   У вас
                 </th>
-                <th className="invThNum" scope="col" title="На центральном складе">
-                  Склад
+                <th
+                  className="invThNum"
+                  scope="col"
+                  title={detail?.warehouseLabel ? `Склад «${detail.warehouseLabel}»` : 'На складе вашей зоны'}
+                >
+                  {detail?.warehouseLabel ? `Склад «${detail.warehouseLabel}»` : 'Склад'}
                 </th>
                 <th className="invThAction" scope="col" title="Принять со склада на точку" aria-label="Принять">
                   <span className="invThGlyph" aria-hidden>

@@ -16,7 +16,17 @@ import { migrateLegacyDemoNicknames } from '../database/migrate-demo-nicknames';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildDefaultDemoUserRows, buildDefaultSellerProfileRows, buildDefaultStaffRows } from './build-demo-entities';
 import { getDefaultDemoPassword } from './demo-password';
-import { CENTRAL_WAREHOUSE_LOCATION_KEY, DEMO_STORE_NAMES } from './demo-stores';
+import {
+  CENTRAL_WAREHOUSE_LOCATION_KEY,
+  DEMO_STORE_NAMES,
+  WAREHOUSE_KEYS,
+  WAREHOUSE_SADY_KEY,
+  WAREHOUSES,
+  isWarehouseKey,
+  storesForWarehouse,
+  warehouseKeyForStore,
+  warehouseLabelForKey,
+} from './demo-stores';
 
 export type UserRole = 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
 
@@ -317,7 +327,6 @@ export class AuthService implements OnModuleInit {
   private storeStaffAssignments: StoreStaffAssignment[] = [];
   /** Остатки: ключ локации — центральный склад или `storeName` точки. */
   private productStockByLocation: Record<string, Record<string, number>> = {};
-  private readonly warehouseLocationKey = CENTRAL_WAREHOUSE_LOCATION_KEY;
   private productProcurementCosts: Record<string, number> = {};
   private storeRevenuePlans: Record<string, Record<string, number>> = {};
   private auditLog: AuditLogItem[] = [];
@@ -329,7 +338,30 @@ export class AuthService implements OnModuleInit {
   private storeEquipmentCustomTypes: StoreEquipmentCustomTypeDto[] = [];
 
   private allStockLocationKeys(): string[] {
-    return [this.warehouseLocationKey, ...DEMO_STORE_NAMES];
+    return [...WAREHOUSE_KEYS, ...DEMO_STORE_NAMES];
+  }
+
+  private migrateLegacyCentralWarehouse(): void {
+    const legacy = this.productStockByLocation[CENTRAL_WAREHOUSE_LOCATION_KEY];
+    if (!legacy) {
+      return;
+    }
+    for (const [productName, qty] of Object.entries(legacy)) {
+      if (!Number.isFinite(qty) || qty <= 0) {
+        continue;
+      }
+      this.ensureStockCell(WAREHOUSE_SADY_KEY, productName);
+      const row = this.productStockByLocation[WAREHOUSE_SADY_KEY];
+      row[productName] = (row[productName] ?? 0) + qty;
+    }
+    delete this.productStockByLocation[CENTRAL_WAREHOUSE_LOCATION_KEY];
+  }
+
+  private stockLocationLabel(locationKey: string): string {
+    if (isWarehouseKey(locationKey)) {
+      return `склад «${warehouseLabelForKey(locationKey)}»`;
+    }
+    return `точка «${locationKey}»`;
   }
 
   private ensureStockCell(locationKey: string, productName: string): void {
@@ -389,19 +421,32 @@ export class AuthService implements OnModuleInit {
 
   getInventoryOverview() {
     this.syncStockWithCatalog();
+    const warehouses = WAREHOUSES.map((w) => ({
+      key: w.key,
+      label: w.label,
+      storeNames: [...storesForWarehouse(w.key)],
+    }));
     const products = this.productCatalog.map((p) => {
-      const w = this.getStockQty(this.warehouseLocationKey, p.name);
-      const inStores = DEMO_STORE_NAMES.reduce((s, sn) => s + this.getStockQty(sn, p.name), 0);
+      const stockByWarehouse: Record<string, { qtyWarehouse: number; qtyInStores: number }> = {};
+      let qtyGrandTotal = 0;
+      for (const w of WAREHOUSES) {
+        const qtyWarehouse = this.getStockQty(w.key, p.name);
+        const qtyInStores = storesForWarehouse(w.key).reduce(
+          (sum, storeName) => sum + this.getStockQty(storeName, p.name),
+          0,
+        );
+        stockByWarehouse[w.key] = { qtyWarehouse, qtyInStores };
+        qtyGrandTotal += qtyWarehouse + qtyInStores;
+      }
       return {
         name: p.name,
         price: p.price,
-        qtyWarehouse: w,
-        qtyInStores: inStores,
-        qtyGrandTotal: w + inStores,
+        stockByWarehouse,
+        qtyGrandTotal,
       };
     });
     return {
-      warehouseKey: this.warehouseLocationKey,
+      warehouses,
       storeNames: [...DEMO_STORE_NAMES],
       products,
     };
@@ -411,14 +456,23 @@ export class AuthService implements OnModuleInit {
     if (!(DEMO_STORE_NAMES as readonly string[]).includes(storeName)) {
       return null;
     }
+    const warehouseKey = warehouseKeyForStore(storeName);
+    if (!warehouseKey) {
+      return null;
+    }
     this.syncStockWithCatalog();
     const products = this.productCatalog.map((p) => ({
       name: p.name,
       price: p.price,
       qtyInStore: this.getStockQty(storeName, p.name),
-      qtyOnWarehouse: this.getStockQty(this.warehouseLocationKey, p.name),
+      qtyOnWarehouse: this.getStockQty(warehouseKey, p.name),
     }));
-    return { storeName, warehouseKey: this.warehouseLocationKey, products };
+    return {
+      storeName,
+      warehouseKey,
+      warehouseLabel: warehouseLabelForKey(warehouseKey),
+      products,
+    };
   }
 
   addProductToCatalog(
@@ -449,14 +503,29 @@ export class AuthService implements OnModuleInit {
     return item;
   }
 
-  replenishWarehouseStock(productName: string, qty: number, actor: string) {
+  replenishWarehouseStock(
+    productName: string,
+    qty: number,
+    actor: string,
+    warehouseKey: string,
+  ) {
     const name = productName?.trim();
-    if (!name || !this.productCatalog.some((p) => p.name === name) || !Number.isFinite(qty) || qty <= 0) {
+    if (
+      !name ||
+      !this.productCatalog.some((p) => p.name === name) ||
+      !Number.isFinite(qty) ||
+      qty <= 0 ||
+      !isWarehouseKey(warehouseKey)
+    ) {
       return null;
     }
     const n = Math.floor(qty);
-    this.addStockDelta(this.warehouseLocationKey, name, n);
-    this.pushAudit(actor, 'WAREHOUSE_REPLENISH', `${name} +${n}`);
+    this.addStockDelta(warehouseKey, name, n);
+    this.pushAudit(
+      actor,
+      'WAREHOUSE_REPLENISH',
+      `${name} +${n} → ${warehouseLabelForKey(warehouseKey)}`,
+    );
     this.queuePersist();
     return { ok: true as const };
   }
@@ -479,13 +548,21 @@ export class AuthService implements OnModuleInit {
     if (!Number.isFinite(qty) || qty <= 0) {
       return null;
     }
-    const n = Math.floor(qty);
-    if (this.getStockQty(this.warehouseLocationKey, name) < n) {
+    const warehouseKey = warehouseKeyForStore(storeName);
+    if (!warehouseKey) {
       return null;
     }
-    this.addStockDelta(this.warehouseLocationKey, name, -n);
+    const n = Math.floor(qty);
+    if (this.getStockQty(warehouseKey, name) < n) {
+      return null;
+    }
+    this.addStockDelta(warehouseKey, name, -n);
     this.addStockDelta(storeName, name, n);
-    this.pushAudit(actor, 'INVENTORY_TRANSFER_TO_STORE', `${name} ${n} шт. → ${storeName}`);
+    this.pushAudit(
+      actor,
+      'INVENTORY_TRANSFER_TO_STORE',
+      `${name} ${n} шт. (${warehouseLabelForKey(warehouseKey)}) → ${storeName}`,
+    );
     this.queuePersist();
     return { ok: true as const };
   }
@@ -2907,8 +2984,7 @@ export class AuthService implements OnModuleInit {
       .reduce((sum, item) => sum + item.qty, 0);
 
     for (const [loc, mp] of Object.entries(this.productStockByLocation)) {
-      const locLabel =
-        loc === this.warehouseLocationKey ? 'склад' : `точка «${loc}»`;
+      const locLabel = this.stockLocationLabel(loc);
       for (const [name, qty] of Object.entries(mp)) {
         if (qty <= 10) {
           notifications.push({
@@ -3191,7 +3267,7 @@ export class AuthService implements OnModuleInit {
       for (const p of this.productCatalog) {
         const nm = p.name;
         this.productStockByLocation[loc][nm] =
-          loc === this.warehouseLocationKey ? (seedWarehouse[nm] ?? 0) : 0;
+          loc === WAREHOUSE_SADY_KEY ? (seedWarehouse[nm] ?? 0) : 0;
       }
     }
     this.adminWriteOffs = [
@@ -3395,6 +3471,7 @@ export class AuthService implements OnModuleInit {
       this.ensureStockCell(row.locationKey, row.productName);
       this.productStockByLocation[row.locationKey][row.productName] = row.qty;
     }
+    this.migrateLegacyCentralWarehouse();
     this.syncStockWithCatalog();
     this.productProcurementCosts = {};
     for (const item of procurementCosts) {
