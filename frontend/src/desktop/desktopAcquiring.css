@@ -70,7 +70,8 @@
 }
 
 .app.app--desktop .directorWarehouseFooterRow .directorWarehouseCatalogTableWrap {
-  max-height: min(48vh, 320px);
+  max-height: min(46vh, 300px);
+  overflow-y: auto;
 }
 
 .app.app--desktop .acquiringPanelGrid--vertical .acquiringPanelCard {

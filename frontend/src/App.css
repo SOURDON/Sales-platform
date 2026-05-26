@@ -7599,7 +7599,15 @@ h1 {
 .directorWarehouseCardTitleRow {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.directorWarehouseCardTitleMain {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .directorWarehouseCardBadge {
@@ -7691,6 +7699,13 @@ h1 {
   margin-bottom: 10px;
 }
 
+.directorWarehouseCatalogTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .directorWarehouseCatalogTitle {
   margin: 0;
   font-size: 13px;
@@ -7707,7 +7722,32 @@ h1 {
 .directorWarehouseCatalogTableWrap {
   margin-top: 4px;
   max-height: min(52vh, 340px);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 182, 123, 0.45) rgba(0, 0, 0, 0.25);
+}
+
+.directorWarehouseCatalogTableWrap::-webkit-scrollbar {
+  width: 8px;
+}
+
+.directorWarehouseCatalogTableWrap::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+}
+
+.directorWarehouseCatalogTableWrap::-webkit-scrollbar-thumb {
+  background: rgba(212, 182, 123, 0.45);
+  border-radius: 999px;
+}
+
+.directorWarehouseCatalogTableWrap .invTableCatalog thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.42);
 }
 
 .directorWarehouseFooterRow .directorWarehouseCatalogTableWrap .invTableCatalog tbody td {
@@ -8078,18 +8118,61 @@ h1 {
 }
 
 .directorWarehouseResetBtn {
-  min-height: 32px;
-  padding: 0 10px;
-  border-radius: 10px;
+  flex: 0 0 auto;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.38);
+  background: rgba(248, 113, 113, 0.08);
+  color: rgba(252, 165, 165, 0.95);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.directorWarehouseResetBtn:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.14);
+}
+
+.directorWarehouseResetBtn:disabled {
+  opacity: 0.45;
+}
+
+.directorWarehouseResetConfirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.directorWarehouseResetConfirmInput {
+  width: 86px;
+  min-height: 26px;
+  padding: 0 7px;
+  border-radius: 8px;
   border: 1px solid rgba(248, 113, 113, 0.35);
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(248, 113, 113, 0.95);
-  font-size: 11px;
+  background: rgba(0, 0, 0, 0.28);
+  color: inherit;
+  font-size: 10px;
+}
+
+.directorWarehouseResetConfirmOk,
+.directorWarehouseResetConfirmCancel {
+  min-height: 26px;
+  min-width: 26px;
+  padding: 0 7px;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.12);
+  color: rgba(252, 165, 165, 0.95);
+  font-size: 10px;
   line-height: 1;
 }
 
-.directorWarehouseResetBtn:hover {
-  background: rgba(248, 113, 113, 0.08);
+.directorWarehouseResetConfirmCancel {
+  padding: 0;
 }
 
 .directorWarehouseRoot .directorWarehouseTableWrap.invTableScrollFit {
@@ -8098,6 +8181,11 @@ h1 {
   border-radius: 0;
   margin: 0;
   padding-top: 4px;
+}
+
+.directorWarehouseRoot .directorWarehouseCatalogTableWrap.invTableScrollFit {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .directorWarehouseRoot .invTableWarehouse {

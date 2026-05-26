@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Fotografy",
-  "version": "1.0.6",
+  "productName": "Фотографы",
+  "mainBinaryName": "Fotografy",
+  "version": "1.0.7",
   "identifier": "ru.salesplatform.desktop",
   "build": {
     "beforeDevCommand": "node scripts/dev-frontend.mjs",
@@ -39,6 +40,12 @@
     ],
     "macOS": {
       "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "nsis": {
+        "languages": ["Russian", "English"],
+        "displayLanguageSelector": false
+      }
     }
   }
 }

@@ -1560,7 +1560,7 @@ function App() {
       body: JSON.stringify({ warehouseKey }),
     });
     if (!response.ok) {
-      throw new Error('Не удалось обнулить склад');
+      throw new Error(await readApiErrorMessage(response, 'Не удалось обнулить склад'));
     }
     await loadInventoryOverview(token);
   };
@@ -8236,6 +8236,13 @@ function DirectorWarehousePanel({
 
   const replenishDraftKey = (warehouseKey: string, name: string) => `${warehouseKey}::${name}`;
   const [resettingWarehouseKey, setResettingWarehouseKey] = useState<string | null>(null);
+  const [resettingCosts, setResettingCosts] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState<
+    | { kind: 'warehouse'; warehouseKey: string; label: string }
+    | { kind: 'costs' }
+    | null
+  >(null);
+  const [resetConfirmText, setResetConfirmText] = useState('');
 
   const warehouseCardTone = (warehouseKey: string) => {
     if (warehouseKey === WAREHOUSE_SADY_KEY) {
@@ -8298,16 +8305,8 @@ function DirectorWarehousePanel({
     if (!onResetWarehouse) {
       return;
     }
-    const first = window.confirm(
-      `Обнулить склад «${warehouseLabel}»?\n\nЭто удалит все остатки на этом складе. Остатки по точкам не изменятся.`,
-    );
-    if (!first) {
-      return;
-    }
-    const text = window.prompt('Введите ОБНУЛИТЬ чтобы подтвердить', '');
-    if (text !== 'ОБНУЛИТЬ') {
-      setStatus('');
-      setError('Отменено');
+    if (resetConfirmText.trim() !== 'ОБНУЛИТЬ') {
+      setError('Введите ОБНУЛИТЬ для подтверждения');
       return;
     }
     setResettingWarehouseKey(warehouseKey);
@@ -8316,11 +8315,103 @@ function DirectorWarehousePanel({
     try {
       await onResetWarehouse(token, warehouseKey);
       setStatus(`Склад «${warehouseLabel}» обнулён`);
+      setResetConfirm(null);
+      setResetConfirmText('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не удалось обнулить склад');
     } finally {
       setResettingWarehouseKey(null);
     }
+  };
+
+  const handleResetProcurementCosts = async () => {
+    if (!onSaveProcurementCosts) {
+      return;
+    }
+    if (resetConfirmText.trim() !== 'ОБНУЛИТЬ') {
+      setCostError('Введите ОБНУЛИТЬ для подтверждения');
+      return;
+    }
+    setResettingCosts(true);
+    setCostError('');
+    setCostStatus('');
+    setError('');
+    try {
+      const payload = allRowsForCosts.map((row) => ({ name: row.name, cost: 0 }));
+      await onSaveProcurementCosts(token, payload);
+      setCostDraft({});
+      setCostStatus('Закупочные цены обнулены');
+      setResetConfirm(null);
+      setResetConfirmText('');
+    } catch (e) {
+      setCostError(e instanceof Error ? e.message : 'Не удалось обнулить цены');
+    } finally {
+      setResettingCosts(false);
+    }
+  };
+
+  const beginResetConfirm = (
+    next:
+      | { kind: 'warehouse'; warehouseKey: string; label: string }
+      | { kind: 'costs' },
+  ) => {
+    setResetConfirm(next);
+    setResetConfirmText('');
+    setError('');
+    setCostError('');
+  };
+
+  const renderResetAction = (
+    isActive: boolean,
+    onBegin: () => void,
+    onConfirm: () => void,
+    busy: boolean,
+    label: string,
+  ) => {
+    if (isActive) {
+      return (
+        <div className="directorWarehouseResetConfirm" role="group" aria-label="Подтверждение обнуления">
+          <input
+            type="text"
+            className="directorWarehouseResetConfirmInput"
+            value={resetConfirmText}
+            onChange={(event) => setResetConfirmText(event.target.value)}
+            placeholder="ОБНУЛИТЬ"
+            aria-label="Подтверждение: введите ОБНУЛИТЬ"
+          />
+          <button
+            type="button"
+            className="directorWarehouseResetConfirmOk"
+            disabled={busy}
+            onClick={() => void onConfirm()}
+          >
+            {busy ? '…' : 'Да'}
+          </button>
+          <button
+            type="button"
+            className="directorWarehouseResetConfirmCancel"
+            disabled={busy}
+            onClick={() => {
+              setResetConfirm(null);
+              setResetConfirmText('');
+            }}
+          >
+            ×
+          </button>
+        </div>
+      );
+    }
+    return (
+      <button
+        type="button"
+        className="directorWarehouseResetBtn"
+        disabled={Boolean(resetConfirm) || busy}
+        onClick={onBegin}
+        title={label}
+      >
+        {label}
+      </button>
+    );
   };
 
   const handleAddProduct = async () => {
@@ -8496,22 +8587,28 @@ function DirectorWarehousePanel({
                   >
                     <header className="directorWarehouseCardHeader">
                       <div className="directorWarehouseCardTitleRow">
-                        <span className="directorWarehouseCardBadge" aria-hidden>
-                          {tone === 'sady' ? 'SM' : tone === 'center' ? 'Ц' : '·'}
-                        </span>
-                        <h4 className="directorWarehouseCardTitle">Склад «{section.label}»</h4>
+                        <div className="directorWarehouseCardTitleMain">
+                          <span className="directorWarehouseCardBadge" aria-hidden>
+                            {tone === 'sady' ? 'SM' : tone === 'center' ? 'Ц' : '·'}
+                          </span>
+                          <h4 className="directorWarehouseCardTitle">Склад «{section.label}»</h4>
+                        </div>
+                        {onResetWarehouse
+                          ? renderResetAction(
+                              resetConfirm?.kind === 'warehouse' &&
+                                resetConfirm.warehouseKey === section.key,
+                              () =>
+                                beginResetConfirm({
+                                  kind: 'warehouse',
+                                  warehouseKey: section.key,
+                                  label: section.label,
+                                }),
+                              () => void handleResetWarehouse(section.key, section.label),
+                              resettingWarehouseKey === section.key,
+                              'Обнулить',
+                            )
+                          : null}
                       </div>
-                      {onResetWarehouse && section.key === WAREHOUSE_SADY_KEY ? (
-                        <button
-                          type="button"
-                          className="ghost directorWarehouseResetBtn"
-                          disabled={resettingWarehouseKey === section.key}
-                          onClick={() => void handleResetWarehouse(section.key, section.label)}
-                          title="Обнулить склад"
-                        >
-                          {resettingWarehouseKey === section.key ? '…' : 'Обнулить'}
-                        </button>
-                      ) : null}
                       <div className="directorWarehouseStoreChips">
                         {section.storeNames.map((store) => (
                           <span key={store} className="directorWarehouseStoreChip" title={store}>
@@ -8615,7 +8712,18 @@ function DirectorWarehousePanel({
             <div className={`directorWarehouseFooterRow${bottomAside ? ' directorWarehouseFooterRow--withAside' : ''}`}>
             <section className="directorWarehouseCatalogCard">
               <header className="directorWarehouseCatalogHeader">
-                <h4 className="directorWarehouseCatalogTitle">Каталог товаров</h4>
+                <div className="directorWarehouseCatalogTitleRow">
+                  <h4 className="directorWarehouseCatalogTitle">Каталог товаров</h4>
+                  {showProcurement
+                    ? renderResetAction(
+                        resetConfirm?.kind === 'costs',
+                        () => beginResetConfirm({ kind: 'costs' }),
+                        () => void handleResetProcurementCosts(),
+                        resettingCosts,
+                        'Обнулить цены',
+                      )
+                    : null}
+                </div>
                 <p className="directorWarehouseCatalogHint">
                   Закупочные цены общие для обоих складов. Удаление — только при нулевых остатках везде.
                 </p>
