@@ -6,6 +6,6 @@ WHERE "locationKey" = '__WAREHOUSE__'
 ON CONFLICT ("locationKey", "productName") DO UPDATE SET "qty" = EXCLUDED."qty";
 
 INSERT INTO "ProductStockLocation" ("locationKey", "productName", "qty")
-SELECT '__WAREHOUSE_CENTER__', "productName", 0
+SELECT '__WAREHOUSE_CENTER__', "name", 0
 FROM "ProductCatalog"
 ON CONFLICT ("locationKey", "productName") DO NOTHING;
