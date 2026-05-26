@@ -31,8 +31,12 @@ jobs:
       - name: Generate macOS icons
         run: bash desktop/scripts/generate-icons.sh
 
+      - name: Prepare desktop env (production API)
+        run: |
+          echo 'VITE_API_URL=https://sales-platform-1.onrender.com' > desktop/.env
+
       - name: Smoke API
-        run: bash scripts/desktop-smoke.sh
+        run: bash scripts/desktop-smoke.sh https://sales-platform-1.onrender.com
 
       - name: Build Tauri bundle
         env:
