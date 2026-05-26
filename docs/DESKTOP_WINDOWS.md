@@ -81,9 +81,11 @@ npm run build
 На Mac/Linux можно получить `.exe` через Actions:
 
 ```bash
-git tag desktop-v1.0.0
-git push origin desktop-v1.0.0
+git tag desktop-v1.0.6-win
+git push origin desktop-v1.0.6-win
 ```
+
+Или в GitHub: **Actions** → **Desktop Windows** → **Run workflow** (без тега).
 
 Workflow **Desktop Windows** соберёт артефакт `desktop-windows-setup` (файл `*setup.exe`).  
 Скачать: GitHub → **Actions** → последний run → **Artifacts**.
