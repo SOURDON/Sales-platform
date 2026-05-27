@@ -1031,6 +1031,40 @@ export class AdminController {
     return result as unknown;
   }
 
+  @Patch('sales/:saleId/payment-type')
+  updateSalePaymentType(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('saleId') saleId: string,
+    @Body() body: { paymentType?: 'CASH' | 'NON_CASH' | 'TRANSFER' },
+  ) {
+    const session = this.requireWriteAccess(authorization);
+    if (session.role !== 'ADMIN') {
+      throw new ForbiddenException('Вид оплаты может изменить только администратор точки');
+    }
+    const sid = saleId?.trim();
+    if (!sid) {
+      throw new BadRequestException('saleId обязателен');
+    }
+    const paymentType =
+      body.paymentType === 'NON_CASH'
+        ? 'NON_CASH'
+        : body.paymentType === 'TRANSFER'
+          ? 'TRANSFER'
+          : body.paymentType === 'CASH'
+            ? 'CASH'
+            : null;
+    if (!paymentType) {
+      throw new BadRequestException('paymentType must be CASH, NON_CASH or TRANSFER');
+    }
+    const result = this.authService.updateAdminSalePaymentType(sid, paymentType, session.nickname);
+    if (!result) {
+      throw new BadRequestException(
+        'Не удалось изменить оплату: продажа не найдена на вашей точке, не за сегодня или неверный вид оплаты',
+      );
+    }
+    return result as unknown;
+  }
+
   @Post('sales/delete-request')
   requestSaleDeletion(
     @Headers('authorization') authorization: string | undefined,

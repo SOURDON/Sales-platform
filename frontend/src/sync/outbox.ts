@@ -109,6 +109,27 @@ export async function removeOutboxEntry(id: string): Promise<void> {
   await deleteOutboxRow(id);
 }
 
+export async function updateAdminSalePaymentInOutbox(
+  userId: number,
+  saleId: string,
+  paymentType: AdminSaleOutboxPayload['paymentType'],
+): Promise<boolean> {
+  const rows = await listOutboxForUser(userId);
+  const row = rows.find((r) => r.id === saleId && r.type === 'ADMIN_SALE');
+  if (!row) {
+    return false;
+  }
+  const payload = row.payload as AdminSaleOutboxPayload;
+  if (payload.paymentType === paymentType) {
+    return true;
+  }
+  await putOutboxRow({
+    ...row,
+    payload: { ...payload, paymentType },
+  });
+  return true;
+}
+
 export async function outboxCountForUser(userId: number): Promise<number> {
   return (await listOutboxForUser(userId)).length;
 }

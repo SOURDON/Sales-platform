@@ -2350,6 +2350,79 @@ select {
   border-radius: 999px;
 }
 
+button.salePayBtn {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+button.salePayBtn:hover {
+  background: #e2e8f0;
+}
+
+button.salePayBtn:focus-visible {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 2px;
+}
+
+.salePayEdit {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.salePayEditBtn {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f4c81;
+  cursor: pointer;
+}
+
+.salePayEditBtn:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.salePayEditBtnActive {
+  background: #0f4c81;
+  border-color: #0f4c81;
+  color: #fff;
+}
+
+.salePayEditBtn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.salePayEditClose {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.salePayEditClose:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f4c81;
+}
+
 .saleTotal {
   color: #075985;
   font-size: 12px;
@@ -5502,10 +5575,36 @@ h1 {
   color: var(--ui-text) !important;
 }
 
-.appWorkspace .salePay {
+.appWorkspace .salePay,
+.appWorkspace button.salePayBtn {
   background: rgba(255, 255, 255, 0.08) !important;
   color: var(--ui-gold-soft) !important;
   border: 1px solid var(--ui-edge-soft);
+}
+
+.appWorkspace button.salePayBtn:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
+.appWorkspace .salePayEditBtn {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: var(--ui-edge-soft) !important;
+  color: var(--ui-gold-soft) !important;
+}
+
+.appWorkspace .salePayEditBtnActive {
+  background: rgba(212, 182, 123, 0.22) !important;
+  border-color: var(--ui-gold-soft) !important;
+  color: var(--ui-gold) !important;
+}
+
+.appWorkspace .salePayEditClose {
+  color: var(--ui-muted) !important;
+}
+
+.appWorkspace .salePayEditClose:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--ui-gold-soft) !important;
 }
 
 .appWorkspace .saleTotal {

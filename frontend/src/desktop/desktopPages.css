@@ -1363,7 +1363,8 @@
   flex-shrink: 0;
 }
 
-.app.app--desktop .salesLog--desktop .salePay {
+.app.app--desktop .salesLog--desktop .salePay,
+.app.app--desktop .salesLog--desktop button.salePayBtn {
   font-size: 10px;
   font-weight: 500;
   padding: 2px 8px;
@@ -1372,6 +1373,29 @@
   border: 1px solid var(--dt-border-subtle);
   color: var(--dt-text-dim);
   letter-spacing: 0;
+}
+
+.app.app--desktop .salesLog--desktop button.salePayBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--dt-gold-soft);
+}
+
+.app.app--desktop .salesLog--desktop .salePayEditBtn {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--dt-border-subtle);
+  color: var(--dt-text-dim);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.app.app--desktop .salesLog--desktop .salePayEditBtnActive {
+  background: rgba(212, 182, 123, 0.18);
+  border-color: rgba(212, 182, 123, 0.45);
+  color: var(--dt-gold-soft);
 }
 
 .app.app--desktop .salesLog--desktop .saleTotal {

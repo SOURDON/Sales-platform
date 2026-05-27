@@ -38,6 +38,7 @@ import {
 import {
   isLikelyOfflineFetchError as isOfflineFetchError,
   listAdminSalesQueue,
+  updateAdminSalePaymentInOutbox,
   loadAdminCache,
   loadAdminResource,
   loadSyncCache,
@@ -69,6 +70,16 @@ function todayKeyMoscow(): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+}
+
+function salePaymentLabel(paymentType?: 'CASH' | 'NON_CASH' | 'TRANSFER'): string {
+  if (paymentType === 'NON_CASH') {
+    return 'Безнал';
+  }
+  if (paymentType === 'TRANSFER') {
+    return 'Перевод';
+  }
+  return 'Наличные';
 }
 
 function shiftDayKey(dayKey: string, deltaDays: number): string {
@@ -966,6 +977,8 @@ function App() {
   const [globalEmployees, setGlobalEmployees] = useState<GlobalEmployee[]>([]);
   const [adminError, setAdminError] = useState('');
   const [salesNotice, setSalesNotice] = useState('');
+  const [paymentEditSaleId, setPaymentEditSaleId] = useState<string | null>(null);
+  const [paymentEditBusy, setPaymentEditBusy] = useState(false);
   const [teamDayKey, setTeamDayKey] = useState(todayKeyMoscow());
   const [acquiringPercent, setAcquiringPercent] = useState('1.8');
   const [acquiringPercentDetkov, setAcquiringPercentDetkov] = useState('1.8');
@@ -2351,6 +2364,51 @@ function App() {
     setSalesNotice('Запрос на отмену продажи отправлен директору.');
   };
 
+  const updateSalePaymentType = async (
+    token: string,
+    saleId: string,
+    paymentType: 'CASH' | 'NON_CASH' | 'TRANSFER',
+    pendingSync: boolean,
+  ) => {
+    setSalesNotice('');
+    const userId = session?.user?.id;
+    if (pendingSync && userId !== undefined) {
+      const ok = await updateAdminSalePaymentInOutbox(userId, saleId, paymentType);
+      if (!ok) {
+        throw new Error('Не удалось обновить продажу в очереди отправки');
+      }
+      setOfflineQueueTick((x) => x + 1);
+      setPaymentEditSaleId(null);
+      return;
+    }
+    const response = await fetch(
+      `${API_BASE_URL}/admin/sales/${encodeURIComponent(saleId)}/payment-type`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ paymentType }),
+      },
+    );
+    if (!response.ok) {
+      let message = 'Не удалось изменить вид оплаты';
+      try {
+        const parsed = (await response.json()) as { message?: string | string[] };
+        if (typeof parsed.message === 'string') {
+          message = parsed.message;
+        }
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
+    }
+    await loadSales(token);
+    await loadDashboard(token);
+    setPaymentEditSaleId(null);
+  };
+
   const openShift = async (token: string, assignedSellerIds: number[]) => {
     const uid = session?.user?.id;
     const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
@@ -3583,13 +3641,79 @@ function App() {
                                         {sale.pendingSync ? (
                                           <span className="salePendingBadge"> нет сети · отправится позже</span>
                                         ) : null}
-                                        <span className="salePay">
-                                          {sale.paymentType === 'NON_CASH'
-                                            ? 'Безнал'
-                                            : sale.paymentType === 'TRANSFER'
-                                              ? 'Перевод'
-                                              : 'Наличные'}
-                                        </span>
+                                        {role === 'ADMIN' ? (
+                                          paymentEditSaleId === sale.id ? (
+                                            <span
+                                              className="salePayEdit"
+                                              role="group"
+                                              aria-label="Вид оплаты"
+                                            >
+                                              {(
+                                                ['CASH', 'NON_CASH', 'TRANSFER'] as const
+                                              ).map((pt) => (
+                                                <button
+                                                  key={pt}
+                                                  type="button"
+                                                  className={`salePayEditBtn ${
+                                                    (sale.paymentType ?? 'CASH') === pt
+                                                      ? 'salePayEditBtnActive'
+                                                      : ''
+                                                  }`}
+                                                  disabled={paymentEditBusy}
+                                                  onClick={() => {
+                                                    if ((sale.paymentType ?? 'CASH') === pt) {
+                                                      setPaymentEditSaleId(null);
+                                                      return;
+                                                    }
+                                                    void (async () => {
+                                                      setPaymentEditBusy(true);
+                                                      try {
+                                                        await updateSalePaymentType(
+                                                          session.token,
+                                                          sale.id,
+                                                          pt,
+                                                          Boolean(sale.pendingSync),
+                                                        );
+                                                      } catch (e) {
+                                                        setSalesNotice(
+                                                          e instanceof Error
+                                                            ? e.message
+                                                            : 'Не удалось изменить оплату',
+                                                        );
+                                                      } finally {
+                                                        setPaymentEditBusy(false);
+                                                      }
+                                                    })();
+                                                  }}
+                                                >
+                                                  {salePaymentLabel(pt)}
+                                                </button>
+                                              ))}
+                                              <button
+                                                type="button"
+                                                className="salePayEditClose"
+                                                aria-label="Закрыть"
+                                                disabled={paymentEditBusy}
+                                                onClick={() => setPaymentEditSaleId(null)}
+                                              >
+                                                ×
+                                              </button>
+                                            </span>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              className="salePay salePayBtn"
+                                              title="Изменить вид оплаты"
+                                              onClick={() => setPaymentEditSaleId(sale.id)}
+                                            >
+                                              {salePaymentLabel(sale.paymentType)}
+                                            </button>
+                                          )
+                                        ) : (
+                                          <span className="salePay">
+                                            {salePaymentLabel(sale.paymentType)}
+                                          </span>
+                                        )}
                                         <span className="saleHeaderTrailing">
                                           {role === 'ADMIN' && !sale.pendingSync ? (
                                             <button

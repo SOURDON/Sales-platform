@@ -19,6 +19,7 @@ export {
   enqueueAdminSale,
   enqueueOutbox,
   listAdminSalesQueue,
+  updateAdminSalePaymentInOutbox,
   listOutboxForUser,
   migrateLegacyOfflineSalesQueue,
   outboxCountForUser,

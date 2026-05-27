@@ -1319,7 +1319,9 @@ export class AuthService implements OnModuleInit {
           retoucherTotal += m.earningsAmount;
         }
       }
-      const totalCommission = totalSellerCommission + retoucherTotal;
+      const today = this.getStoreBusinessDayKey(new Date().toISOString());
+      const managerSalaryToday = this.managerSalaryForDay(today);
+      const totalCommission = totalSellerCommission + retoucherTotal + managerSalaryToday;
       const roughPurchases = Math.round(totalRevenue * 0.43);
       const netCompany = Math.max(0, Math.round(totalRevenue - roughPurchases - totalCommission));
       const storeRows = DEMO_STORE_NAMES.map((name) => {
@@ -1982,6 +1984,45 @@ export class AuthService implements OnModuleInit {
     )[0];
     this.lastSaleAt = newest?.createdAt ?? null;
     return true;
+  }
+
+  updateAdminSalePaymentType(
+    saleId: string,
+    paymentType: SalePaymentType,
+    actorNickname: string,
+  ): SaleRecord | null {
+    const admin = this.demoUsers.find((u) => u.nickname === actorNickname);
+    if (!admin || admin.role !== 'ADMIN') {
+      return null;
+    }
+    const sid = String(saleId ?? '').trim();
+    if (!sid) {
+      return null;
+    }
+    if (paymentType !== 'CASH' && paymentType !== 'NON_CASH' && paymentType !== 'TRANSFER') {
+      return null;
+    }
+    const hit = this.findAdminStoreSaleIndex(sid, actorNickname);
+    if (!hit) {
+      return null;
+    }
+    const sale = hit.seller.sales[hit.idx];
+    const today = this.getStoreBusinessDayKey(new Date().toISOString());
+    if (this.getStoreBusinessDayKey(sale.createdAt) !== today) {
+      return null;
+    }
+    if (sale.paymentType === paymentType) {
+      return sale;
+    }
+    const prev = sale.paymentType;
+    sale.paymentType = paymentType;
+    this.pushAudit(
+      actorNickname,
+      'SALE_PAYMENT_TYPE_CHANGED',
+      `sale=${sid}, store=${admin.storeName}, ${prev} -> ${paymentType}`,
+    );
+    this.queuePersist();
+    return sale;
   }
 
   requestSaleDeletion(saleId: string, actorNickname: string): DirectorApprovalRequestMem | null {
