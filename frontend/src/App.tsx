@@ -118,6 +118,17 @@ function isPutintsevSberAcquiringStore(storeName: string): boolean {
   return PUTINTSEV_SBER_ACQUIRING_STORES.has(String(storeName).toLocaleLowerCase('ru-RU').trim());
 }
 
+/** Безнал (эквайринг) → «Р/с Лёха» в блоке «Итоги по всем точкам». */
+const LYOKHA_RS_ACQUIRING_STORES = new Set(
+  ['Сады морей Тех. зона', 'Сады морей Пляж', 'Метрополь', 'Багамы', 'Спортивнй'].map((name) =>
+    name.toLocaleLowerCase('ru-RU').trim(),
+  ),
+);
+
+function isLyokhaRsAcquiringStore(storeName: string): boolean {
+  return LYOKHA_RS_ACQUIRING_STORES.has(String(storeName).toLocaleLowerCase('ru-RU').trim());
+}
+
 function parseGoodsCost(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -1235,6 +1246,8 @@ function App() {
     let rsDvtb = 0;
     let rsPvtb = 0;
     let rsPsber = 0;
+    let rsLeha = 0;
+    let transferTotal = 0;
     let cashTotal = 0;
 
     for (const sale of salesMerged) {
@@ -1245,21 +1258,31 @@ function App() {
       if (!storeName) {
         continue;
       }
-      if (sale.paymentType !== 'NON_CASH' && sale.paymentType !== 'TRANSFER') {
+      if (sale.paymentType === 'TRANSFER') {
+        transferTotal += sale.totalAmount;
+        continue;
+      }
+      if (sale.paymentType !== 'NON_CASH') {
         cashTotal += sale.totalAmount;
         continue;
       }
 
       const isDetkov = isDetkovAcquiringStore(storeName);
       const isPutintsevSber = isPutintsevSberAcquiringStore(storeName);
-      const rate = isDetkov ? acquiringRateDetkov : isPutintsevSber ? acquiringRatePutintsevSber : acquiringRateDefault;
-      const netAmount =
-        sale.paymentType === 'NON_CASH' ? sale.totalAmount - (sale.totalAmount * rate) / 100 : sale.totalAmount;
+      const isLyokha = isLyokhaRsAcquiringStore(storeName);
+      const rate = isDetkov
+        ? acquiringRateDetkov
+        : isPutintsevSber
+          ? acquiringRatePutintsevSber
+          : acquiringRateDefault;
+      const netAmount = sale.totalAmount - (sale.totalAmount * rate) / 100;
 
       if (isDetkov) {
         rsDvtb += netAmount;
       } else if (isPutintsevSber) {
         rsPsber += netAmount;
+      } else if (isLyokha) {
+        rsLeha += netAmount;
       } else {
         rsPvtb += netAmount;
       }
@@ -1269,6 +1292,8 @@ function App() {
       { key: 'rs-d-vtb', title: 'Р/с Д ВТБ', amount: Math.round(rsDvtb * 100) / 100 },
       { key: 'rs-p-vtb', title: 'Р/С П ВТБ', amount: Math.round(rsPvtb * 100) / 100 },
       { key: 'rs-p-sber', title: 'Р/с П СБЕР', amount: Math.round(rsPsber * 100) / 100 },
+      { key: 'transfer', title: 'Перевод', amount: Math.round(transferTotal * 100) / 100 },
+      { key: 'rs-leha', title: 'Р/с Лёха', amount: Math.round(rsLeha * 100) / 100 },
       { key: 'cash', title: 'Наличные', amount: Math.round(cashTotal * 100) / 100 },
     ];
   }, [
