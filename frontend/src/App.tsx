@@ -163,7 +163,16 @@ function buildAdminHomeDashboard(
 ): DashboardResponse {
   const storeSellers = sellers.filter((s) => s.storeName === storeName);
   const sellerIds = new Set(storeSellers.map((s) => s.id));
+  const staffAtStoreIds = new Set(
+    staff
+      .filter((m) => m.isActive && staffAssignedStores(m).includes(storeName))
+      .map((m) => m.id),
+  );
   const today = todayKeyMoscow();
+  const openShift = shifts.find((sh) => sh.status === 'OPEN');
+  const inOpenShiftIds = openShift
+    ? openShift.assignedSellerIds.filter((id) => staffAtStoreIds.has(id))
+    : [];
 
   let storeRevenue = 0;
   let storeSalaries = 0;
@@ -172,7 +181,10 @@ function buildAdminHomeDashboard(
     storeSalaries += s.commissionAmount;
   }
   const retoucherStaff = staff.filter(
-    (m) => m.staffPosition === 'RETOUCHER' && m.storeName === storeName,
+    (m) =>
+      m.staffPosition === 'RETOUCHER' &&
+      m.isActive &&
+      staffAssignedStores(m).includes(storeName),
   );
   for (const r of retoucherStaff) {
     storeSalaries += Math.round(r.earningsAmount);
@@ -197,9 +209,7 @@ function buildAdminHomeDashboard(
     }
   }
 
-  const openShiftsForStore = shifts.filter(
-    (sh) => sh.status === 'OPEN' && sh.assignedSellerIds.some((id) => sellerIds.has(id)),
-  ).length;
+  const openShiftsForStore = openShift && inOpenShiftIds.length > 0 ? 1 : 0;
 
   const metrics = [
     { label: 'Продажи (точка)', value: formatRub(storeRevenue) },
@@ -231,19 +241,18 @@ function buildAdminHomeDashboard(
     return total;
   };
 
-  const sellerRegister = [...storeSellers]
-    .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'))
-    .map((s) => ({
-      fullName: s.fullName,
-      cash: formatRub(sellerRegisterToday(s.id)),
-    }));
-  for (const r of retoucherStaff) {
-    sellerRegister.push({
-      fullName: r.fullName,
-      cash: formatRub(0),
-    });
-  }
-  sellerRegister.sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
+  const sellerRegister = inOpenShiftIds
+    .map((staffId) => {
+      const member = staff.find((m) => m.id === staffId);
+      const seller = sellers.find((s) => s.id === staffId);
+      const fullName = member?.fullName ?? seller?.fullName ?? `Сотрудник #${staffId}`;
+      const cash =
+        member?.staffPosition === 'RETOUCHER'
+          ? formatRub(Math.round(member.earningsAmount))
+          : formatRub(sellerRegisterToday(staffId));
+      return { staffId, fullName, cash };
+    })
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
 
   return {
     ...api,
@@ -298,7 +307,7 @@ type DashboardResponse = {
     qty: number;
     reason: 'Брак' | 'Поломка';
   }>;
-  sellerRegister?: Array<{ fullName: string; cash: string }>;
+  sellerRegister?: Array<{ staffId: number; fullName: string; cash: string }>;
 };
 
 type SellerProfile = {
@@ -3322,14 +3331,18 @@ function App() {
                                 {homeDashboard.sellerRegister && homeDashboard.sellerRegister.length > 0 ? (
                                   <ul>
                                     {homeDashboard.sellerRegister.map((row) => (
-                                      <li key={row.fullName}>
+                                      <li key={row.staffId}>
                                         <span className="adminSellerRegisterName">{row.fullName}</span>
                                         <span className="adminSellerRegisterAmount">{row.cash}</span>
                                       </li>
                                     ))}
                                   </ul>
                                 ) : (
-                                  <p className="muted">Продавцы по точке ещё не привязаны — после добавления появятся зарплаты за сегодня.</p>
+                                  <p className="muted">
+                                    {shifts.some((s) => s.status === 'OPEN')
+                                      ? 'В открытой смене пока никого нет — добавьте сотрудников в смену.'
+                                      : 'Откройте смену и добавьте сотрудников — здесь появятся кассы за сегодня.'}
+                                  </p>
                                 )}
                               </div>
                               <div className="soldProductsBlock homeSoldProductsBlock">

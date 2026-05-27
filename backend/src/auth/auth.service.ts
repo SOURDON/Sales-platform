@@ -1408,15 +1408,13 @@ export class AuthService implements OnModuleInit {
     }
 
     if (user.role === 'ADMIN') {
-      const openShiftsForStore = this.shiftHistory.filter((shift) => {
-        if (shift.status !== 'OPEN') {
-          return false;
-        }
-        return shift.assignedSellerIds.some((sellerId) => {
-          const profile = this.sellerProfiles.find((p) => p.id === sellerId);
-          return profile?.storeName === user.storeName;
-        });
-      }).length;
+      const storeName = user.storeName;
+      const staffAtStoreIds = new Set(this.getStoreAssignedStaffIds(storeName));
+      const openShift = this.shiftHistory.find((item) => item.status === 'OPEN');
+      const inOpenShiftIds = openShift
+        ? openShift.assignedSellerIds.filter((id) => staffAtStoreIds.has(id))
+        : [];
+      const openShiftsForStore = inOpenShiftIds.length > 0 ? 1 : 0;
 
       let storeRevenue = 0;
       let storeSalaries = 0;
@@ -1452,38 +1450,43 @@ export class AuthService implements OnModuleInit {
       }
 
       this.syncRetoucherEarnings();
-      for (const m of this.staff) {
-        if (m.staffPosition !== 'RETOUCHER' || !m.isActive) {
+      for (const staffId of staffAtStoreIds) {
+        const m = this.staff.find((item) => item.id === staffId);
+        if (!m || m.staffPosition !== 'RETOUCHER' || !m.isActive) {
           continue;
         }
-        const u = this.demoUsers.find((d) => d.id === m.id);
-        if (u?.storeName === user.storeName && u.isActive) {
-          storeSalaries += m.earningsAmount;
-        }
+        storeSalaries += m.earningsAmount;
       }
 
-      const sellerRegister: Array<{ fullName: string; cash: string }> = this.sellerProfiles
-        .filter((p) => p.storeName === user.storeName)
-        .map((p) => {
+      const sellerRegisterToday = (sellerId: number) => {
+        let total = 0;
+        for (const p of this.sellerProfiles) {
+          if (p.id !== sellerId) {
+            continue;
+          }
           this.recomputeSeller(p);
-          return {
-            fullName: p.fullName,
-            cash: this.formatCurrency(Math.round(p.salesAmount)),
-          };
-        });
-      for (const m of this.staff) {
-        if (m.staffPosition !== 'RETOUCHER' || !m.isActive) {
-          continue;
+          for (const sale of p.sales) {
+            if (this.getStoreBusinessDayKey(sale.createdAt) !== today) {
+              continue;
+            }
+            total += sale.totalAmount;
+          }
         }
-        const u = this.demoUsers.find((d) => d.id === m.id);
-        if (u?.storeName === user.storeName && u.isActive) {
-          sellerRegister.push({
-            fullName: m.fullName,
-            cash: this.formatCurrency(0),
-          });
-        }
-      }
-      sellerRegister.sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
+        return total;
+      };
+      const sellerRegister: Array<{ staffId: number; fullName: string; cash: string }> =
+        inOpenShiftIds
+          .map((staffId) => {
+            const member = this.staff.find((m) => m.id === staffId);
+            const profile = this.sellerProfiles.find((p) => p.id === staffId);
+            const fullName = member?.fullName ?? profile?.fullName ?? `Сотрудник #${staffId}`;
+            const cash =
+              member?.staffPosition === 'RETOUCHER'
+                ? this.formatCurrency(Math.round(member.earningsAmount))
+                : this.formatCurrency(Math.round(sellerRegisterToday(staffId)));
+            return { staffId, fullName, cash };
+          })
+          .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
 
       return {
         role: user.role,
