@@ -1446,6 +1446,38 @@ function App() {
     }
   };
 
+  const renameCatalogProduct = async (token: string, oldName: string, newName: string) => {
+    const trimmedNew = newName.trim();
+    if (!trimmedNew) {
+      throw new Error('Укажите название товара');
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/products`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ oldName, newName: trimmedNew }),
+    });
+    if (!response.ok) {
+      const errBody = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
+      const msg = Array.isArray(errBody?.message) ? errBody.message[0] : errBody?.message;
+      throw new Error(typeof msg === 'string' ? msg : 'Не удалось переименовать товар');
+    }
+    const data = (await response.json()) as {
+      catalog: ProductItem[];
+      overview: InventoryOverviewResponse;
+    };
+    setProducts(data.catalog);
+    setInventoryOverview(normalizeInventoryOverview(data.overview));
+    const costsResponse = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (costsResponse.ok) {
+      setProductProcurementCosts((await costsResponse.json()) as ProductProcurementCost[]);
+    }
+  };
+
   const deleteCatalogProduct = async (token: string, name: string) => {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -3474,6 +3506,7 @@ function App() {
                               onResetWarehouse={resetWarehouseStock}
                               onSaveProcurementCosts={saveProductProcurementCosts}
                               onAddProduct={addCatalogProduct}
+                              onRenameProduct={renameCatalogProduct}
                               onDeleteProduct={deleteCatalogProduct}
                             />
                           </section>
@@ -3641,6 +3674,7 @@ function App() {
                         onResetWarehouse={resetWarehouseStock}
                         onSaveProcurementCosts={saveProductProcurementCosts}
                         onAddProduct={addCatalogProduct}
+                        onRenameProduct={renameCatalogProduct}
                         onDeleteProduct={deleteCatalogProduct}
                         bottomAside={
                           <AccountantProcurementPanel
@@ -8178,6 +8212,7 @@ function DirectorWarehousePanel({
   onResetWarehouse,
   onSaveProcurementCosts,
   onAddProduct,
+  onRenameProduct,
   onDeleteProduct,
   bottomAside,
 }: {
@@ -8193,10 +8228,12 @@ function DirectorWarehousePanel({
     items: Array<{ name: string; cost: number }>,
   ) => Promise<void>;
   onAddProduct?: (token: string, name: string, priceStr: string) => Promise<void>;
+  onRenameProduct?: (token: string, oldName: string, newName: string) => Promise<void>;
   onDeleteProduct?: (token: string, name: string) => Promise<void>;
   bottomAside?: ReactNode;
 }) {
   const [replenishDraft, setReplenishDraft] = useState<Record<string, string>>({});
+  const [nameDraft, setNameDraft] = useState<Record<string, string>>({});
   const [costDraft, setCostDraft] = useState<Record<string, string>>({});
   const [busyName, setBusyName] = useState<string | null>(null);
   const [costSaving, setCostSaving] = useState(false);
@@ -8210,9 +8247,11 @@ function DirectorWarehousePanel({
   const [newProductPrice, setNewProductPrice] = useState('');
   const [busyAddProduct, setBusyAddProduct] = useState(false);
   const [deletingName, setDeletingName] = useState<string | null>(null);
+  const [renamingName, setRenamingName] = useState<string | null>(null);
 
   const showProcurement = Boolean(onSaveProcurementCosts);
   const canAddProduct = Boolean(onAddProduct);
+  const canRenameProduct = Boolean(onRenameProduct);
   const canDeleteProduct = Boolean(onDeleteProduct);
   const warehouseSections =
     overview?.warehouses && overview.warehouses.length > 0
@@ -8436,6 +8475,47 @@ function DirectorWarehousePanel({
       setError(e instanceof Error ? e.message : 'Не удалось добавить товар');
     } finally {
       setBusyAddProduct(false);
+    }
+  };
+
+  const catalogNameValue = (rowName: string) => nameDraft[rowName] ?? rowName;
+  const catalogNameChanged = (rowName: string) =>
+    catalogNameValue(rowName).trim() !== rowName.trim();
+
+  const handleRenameProduct = async (rowName: string) => {
+    if (!onRenameProduct) {
+      return;
+    }
+    const nextName = catalogNameValue(rowName).trim();
+    if (!nextName || !catalogNameChanged(rowName)) {
+      return;
+    }
+    setRenamingName(rowName);
+    setError('');
+    setCostError('');
+    setStatus('');
+    setCostStatus('');
+    try {
+      await onRenameProduct(token, rowName, nextName);
+      setNameDraft((current) => {
+        const next = { ...current };
+        delete next[rowName];
+        return next;
+      });
+      setCostDraft((current) => {
+        const next = { ...current };
+        const cost = next[rowName];
+        if (cost !== undefined) {
+          next[nextName] = cost;
+          delete next[rowName];
+        }
+        return next;
+      });
+      setStatus(`Товар переименован: «${nextName}»`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось переименовать');
+    } finally {
+      setRenamingName(null);
     }
   };
 
@@ -8725,7 +8805,8 @@ function DirectorWarehousePanel({
                     : null}
                 </div>
                 <p className="directorWarehouseCatalogHint">
-                  Закупочные цены общие для обоих складов. Удаление — только при нулевых остатках везде.
+                  Название можно изменить в таблице (✓). Закупочные цены общие для обоих складов. Удаление —
+                  только при нулевых остатках везде.
                 </p>
               </header>
               <div className="invTableScroll invTableScrollFit directorWarehouseCatalogTableWrap">
@@ -8758,7 +8839,50 @@ function DirectorWarehousePanel({
                     ) : (
                       allRowsForCosts.map((row) => (
                         <tr key={`catalog-${row.name}`}>
-                          <td className="invTdName">{row.name}</td>
+                          <td className="invTdName">
+                            {canRenameProduct ? (
+                              <div
+                                className="dwCatalogNameEdit"
+                                role="group"
+                                aria-label={`Название товара: ${row.name}`}
+                              >
+                                <input
+                                  type="text"
+                                  className="dwCatalogNameInput"
+                                  value={catalogNameValue(row.name)}
+                                  maxLength={120}
+                                  disabled={renamingName === row.name}
+                                  onChange={(event) =>
+                                    setNameDraft((current) => ({
+                                      ...current,
+                                      [row.name]: event.target.value,
+                                    }))
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault();
+                                      void handleRenameProduct(row.name);
+                                    }
+                                  }}
+                                  aria-label={`Название: ${row.name}`}
+                                />
+                                {catalogNameChanged(row.name) ? (
+                                  <button
+                                    type="button"
+                                    className="dwCatalogNameSaveBtn"
+                                    disabled={renamingName === row.name}
+                                    title="Сохранить название"
+                                    aria-label="Сохранить название"
+                                    onClick={() => void handleRenameProduct(row.name)}
+                                  >
+                                    {renamingName === row.name ? '…' : '✓'}
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : (
+                              row.name
+                            )}
+                          </td>
                           {showProcurement ? (
                             <td className="invTdNum dwTdCost">
                               <input

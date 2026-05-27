@@ -202,6 +202,27 @@ export class AdminController {
     };
   }
 
+  @Patch('products')
+  patchProduct(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { oldName?: string; newName?: string },
+  ) {
+    const session = this.requireDirectorOrAccountantAccess(authorization);
+    const result = this.authService.renameProductInCatalog(
+      String(body.oldName ?? ''),
+      String(body.newName ?? ''),
+      session.nickname,
+    );
+    if ('error' in result) {
+      throw new BadRequestException(result.error);
+    }
+    return {
+      product: result,
+      catalog: this.authService.productCatalog,
+      overview: this.authService.getInventoryOverview(),
+    };
+  }
+
   @Get('manager-store-commissions')
   getManagerStoreCommissions(@Headers('authorization') authorization?: string) {
     this.requireDirectorAccess(authorization);

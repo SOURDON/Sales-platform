@@ -542,6 +542,72 @@ export class AuthService implements OnModuleInit {
     return { ok: true };
   }
 
+  renameProductInCatalog(
+    oldName: string,
+    newName: string,
+    actor: string,
+  ): { name: string; price: number } | { error: string } {
+    const trimmedOld = oldName.trim();
+    const trimmedNew = newName.trim();
+    if (!trimmedOld || !trimmedNew) {
+      return { error: 'Укажите название товара' };
+    }
+    if (trimmedNew.length > 120) {
+      return { error: 'Слишком длинное название' };
+    }
+    const product = this.productCatalog.find(
+      (p) => p.name.trim().toLocaleLowerCase('ru-RU') === trimmedOld.toLocaleLowerCase('ru-RU'),
+    );
+    if (!product) {
+      return { error: 'Товар не найден в каталоге' };
+    }
+    const catalogName = product.name;
+    if (catalogName.trim().toLocaleLowerCase('ru-RU') === trimmedNew.toLocaleLowerCase('ru-RU')) {
+      return { name: catalogName, price: product.price };
+    }
+    const exists = this.productCatalog.some(
+      (p) =>
+        p.name !== catalogName &&
+        p.name.trim().toLocaleLowerCase('ru-RU') === trimmedNew.toLocaleLowerCase('ru-RU'),
+    );
+    if (exists) {
+      return { error: 'Товар с таким названием уже есть' };
+    }
+    product.name = trimmedNew;
+    for (const loc of Object.keys(this.productStockByLocation)) {
+      const row = this.productStockByLocation[loc];
+      if (!row || row[catalogName] === undefined) {
+        continue;
+      }
+      const qty = row[catalogName];
+      delete row[catalogName];
+      row[trimmedNew] = qty;
+    }
+    if (catalogName in this.productProcurementCosts) {
+      this.productProcurementCosts[trimmedNew] = this.productProcurementCosts[catalogName]!;
+      delete this.productProcurementCosts[catalogName];
+    }
+    for (const wo of this.adminWriteOffs) {
+      if (wo.name === catalogName) {
+        wo.name = trimmedNew;
+      }
+    }
+    for (const seller of this.sellerProfiles) {
+      for (const sale of seller.sales) {
+        for (const item of sale.items) {
+          if (item.name.trim() === catalogName) {
+            item.name = trimmedNew;
+          }
+        }
+      }
+    }
+    this.syncProcurementKeysWithCatalog();
+    this.syncStockWithCatalog();
+    this.pushAudit(actor, 'PRODUCT_RENAMED', `${catalogName} → ${trimmedNew}`);
+    this.queuePersist();
+    return { name: trimmedNew, price: product.price };
+  }
+
   replenishWarehouseStock(
     productName: string,
     qty: number,
