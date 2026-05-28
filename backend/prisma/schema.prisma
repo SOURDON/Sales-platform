@@ -19,6 +19,7 @@ enum UserRole {
 enum StaffPosition {
   SALES
   RETOUCHER
+  MANAGER
 }
 
 enum CommissionRequestStatus {
@@ -74,6 +75,7 @@ model AppState {
   acquiringPercentPutintsevSber Float @default(1.8)
   acquiringPercentLyokha Float @default(1.8)
   acquiringProfilesJson String?
+  financeExpenseCategoryAmountsJson String?
   updatedAt        DateTime  @updatedAt
 }
 

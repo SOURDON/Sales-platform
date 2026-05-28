@@ -13,6 +13,9 @@ const CENTER_STORES = ['Спортивнй', 'Центр пляж', 'Центр 
 
 export const ALL_DEMO_STORE_NAMES = [...SADY_STORES, ...CENTER_STORES] as const;
 
+/** Точки, где управляющий показывается в списке сотрудников. */
+export const MANAGER_ASSIGNED_STORE_NAMES = [...CENTER_STORES] as const;
+
 /** Дефолтные % управляющего, если API ещё не ответил. */
 export const DEFAULT_MANAGER_STORE_COMMISSIONS: ReadonlyArray<{ storeName: string; percent: number }> =
   ALL_DEMO_STORE_NAMES.map((storeName) => ({

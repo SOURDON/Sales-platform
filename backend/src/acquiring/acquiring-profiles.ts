@@ -25,7 +25,7 @@ const PROFILE_LABELS: Record<AcquiringProfileId, string> = {
 
 const DEFAULT_STORES_BY_PROFILE: Record<AcquiringProfileId, readonly string[]> = {
   'putintsev-vtb': [],
-  'detkov-vtb': ['Центр тех. зона', 'Центр пляж', 'Дельфин Тех. зона'],
+  'detkov-vtb': ['Центр Тех. зона', 'Центр пляж', 'Дельфин Тех. зона'],
   'putintsev-sber': [],
   'lyokha-rs': ['Сады морей Тех. зона', 'Сады морей Пляж', 'Метрополь', 'Багамы', 'Спортивнй'],
 };
@@ -121,6 +121,8 @@ export function normalizeAcquiringProfiles(
     }
     profile.storeNames = unique;
   }
+  const defaultProfile = byId.get('putintsev-vtb')!;
+  defaultProfile.storeNames = [];
   return ACQUIRING_PROFILE_IDS.map((id) => byId.get(id)!);
 }
 
@@ -151,7 +153,8 @@ export function serializeAcquiringProfiles(profiles: AcquiringProfile[]): string
         id,
         label: row?.label ?? PROFILE_LABELS[id],
         percent: row?.percent ?? 1.8,
-        storeNames: row?.storeNames ?? [],
+        storeNames:
+          id === 'putintsev-vtb' ? [] : (row?.storeNames ?? []),
       };
     }),
   );
@@ -160,6 +163,9 @@ export function serializeAcquiringProfiles(profiles: AcquiringProfile[]): string
 export function profileIdForStore(storeName: string, profiles: AcquiringProfile[]): AcquiringProfileId {
   const key = normStoreKey(storeName);
   for (const profile of profiles) {
+    if (profile.id === 'putintsev-vtb') {
+      continue;
+    }
     if (profile.storeNames.some((s) => normStoreKey(s) === key)) {
       return profile.id;
     }

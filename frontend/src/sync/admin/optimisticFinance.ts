@@ -33,12 +33,54 @@ type FinanceIncome = {
   accountId: string;
   accountName: string;
 };
+type FinanceCategoryAmountRow = { title: string; amount: number };
+
+const FINANCE_EXPENSE_CATEGORY_LABELS = [
+  'Аренда',
+  'Налоги',
+  'ЗП',
+  'Расходка',
+  'Ремонт',
+  'Техника',
+  'Хоз-товары',
+  'Попилили',
+  'Прочие траты',
+] as const;
+
 type FinanceOpsSnapshot = {
   accounts: FinanceAccount[];
   expenses: FinanceExpense[];
   incomes: FinanceIncome[];
-  totals: { cash: number; bank: number; balance: number; expenses: number; incomes: number };
+  categoryAmounts?: FinanceCategoryAmountRow[];
+  totals: {
+    cash: number;
+    bank: number;
+    balance: number;
+    expenses: number;
+    incomes: number;
+    categoryTotal?: number;
+  };
 };
+
+function defaultCategoryAmounts(): FinanceCategoryAmountRow[] {
+  return FINANCE_EXPENSE_CATEGORY_LABELS.map((title) => ({ title, amount: 0 }));
+}
+
+function bumpCategoryAmount(
+  rows: FinanceCategoryAmountRow[],
+  expenseTitle: string,
+  delta: number,
+): FinanceCategoryAmountRow[] {
+  const canonical = new Set<string>(FINANCE_EXPENSE_CATEGORY_LABELS);
+  const misc = 'Прочие траты';
+  const raw = expenseTitle.trim() || misc;
+  const bucket = canonical.has(raw) ? raw : misc;
+  return rows.map((row) =>
+    row.title === bucket
+      ? { ...row, amount: Math.round((row.amount + delta) * 100) / 100 }
+      : row,
+  );
+}
 
 type CommissionRequest = {
   id: string;
@@ -89,14 +131,19 @@ async function loadFinance(userId: number): Promise<FinanceOpsSnapshot | null> {
 }
 
 async function saveFinance(userId: number, snap: FinanceOpsSnapshot): Promise<void> {
+  const categoryAmounts = snap.categoryAmounts ?? defaultCategoryAmounts();
+  const categoryTotal = Math.round(
+    categoryAmounts.reduce((sum, row) => sum + row.amount, 0) * 100,
+  ) / 100;
   const totals = {
     cash: snap.accounts.filter((a) => a.kind === 'CASH').reduce((s, a) => s + a.balance, 0),
     bank: snap.accounts.filter((a) => a.kind === 'BANK').reduce((s, a) => s + a.balance, 0),
     balance: snap.accounts.reduce((s, a) => s + a.balance, 0),
     expenses: snap.expenses.reduce((s, e) => s + e.amount, 0),
     incomes: snap.incomes.reduce((s, i) => s + i.amount, 0),
+    categoryTotal,
   };
-  await saveSyncCache(userId, 'financeOps', { ...snap, totals });
+  await saveSyncCache(userId, 'financeOps', { ...snap, categoryAmounts, totals });
 }
 
 async function applyIncome(userId: number, payload: FinanceIncomeOutboxPayload): Promise<void> {
@@ -160,7 +207,12 @@ async function applyExpense(userId: number, payload: FinanceExpenseOutboxPayload
       accountName: account.name,
     },
   ];
-  await saveFinance(userId, { ...snap, accounts, expenses });
+  const categoryAmounts = bumpCategoryAmount(
+    snap.categoryAmounts ?? defaultCategoryAmounts(),
+    payload.title,
+    payload.amount,
+  );
+  await saveFinance(userId, { ...snap, accounts, expenses, categoryAmounts });
 }
 
 async function applyBalance(

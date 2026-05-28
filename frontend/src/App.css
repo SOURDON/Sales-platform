@@ -1464,9 +1464,41 @@ button.ghost.navActive:hover {
   filter: brightness(1.03);
 }
 
+.teamManagerPayrollTotal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 182, 123, 0.45);
+  background: rgba(212, 182, 123, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.teamManagerPayrollTotalLabel {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(212, 182, 123, 0.92);
+}
+
+.teamManagerPayrollTotalValue {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #f0e6d4;
+}
+
 @media (max-width: 520px) {
   .teamManagerPayrollRow {
     padding: 6px 8px;
+  }
+
+  .teamManagerPayrollTotal {
+    padding: 8px;
   }
 }
 
@@ -7389,6 +7421,34 @@ h1 {
   letter-spacing: -0.02em !important;
 }
 
+.financeOpsExpenseArticlesChip--editable {
+  cursor: pointer !important;
+  font: inherit !important;
+  color: inherit !important;
+}
+
+.financeOpsExpenseArticlesChip--editable:hover:not(:disabled) {
+  border-color: rgba(212, 175, 55, 0.45) !important;
+}
+
+.financeOpsExpenseArticlesChip--editing {
+  align-items: stretch !important;
+}
+
+.financeOpsExpenseArticlesChipInput {
+  width: 100% !important;
+  min-height: 2rem !important;
+  padding: 4px 6px !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(212, 175, 55, 0.45) !important;
+  background: rgba(0, 0, 0, 0.25) !important;
+  color: var(--fo-gold) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums !important;
+  text-align: center !important;
+}
+
 @media (min-width: 520px) {
   .financeOpsExpenseArticlesChip {
     width: 8.75rem !important;
@@ -7919,117 +7979,311 @@ h1 {
   font-size: 12px;
 }
 
-/* Эквайринг (веб + базовые классы; десктоп — desktopAcquiring.css) */
-.acquiringPanelRoot--vertical {
-  height: 100%;
+/* Эквайринг — в стиле карточек склада (веб; десктоп — desktopAcquiring.css) */
+.sectionCard--acquiring {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
-.acquiringPanelRoot--vertical .acquiringPanelShell {
+.acquiringCard {
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
-.acquiringPanelShell {
-  padding: 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(168deg, rgba(28, 32, 36, 0.92) 0%, rgba(12, 14, 16, 0.98) 100%);
-}
-
-.acquiringPanelHead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding-bottom: 10px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.acquiringPanelEyebrow {
-  margin: 0 0 2px;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(180, 188, 196, 0.55);
-}
-
-.acquiringPanelTitle {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-}
-
-.acquiringPanelList {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0;
-}
-
-.acquiringPanelList--vertical {
-  display: flex;
-  flex-direction: column;
+.acquiringCard--vertical {
   flex: 1 1 auto;
-  overflow-y: auto;
 }
 
-.acquiringRow {
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+.acquiringTableWrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(52vh, 420px);
 }
 
-.acquiringRowMain {
+.acquiringCard--vertical .acquiringTableWrap {
+  max-height: none;
+}
+
+.acquiringSavedBadge {
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.acquiringError {
+  margin: 0 0 8px;
+}
+
+.invTableAcquiring {
+  min-width: 0;
+  width: 100%;
+}
+
+.invTableAcquiring thead th {
+  padding-top: 4px;
+  padding-bottom: 6px;
+}
+
+.acquiringThPct {
+  width: 5.5rem;
+}
+
+.acquiringTr--open td {
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom-color: transparent;
+}
+
+.acquiringTdAccount {
+  max-width: 9.5rem;
+}
+
+.acquiringAccountBtn {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding-left: 8px;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
 }
 
-.acquiringRowName {
-  margin: 0;
+.acquiringAccountBtnMain {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.acquiringAccountLabel {
   font-size: 12px;
   font-weight: 600;
+  line-height: 1.25;
 }
 
-.acquiringRowMeta {
-  margin: 3px 0 0;
-  font-size: 10px;
+.acquiringRowChevron {
+  flex-shrink: 0;
+  font-size: 9px;
   color: var(--inv-muted, rgba(255, 255, 255, 0.45));
 }
 
-.acquiringRate {
+.acquiringBadge {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font-size: 9px;
+}
+
+.acquiringBadge--putintsev-vtb {
+  background: rgba(143, 164, 184, 0.28);
+  color: #d8e4ee;
+}
+
+.acquiringBadge--detkov-vtb {
+  background: rgba(196, 165, 109, 0.28);
+  color: #f0e6d4;
+}
+
+.acquiringBadge--putintsev-sber {
+  background: rgba(110, 184, 138, 0.28);
+  color: #dff5e8;
+}
+
+.acquiringBadge--lyokha-rs {
+  background: rgba(184, 160, 212, 0.28);
+  color: #efe6ff;
+}
+
+.acquiringTdStores {
+  vertical-align: middle;
+}
+
+.acquiringStoreChips {
+  margin-top: 0;
+  gap: 4px;
+}
+
+.acquiringStoresMuted,
+.acquiringStoresSummary {
+  font-size: 11px;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.45));
+}
+
+.acquiringStoresMuted {
+  font-style: italic;
+}
+
+.acquiringStoresSummary {
+  font-weight: 600;
+  color: var(--inv-text, rgba(255, 255, 255, 0.72));
+}
+
+.acquiringTdPct {
+  width: 5.5rem;
+}
+
+.acquiringPctWrap {
   display: inline-flex;
   align-items: center;
-  padding: 0 8px;
-  min-height: 30px;
-  border-radius: 8px;
+  margin-left: auto;
+  max-width: 5.25rem;
+  border-radius: 999px;
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.22);
+  box-sizing: border-box;
 }
 
-.acquiringRateInput {
-  width: 40px;
+.acquiringPctInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 2.75rem;
+  margin: 0;
+  padding: 6px 4px 6px 8px;
   border: none;
-  background: transparent;
-  font-size: 14px;
-  font-weight: 700;
-  text-align: right;
-  color: inherit;
   outline: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--inv-gold, rgba(212, 182, 123, 0.95));
+  box-sizing: border-box;
 }
 
-.acquiringTag--active {
-  border-color: rgba(196, 165, 109, 0.6);
-  background: rgba(212, 182, 123, 0.2);
+.acquiringPctSuffix {
+  flex-shrink: 0;
+  padding: 0 7px 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.55));
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.acquiringTag--pick.acquiringTag--active {
-  border-color: rgba(120, 200, 160, 0.65);
-  background: rgba(80, 160, 120, 0.22);
+.acquiringTrExpand td {
+  padding: 0 6px 10px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: top;
+}
+
+.acquiringPicker {
+  padding: 8px 6px 6px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.acquiringPickerHint {
+  margin: 0 0 6px;
+  padding: 0 2px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.55));
+}
+
+.acquiringPickerScroll {
+  max-height: 168px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.invTableAcquiringStores {
+  min-width: 0;
+  width: 100%;
+}
+
+.invTableAcquiringStores thead th {
+  padding: 4px 5px 5px;
+  font-size: 9px;
+}
+
+.invTableAcquiringStores tbody td {
+  padding: 5px;
+  font-size: 11px;
+}
+
+.acquiringStoreName {
+  font-weight: 600;
+  max-width: 7.5rem;
+}
+
+.acquiringStoreOwner {
+  font-size: 10px;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.5));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 6.5rem;
+}
+
+.acquiringStorePickTh,
+.acquiringStorePickTd {
+  width: 3.25rem;
+  min-width: 3.25rem;
+  text-align: center;
+}
+
+.acquiringStoreTr--on .acquiringStoreName {
+  color: var(--inv-gold, rgba(212, 182, 123, 0.95));
+}
+
+.acquiringStorePickBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 1.65rem;
+  margin: 0;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(212, 182, 123, 0.9);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.acquiringStorePickBtn:hover:not(:disabled) {
+  border-color: rgba(212, 182, 123, 0.45);
+  background: rgba(212, 182, 123, 0.12);
+}
+
+.acquiringStorePickBtn--on {
+  border-color: rgba(212, 182, 123, 0.55);
+  background: rgba(212, 182, 123, 0.18);
+}
+
+.acquiringStorePickBtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.acquiringPickerActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.acquiringPickerDone {
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: 11px;
+}
+
+.directorWarehouseAside .acquiringCard {
+  min-height: 100%;
 }
 
 .directorWarehouseDeleteBtn {

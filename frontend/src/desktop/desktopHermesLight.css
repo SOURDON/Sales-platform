@@ -236,22 +236,6 @@ html[data-dt-theme='light'] .app.app--desktop .desktopDirectorSwitcherStoreLine 
   color: var(--hermes-gray, #b6c2ca) !important;
 }
 
-/* Эквайринг */
-html[data-dt-theme='light'] .app.app--desktop .acquiringPanelShell {
-  background: var(--hermes-white, #92a1ac) !important;
-  border: 1px solid var(--hermes-line-strong, #b6c2ca) !important;
-  box-shadow: var(--dt-surface-depth) !important;
-}
-
-html[data-dt-theme='light'] .app.app--desktop .acquiringPanelHead {
-  border-bottom-color: var(--hermes-line-strong, #b6c2ca) !important;
-}
-
-html[data-dt-theme='light'] .app.app--desktop .acquiringPanelTitle {
-  color: var(--hermes-charcoal, #e2e8ed) !important;
-  font-weight: 700 !important;
-}
-
 html[data-dt-theme='light'] .app.app--desktop .procurementAccordionTrigger,
 html[data-dt-theme='light'] .app.app--desktop .acquiringPercentBlock {
   border: 1px solid var(--hermes-line, #92a1ac) !important;

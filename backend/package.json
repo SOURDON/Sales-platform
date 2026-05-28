@@ -13,6 +13,7 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "db:sync": "prisma migrate deploy && prisma db seed",
     "db:reset:destructive": "prisma migrate reset --force",
+    "finance:reset-ops-once": "ts-node scripts/reset-finance-ops-once.ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

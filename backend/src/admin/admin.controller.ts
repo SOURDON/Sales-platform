@@ -545,6 +545,30 @@ export class AdminController {
     return this.authService.getFinanceOpsSnapshot() as unknown;
   }
 
+  @Put('finance/expense-category-amount')
+  setFinanceExpenseCategoryAmount(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { title?: string; amount?: number },
+  ) {
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'DIRECTOR') {
+      throw new ForbiddenException('Сумму по статье может менять только директор');
+    }
+    const title = String(body.title ?? '').trim();
+    if (body.amount === undefined || !Number.isFinite(body.amount)) {
+      throw new BadRequestException('title and amount are required');
+    }
+    const row = this.authService.setFinanceExpenseCategoryAmount(
+      title,
+      body.amount,
+      session.nickname,
+    );
+    if (!row) {
+      throw new BadRequestException('Invalid category title or amount');
+    }
+    return row as unknown;
+  }
+
   @Put('finance/accounts/:id/balance')
   setFinanceAccountBalance(
     @Headers('authorization') authorization: string | undefined,

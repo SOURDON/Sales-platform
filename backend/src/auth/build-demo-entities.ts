@@ -1,4 +1,4 @@
-import { DEMO_STORE_NAMES } from './demo-stores';
+import { DEMO_STORE_NAMES, MANAGER_ASSIGNED_STORE_NAMES, MANAGER_USER_NICKNAME } from './demo-stores';
 import { getDefaultDemoPassword } from './demo-password';
 
 export function buildDefaultDemoUserRows() {
@@ -32,7 +32,7 @@ export function buildDefaultDemoUserRows() {
     },
     {
       id: 27,
-      nickname: 'manager',
+      nickname: MANAGER_USER_NICKNAME,
       password: pwd,
       fullName: 'Управляющий',
       role: 'MANAGER',
@@ -104,5 +104,19 @@ export function buildDefaultStaffRows() {
     isActive: true,
     staffPosition: 'RETOUCHER' as const,
   }));
-  return [...sales, ...retouchers];
+  const manager = {
+    id: 27,
+    fullName: 'Управляющий',
+    nickname: MANAGER_USER_NICKNAME,
+    isActive: true,
+    staffPosition: 'MANAGER' as const,
+  };
+  return [...sales, ...retouchers, manager];
+}
+
+export function buildDefaultManagerStoreAssignments(managerStaffId: number) {
+  return MANAGER_ASSIGNED_STORE_NAMES.map((storeName) => ({
+    staffId: managerStaffId,
+    storeName,
+  }));
 }

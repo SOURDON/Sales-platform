@@ -834,6 +834,37 @@
   font-variant-numeric: tabular-nums;
 }
 
+.app.app--desktop .financeOpsExpenseArticlesCarousel--desktop .financeOpsExpenseArticlesChip--editable {
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.app.app--desktop .financeOpsExpenseArticlesCarousel--desktop .financeOpsExpenseArticlesChip--editable:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px rgba(212, 175, 55, 0.35);
+}
+
+.app.app--desktop .financeOpsExpenseArticlesCarousel--desktop .financeOpsExpenseArticlesChip--editing {
+  gap: 6px;
+}
+
+.app.app--desktop .financeOpsExpenseArticlesCarousel--desktop .financeOpsExpenseArticlesChipInput {
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--dt-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 1100px) {
   .app.app--desktop .financeOpsHeroMain,
   .app.app--desktop .financeOpsFlowsMain {

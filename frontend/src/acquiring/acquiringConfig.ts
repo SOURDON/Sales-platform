@@ -16,6 +16,9 @@ export type AcquiringProfile = {
   storeNames: string[];
 };
 
+/** Счёт по умолчанию: все точки без явной привязки к другому профилю. */
+export const ACQUIRING_DEFAULT_PROFILE_ID: AcquiringProfileId = 'putintsev-vtb';
+
 const PROFILE_LABELS: Record<AcquiringProfileId, string> = {
   'putintsev-vtb': 'Путинцев ВТБ',
   'detkov-vtb': 'Детков ВТБ',
@@ -25,7 +28,7 @@ const PROFILE_LABELS: Record<AcquiringProfileId, string> = {
 
 const DEFAULT_STORES_BY_PROFILE: Record<AcquiringProfileId, readonly string[]> = {
   'putintsev-vtb': [],
-  'detkov-vtb': ['Центр тех. зона', 'Центр пляж', 'Дельфин Тех. зона'],
+  'detkov-vtb': ['Центр Тех. зона', 'Центр пляж', 'Дельфин Тех. зона'],
   'putintsev-sber': [],
   'lyokha-rs': ['Сады морей Тех. зона', 'Сады морей Пляж', 'Метрополь', 'Багамы', 'Спортивнй'],
 };
@@ -121,17 +124,66 @@ export function normalizeAcquiringProfiles(
     }
     profile.storeNames = unique;
   }
+  const defaultProfile = byId.get(ACQUIRING_DEFAULT_PROFILE_ID)!;
+  defaultProfile.storeNames = [];
   return ACQUIRING_PROFILE_IDS.map((id) => byId.get(id)!);
 }
 
-export function profileIdForStore(storeName: string, profiles: AcquiringProfile[]): AcquiringProfileId {
+/** Явная привязка к счёту (не счёт по умолчанию). */
+export function explicitOwnerProfileId(
+  storeName: string,
+  profiles: AcquiringProfile[],
+): AcquiringProfileId | null {
   const key = normStoreKey(storeName);
   for (const profile of profiles) {
+    if (profile.id === ACQUIRING_DEFAULT_PROFILE_ID) {
+      continue;
+    }
     if (profile.storeNames.some((s) => normStoreKey(s) === key)) {
       return profile.id;
     }
   }
-  return 'putintsev-vtb';
+  return null;
+}
+
+export function profileIdForStore(storeName: string, profiles: AcquiringProfile[]): AcquiringProfileId {
+  return explicitOwnerProfileId(storeName, profiles) ?? ACQUIRING_DEFAULT_PROFILE_ID;
+}
+
+export function isStoreOnProfile(
+  storeName: string,
+  profileId: AcquiringProfileId,
+  profiles: AcquiringProfile[],
+): boolean {
+  return profileIdForStore(storeName, profiles) === profileId;
+}
+
+/** Точки, которые реально относятся к счёту (для UI). */
+export function storesForProfile(
+  profileId: AcquiringProfileId,
+  profiles: AcquiringProfile[],
+): string[] {
+  if (profileId === ACQUIRING_DEFAULT_PROFILE_ID) {
+    return ALL_DEMO_STORE_NAMES.filter(
+      (storeName) => explicitOwnerProfileId(storeName, profiles) === null,
+    ) as string[];
+  }
+  const profile = profiles.find((item) => item.id === profileId);
+  return profile ? [...profile.storeNames] : [];
+}
+
+export function canUnassignStoreFromProfile(
+  storeName: string,
+  profileId: AcquiringProfileId,
+  profiles: AcquiringProfile[],
+): boolean {
+  if (!isStoreOnProfile(storeName, profileId, profiles)) {
+    return false;
+  }
+  if (profileId === ACQUIRING_DEFAULT_PROFILE_ID) {
+    return explicitOwnerProfileId(storeName, profiles) !== null;
+  }
+  return true;
 }
 
 export function percentForStore(storeName: string, profiles: AcquiringProfile[]): number {
@@ -162,18 +214,46 @@ export function toggleStoreOnProfile(
   enabled: boolean,
 ): AcquiringProfile[] {
   const key = normStoreKey(storeName);
+
+  if (profileId === ACQUIRING_DEFAULT_PROFILE_ID) {
+    if (!enabled) {
+      return profiles;
+    }
+    return profiles.map((profile) => {
+      if (profile.id === ACQUIRING_DEFAULT_PROFILE_ID) {
+        return { ...profile, storeNames: [] };
+      }
+      return {
+        ...profile,
+        storeNames: profile.storeNames.filter((s) => normStoreKey(s) !== key),
+      };
+    });
+  }
+
+  if (!enabled) {
+    if (!canUnassignStoreFromProfile(storeName, profileId, profiles)) {
+      return profiles;
+    }
+    return profiles.map((profile) => {
+      if (profile.id === profileId) {
+        return {
+          ...profile,
+          storeNames: profile.storeNames.filter((s) => normStoreKey(s) !== key),
+        };
+      }
+      return profile;
+    });
+  }
+
   return profiles.map((profile) => {
     const without = profile.storeNames.filter((s) => normStoreKey(s) !== key);
     if (profile.id === profileId) {
-      if (enabled) {
-        return { ...profile, storeNames: [...without, storeName] };
-      }
-      return { ...profile, storeNames: without };
+      return { ...profile, storeNames: [...without, storeName] };
     }
-    if (enabled) {
-      return { ...profile, storeNames: without };
+    if (profile.id === ACQUIRING_DEFAULT_PROFILE_ID) {
+      return { ...profile, storeNames: [] };
     }
-    return profile;
+    return { ...profile, storeNames: without };
   });
 }
 

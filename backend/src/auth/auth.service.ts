@@ -19,10 +19,27 @@ import {
   serializeAcquiringProfiles,
   syncLegacyPercentsFromProfiles,
 } from '../acquiring/acquiring-profiles';
-import { ensureDemoData, ensureManagerUserIfMissing, ensureRetoucherUsersIfMissing } from '../database/ensure-demo-data';
+import {
+  FINANCE_EXPENSE_CATEGORY_LABELS,
+  isFinanceExpenseCategoryLabel,
+  normalizeFinanceCategoryAmounts,
+  serializeFinanceCategoryAmounts,
+  defaultFinanceCategoryAmounts,
+} from '../finance/expense-categories';
+import {
+  ensureDemoData,
+  ensureManagerStaffAndAssignments,
+  ensureManagerUserIfMissing,
+  ensureRetoucherUsersIfMissing,
+} from '../database/ensure-demo-data';
 import { migrateLegacyDemoNicknames } from '../database/migrate-demo-nicknames';
 import { PrismaService } from '../prisma/prisma.service';
-import { buildDefaultDemoUserRows, buildDefaultSellerProfileRows, buildDefaultStaffRows } from './build-demo-entities';
+import {
+  buildDefaultDemoUserRows,
+  buildDefaultManagerStoreAssignments,
+  buildDefaultSellerProfileRows,
+  buildDefaultStaffRows,
+} from './build-demo-entities';
 import { getDefaultDemoPassword } from './demo-password';
 import {
   CENTRAL_WAREHOUSE_LOCATION_KEY,
@@ -246,7 +263,7 @@ interface CashDisciplineEvent {
   createdBy: string;
 }
 
-type StaffPositionKind = 'SALES' | 'RETOUCHER';
+type StaffPositionKind = 'SALES' | 'RETOUCHER' | 'MANAGER';
 
 interface StaffMember {
   id: number;
@@ -344,6 +361,7 @@ export class AuthService implements OnModuleInit {
   private financeAccounts: FinanceAccount[] = [];
   private financeExpenses: FinanceExpense[] = [];
   private financeIncomes: FinanceIncome[] = [];
+  private financeExpenseCategoryAmounts: Record<string, number> = defaultFinanceCategoryAmounts();
   private storeEquipmentByStore: Record<string, StoreEquipmentCounts> = {};
   private storeEquipmentCustomTypes: StoreEquipmentCustomTypeDto[] = [];
 
@@ -848,18 +866,44 @@ export class AuthService implements OnModuleInit {
     const totalBalance = cashTotal + bankTotal;
     const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
     const incomeTotal = incomes.reduce((sum, item) => sum + item.amount, 0);
+    const categoryAmounts = this.getFinanceCategoryAmountRows();
+    const categoryTotal = categoryAmounts.reduce((sum, row) => sum + row.amount, 0);
     return {
       accounts,
       expenses,
       incomes,
+      categoryAmounts,
       totals: {
         cash: Math.round(cashTotal * 100) / 100,
         bank: Math.round(bankTotal * 100) / 100,
         balance: Math.round(totalBalance * 100) / 100,
         expenses: Math.round(expenseTotal * 100) / 100,
         incomes: Math.round(incomeTotal * 100) / 100,
+        categoryTotal: Math.round(categoryTotal * 100) / 100,
       },
     };
+  }
+
+  private getFinanceCategoryAmountRows() {
+    return FINANCE_EXPENSE_CATEGORY_LABELS.map((title) => ({
+      title,
+      amount: Math.round((this.financeExpenseCategoryAmounts[title] ?? 0) * 100) / 100,
+    }));
+  }
+
+  setFinanceExpenseCategoryAmount(title: string, amount: number, actor = 'system') {
+    const trimmed = title.trim();
+    if (!isFinanceExpenseCategoryLabel(trimmed)) {
+      return null;
+    }
+    if (!Number.isFinite(amount) || amount < 0) {
+      return null;
+    }
+    const safe = Math.round(amount * 100) / 100;
+    this.financeExpenseCategoryAmounts[trimmed] = safe;
+    this.pushAudit(actor, 'FINANCE_CATEGORY_AMOUNT_UPDATED', `${trimmed}=${safe}`);
+    this.queuePersist();
+    return { title: trimmed, amount: safe };
   }
 
   setAcquiringPercent(percent: number, actor = 'system') {
@@ -1042,9 +1086,32 @@ export class AuthService implements OnModuleInit {
       accountName: account.name,
     };
     this.financeExpenses.push(expense);
+    const categoryKey = isFinanceExpenseCategoryLabel(title) ? title : 'Прочие траты';
+    const prevCategory = this.financeExpenseCategoryAmounts[categoryKey] ?? 0;
+    this.financeExpenseCategoryAmounts[categoryKey] =
+      Math.round((prevCategory + amount) * 100) / 100;
     this.pushAudit(actor, 'FINANCE_EXPENSE_ADDED', `${title}: ${amount} from ${account.name}`);
     this.queuePersist();
     return expense;
+  }
+
+  /** Очистка оперативки: все приходы/расходы, статьи расходов → 0, остатки счетов обнуляются. */
+  resetFinanceOps(actor = 'system') {
+    const expenseCount = this.financeExpenses.length;
+    const incomeCount = this.financeIncomes.length;
+    this.financeExpenses = [];
+    this.financeIncomes = [];
+    this.financeExpenseCategoryAmounts = defaultFinanceCategoryAmounts();
+    for (const account of this.financeAccounts) {
+      account.balance = 0;
+    }
+    this.pushAudit(
+      actor,
+      'FINANCE_OPS_RESET',
+      `expenses=${expenseCount} incomes=${incomeCount} balances=0`,
+    );
+    this.queuePersist();
+    return this.getFinanceOpsSnapshot();
   }
 
   setProductProcurementCosts(
@@ -2772,6 +2839,10 @@ export class AuthService implements OnModuleInit {
     if (!member) {
       return null;
     }
+    const targetUser = this.demoUsers.find((item) => item.id === id);
+    if (targetUser?.role === 'MANAGER' || member.staffPosition === 'MANAGER') {
+      return null;
+    }
     const actorUser = this.demoUsers.find((item) => item.nickname === actor);
     const targetStoreName =
       actorUser?.role === 'ADMIN' ? actorUser.storeName : (requestedStoreName ?? actorUser?.storeName);
@@ -3509,6 +3580,7 @@ export class AuthService implements OnModuleInit {
       await migrateLegacyDemoNicknames(this.prisma);
       await ensureRetoucherUsersIfMissing(this.prisma);
       await ensureManagerUserIfMissing(this.prisma);
+      await ensureManagerStaffAndAssignments(this.prisma);
       return;
     }
     await ensureDemoData(this.prisma);
@@ -3555,11 +3627,19 @@ export class AuthService implements OnModuleInit {
       retoucherRatePercent: 5,
       earningsAmount: 0,
     }));
-    this.storeStaffAssignments = this.staff.map((member) => ({
-      staffId: member.id,
-      storeName:
-        this.demoUsers.find((user) => user.id === member.id)?.storeName ?? DEMO_STORE_NAMES[0],
-    }));
+    this.storeStaffAssignments = this.staff
+      .filter((member) => member.staffPosition !== 'MANAGER')
+      .map((member) => ({
+        staffId: member.id,
+        storeName:
+          this.demoUsers.find((user) => user.id === member.id)?.storeName ?? DEMO_STORE_NAMES[0],
+      }));
+    const managerMember = this.staff.find((member) => member.staffPosition === 'MANAGER');
+    if (managerMember) {
+      for (const row of buildDefaultManagerStoreAssignments(managerMember.id)) {
+        this.attachStaffToStore(row.staffId, row.storeName);
+      }
+    }
     const seedWarehouse: Record<string, number> = {
       Магнит: 35,
       'Рамка А4': 18,
@@ -3608,6 +3688,7 @@ export class AuthService implements OnModuleInit {
     this.financeAccounts = this.defaultFinanceAccounts();
     this.financeExpenses = [];
     this.financeIncomes = [];
+    this.financeExpenseCategoryAmounts = defaultFinanceCategoryAmounts();
     this.currentShiftId = null;
     this.lastSaleAt = null;
     this.acquiringPercent = 1.8;
@@ -3758,7 +3839,12 @@ export class AuthService implements OnModuleInit {
       nickname: member.nickname,
       isActive: member.isActive,
       assignedShiftId: member.assignedShiftId ?? undefined,
-      staffPosition: member.staffPosition === StaffPosition.RETOUCHER ? 'RETOUCHER' : 'SALES',
+      staffPosition:
+        member.staffPosition === StaffPosition.RETOUCHER
+          ? 'RETOUCHER'
+          : member.staffPosition === StaffPosition.MANAGER
+            ? 'MANAGER'
+            : 'SALES',
       retoucherRatePercent:
         typeof member.retoucherRatePercent === 'number' && Number.isFinite(member.retoucherRatePercent)
           ? member.retoucherRatePercent
@@ -3895,6 +3981,17 @@ export class AuthService implements OnModuleInit {
     this.acquiringPercentLyokha =
       appState?.acquiringPercentLyokha != null ? appState.acquiringPercentLyokha : 1.8;
     this.acquiringProfilesJson = appState?.acquiringProfilesJson ?? null;
+    if (appState?.financeExpenseCategoryAmountsJson) {
+      try {
+        this.financeExpenseCategoryAmounts = normalizeFinanceCategoryAmounts(
+          JSON.parse(appState.financeExpenseCategoryAmountsJson),
+        );
+      } catch {
+        this.financeExpenseCategoryAmounts = defaultFinanceCategoryAmounts();
+      }
+    } else {
+      this.financeExpenseCategoryAmounts = defaultFinanceCategoryAmounts();
+    }
     if (!this.acquiringProfilesJson) {
       this.acquiringProfilesJson = serializeAcquiringProfiles(
         defaultAcquiringProfiles({
@@ -3950,6 +4047,9 @@ export class AuthService implements OnModuleInit {
           acquiringPercentPutintsevSber: this.acquiringPercentPutintsevSber,
           acquiringPercentLyokha: this.acquiringPercentLyokha,
           acquiringProfilesJson: this.acquiringProfilesJson,
+          financeExpenseCategoryAmountsJson: serializeFinanceCategoryAmounts(
+            this.financeExpenseCategoryAmounts,
+          ),
         },
         create: {
           id: 1,
@@ -3960,6 +4060,9 @@ export class AuthService implements OnModuleInit {
           acquiringPercentPutintsevSber: this.acquiringPercentPutintsevSber,
           acquiringPercentLyokha: this.acquiringPercentLyokha,
           acquiringProfilesJson: this.acquiringProfilesJson,
+          financeExpenseCategoryAmountsJson: serializeFinanceCategoryAmounts(
+            this.financeExpenseCategoryAmounts,
+          ),
         },
       });
 
@@ -4037,7 +4140,12 @@ export class AuthService implements OnModuleInit {
             nickname: member.nickname,
             isActive: member.isActive,
             assignedShiftId: member.assignedShiftId ?? null,
-            staffPosition: member.staffPosition === 'RETOUCHER' ? StaffPosition.RETOUCHER : StaffPosition.SALES,
+            staffPosition:
+              member.staffPosition === 'RETOUCHER'
+                ? StaffPosition.RETOUCHER
+                : member.staffPosition === 'MANAGER'
+                  ? StaffPosition.MANAGER
+                  : StaffPosition.SALES,
             retoucherRatePercent: member.retoucherRatePercent,
           })),
         });

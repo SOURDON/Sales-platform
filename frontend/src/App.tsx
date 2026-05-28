@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode, TouchEvent } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
@@ -16,14 +16,18 @@ import {
 } from './desktop/desktopTheme';
 import { DesktopThemeToggle } from './desktop/DesktopThemeToggle';
 import {
+  ACQUIRING_DEFAULT_PROFILE_ID,
   type AcquiringProfile,
   type AcquiringProfileId,
   acquiringStoreChipLabel,
+  canUnassignStoreFromProfile,
   defaultAcquiringProfiles,
+  isStoreOnProfile,
   normalizeAcquiringProfiles,
   percentForStore,
   profileIdForStore,
   setProfilePercent,
+  storesForProfile,
   toggleStoreOnProfile,
 } from './acquiring/acquiringConfig';
 import {
@@ -128,7 +132,7 @@ function formatRub(value: number): string {
   return `${Math.round(value).toLocaleString('ru-RU')} ₽`;
 }
 
-type StaffPositionKind = 'SALES' | 'RETOUCHER';
+type StaffPositionKind = 'SALES' | 'RETOUCHER' | 'MANAGER';
 
 type StaffMember = {
   id: number;
@@ -152,6 +156,52 @@ function staffAssignedStores(member: StaffMember): string[] {
     return member.assignedStores;
   }
   return member.storeName ? [member.storeName] : [];
+}
+
+function storeRevenueForReportDay(
+  storeName: string,
+  sales: AdminSale[],
+  sellers: SellerProfile[],
+  reportDayKey: string,
+): number {
+  const sellerIdsAtStore = new Set(
+    sellers.filter((seller) => seller.storeName === storeName).map((seller) => seller.id),
+  );
+  let total = 0;
+  for (const sale of sales) {
+    if (calendarDayKeyMoscow(sale.createdAt) !== reportDayKey) {
+      continue;
+    }
+    if (sellerIdsAtStore.has(sale.sellerId)) {
+      total += sale.totalAmount;
+    }
+  }
+  return total;
+}
+
+function managerPercentForStore(
+  storeName: string,
+  rows: ManagerStoreCommissionRow[],
+): number {
+  const list = rows.length > 0 ? rows : [...DEFAULT_MANAGER_STORE_COMMISSIONS];
+  const row = list.find((item) => item.storeName === storeName);
+  const pct = row?.percent ?? 5;
+  return Math.max(0, Math.min(100, pct));
+}
+
+function managerEarnForStore(
+  storeName: string,
+  sales: AdminSale[],
+  sellers: SellerProfile[],
+  reportDayKey: string,
+  commissionRows: ManagerStoreCommissionRow[],
+): number {
+  const pct = managerPercentForStore(storeName, commissionRows);
+  if (pct <= 0) {
+    return 0;
+  }
+  const revenue = storeRevenueForReportDay(storeName, sales, sellers, reportDayKey);
+  return Math.round((revenue * pct) / 100);
 }
 
 /**
@@ -585,16 +635,23 @@ type FinanceIncome = {
   accountName: string;
 };
 
+type FinanceCategoryAmountRow = {
+  title: string;
+  amount: number;
+};
+
 type FinanceOpsSnapshot = {
   accounts: FinanceAccount[];
   expenses: FinanceExpense[];
   incomes: FinanceIncome[];
+  categoryAmounts?: FinanceCategoryAmountRow[];
   totals: {
     cash: number;
     bank: number;
     balance: number;
     expenses: number;
     incomes: number;
+    categoryTotal?: number;
   };
 };
 
@@ -983,7 +1040,7 @@ function App() {
     accounts: [],
     expenses: [],
     incomes: [],
-    totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
+    totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0, categoryTotal: 0 },
   });
   const [inventoryOverview, setInventoryOverview] = useState<InventoryOverviewResponse | null>(null);
   const [managerStoreCommissions, setManagerStoreCommissions] = useState<ManagerStoreCommissionRow[]>(
@@ -1266,9 +1323,9 @@ function App() {
       { key: 'rs-d-vtb', title: 'Р/с Д ВТБ', amount: Math.round(rsDvtb * 100) / 100 },
       { key: 'rs-p-vtb', title: 'Р/С П ВТБ', amount: Math.round(rsPvtb * 100) / 100 },
       { key: 'rs-p-sber', title: 'Р/с П СБЕР', amount: Math.round(rsPsber * 100) / 100 },
+      { key: 'cash', title: 'Наличные', amount: Math.round(cashTotal * 100) / 100 },
       { key: 'transfer', title: 'Перевод', amount: Math.round(transferTotal * 100) / 100 },
       { key: 'rs-leha', title: 'Р/с Лёха', amount: Math.round(rsLeha * 100) / 100 },
-      { key: 'cash', title: 'Наличные', amount: Math.round(cashTotal * 100) / 100 },
     ];
   }, [acquiringProfiles, salesMerged, sellers, session?.user.role]);
 
@@ -1784,18 +1841,28 @@ function App() {
     );
   };
 
-  const normalizeFinanceOps = (raw: Partial<FinanceOpsSnapshot>): FinanceOpsSnapshot => ({
-    accounts: raw.accounts ?? [],
-    expenses: raw.expenses ?? [],
-    incomes: raw.incomes ?? [],
-    totals: {
-      cash: raw.totals?.cash ?? 0,
-      bank: raw.totals?.bank ?? 0,
-      balance: raw.totals?.balance ?? 0,
-      expenses: raw.totals?.expenses ?? 0,
-      incomes: raw.totals?.incomes ?? 0,
-    },
-  });
+  const normalizeFinanceOps = (raw: Partial<FinanceOpsSnapshot>): FinanceOpsSnapshot => {
+    const categoryAmounts =
+      raw.categoryAmounts ??
+      FINANCE_EXPENSE_CATEGORY_LABELS.map((title) => ({ title, amount: 0 }));
+    const categoryTotal =
+      raw.totals?.categoryTotal ??
+      Math.round(categoryAmounts.reduce((sum, row) => sum + row.amount, 0) * 100) / 100;
+    return {
+      accounts: raw.accounts ?? [],
+      expenses: raw.expenses ?? [],
+      incomes: raw.incomes ?? [],
+      categoryAmounts,
+      totals: {
+        cash: raw.totals?.cash ?? 0,
+        bank: raw.totals?.bank ?? 0,
+        balance: raw.totals?.balance ?? 0,
+        expenses: raw.totals?.expenses ?? 0,
+        incomes: raw.totals?.incomes ?? 0,
+        categoryTotal,
+      },
+    };
+  };
 
   const loadFinanceOps = async (token: string) => {
     const fetcher = async () => {
@@ -1819,6 +1886,29 @@ function App() {
       return;
     }
     setFinanceOps(await fetcher());
+  };
+
+  const setFinanceExpenseCategoryAmount = async (
+    token: string,
+    title: string,
+    amountStr: string,
+  ) => {
+    const num = Number(String(amountStr).replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0) {
+      throw new Error('Укажите корректную сумму');
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/finance/expense-category-amount`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ title, amount: num }),
+    });
+    if (!response.ok) {
+      throw new Error(await readApiErrorMessage(response, 'Не удалось сохранить сумму по статье'));
+    }
+    await loadFinanceOps(token);
   };
 
   const addFinanceIncome = async (
@@ -2970,8 +3060,14 @@ function App() {
   }, [loadInventoryOverview, location.pathname, session]);
 
   useEffect(() => {
-    if (session?.user?.role === 'DIRECTOR' && session.token && location.pathname === '/team') {
-      void loadManagerStoreCommissions(session.token);
+    if (
+      (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'MANAGER') &&
+      session.token &&
+      location.pathname === '/team'
+    ) {
+      if (session.user.role === 'DIRECTOR') {
+        void loadManagerStoreCommissions(session.token);
+      }
     }
   }, [loadManagerStoreCommissions, location.pathname, session]);
 
@@ -3005,7 +3101,7 @@ function App() {
           loadGlobalEmployees(token),
         );
       } else if (role === 'MANAGER') {
-        loads.push(loadSellers(token), loadSales(token));
+        loads.push(loadSellers(token), loadSales(token), loadStaff(token));
       }
       if (role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER') {
         loads.push(refreshMessengerInbox());
@@ -3407,6 +3503,7 @@ function App() {
                         onAddIncome={addFinanceIncome}
                         onAddExpense={addFinanceExpense}
                         onSetAccountBalance={setFinanceAccountBalance}
+                        onSetCategoryAmount={setFinanceExpenseCategoryAmount}
                       />
                     ) : (
                       <>
@@ -5558,15 +5655,23 @@ function DirectorCashflowPanel({
     return null;
   }
 
-  return (
-    <div
-      className={
-        isTauriRuntime() ? 'directorCashflowCarouselWrap directorHomeZone' : 'directorCashflowCarouselWrap'
-      }
-    >
-      <DirectorCashflowCarousel pages={pages} />
-    </div>
-  );
+  if (isTauriRuntime()) {
+    return (
+      <section className="directorCashflowStrip directorHomeZone" aria-label="Итоги по всем точкам">
+        <h4 className="directorHomeSectionTitle">Итоги по всем точкам</h4>
+        <div className="directorCashflowChips">
+          {pages.map((page) => (
+            <article key={page.key} className="directorCashflowChip">
+              <span className="directorCashflowChipLabel">{page.title}</span>
+              <strong className="directorCashflowChipValue">{formatRub(page.amount)}</strong>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return <DirectorCashflowCarousel pages={pages} />;
 }
 
 function DirectorCashflowCarousel({
@@ -5923,6 +6028,7 @@ function FinanceOpsPanel({
   onAddIncome,
   onAddExpense,
   onSetAccountBalance,
+  onSetCategoryAmount,
 }: {
   token: string;
   isDirector: boolean;
@@ -5936,6 +6042,7 @@ function FinanceOpsPanel({
     payload: { accountId: string; title: string; amount: string; comment?: string },
   ) => Promise<void>;
   onSetAccountBalance: (token: string, accountId: string, balance: string) => Promise<void>;
+  onSetCategoryAmount?: (token: string, title: string, amount: string) => Promise<void>;
 }) {
   const cashAccount = snapshot.accounts.find((a) => a.kind === 'CASH');
   const bankAccounts = snapshot.accounts.filter((a) => a.kind === 'BANK');
@@ -5977,6 +6084,9 @@ function FinanceOpsPanel({
   const [expensesHistoryOpen, setExpensesHistoryOpen] = useState(false);
   const desktopFinance = isTauriRuntime();
   const [expenseArticlesSheetOpen, setExpenseArticlesSheetOpen] = useState(desktopFinance);
+  const [editingCategoryTitle, setEditingCategoryTitle] = useState<string | null>(null);
+  const [editingCategoryAmount, setEditingCategoryAmount] = useState('');
+  const [categoryAmountBusy, setCategoryAmountBusy] = useState('');
 
   useEffect(() => {
     if (!expenseAccountId && snapshot.accounts.length > 0) {
@@ -6025,6 +6135,12 @@ function FinanceOpsPanel({
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
 
   const expenseTotalsByArticle = useMemo(() => {
+    if (snapshot.categoryAmounts?.length) {
+      return snapshot.categoryAmounts.map((row) => ({
+        title: row.title,
+        total: row.amount,
+      }));
+    }
     const canonical = new Set<string>(FINANCE_EXPENSE_CATEGORY_LABELS);
     const totals = new Map<string, number>();
     for (const label of FINANCE_EXPENSE_CATEGORY_LABELS) {
@@ -6041,15 +6157,16 @@ function FinanceOpsPanel({
       title: label,
       total: totals.get(label) ?? 0,
     }));
-  }, [snapshot.expenses]);
+  }, [snapshot.categoryAmounts, snapshot.expenses]);
 
-  const expensesGrandTotal = useMemo(
-    () =>
-      Math.round(
-        expenseTotalsByArticle.reduce((sum, row) => sum + row.total, 0) * 100,
-      ) / 100,
-    [expenseTotalsByArticle],
-  );
+  const expensesGrandTotal = useMemo(() => {
+    if (snapshot.totals.categoryTotal !== undefined) {
+      return snapshot.totals.categoryTotal;
+    }
+    return Math.round(
+      expenseTotalsByArticle.reduce((sum, row) => sum + row.total, 0) * 100,
+    ) / 100;
+  }, [snapshot.totals.categoryTotal, expenseTotalsByArticle]);
 
   const recentIncomeHistoryItems = useMemo(() => {
     const accountNames = new Map(snapshot.accounts.map((a) => [a.id, a.name?.trim() || 'Счёт']));
@@ -6172,6 +6289,111 @@ function FinanceOpsPanel({
     Boolean(expenseAccountIdForForm) &&
     parsedExpenseAmount !== null &&
     !expenseInsufficientMessage;
+
+  const startCategoryEdit = (title: string, currentTotal: number) => {
+    if (!isDirector || !onSetCategoryAmount) {
+      return;
+    }
+    setEditingCategoryTitle(title);
+    setEditingCategoryAmount(String(currentTotal));
+    setError('');
+  };
+
+  const cancelCategoryEdit = () => {
+    setEditingCategoryTitle(null);
+    setEditingCategoryAmount('');
+    setCategoryAmountBusy('');
+  };
+
+  const saveCategoryEdit = async (title: string) => {
+    if (!onSetCategoryAmount || editingCategoryTitle !== title) {
+      return;
+    }
+    const parsed = parseFinanceMoneyInput(editingCategoryAmount);
+    if (parsed === null) {
+      setError('Укажите корректную сумму по статье');
+      return;
+    }
+    setCategoryAmountBusy(title);
+    setError('');
+    try {
+      await onSetCategoryAmount(token, title, String(parsed));
+      setStatus(`Сумма по статье «${title}» сохранена.`);
+      cancelCategoryEdit();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      setError(message || 'Не удалось сохранить сумму по статье');
+    } finally {
+      setCategoryAmountBusy('');
+    }
+  };
+
+  const renderExpenseArticleChip = (row: { title: string; total: number }) => {
+    const canEdit = isDirector && Boolean(onSetCategoryAmount);
+    const isEditing = editingCategoryTitle === row.title;
+    const busy = categoryAmountBusy === row.title;
+
+    if (isEditing) {
+      return (
+        <article
+          key={row.title}
+          className="financeOpsExpenseArticlesChip financeOpsExpenseArticlesChip--editing"
+          role="listitem"
+        >
+          <span className="financeOpsExpenseArticlesChipTitle">{row.title}</span>
+          <input
+            className="financeOpsExpenseArticlesChipInput"
+            type="text"
+            inputMode="decimal"
+            autoFocus
+            disabled={busy}
+            value={editingCategoryAmount}
+            onChange={(event) => setEditingCategoryAmount(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                void saveCategoryEdit(row.title);
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                cancelCategoryEdit();
+              }
+            }}
+            onBlur={() => {
+              if (categoryAmountBusy === row.title) {
+                return;
+              }
+              void saveCategoryEdit(row.title);
+            }}
+            aria-label={`Сумма по статье ${row.title}`}
+          />
+        </article>
+      );
+    }
+
+    if (canEdit) {
+      return (
+        <button
+          key={row.title}
+          type="button"
+          className="financeOpsExpenseArticlesChip financeOpsExpenseArticlesChip--editable"
+          role="listitem"
+          disabled={Boolean(categoryAmountBusy)}
+          onClick={() => startCategoryEdit(row.title, row.total)}
+        >
+          <span className="financeOpsExpenseArticlesChipTitle">{row.title}</span>
+          <strong className="financeOpsExpenseArticlesChipAmount">{fmt(row.total)}</strong>
+        </button>
+      );
+    }
+
+    return (
+      <article key={row.title} className="financeOpsExpenseArticlesChip" role="listitem">
+        <span className="financeOpsExpenseArticlesChipTitle">{row.title}</span>
+        <strong className="financeOpsExpenseArticlesChipAmount">{fmt(row.total)}</strong>
+      </article>
+    );
+  };
 
   const submitExpense = async () => {
     const accountId = expenseAccountIdForForm;
@@ -6595,12 +6817,7 @@ function FinanceOpsPanel({
               role="list"
               aria-label="Суммы расходов по статьям"
             >
-              {expenseTotalsByArticle.map((row) => (
-                <article key={row.title} className="financeOpsExpenseArticlesChip" role="listitem">
-                  <span className="financeOpsExpenseArticlesChipTitle">{row.title}</span>
-                  <strong className="financeOpsExpenseArticlesChipAmount">{fmt(row.total)}</strong>
-                </article>
-              ))}
+              {expenseTotalsByArticle.map((row) => renderExpenseArticleChip(row))}
             </div>
           </>
         ) : (
@@ -6629,23 +6846,16 @@ function FinanceOpsPanel({
             >
               <div className="financeOpsExpenseArticlesSheetPanelInner">
                 <p className="financeOpsExpenseArticlesSheetHint">
-                  Прокрутите вбок — суммы по каждой статье за всё время учёта.
+                  {isDirector
+                    ? 'Нажмите на статью, чтобы изменить сумму. Прокрутите вбок для остальных статей.'
+                    : 'Прокрутите вбок — суммы по каждой статье.'}
                 </p>
                 <div
                   className="financeOpsExpenseArticlesCarousel"
                   role="list"
                   aria-label="Суммы расходов по статьям"
                 >
-                  {expenseTotalsByArticle.map((row) => (
-                    <article
-                      key={row.title}
-                      className="financeOpsExpenseArticlesChip"
-                      role="listitem"
-                    >
-                      <span className="financeOpsExpenseArticlesChipTitle">{row.title}</span>
-                      <strong className="financeOpsExpenseArticlesChipAmount">{fmt(row.total)}</strong>
-                    </article>
-                  ))}
+                  {expenseTotalsByArticle.map((row) => renderExpenseArticleChip(row))}
                 </div>
               </div>
             </div>
@@ -7260,18 +7470,46 @@ function TeamStoresOverview({
     </div>
   ) : null;
 
+  const memberPayrollDayRub = (member: StaffMember, storeName: string): number => {
+    const seller = sellerById.get(member.id);
+    if (member.staffPosition === 'MANAGER') {
+      return managerEarnForStore(storeName, sales, sellers, calendarReportKey, managerStoreCommissions);
+    }
+    if (member.staffPosition === 'RETOUCHER') {
+      const ratePct = member.retoucherRatePercent ?? 5;
+      return retoucherEarnRubSnapshot(storeName, sellers, sales, ratePct, calendarReportKey)?.todayRub ?? 0;
+    }
+    return Math.round(((todaySalesBySellerId.get(member.id) ?? 0) * (seller?.ratePercent ?? 0)) / 100);
+  };
+
+  const storePayrollDayTotal = (members: StaffMember[], storeName: string) =>
+    members.reduce((sum, member) => sum + memberPayrollDayRub(member, storeName), 0);
+
+  const renderManagerPayrollFooter = (storeName: string, members: StaffMember[]) => {
+    const total = storePayrollDayTotal(members, storeName);
+    return (
+      <div className="teamManagerPayrollTotal" role="status" aria-label={`Итого ЗП за день: ${storeName}`}>
+        <span className="teamManagerPayrollTotalLabel">Итого за день</span>
+        <strong className="teamManagerPayrollTotalValue">{total.toLocaleString('ru-RU')} ₽</strong>
+      </div>
+    );
+  };
+
   const renderWarehouseMember = (member: StaffMember, storeName: string) => {
     const seller = sellerById.get(member.id);
+    const isManagerStaff = member.staffPosition === 'MANAGER';
     const isRetoucher = member.staffPosition === 'RETOUCHER';
     const isShiftOpen = Boolean(openShiftId && member.assignedShiftId === openShiftId);
     const ratePctRetoucher = member.retoucherRatePercent ?? 5;
     const retoucherEarn = isRetoucher
       ? retoucherEarnRubSnapshot(storeName, sellers, sales, ratePctRetoucher, calendarReportKey)
       : null;
+    const managerDayRub = isManagerStaff
+      ? managerEarnForStore(storeName, sales, sellers, calendarReportKey, managerStoreCommissions)
+      : 0;
+    const managerPct = isManagerStaff ? managerPercentForStore(storeName, managerStoreCommissions) : 0;
     if (managerPayrollView) {
-      const salaryDayRub = isRetoucher
-        ? (retoucherEarn?.todayRub ?? 0)
-        : Math.round(((todaySalesBySellerId.get(member.id) ?? 0) * (seller?.ratePercent ?? 0)) / 100);
+      const salaryDayRub = memberPayrollDayRub(member, storeName);
       const compactName = member.fullName
         .replace(` — ${storeName}`, '')
         .replace(` - ${storeName}`, '')
@@ -7281,6 +7519,45 @@ function TeamStoresOverview({
           <span className="teamManagerPayrollName">{compactName || member.fullName}</span>
           <span className="teamManagerPayrollSalary">{salaryDayRub.toLocaleString('ru-RU')} ₽</span>
         </div>
+      );
+    }
+    if (isManagerStaff) {
+      const storeRevenue = storeRevenueForReportDay(storeName, sales, sellers, calendarReportKey);
+      const cardDesktopClass = desktopWarehouse ? ' teamMemberCard--desktop' : '';
+      return (
+        <article
+          key={`${storeName}-${member.id}`}
+          className={`teamMemberCard storeTeamMemberCard${cardDesktopClass} teamMemberCardShiftClosed`}
+        >
+          <div className="teamMemberTop">
+            <div>
+              <p className="teamMemberName">
+                <strong>{member.fullName}</strong>{' '}
+                <span className="teamMemberNick">({member.nickname})</span>
+                <span className="statusPill statusPillOn managerStaffBadge">Управляющий</span>
+              </p>
+              <p className="teamMemberShiftState shiftClosed">Процент с выручки точки</p>
+            </div>
+          </div>
+          <div className="teamMemberStats">
+            <div className="statCell">
+              <span className="statLabel">
+                {reportIsToday ? 'Заработок за сегодня' : 'Заработок за выбранный день'}
+              </span>
+              <span className="statValue">{managerDayRub.toLocaleString('ru-RU')} ₽</span>
+            </div>
+            <div className="statCell">
+              <span className="statLabel">
+                {reportIsToday ? 'Выручка точки за сегодня' : 'Выручка точки за день'}
+              </span>
+              <span className="statValue">{storeRevenue.toLocaleString('ru-RU')} ₽</span>
+            </div>
+            <div className="statCell">
+              <span className="statLabel">Ставка</span>
+              <span className="statValue strong">{managerPct}%</span>
+            </div>
+          </div>
+        </article>
       );
     }
     const todaySales = todaySalesBySellerId.get(member.id) ?? 0;
@@ -7729,7 +8006,12 @@ function TeamStoresOverview({
                   {activeMembers.length === 0 ? (
                     <p className="teamWarehouseEmpty">В этой точке нет активных сотрудников.</p>
                   ) : (
-                    activeMembers.map((member) => renderWarehouseMember(member, activeStore))
+                    <>
+                      {activeMembers.map((member) => renderWarehouseMember(member, activeStore))}
+                      {managerPayrollView
+                        ? renderManagerPayrollFooter(activeStore, activeMembers)
+                        : null}
+                    </>
                   )}
                 </div>
               </>
@@ -7783,6 +8065,7 @@ function TeamStoresOverview({
                       </div>
                     ) : null}
               {members.map((member) => renderWarehouseMember(member, storeName))}
+                    {managerPayrollView ? renderManagerPayrollFooter(storeName, members) : null}
                 </div>
               </div>
             </div>
@@ -9741,6 +10024,13 @@ const ACQUIRING_PERCENT_PLACEHOLDER: Record<AcquiringProfileId, string> = {
   'lyokha-rs': '1.8',
 };
 
+const ACQUIRING_PROFILE_BADGE: Record<AcquiringProfileId, string> = {
+  'putintsev-vtb': 'ВТБ',
+  'detkov-vtb': 'ДВ',
+  'putintsev-sber': 'СБ',
+  'lyokha-rs': 'Л',
+};
+
 function AccountantProcurementPanel({
   layout = 'horizontal',
   token,
@@ -9781,152 +10071,229 @@ function AccountantProcurementPanel({
   };
 
   const isVertical = layout === 'vertical';
-  const storeCountLabel = (count: number) => {
-    if (count === 0) {
-      return 'прочие точки';
-    }
-    const mod10 = count % 10;
-    const mod100 = count % 100;
-    if (mod10 === 1 && mod100 !== 11) {
-      return `${count} точка`;
-    }
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
-      return `${count} точки`;
-    }
-    return `${count} точек`;
-  };
 
   return (
-    <div className={`acquiringPanelRoot${isVertical ? ' acquiringPanelRoot--vertical' : ''}`}>
-      <div className="acquiringPanelShell">
-        <header className="acquiringPanelHead">
-          <div className="acquiringPanelHeadText">
-            <p className="acquiringPanelEyebrow">Комиссия банка</p>
-            <h3 className="acquiringPanelTitle">Эквайринг</h3>
-          </div>
+    <section
+      className={`directorWarehouseCatalogCard acquiringCard${isVertical ? ' acquiringCard--vertical' : ''}`}
+    >
+      <header className="directorWarehouseCatalogHeader">
+        <div className="directorWarehouseCatalogTitleRow">
+          <h4 className="directorWarehouseCatalogTitle">Эквайринг</h4>
           {saved ? (
-            <span className="acquiringPanelStatus acquiringPanelStatus--ok" aria-live="polite">
+            <span className="invInlineOk acquiringSavedBadge" aria-live="polite">
               Сохранено
             </span>
           ) : null}
-        </header>
+        </div>
+        <p className="directorWarehouseCatalogHint">
+          Комиссия с безнала и привязка торговых точек к расчётному счёту
+        </p>
+      </header>
 
-        {error ? (
-          <p className="acquiringPanelError" role="alert">
-            {error}
-          </p>
-        ) : null}
+      {error ? (
+        <p className="invInlineError acquiringError" role="alert">
+          {error}
+        </p>
+      ) : null}
 
-        <div className={`acquiringPanelList${isVertical ? ' acquiringPanelList--vertical' : ''}`}>
-          {profiles.map((profile) => {
-            const storeCount = profile.storeNames.length;
-            const editing = editingProfileId === profile.id;
-            return (
-              <article
-                key={profile.id}
-                className={`acquiringRow${editing ? ' acquiringRow--editing' : ''}`}
-                data-profile={profile.id}
-              >
-                <div className="acquiringRowMain">
-                  <div className="acquiringRowIdentity">
-                    <h4 className="acquiringRowName">{profile.label}</h4>
-                    <p className="acquiringRowMeta">{storeCountLabel(storeCount)}</p>
-                  </div>
-                  <label className="acquiringRate" aria-label={`Ставка ${profile.label}`}>
-                    <input
-                      className="acquiringRateInput"
-                      inputMode="decimal"
-                      value={String(profile.percent)}
-                      onChange={(event) => {
-                        const raw = event.target.value.replace(',', '.');
-                        if (raw.trim() === '' || raw === '.' || raw === ',') {
-                          return;
-                        }
-                        const num = Number(raw);
-                        if (!Number.isFinite(num)) {
-                          return;
-                        }
-                        onProfilesChange(setProfilePercent(profilesRef.current, profile.id, num));
-                      }}
-                      onBlur={(event) => {
-                        const num = Number(String(event.target.value).replace(',', '.'));
-                        if (!Number.isFinite(num) || num < 0 || num > 100) {
-                          return;
-                        }
-                        queueSave(setProfilePercent(profilesRef.current, profile.id, num));
-                      }}
-                      placeholder={ACQUIRING_PERCENT_PLACEHOLDER[profile.id]}
-                    />
-                    <span className="acquiringRateSuffix" aria-hidden>
-                      %
-                    </span>
-                  </label>
-                </div>
-
-                {!editing && storeCount > 0 ? (
-                  <div className="acquiringRowTags" aria-label={`Точки: ${profile.label}`}>
-                    {profile.storeNames.map((storeName) => (
-                      <span
-                        key={`${profile.id}-tag-${storeName}`}
-                        className="acquiringTag acquiringTag--active"
-                        title={storeName}
-                      >
-                        {acquiringStoreChipLabel(storeName)}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-
-                {!editing && storeCount === 0 ? (
-                  <p className="acquiringRowFallback">Все точки без отдельной привязки</p>
-                ) : null}
-
-                <button
-                  type="button"
-                  className="acquiringRowEditBtn"
-                  aria-expanded={editing}
-                  onClick={() => setEditingProfileId(editing ? null : profile.id)}
-                >
-                  {editing ? 'Готово' : 'Настроить точки'}
-                </button>
-
-                {editing ? (
-                  <div
-                    className="acquiringRowEditor"
-                    role="group"
-                    aria-label={`Выбор точек: ${profile.label}`}
+      <div className="invTableScroll invTableScrollFit acquiringTableWrap">
+        <table className="invTable invTableAcquiring">
+          <thead>
+            <tr>
+              <th scope="col">Счёт</th>
+              <th scope="col">Точки</th>
+              <th className="invThNum acquiringThPct" scope="col">
+                %
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {profiles.map((profile) => {
+              const editing = editingProfileId === profile.id;
+              const assignedStores = storesForProfile(profile.id, profiles);
+              const isDefaultAccount = profile.id === ACQUIRING_DEFAULT_PROFILE_ID;
+              return (
+                <Fragment key={profile.id}>
+                  <tr
+                    className={`acquiringTr${editing ? ' acquiringTr--open' : ''}`}
+                    data-profile={profile.id}
                   >
-                    {ALL_DEMO_STORE_NAMES.map((storeName) => {
-                      const on = profile.storeNames.some(
-                        (s) =>
-                          s.toLocaleLowerCase('ru-RU').trim() ===
-                          storeName.toLocaleLowerCase('ru-RU').trim(),
-                      );
-                      return (
-                        <button
-                          key={`${profile.id}-${storeName}`}
-                          type="button"
-                          className={`acquiringTag acquiringTag--pick${on ? ' acquiringTag--active' : ''}`}
-                          title={storeName}
-                          aria-pressed={on}
-                          onClick={() => {
-                            queueSave(
-                              toggleStoreOnProfile(profilesRef.current, profile.id, storeName, !on),
+                    <td className="invTdName acquiringTdAccount">
+                      <button
+                        type="button"
+                        className="acquiringAccountBtn"
+                        aria-expanded={editing}
+                        onClick={() => setEditingProfileId(editing ? null : profile.id)}
+                      >
+                        <span className="acquiringAccountBtnMain">
+                          <span
+                            className={`directorWarehouseCardBadge acquiringBadge acquiringBadge--${profile.id}`}
+                            aria-hidden
+                          >
+                            {ACQUIRING_PROFILE_BADGE[profile.id]}
+                          </span>
+                          <span className="acquiringAccountLabel">{profile.label}</span>
+                        </span>
+                        <span className="acquiringRowChevron" aria-hidden>
+                          {editing ? '▴' : '▾'}
+                        </span>
+                      </button>
+                    </td>
+                    <td className="acquiringTdStores">
+                      {assignedStores.length === 0 ? (
+                        <span className="acquiringStoresMuted">Нет точек</span>
+                      ) : isDefaultAccount &&
+                        assignedStores.length === ALL_DEMO_STORE_NAMES.length ? (
+                        <span className="acquiringStoresSummary">Все точки</span>
+                      ) : (
+                        <div
+                          className="directorWarehouseStoreChips acquiringStoreChips"
+                          aria-label={`Точки: ${profile.label}`}
+                        >
+                          {assignedStores.map((storeName) => (
+                            <span key={`${profile.id}-${storeName}`} className="directorWarehouseStoreChip">
+                              {acquiringStoreChipLabel(storeName)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="invTdNum acquiringTdPct">
+                      <div
+                        className="dwReplenish acquiringPctWrap"
+                        role="group"
+                        aria-label={`Комиссия: ${profile.label}`}
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <input
+                          className="dwReplenishInput acquiringPctInput"
+                          inputMode="decimal"
+                          value={String(profile.percent)}
+                          onChange={(event) => {
+                            const raw = event.target.value.replace(',', '.');
+                            if (raw.trim() === '' || raw === '.' || raw === ',') {
+                              return;
+                            }
+                            const num = Number(raw);
+                            if (!Number.isFinite(num)) {
+                              return;
+                            }
+                            onProfilesChange(
+                              setProfilePercent(profilesRef.current, profile.id, num),
                             );
                           }}
-                        >
-                          {acquiringStoreChipLabel(storeName)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </article>
-            );
-          })}
-        </div>
+                          onBlur={(event) => {
+                            const num = Number(String(event.target.value).replace(',', '.'));
+                            if (!Number.isFinite(num) || num < 0 || num > 100) {
+                              return;
+                            }
+                            queueSave(setProfilePercent(profilesRef.current, profile.id, num));
+                          }}
+                          placeholder={ACQUIRING_PERCENT_PLACEHOLDER[profile.id]}
+                        />
+                        <span className="acquiringPctSuffix" aria-hidden>
+                          %
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                  {editing ? (
+                    <tr className="acquiringTrExpand">
+                      <td colSpan={3}>
+                        <div className="acquiringPicker">
+                          <p className="acquiringPickerHint">
+                            {isDefaultAccount
+                              ? 'Счёт по умолчанию: сюда попадают точки без привязки к другим счетам. Чтобы убрать точку — отметьте её на другом счёте.'
+                              : `Отметьте точки для «${profile.label}». Одна точка — только на одном счёте.`}
+                          </p>
+                          <div className="invTableScroll acquiringPickerScroll">
+                            <table
+                              className="invTable invTableAcquiringStores"
+                              aria-label={`Выбор точек: ${profile.label}`}
+                            >
+                              <thead>
+                                <tr>
+                                  <th scope="col">Точка</th>
+                                  <th scope="col">Сейчас</th>
+                                  <th className="invThAction acquiringStorePickTh" scope="col">
+                                    На счёте
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {ALL_DEMO_STORE_NAMES.map((storeName) => {
+                                  const on = isStoreOnProfile(storeName, profile.id, profiles);
+                                  const ownerId = profileIdForStore(storeName, profiles);
+                                  const owner = profiles.find((item) => item.id === ownerId);
+                                  const canTurnOff = canUnassignStoreFromProfile(
+                                    storeName,
+                                    profile.id,
+                                    profiles,
+                                  );
+                                  const lockedOnDefault =
+                                    isDefaultAccount && on && !canTurnOff;
+                                  return (
+                                    <tr
+                                      key={`${profile.id}-pick-${storeName}`}
+                                      className={on ? 'acquiringStoreTr--on' : ''}
+                                    >
+                                      <td className="invTdName acquiringStoreName">
+                                        {acquiringStoreChipLabel(storeName)}
+                                      </td>
+                                      <td className="acquiringStoreOwner">
+                                        {owner?.label ?? '—'}
+                                      </td>
+                                      <td className="invTdAction acquiringStorePickTd">
+                                        <button
+                                          type="button"
+                                          className={`acquiringStorePickBtn${on ? ' acquiringStorePickBtn--on' : ''}`}
+                                          aria-pressed={on}
+                                          aria-label={`${on ? 'Убрать' : 'Добавить'}: ${storeName}`}
+                                          disabled={lockedOnDefault}
+                                          onClick={() => {
+                                            if (on && !canTurnOff) {
+                                              return;
+                                            }
+                                            queueSave(
+                                              toggleStoreOnProfile(
+                                                profilesRef.current,
+                                                profile.id,
+                                                storeName,
+                                                !on,
+                                              ),
+                                            );
+                                          }}
+                                        >
+                                          {on ? '✓' : ''}
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="acquiringPickerActions">
+                            <button
+                              type="button"
+                              className="invPrimaryMini acquiringPickerDone"
+                              onClick={() => setEditingProfileId(null)}
+                            >
+                              Готово
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-    </div>
+    </section>
   );
 }
 

@@ -2,11 +2,17 @@ import type { PrismaClient } from '@prisma/client';
 import { StaffPosition, UserRole, WriteOffReason } from '@prisma/client';
 import {
   buildDefaultDemoUserRows,
+  buildDefaultManagerStoreAssignments,
   buildDefaultSellerProfileRows,
   buildDefaultStaffRows,
 } from '../auth/build-demo-entities';
 import { getDefaultDemoPassword } from '../auth/demo-password';
-import { DEMO_STORE_NAMES, WAREHOUSE_KEYS } from '../auth/demo-stores';
+import {
+  DEMO_STORE_NAMES,
+  MANAGER_ASSIGNED_STORE_NAMES,
+  MANAGER_USER_NICKNAME,
+  WAREHOUSE_KEYS,
+} from '../auth/demo-stores';
 import { migrateLegacyDemoNicknames } from './migrate-demo-nicknames';
 
 function toPrismaUserRole(role: ReturnType<typeof buildDefaultDemoUserRows>[0]['role']): UserRole {
@@ -96,7 +102,12 @@ async function ensureStaffMembers(prisma: PrismaClient) {
     if (!u) {
       continue;
     }
-    const position = row.staffPosition === 'RETOUCHER' ? StaffPosition.RETOUCHER : StaffPosition.SALES;
+    const position =
+      row.staffPosition === 'RETOUCHER'
+        ? StaffPosition.RETOUCHER
+        : row.staffPosition === 'MANAGER'
+          ? StaffPosition.MANAGER
+          : StaffPosition.SALES;
     await prisma.staffMember.upsert({
       where: { id: u.id },
       create: {
@@ -292,6 +303,7 @@ export async function ensureManagerUserIfMissing(prisma: PrismaClient) {
         isActive: true,
       },
     });
+    await ensureManagerStaffAndAssignments(prisma);
     return;
   }
   let id = 27;
@@ -311,6 +323,51 @@ export async function ensureManagerUserIfMissing(prisma: PrismaClient) {
       isActive: true,
     },
   });
+  await ensureManagerStaffAndAssignments(prisma);
+}
+
+/**
+ * Управляющий в staff и привязки к точкам «Центра» (для блока сотрудников).
+ */
+export async function ensureManagerStaffAndAssignments(prisma: PrismaClient) {
+  const managerUser =
+    (await prisma.user.findUnique({ where: { nickname: MANAGER_USER_NICKNAME } })) ??
+    (await prisma.user.findFirst({ where: { role: UserRole.MANAGER } }));
+  if (!managerUser) {
+    return;
+  }
+  await prisma.staffMember.upsert({
+    where: { id: managerUser.id },
+    create: {
+      id: managerUser.id,
+      fullName: managerUser.fullName,
+      nickname: managerUser.nickname,
+      isActive: managerUser.isActive,
+      staffPosition: StaffPosition.MANAGER,
+    },
+    update: {
+      fullName: managerUser.fullName,
+      nickname: managerUser.nickname,
+      isActive: managerUser.isActive,
+      staffPosition: StaffPosition.MANAGER,
+    },
+  });
+  for (const row of buildDefaultManagerStoreAssignments(managerUser.id)) {
+    await prisma.storeStaffAssignment.upsert({
+      where: {
+        storeName_staffId: { storeName: row.storeName, staffId: row.staffId },
+      },
+      create: { storeName: row.storeName, staffId: row.staffId },
+      update: {},
+    });
+  }
+  const allowed = new Set<string>(MANAGER_ASSIGNED_STORE_NAMES);
+  await prisma.storeStaffAssignment.deleteMany({
+    where: {
+      staffId: managerUser.id,
+      storeName: { notIn: [...MANAGER_ASSIGNED_STORE_NAMES] },
+    },
+  });
 }
 
 /**
@@ -323,6 +380,7 @@ export async function ensureDemoData(prisma: PrismaClient) {
   await ensureManagerUserIfMissing(prisma);
   await ensureSellerProfiles(prisma);
   await ensureStaffMembers(prisma);
+  await ensureManagerStaffAndAssignments(prisma);
   await ensureProductCatalog(prisma);
   await ensureProductStockLocations(prisma);
   await ensureProductProcurementCosts(prisma);

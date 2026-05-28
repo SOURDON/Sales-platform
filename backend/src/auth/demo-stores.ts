@@ -28,6 +28,16 @@ export const DEMO_STORE_NAMES = [
 
 export type DemoStoreName = (typeof DEMO_STORE_NAMES)[number];
 
+/** Точки, где управляющий отображается как сотрудник (процент с выручки). */
+export const MANAGER_ASSIGNED_STORE_NAMES = [
+  'Спортивнй',
+  'Центр пляж',
+  'Центр Тех. зона',
+  'Дельфин Тех. зона',
+] as const satisfies readonly DemoStoreName[];
+
+export const MANAGER_USER_NICKNAME = 'manager';
+
 /** Точка → склад, с которого списывается товар при приёмке на точку. */
 export const STORE_TO_WAREHOUSE: Record<DemoStoreName, WarehouseKey> = {
   'Сады морей Тех. зона': WAREHOUSE_SADY_KEY,
