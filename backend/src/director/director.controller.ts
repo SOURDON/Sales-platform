@@ -102,7 +102,7 @@ export class DirectorController {
     const result = this.authService.directorSetDemoUserPassword(session.nickname, targetNick, pwd);
     if (!result.ok) {
       if (result.error === 'bad_password') {
-        throw new BadRequestException('password must be 10–128 characters');
+        throw new BadRequestException('password must be 8–128 characters');
       }
       if (result.error === 'not_found') {
         throw new BadRequestException('user not found');

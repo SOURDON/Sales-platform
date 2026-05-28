@@ -195,8 +195,8 @@ export function DirectorAccountSwitcher({
       return;
     }
     const pwd = draftPwd.trim();
-    if (pwd.length < 10) {
-      setErr('Новый пароль: минимум 10 символов');
+    if (pwd.length < 8) {
+      setErr('Новый пароль: минимум 8 символов');
       return;
     }
     setPwdSaving(true);

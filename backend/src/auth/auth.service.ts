@@ -1258,7 +1258,7 @@ export class AuthService implements OnModuleInit {
   }
 
   directorSetDemoUserPassword(directorNickname: string, targetNickname: string, newPassword: string) {
-    if (!newPassword || newPassword.length < 10 || newPassword.length > 128) {
+    if (!newPassword || newPassword.length < 8 || newPassword.length > 128) {
       return { ok: false as const, error: 'bad_password' };
     }
     const director = this.demoUsers.find((u) => u.nickname === directorNickname);
