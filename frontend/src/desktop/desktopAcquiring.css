@@ -1,5 +1,5 @@
 /**
- * Бухгалтер → Продажи → эквайринг (десктоп-приложение).
+ * Эквайринг — премиальный компактный блок (десктоп).
  */
 
 .app.app--desktop .sectionCard--acquiring {
@@ -11,66 +11,325 @@
 
 .app.app--desktop .acquiringPanelRoot {
   width: 100%;
+  height: 100%;
+}
+
+.app.app--desktop .acquiringPanelRoot--vertical .acquiringPanelShell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .app.app--desktop .acquiringPanelShell {
-  padding: 12px 14px 14px;
-  border-radius: var(--dt-radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 14px 14px 12px;
+  border-radius: 14px;
   background:
-    linear-gradient(165deg, rgba(154, 163, 173, 0.06) 0%, transparent 42%),
-    var(--dt-bg-panel);
+    radial-gradient(120% 80% at 0% 0%, rgba(180, 188, 198, 0.09) 0%, transparent 55%),
+    linear-gradient(168deg, rgba(28, 32, 36, 0.92) 0%, rgba(12, 14, 16, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow:
-    var(--dt-surface-shine),
-    var(--dt-surface-depth),
-    inset 0 0 0 1px var(--dt-border-hairline);
+    0 12px 32px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .app.app--desktop .acquiringPanelHead {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   padding-bottom: 12px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--dt-border-hairline);
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.app.app--desktop .acquiringPanelHead--compact {
-  padding-bottom: 8px;
-  margin-bottom: 8px;
-}
-
-.app.app--desktop .acquiringPanelSaved--head {
-  flex-shrink: 0;
-  white-space: nowrap;
+.app.app--desktop .acquiringPanelEyebrow {
+  margin: 0 0 2px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(180, 188, 196, 0.55);
 }
 
 .app.app--desktop .acquiringPanelTitle {
   margin: 0;
-  font-size: 12px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--dt-text);
+}
+
+.app.app--desktop .acquiringPanelStatus {
+  flex-shrink: 0;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  text-transform: none;
-  color: var(--dt-gold-soft);
 }
 
-.app.app--desktop .acquiringPanelLead {
-  margin: 4px 0 0;
+.app.app--desktop .acquiringPanelStatus--ok {
+  color: #c8f0dd;
+  background: rgba(72, 160, 120, 0.18);
+  border: 1px solid rgba(120, 200, 160, 0.35);
+}
+
+.app.app--desktop .acquiringPanelError {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
   font-size: 11px;
-  color: var(--dt-text-dim);
   line-height: 1.35;
+  color: #f0c4bc;
+  background: rgba(180, 80, 70, 0.12);
+  border: 1px solid rgba(220, 120, 100, 0.25);
 }
 
-.app.app--desktop .acquiringPanelGrid {
+.app.app--desktop .acquiringPanelList {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
 }
 
-.app.app--desktop .acquiringPanelGrid--vertical {
+.app.app--desktop .acquiringPanelList--vertical {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ——— Строка профиля ——— */
+.app.app--desktop .acquiringRow {
+  position: relative;
+  padding: 11px 0 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.app.app--desktop .acquiringPanelList--vertical .acquiringRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.app.app--desktop .acquiringRow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  opacity: 0.65;
+}
+
+.app.app--desktop .acquiringRow[data-profile='putintsev-vtb']::before {
+  background: linear-gradient(180deg, #8fa4b8 0%, #5c7080 100%);
+}
+
+.app.app--desktop .acquiringRow[data-profile='detkov-vtb']::before {
+  background: linear-gradient(180deg, #c4a56d 0%, #8a7348 100%);
+}
+
+.app.app--desktop .acquiringRow[data-profile='putintsev-sber']::before {
+  background: linear-gradient(180deg, #6eb88a 0%, #3d8a5c 100%);
+}
+
+.app.app--desktop .acquiringRow[data-profile='lyokha-rs']::before {
+  background: linear-gradient(180deg, #b8a0d4 0%, #7a6494 100%);
+}
+
+.app.app--desktop .acquiringRow--editing {
+  background: rgba(255, 255, 255, 0.02);
+  margin: 0 -6px;
+  padding-left: 6px;
+  padding-right: 6px;
+  border-radius: 10px;
+}
+
+.app.app--desktop .acquiringRowMain {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding-left: 10px;
+}
+
+.app.app--desktop .acquiringRowIdentity {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.app.app--desktop .acquiringRowName {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--dt-text);
+}
+
+.app.app--desktop .acquiringRowMeta {
+  margin: 3px 0 0;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .acquiringRate {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0 8px 0 10px;
+  min-height: 32px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.app.app--desktop .acquiringRate:focus-within {
+  border-color: rgba(196, 165, 109, 0.55);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.35),
+    0 0 0 2px rgba(196, 165, 109, 0.12);
+}
+
+.app.app--desktop .acquiringRateInput {
+  width: 44px;
+  min-height: 30px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--dt-gold-soft);
+  outline: none;
+}
+
+.app.app--desktop .acquiringRateSuffix {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(180, 188, 196, 0.65);
+  margin-left: 2px;
+}
+
+.app.app--desktop .acquiringRowTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 8px 0 0 10px;
+}
+
+.app.app--desktop .acquiringRowFallback {
+  margin: 6px 0 0 10px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(180, 188, 196, 0.5);
+}
+
+.app.app--desktop .acquiringRowEditBtn {
+  display: inline-flex;
+  align-items: center;
+  margin: 6px 0 0 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--dt-gold-soft);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(196, 165, 109, 0.35);
+  text-underline-offset: 3px;
+  transition: color 0.15s ease;
+}
+
+.app.app--desktop .acquiringRowEditBtn:hover {
+  color: #e8dcc8;
+}
+
+.app.app--desktop .acquiringRow--editing .acquiringRowEditBtn {
+  color: #a8e6c4;
+  text-decoration-color: rgba(120, 200, 160, 0.4);
+}
+
+.app.app--desktop .acquiringRowEditor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 8px 0 0 10px;
+  padding: 10px;
+  max-height: 88px;
+  overflow-y: auto;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.app.app--desktop .acquiringTag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(200, 208, 214, 0.75);
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.12s ease;
+}
+
+.app.app--desktop .acquiringTag--pick {
+  cursor: pointer;
+}
+
+.app.app--desktop .acquiringTag--pick:hover:not(.acquiringTag--active) {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--dt-text-muted);
+}
+
+.app.app--desktop .acquiringTag--active {
+  border-color: rgba(196, 165, 109, 0.65);
+  background: linear-gradient(
+    165deg,
+    rgba(212, 182, 123, 0.28) 0%,
+    rgba(140, 115, 72, 0.2) 100%
+  );
+  color: #f5ecd8;
+  box-shadow:
+    0 0 0 1px rgba(212, 182, 123, 0.2),
+    0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.app.app--desktop .acquiringTag--pick.acquiringTag--active {
+  border-color: rgba(130, 210, 168, 0.75);
+  background: linear-gradient(
+    165deg,
+    rgba(100, 190, 140, 0.32) 0%,
+    rgba(50, 120, 85, 0.22) 100%
+  );
+  color: #e8fff4;
+  box-shadow:
+    0 0 0 1px rgba(120, 200, 160, 0.25),
+    0 2px 10px rgba(0, 0, 0, 0.22);
 }
 
 .app.app--desktop .directorWarehouseFooterRow--withAside {
@@ -84,132 +343,8 @@
   overflow-y: auto;
 }
 
-.app.app--desktop .acquiringPanelCard--compact {
-  gap: 6px;
-  padding: 10px 12px 8px;
-  border-radius: 12px;
-  border-color: rgba(255, 255, 255, 0.06);
-  background: rgba(0, 0, 0, 0.16);
-}
-
-.app.app--desktop .acquiringPanelPickedRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  min-height: 22px;
-}
-
-.app.app--desktop .acquiringPanelPickedHint {
-  font-size: 10px;
-  line-height: 1.35;
-  color: var(--dt-text-dim);
-  font-style: italic;
-}
-
-.app.app--desktop .acquiringPanelCardTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.app.app--desktop .acquiringPanelCardTop .acquiringPanelCardLabel {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.2;
-}
-
-.app.app--desktop .acquiringPanelCardTop .acquiringPanelCardField {
-  flex-shrink: 0;
-  width: auto;
-}
-
-.app.app--desktop .acquiringPanelCardTop .acquiringPanelInput {
-  width: 52px !important;
-  min-height: 28px !important;
-  padding: 2px 6px !important;
-  font-size: 13px !important;
-}
-
-.app.app--desktop .acquiringStoresFold {
-  margin: 0;
-}
-
-.app.app--desktop .acquiringStoresFoldSummary {
-  list-style: none;
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--dt-text-dim);
-  user-select: none;
-}
-
-.app.app--desktop .acquiringStoresFoldSummary::-webkit-details-marker {
-  display: none;
-}
-
-.app.app--desktop .acquiringStoresFoldSummary::before {
-  content: '▸ ';
-  opacity: 0.7;
-}
-
-.app.app--desktop .acquiringStoresFold[open] .acquiringStoresFoldSummary::before {
-  content: '▾ ';
-}
-
-.app.app--desktop .acquiringStoresChips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  max-height: 58px;
-  overflow-y: auto;
-  margin-top: 4px;
-  padding-right: 2px;
-}
-
-.app.app--desktop .acquiringStoreChip {
-  min-height: 0;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--dt-text-dim);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.25;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.app.app--desktop .acquiringStoreChip:hover:not(.acquiringStoreChip--on) {
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.app.app--desktop .acquiringStoreChip--on {
-  border-color: rgba(120, 210, 168, 0.85);
-  background: linear-gradient(180deg, rgba(91, 196, 154, 0.42) 0%, rgba(56, 140, 108, 0.32) 100%);
-  color: #e8fff4;
-  box-shadow:
-    0 0 0 1px rgba(120, 210, 168, 0.35),
-    0 2px 8px rgba(0, 0, 0, 0.22);
-}
-
-.app.app--desktop .acquiringStoreChip--picked {
-  cursor: default;
-  pointer-events: none;
-}
-
-.app.app--desktop .directorWarehouseAside .acquiringPanelRoot--vertical .acquiringPanelShell {
-  min-height: 100%;
-}
-
 @media (max-width: 900px) {
-  .app.app--desktop .acquiringPanelGrid:not(.acquiringPanelGrid--vertical) {
+  .app.app--desktop .acquiringPanelList:not(.acquiringPanelList--vertical) {
     grid-template-columns: 1fr;
   }
 
@@ -218,91 +353,36 @@
   }
 }
 
-.app.app--desktop .acquiringPanelCard {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 12px 10px;
-  border-radius: var(--dt-radius-md);
-  border: 1px solid var(--dt-border-subtle);
-  background: rgba(0, 0, 0, 0.2);
-  box-shadow: var(--dt-surface-shine);
-}
-
-.app.app--desktop .acquiringPanelCardLabel {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--dt-text-muted);
-  line-height: 1.25;
-}
-
-.app.app--desktop .acquiringPanelCardField {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.app.app--desktop .acquiringPanelInput {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 36px !important;
-  padding: 6px 10px !important;
-  font-size: 15px !important;
-  font-weight: 600 !important;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  border-radius: var(--dt-radius-sm) !important;
-  border: 1px solid var(--dt-border-subtle) !important;
-  background: rgba(2, 8, 6, 0.55) !important;
-  color: var(--dt-text) !important;
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.28) !important;
-}
-
-.app.app--desktop .acquiringPanelInput:focus {
-  border-color: rgba(91, 196, 154, 0.55) !important;
-  outline: none !important;
-}
-
-.app.app--desktop .acquiringPanelUnit {
-  flex-shrink: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--dt-text-dim);
-}
-
-.app.app--desktop .acquiringPanelError {
-  margin: 0;
-  font-size: 11px;
-  color: #e8a090;
-}
-
-.app.app--desktop .acquiringPanelSaved {
-  margin: 0;
-  font-size: 11px;
-  color: var(--dt-gold-soft);
-}
-
-/* Светлая тема Hermès */
+/* Светлая тема */
 html[data-dt-theme='light'] .app.app--desktop .acquiringPanelShell {
-  background: var(--st-fog, #b3b7b4) !important;
-  border: 1px solid var(--st-stone, #7c7773) !important;
-  box-shadow: var(--dt-surface-depth) !important;
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.55) 0%, rgba(210, 214, 216, 0.95) 100%) !important;
+  border-color: rgba(25, 23, 26, 0.12) !important;
+  box-shadow: 0 8px 24px rgba(25, 23, 26, 0.08) !important;
 }
 
-html[data-dt-theme='light'] .app.app--desktop .acquiringPanelTitle {
-  font-family: var(--dt-font) !important;
-  font-size: 10px !important;
-  letter-spacing: var(--dt-label-tracking, 0.08em) !important;
-  color: var(--hermes-gray, #767676) !important;
-}
-
-html[data-dt-theme='light'] .app.app--desktop .acquiringPanelCard {
-  background: var(--st-mist, #c4c6c5) !important;
-  border-color: var(--st-stone, #7c7773) !important;
-}
-
-html[data-dt-theme='light'] .app.app--desktop .acquiringPanelInput {
-  background: var(--st-fog, #b3b7b4) !important;
+html[data-dt-theme='light'] .app.app--desktop .acquiringPanelTitle,
+html[data-dt-theme='light'] .app.app--desktop .acquiringRowName {
   color: var(--hermes-black, #19171a) !important;
-  box-shadow: none !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .acquiringRate {
+  background: rgba(255, 255, 255, 0.65) !important;
+  border-color: rgba(25, 23, 26, 0.14) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .acquiringRateInput {
+  color: var(--hermes-black, #19171a) !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .acquiringTag--active {
+  border-color: rgba(120, 90, 40, 0.45) !important;
+  background: rgba(212, 182, 123, 0.35) !important;
+  color: #3d3428 !important;
+}
+
+html[data-dt-theme='light'] .app.app--desktop .acquiringTag--pick.acquiringTag--active {
+  border-color: rgba(40, 120, 80, 0.5) !important;
+  background: rgba(100, 180, 130, 0.28) !important;
+  color: #1a3d2a !important;
 }

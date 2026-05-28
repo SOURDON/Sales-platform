@@ -7919,7 +7919,7 @@ h1 {
   font-size: 12px;
 }
 
-/* Эквайринг: вертикальный блок рядом с каталогом */
+/* Эквайринг (веб + базовые классы; десктоп — desktopAcquiring.css) */
 .acquiringPanelRoot--vertical {
   height: 100%;
 }
@@ -7930,201 +7930,106 @@ h1 {
   flex-direction: column;
 }
 
-.acquiringPanelGrid--vertical {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1 1 auto;
-}
-
-.acquiringPanelGrid--vertical {
-  gap: 6px;
-}
-
-.acquiringPanelCard--compact {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px 6px;
-}
-
-.acquiringPanelCardTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.acquiringPanelCardTop .acquiringPanelCardLabel {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.2;
-}
-
-.acquiringPanelCardTop .acquiringPanelCardField {
-  flex-shrink: 0;
-}
-
-.acquiringPanelCardTop .acquiringPanelInput {
-  width: 52px;
-  min-height: 28px;
-  padding: 2px 6px;
-  font-size: 13px;
-}
-
-.acquiringStoresFold {
-  margin: 0;
-}
-
-.acquiringStoresFoldSummary {
-  list-style: none;
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--inv-muted, rgba(255, 255, 255, 0.45));
-  user-select: none;
-}
-
-.acquiringStoresFoldSummary::-webkit-details-marker {
-  display: none;
-}
-
-.acquiringStoresFoldSummary::before {
-  content: '▸ ';
-}
-
-.acquiringStoresFold[open] .acquiringStoresFoldSummary::before {
-  content: '▾ ';
-}
-
-.acquiringStoresChips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  max-height: 58px;
-  overflow-y: auto;
-  margin-top: 4px;
-}
-
-.acquiringStoreChip {
-  padding: 2px 6px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--inv-muted, rgba(255, 255, 255, 0.5));
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1.2;
-  cursor: pointer;
-}
-
-.acquiringPanelPickedRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  min-height: 22px;
-}
-
-.acquiringPanelPickedHint {
-  font-size: 10px;
-  line-height: 1.35;
-  color: var(--inv-muted, rgba(255, 255, 255, 0.45));
-  font-style: italic;
-}
-
-.acquiringStoreChip--on {
-  border-color: rgba(120, 210, 168, 0.85);
-  background: linear-gradient(180deg, rgba(91, 196, 154, 0.42) 0%, rgba(56, 140, 108, 0.32) 100%);
-  color: #e8fff4;
-  box-shadow:
-    0 0 0 1px rgba(120, 210, 168, 0.35),
-    0 2px 8px rgba(0, 0, 0, 0.22);
-}
-
-.acquiringStoreChip--picked {
-  cursor: default;
-  pointer-events: none;
-}
-
-.acquiringPanelHead--compact {
-  margin-bottom: 6px;
-  padding-bottom: 6px;
-}
-
-.acquiringPanelSaved--head {
-  font-size: 10px;
-  color: #a8e6c4;
-}
-
 .acquiringPanelShell {
   padding: 14px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(168deg, rgba(28, 32, 36, 0.92) 0%, rgba(12, 14, 16, 0.98) 100%);
 }
 
 .acquiringPanelHead {
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.acquiringPanelEyebrow {
+  margin: 0 0 2px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(180, 188, 196, 0.55);
 }
 
 .acquiringPanelTitle {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  text-transform: none;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
 }
 
-.acquiringPanelLead {
-  margin: 4px 0 0;
+.acquiringPanelList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+}
+
+.acquiringPanelList--vertical {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.acquiringRow {
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.acquiringRowMain {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding-left: 8px;
+}
+
+.acquiringRowName {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.acquiringRowMeta {
+  margin: 3px 0 0;
   font-size: 10px;
-  line-height: 1.35;
   color: var(--inv-muted, rgba(255, 255, 255, 0.45));
 }
 
-.acquiringPanelGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.acquiringPanelCard {
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.15);
-}
-
-.acquiringPanelCardLabel {
-  display: block;
-  font-size: 11px;
-  margin-bottom: 6px;
-}
-
-.acquiringPanelCardField {
-  display: flex;
+.acquiringRate {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-}
-
-.acquiringPanelInput {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 32px;
-  padding: 4px 8px;
-  font-size: 13px;
-  text-align: right;
+  padding: 0 8px;
+  min-height: 30px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.28);
-  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
 }
 
-.acquiringPanelUnit {
-  font-size: 12px;
-  color: var(--inv-muted, rgba(255, 255, 255, 0.55));
+.acquiringRateInput {
+  width: 40px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: right;
+  color: inherit;
+  outline: none;
+}
+
+.acquiringTag--active {
+  border-color: rgba(196, 165, 109, 0.6);
+  background: rgba(212, 182, 123, 0.2);
+}
+
+.acquiringTag--pick.acquiringTag--active {
+  border-color: rgba(120, 200, 160, 0.65);
+  background: rgba(80, 160, 120, 0.22);
 }
 
 .directorWarehouseDeleteBtn {

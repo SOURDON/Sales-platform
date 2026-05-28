@@ -9756,6 +9756,7 @@ function AccountantProcurementPanel({
 }) {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [editingProfileId, setEditingProfileId] = useState<AcquiringProfileId | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profilesRef = useRef(profiles);
   profilesRef.current = profiles;
@@ -9780,16 +9781,34 @@ function AccountantProcurementPanel({
   };
 
   const isVertical = layout === 'vertical';
+  const storeCountLabel = (count: number) => {
+    if (count === 0) {
+      return 'прочие точки';
+    }
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) {
+      return `${count} точка`;
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+      return `${count} точки`;
+    }
+    return `${count} точек`;
+  };
 
   return (
     <div className={`acquiringPanelRoot${isVertical ? ' acquiringPanelRoot--vertical' : ''}`}>
       <div className="acquiringPanelShell">
-        <header className="acquiringPanelHead acquiringPanelHead--compact">
-          <div>
+        <header className="acquiringPanelHead">
+          <div className="acquiringPanelHeadText">
+            <p className="acquiringPanelEyebrow">Комиссия банка</p>
             <h3 className="acquiringPanelTitle">Эквайринг</h3>
-            <p className="acquiringPanelLead">% от безнала · точки в строке</p>
           </div>
-          {saved ? <span className="acquiringPanelSaved acquiringPanelSaved--head">Сохранено</span> : null}
+          {saved ? (
+            <span className="acquiringPanelStatus acquiringPanelStatus--ok" aria-live="polite">
+              Сохранено
+            </span>
+          ) : null}
         </header>
 
         {error ? (
@@ -9798,16 +9817,24 @@ function AccountantProcurementPanel({
           </p>
         ) : null}
 
-        <div className={`acquiringPanelGrid${isVertical ? ' acquiringPanelGrid--vertical' : ''}`}>
+        <div className={`acquiringPanelList${isVertical ? ' acquiringPanelList--vertical' : ''}`}>
           {profiles.map((profile) => {
             const storeCount = profile.storeNames.length;
+            const editing = editingProfileId === profile.id;
             return (
-              <div className="acquiringPanelCard acquiringPanelCard--compact" key={profile.id}>
-                <div className="acquiringPanelCardTop">
-                  <span className="acquiringPanelCardLabel">{profile.label}</span>
-                  <div className="acquiringPanelCardField">
+              <article
+                key={profile.id}
+                className={`acquiringRow${editing ? ' acquiringRow--editing' : ''}`}
+                data-profile={profile.id}
+              >
+                <div className="acquiringRowMain">
+                  <div className="acquiringRowIdentity">
+                    <h4 className="acquiringRowName">{profile.label}</h4>
+                    <p className="acquiringRowMeta">{storeCountLabel(storeCount)}</p>
+                  </div>
+                  <label className="acquiringRate" aria-label={`Ставка ${profile.label}`}>
                     <input
-                      className="acquiringPanelInput"
+                      className="acquiringRateInput"
                       inputMode="decimal"
                       value={String(profile.percent)}
                       onChange={(event) => {
@@ -9829,31 +9856,46 @@ function AccountantProcurementPanel({
                         queueSave(setProfilePercent(profilesRef.current, profile.id, num));
                       }}
                       placeholder={ACQUIRING_PERCENT_PLACEHOLDER[profile.id]}
-                      aria-label={`${profile.label}, процент`}
                     />
-                    <span className="acquiringPanelUnit" aria-hidden>
+                    <span className="acquiringRateSuffix" aria-hidden>
                       %
                     </span>
-                  </div>
+                  </label>
                 </div>
-                <div className="acquiringPanelPickedRow" aria-label={`Точки: ${profile.label}`}>
-                  {storeCount === 0 ? (
-                    <span className="acquiringPanelPickedHint">Остальные точки (по умолчанию)</span>
-                  ) : (
-                    profile.storeNames.map((storeName) => (
+
+                {!editing && storeCount > 0 ? (
+                  <div className="acquiringRowTags" aria-label={`Точки: ${profile.label}`}>
+                    {profile.storeNames.map((storeName) => (
                       <span
-                        key={`${profile.id}-picked-${storeName}`}
-                        className="acquiringStoreChip acquiringStoreChip--on acquiringStoreChip--picked"
+                        key={`${profile.id}-tag-${storeName}`}
+                        className="acquiringTag acquiringTag--active"
                         title={storeName}
                       >
                         {acquiringStoreChipLabel(storeName)}
                       </span>
-                    ))
-                  )}
-                </div>
-                <details className="acquiringStoresFold">
-                  <summary className="acquiringStoresFoldSummary">Изменить точки</summary>
-                  <div className="acquiringStoresChips" role="group" aria-label={`Выбор точек: ${profile.label}`}>
+                    ))}
+                  </div>
+                ) : null}
+
+                {!editing && storeCount === 0 ? (
+                  <p className="acquiringRowFallback">Все точки без отдельной привязки</p>
+                ) : null}
+
+                <button
+                  type="button"
+                  className="acquiringRowEditBtn"
+                  aria-expanded={editing}
+                  onClick={() => setEditingProfileId(editing ? null : profile.id)}
+                >
+                  {editing ? 'Готово' : 'Настроить точки'}
+                </button>
+
+                {editing ? (
+                  <div
+                    className="acquiringRowEditor"
+                    role="group"
+                    aria-label={`Выбор точек: ${profile.label}`}
+                  >
                     {ALL_DEMO_STORE_NAMES.map((storeName) => {
                       const on = profile.storeNames.some(
                         (s) =>
@@ -9864,7 +9906,7 @@ function AccountantProcurementPanel({
                         <button
                           key={`${profile.id}-${storeName}`}
                           type="button"
-                          className={`acquiringStoreChip${on ? ' acquiringStoreChip--on' : ''}`}
+                          className={`acquiringTag acquiringTag--pick${on ? ' acquiringTag--active' : ''}`}
                           title={storeName}
                           aria-pressed={on}
                           onClick={() => {
@@ -9878,8 +9920,8 @@ function AccountantProcurementPanel({
                       );
                     })}
                   </div>
-                </details>
-              </div>
+                ) : null}
+              </article>
             );
           })}
         </div>
