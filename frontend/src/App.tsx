@@ -5558,23 +5558,15 @@ function DirectorCashflowPanel({
     return null;
   }
 
-  if (isTauriRuntime()) {
-    return (
-      <section className="directorCashflowStrip directorHomeZone" aria-label="Итоги по всем точкам">
-        <h4 className="directorHomeSectionTitle">Итоги по всем точкам</h4>
-        <div className="directorCashflowChips">
-          {pages.map((page) => (
-            <article key={page.key} className="directorCashflowChip">
-              <span className="directorCashflowChipLabel">{page.title}</span>
-              <strong className="directorCashflowChipValue">{formatRub(page.amount)}</strong>
-            </article>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  return <DirectorCashflowCarousel pages={pages} />;
+  return (
+    <div
+      className={
+        isTauriRuntime() ? 'directorCashflowCarouselWrap directorHomeZone' : 'directorCashflowCarouselWrap'
+      }
+    >
+      <DirectorCashflowCarousel pages={pages} />
+    </div>
+  );
 }
 
 function DirectorCashflowCarousel({
@@ -5871,6 +5863,8 @@ const FINANCE_OPS_PRIMARY_ACCOUNT_IDS = [
   'fa-bank-extra',
   'fa-bank-main',
   'fa-bank-putintsev-sber',
+  'fa-bank-lyokha',
+  'fa-transfer',
   'fa-cash-main',
 ] as const;
 
@@ -9842,11 +9836,24 @@ function AccountantProcurementPanel({
                     </span>
                   </div>
                 </div>
+                <div className="acquiringPanelPickedRow" aria-label={`Точки: ${profile.label}`}>
+                  {storeCount === 0 ? (
+                    <span className="acquiringPanelPickedHint">Остальные точки (по умолчанию)</span>
+                  ) : (
+                    profile.storeNames.map((storeName) => (
+                      <span
+                        key={`${profile.id}-picked-${storeName}`}
+                        className="acquiringStoreChip acquiringStoreChip--on acquiringStoreChip--picked"
+                        title={storeName}
+                      >
+                        {acquiringStoreChipLabel(storeName)}
+                      </span>
+                    ))
+                  )}
+                </div>
                 <details className="acquiringStoresFold">
-                  <summary className="acquiringStoresFoldSummary">
-                    {storeCount > 0 ? `${storeCount} точ.` : 'точки'}
-                  </summary>
-                  <div className="acquiringStoresChips" role="group" aria-label={`Точки: ${profile.label}`}>
+                  <summary className="acquiringStoresFoldSummary">Изменить точки</summary>
+                  <div className="acquiringStoresChips" role="group" aria-label={`Выбор точек: ${profile.label}`}>
                     {ALL_DEMO_STORE_NAMES.map((storeName) => {
                       const on = profile.storeNames.some(
                         (s) =>

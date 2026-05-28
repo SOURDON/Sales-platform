@@ -330,11 +330,11 @@
 .app.app--desktop .financeOpsFlowAccountsGrid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(3, minmax(0, 1fr)) !important;
   gap: 8px !important;
   align-self: stretch;
   width: 100%;
-  min-height: 176px;
+  min-height: 252px;
   margin: 0 !important;
   padding: 0;
 }

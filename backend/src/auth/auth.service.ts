@@ -1086,6 +1086,8 @@ export class AuthService implements OnModuleInit {
       { id: 'fa-bank-extra', name: 'Р/с Д ВТБ', kind: 'BANK', balance: 0 },
       { id: 'fa-bank-main', name: 'Р/с П ВТБ', kind: 'BANK', balance: 0 },
       { id: 'fa-bank-putintsev-sber', name: 'Р/с П СБЕР', kind: 'BANK', balance: 0 },
+      { id: 'fa-bank-lyokha', name: 'Р/с Лёха', kind: 'BANK', balance: 0 },
+      { id: 'fa-transfer', name: 'Перевод', kind: 'BANK', balance: 0 },
       { id: 'fa-cash-main', name: 'Наличные', kind: 'CASH', balance: 0 },
     ];
   }

@@ -8018,10 +8018,32 @@ h1 {
   cursor: pointer;
 }
 
+.acquiringPanelPickedRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 22px;
+}
+
+.acquiringPanelPickedHint {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.45));
+  font-style: italic;
+}
+
 .acquiringStoreChip--on {
-  border-color: rgba(91, 196, 154, 0.45);
-  background: rgba(91, 196, 154, 0.14);
-  color: #a8e6c4;
+  border-color: rgba(120, 210, 168, 0.85);
+  background: linear-gradient(180deg, rgba(91, 196, 154, 0.42) 0%, rgba(56, 140, 108, 0.32) 100%);
+  color: #e8fff4;
+  box-shadow:
+    0 0 0 1px rgba(120, 210, 168, 0.35),
+    0 2px 8px rgba(0, 0, 0, 0.22);
+}
+
+.acquiringStoreChip--picked {
+  cursor: default;
+  pointer-events: none;
 }
 
 .acquiringPanelHead--compact {
@@ -8051,6 +8073,8 @@ h1 {
   margin: 0;
   font-size: 13px;
   font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
 }
 
 .acquiringPanelLead {
