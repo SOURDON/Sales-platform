@@ -14,7 +14,7 @@
 }
 
 .app.app--desktop .acquiringPanelShell {
-  padding: 16px 18px 18px;
+  padding: 12px 14px 14px;
   border-radius: var(--dt-radius-lg);
   background:
     linear-gradient(165deg, rgba(154, 163, 173, 0.06) 0%, transparent 42%),
@@ -33,6 +33,16 @@
   padding-bottom: 12px;
   margin-bottom: 12px;
   border-bottom: 1px solid var(--dt-border-hairline);
+}
+
+.app.app--desktop .acquiringPanelHead--compact {
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.app.app--desktop .acquiringPanelSaved--head {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .app.app--desktop .acquiringPanelTitle {
@@ -60,7 +70,7 @@
 .app.app--desktop .acquiringPanelGrid--vertical {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .app.app--desktop .directorWarehouseFooterRow--withAside {
@@ -74,31 +84,89 @@
   overflow-y: auto;
 }
 
-.app.app--desktop .acquiringPanelGrid--vertical .acquiringPanelCard {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
-  align-items: center;
-  column-gap: 10px;
-  row-gap: 2px;
-  padding: 10px 12px;
+.app.app--desktop .acquiringPanelCard--compact {
+  gap: 4px;
+  padding: 8px 10px 6px;
 }
 
-.app.app--desktop .acquiringPanelGrid--vertical .acquiringPanelCardLabel {
-  grid-column: 1;
-  grid-row: 1;
+.app.app--desktop .acquiringPanelCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.app.app--desktop .acquiringPanelCardTop .acquiringPanelCardLabel {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.app.app--desktop .acquiringPanelCardTop .acquiringPanelCardField {
+  flex-shrink: 0;
+  width: auto;
+}
+
+.app.app--desktop .acquiringPanelCardTop .acquiringPanelInput {
+  width: 52px !important;
+  min-height: 28px !important;
+  padding: 2px 6px !important;
+  font-size: 13px !important;
+}
+
+.app.app--desktop .acquiringStoresFold {
   margin: 0;
 }
 
-.app.app--desktop .acquiringPanelGrid--vertical .acquiringPanelCardField {
-  grid-column: 2;
-  grid-row: 1;
+.app.app--desktop .acquiringStoresFoldSummary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--dt-text-dim);
+  user-select: none;
 }
 
-.app.app--desktop .acquiringPanelGrid--vertical .acquiringPanelError,
-.app.app--desktop .acquiringPanelGrid--vertical .acquiringPanelSaved {
-  grid-column: 1 / -1;
-  grid-row: 2;
+.app.app--desktop .acquiringStoresFoldSummary::-webkit-details-marker {
+  display: none;
+}
+
+.app.app--desktop .acquiringStoresFoldSummary::before {
+  content: '▸ ';
+  opacity: 0.7;
+}
+
+.app.app--desktop .acquiringStoresFold[open] .acquiringStoresFoldSummary::before {
+  content: '▾ ';
+}
+
+.app.app--desktop .acquiringStoresChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 58px;
+  overflow-y: auto;
+  margin-top: 4px;
+  padding-right: 2px;
+}
+
+.app.app--desktop .acquiringStoreChip {
+  min-height: 0;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--dt-border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--dt-text-dim);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.app.app--desktop .acquiringStoreChip--on {
+  border-color: rgba(91, 196, 154, 0.45);
+  background: rgba(91, 196, 154, 0.14);
+  color: var(--dt-gold-soft);
 }
 
 .app.app--desktop .directorWarehouseAside .acquiringPanelRoot--vertical .acquiringPanelShell {

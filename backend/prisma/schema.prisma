@@ -72,6 +72,8 @@ model AppState {
   acquiringPercent Float     @default(1.8)
   acquiringPercentDetkov Float @default(1.8)
   acquiringPercentPutintsevSber Float @default(1.8)
+  acquiringPercentLyokha Float @default(1.8)
+  acquiringProfilesJson String?
   updatedAt        DateTime  @updatedAt
 }
 

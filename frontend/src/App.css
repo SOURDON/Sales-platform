@@ -7937,34 +7937,101 @@ h1 {
   flex: 1 1 auto;
 }
 
-.acquiringPanelGrid--vertical .acquiringPanelCard {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
+.acquiringPanelGrid--vertical {
+  gap: 6px;
+}
+
+.acquiringPanelCard--compact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 6px;
+}
+
+.acquiringPanelCardTop {
+  display: flex;
   align-items: center;
-  column-gap: 10px;
-  row-gap: 2px;
-  padding: 10px 12px;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.acquiringPanelGrid--vertical .acquiringPanelCardLabel {
-  grid-column: 1;
-  grid-row: 1;
-  font-size: 11px;
-  line-height: 1.25;
-}
-
-.acquiringPanelGrid--vertical .acquiringPanelCardField {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.acquiringPanelGrid--vertical .acquiringPanelError,
-.acquiringPanelGrid--vertical .acquiringPanelSaved {
-  grid-column: 1 / -1;
-  grid-row: 2;
+.acquiringPanelCardTop .acquiringPanelCardLabel {
   margin: 0;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.acquiringPanelCardTop .acquiringPanelCardField {
+  flex-shrink: 0;
+}
+
+.acquiringPanelCardTop .acquiringPanelInput {
+  width: 52px;
+  min-height: 28px;
+  padding: 2px 6px;
+  font-size: 13px;
+}
+
+.acquiringStoresFold {
+  margin: 0;
+}
+
+.acquiringStoresFoldSummary {
+  list-style: none;
+  cursor: pointer;
   font-size: 10px;
+  font-weight: 600;
+  color: var(--inv-muted, rgba(255, 255, 255, 0.45));
+  user-select: none;
+}
+
+.acquiringStoresFoldSummary::-webkit-details-marker {
+  display: none;
+}
+
+.acquiringStoresFoldSummary::before {
+  content: '▸ ';
+}
+
+.acquiringStoresFold[open] .acquiringStoresFoldSummary::before {
+  content: '▾ ';
+}
+
+.acquiringStoresChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 58px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.acquiringStoreChip {
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--inv-muted, rgba(255, 255, 255, 0.5));
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.acquiringStoreChip--on {
+  border-color: rgba(91, 196, 154, 0.45);
+  background: rgba(91, 196, 154, 0.14);
+  color: #a8e6c4;
+}
+
+.acquiringPanelHead--compact {
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+}
+
+.acquiringPanelSaved--head {
+  font-size: 10px;
+  color: #a8e6c4;
 }
 
 .acquiringPanelShell {

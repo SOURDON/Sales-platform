@@ -16,6 +16,18 @@ import {
 } from './desktop/desktopTheme';
 import { DesktopThemeToggle } from './desktop/DesktopThemeToggle';
 import {
+  type AcquiringProfile,
+  type AcquiringProfileId,
+  acquiringStoreChipLabel,
+  defaultAcquiringProfiles,
+  normalizeAcquiringProfiles,
+  percentForStore,
+  profileIdForStore,
+  setProfilePercent,
+  toggleStoreOnProfile,
+} from './acquiring/acquiringConfig';
+import {
+  ALL_DEMO_STORE_NAMES,
   DEFAULT_INVENTORY_WAREHOUSES,
   normalizeInventoryOverview,
   WAREHOUSE_CENTER_KEY,
@@ -99,34 +111,6 @@ function shiftDayKey(dayKey: string, deltaDays: number): string {
 /** Согласовано с backend AuthService.normProcurementKey — для Σ(себестоимость × qty) в отчёте. */
 function normProcurementKey(raw: string): string {
   return String(raw).normalize('NFC').trim().replace(/\s+/g, ' ');
-}
-
-const DETKOV_ACQUIRING_STORES = new Set(
-  ['Центр тех. зона', 'Центр пляж', 'Дельфин Тех.зона'].map((name) =>
-    name.toLocaleLowerCase('ru-RU').trim(),
-  ),
-);
-
-function isDetkovAcquiringStore(storeName: string): boolean {
-  return DETKOV_ACQUIRING_STORES.has(String(storeName).toLocaleLowerCase('ru-RU').trim());
-}
-
-/** Точки со ставкой «Путинцев Сбербанк». Пока пусто — в отчёте везде ВТБ/Детков; добавьте `storeName.toLowerCase()` при необходимости. */
-const PUTINTSEV_SBER_ACQUIRING_STORES = new Set<string>();
-
-function isPutintsevSberAcquiringStore(storeName: string): boolean {
-  return PUTINTSEV_SBER_ACQUIRING_STORES.has(String(storeName).toLocaleLowerCase('ru-RU').trim());
-}
-
-/** Безнал (эквайринг) → «Р/с Лёха» в блоке «Итоги по всем точкам». */
-const LYOKHA_RS_ACQUIRING_STORES = new Set(
-  ['Сады морей Тех. зона', 'Сады морей Пляж', 'Метрополь', 'Багамы', 'Спортивнй'].map((name) =>
-    name.toLocaleLowerCase('ru-RU').trim(),
-  ),
-);
-
-function isLyokhaRsAcquiringStore(storeName: string): boolean {
-  return LYOKHA_RS_ACQUIRING_STORES.has(String(storeName).toLocaleLowerCase('ru-RU').trim());
 }
 
 function parseGoodsCost(value: unknown): number {
@@ -991,9 +975,9 @@ function App() {
   const [paymentEditSaleId, setPaymentEditSaleId] = useState<string | null>(null);
   const [paymentEditBusy, setPaymentEditBusy] = useState(false);
   const [teamDayKey, setTeamDayKey] = useState(todayKeyMoscow());
-  const [acquiringPercent, setAcquiringPercent] = useState('1.8');
-  const [acquiringPercentDetkov, setAcquiringPercentDetkov] = useState('1.8');
-  const [acquiringPercentPutintsevSber, setAcquiringPercentPutintsevSber] = useState('1.8');
+  const [acquiringProfiles, setAcquiringProfiles] = useState<AcquiringProfile[]>(() =>
+    defaultAcquiringProfiles(),
+  );
   const [salesExpanded, setSalesExpanded] = useState(() => isTauriRuntime());
   const [financeOps, setFinanceOps] = useState<FinanceOpsSnapshot>({
     accounts: [],
@@ -1239,10 +1223,6 @@ function App() {
     const todayKey = todayKeyMoscow();
     const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
 
-    const acquiringRateDefault = Math.max(0, Number(acquiringPercent) || 0);
-    const acquiringRateDetkov = Math.max(0, Number(acquiringPercentDetkov) || 0);
-    const acquiringRatePutintsevSber = Math.max(0, Number(acquiringPercentPutintsevSber) || 0);
-
     let rsDvtb = 0;
     let rsPvtb = 0;
     let rsPsber = 0;
@@ -1267,21 +1247,15 @@ function App() {
         continue;
       }
 
-      const isDetkov = isDetkovAcquiringStore(storeName);
-      const isPutintsevSber = isPutintsevSberAcquiringStore(storeName);
-      const isLyokha = isLyokhaRsAcquiringStore(storeName);
-      const rate = isDetkov
-        ? acquiringRateDetkov
-        : isPutintsevSber
-          ? acquiringRatePutintsevSber
-          : acquiringRateDefault;
+      const rate = percentForStore(storeName, acquiringProfiles);
       const netAmount = sale.totalAmount - (sale.totalAmount * rate) / 100;
+      const profileId = profileIdForStore(storeName, acquiringProfiles);
 
-      if (isDetkov) {
+      if (profileId === 'detkov-vtb') {
         rsDvtb += netAmount;
-      } else if (isPutintsevSber) {
+      } else if (profileId === 'putintsev-sber') {
         rsPsber += netAmount;
-      } else if (isLyokha) {
+      } else if (profileId === 'lyokha-rs') {
         rsLeha += netAmount;
       } else {
         rsPvtb += netAmount;
@@ -1296,14 +1270,7 @@ function App() {
       { key: 'rs-leha', title: 'Р/с Лёха', amount: Math.round(rsLeha * 100) / 100 },
       { key: 'cash', title: 'Наличные', amount: Math.round(cashTotal * 100) / 100 },
     ];
-  }, [
-    acquiringPercent,
-    acquiringPercentDetkov,
-    acquiringPercentPutintsevSber,
-    salesMerged,
-    sellers,
-    session?.user.role,
-  ]);
+  }, [acquiringProfiles, salesMerged, sellers, session?.user.role]);
 
   const loadDashboard = async (token: string) => {
     setDashboardLoading(true);
@@ -1770,7 +1737,7 @@ function App() {
     return putOnline();
   };
 
-  const loadAcquiringPercent = async (token: string) => {
+  const loadAcquiringProfiles = async (token: string) => {
     const response = await fetch(`${API_BASE_URL}/admin/acquiring-percent`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -1778,79 +1745,43 @@ function App() {
       throw new Error('acquiring percent error');
     }
     const data = (await response.json()) as {
-      percent: number;
+      percent?: number;
       detkovPercent?: number;
       putintsevSberPercent?: number;
+      lyokhaPercent?: number;
+      profiles?: unknown;
     };
-    setAcquiringPercent(String(data.percent));
-    setAcquiringPercentDetkov(
-      String(Number.isFinite(data.detkovPercent) ? data.detkovPercent : data.percent),
+    setAcquiringProfiles(
+      normalizeAcquiringProfiles(data.profiles, {
+        putintsevVtb: data.percent,
+        detkovVtb: data.detkovPercent,
+        putintsevSber: data.putintsevSberPercent,
+        lyokhaRs: data.lyokhaPercent,
+      }),
     );
-    const putintsevSber =
-      typeof data.putintsevSberPercent === 'number' && Number.isFinite(data.putintsevSberPercent)
-        ? data.putintsevSberPercent
-        : data.percent;
-    setAcquiringPercentPutintsevSber(String(putintsevSber));
   };
 
-  const saveAcquiringPercent = async (token: string, value: string) => {
-    const num = Number(String(value).replace(',', '.'));
-    if (!Number.isFinite(num) || num < 0 || num > 100) {
-      return;
-    }
-    const response = await fetch(`${API_BASE_URL}/admin/acquiring-percent`, {
+  const saveAcquiringProfiles = async (token: string, profiles: AcquiringProfile[]) => {
+    const response = await fetch(`${API_BASE_URL}/admin/acquiring-profiles`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ percent: num }),
+      body: JSON.stringify({ profiles }),
     });
     if (!response.ok) {
-      throw new Error('save acquiring percent error');
+      throw new Error('save acquiring profiles error');
     }
-    const data = (await response.json()) as { percent: number };
-    setAcquiringPercent(String(data.percent));
-  };
-
-  const saveAcquiringPercentDetkov = async (token: string, value: string) => {
-    const num = Number(String(value).replace(',', '.'));
-    if (!Number.isFinite(num) || num < 0 || num > 100) {
-      return;
-    }
-    const response = await fetch(`${API_BASE_URL}/admin/acquiring-percent/detkov`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ percent: num }),
-    });
-    if (!response.ok) {
-      throw new Error('save detkov acquiring percent error');
-    }
-    const data = (await response.json()) as { percent: number };
-    setAcquiringPercentDetkov(String(data.percent));
-  };
-
-  const saveAcquiringPercentPutintsevSber = async (token: string, value: string) => {
-    const num = Number(String(value).replace(',', '.'));
-    if (!Number.isFinite(num) || num < 0 || num > 100) {
-      return;
-    }
-    const response = await fetch(`${API_BASE_URL}/admin/acquiring-percent/putintsev-sber`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ percent: num }),
-    });
-    if (!response.ok) {
-      throw new Error('save putintsev sber acquiring percent error');
-    }
-    const data = (await response.json()) as { percent: number };
-    setAcquiringPercentPutintsevSber(String(data.percent));
+    const data = (await response.json()) as { profiles?: unknown };
+    setAcquiringProfiles(
+      normalizeAcquiringProfiles(data.profiles, {
+        putintsevVtb: profiles.find((p) => p.id === 'putintsev-vtb')?.percent,
+        detkovVtb: profiles.find((p) => p.id === 'detkov-vtb')?.percent,
+        putintsevSber: profiles.find((p) => p.id === 'putintsev-sber')?.percent,
+        lyokhaRs: profiles.find((p) => p.id === 'lyokha-rs')?.percent,
+      }),
+    );
   };
 
   const normalizeFinanceOps = (raw: Partial<FinanceOpsSnapshot>): FinanceOpsSnapshot => ({
@@ -2665,14 +2596,12 @@ function App() {
 
       if (data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
         const financeLoads = await Promise.allSettled([
-          loadAcquiringPercent(data.token),
+          loadAcquiringProfiles(data.token),
           loadFinanceOps(data.token),
         ]);
         const hasFinanceFailure = financeLoads.some((item) => item.status === 'rejected');
         if (hasFinanceFailure) {
-          setAcquiringPercent('1.8');
-          setAcquiringPercentDetkov('1.8');
-          setAcquiringPercentPutintsevSber('1.8');
+          setAcquiringProfiles(defaultAcquiringProfiles());
           setFinanceOps({
             accounts: [],
             expenses: [],
@@ -2681,9 +2610,7 @@ function App() {
           });
         }
       } else {
-        setAcquiringPercent('1.8');
-        setAcquiringPercentDetkov('1.8');
-        setAcquiringPercentPutintsevSber('1.8');
+        setAcquiringProfiles(defaultAcquiringProfiles());
         setFinanceOps({
           accounts: [],
           expenses: [],
@@ -2704,9 +2631,7 @@ function App() {
       setCommissionRequests([]);
       setShifts([]);
       setStaff([]);
-      setAcquiringPercent('1.8');
-      setAcquiringPercentDetkov('1.8');
-      setAcquiringPercentPutintsevSber('1.8');
+      setAcquiringProfiles(defaultAcquiringProfiles());
       setFinanceOps({
         accounts: [],
         expenses: [],
@@ -2823,9 +2748,7 @@ function App() {
       setShifts([]);
       setStaff([]);
       setGlobalEmployees([]);
-      setAcquiringPercent('1.8');
-      setAcquiringPercentDetkov('1.8');
-      setAcquiringPercentPutintsevSber('1.8');
+      setAcquiringProfiles(defaultAcquiringProfiles());
       setInventoryOverview(null);
       setStoreInventory(null);
       setError(describeLoginFetchError(e));
@@ -2850,9 +2773,7 @@ function App() {
     setCommissionRequests([]);
     setShifts([]);
     setStaff([]);
-    setAcquiringPercent('1.8');
-    setAcquiringPercentDetkov('1.8');
-    setAcquiringPercentPutintsevSber('1.8');
+    setAcquiringProfiles(defaultAcquiringProfiles());
     setFinanceOps({
       accounts: [],
       expenses: [],
@@ -3070,7 +2991,7 @@ function App() {
           loadProductProcurementCosts(token),
           loadInventoryOverview(token),
           loadManagerStoreCommissions(token),
-          loadAcquiringPercent(token),
+          loadAcquiringProfiles(token),
           loadProducts(token),
         );
       } else if (role === 'ADMIN') {
@@ -3578,9 +3499,7 @@ function App() {
                             sellers={sellers}
                             procurementCosts={productProcurementCosts}
                             role={role}
-                            acquiringPercent={acquiringPercent}
-                            acquiringPercentDetkov={acquiringPercentDetkov}
-                            acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
+                            acquiringProfiles={acquiringProfiles}
                             onRefreshFinanceInputs={refreshFinanceInputs}
                             onLoadPlans={loadRevenuePlans}
                             onSavePlans={saveRevenuePlans}
@@ -3609,15 +3528,9 @@ function App() {
                           <section className="sectionCard sectionCard--acquiring">
                             <AccountantProcurementPanel
                               token={session.token}
-                              acquiringPercent={acquiringPercent}
-                              acquiringPercentDetkov={acquiringPercentDetkov}
-                              acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
-                              onAcquiringPercentChange={setAcquiringPercent}
-                              onAcquiringPercentDetkovChange={setAcquiringPercentDetkov}
-                              onAcquiringPercentPutintsevSberChange={setAcquiringPercentPutintsevSber}
-                              onSaveAcquiringPercent={saveAcquiringPercent}
-                              onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
-                              onSaveAcquiringPercentPutintsevSber={saveAcquiringPercentPutintsevSber}
+                              profiles={acquiringProfiles}
+                              onProfilesChange={setAcquiringProfiles}
+                              onSaveProfiles={saveAcquiringProfiles}
                             />
                           </section>
                         </>
@@ -3842,15 +3755,9 @@ function App() {
                           <AccountantProcurementPanel
                             layout="vertical"
                             token={session.token}
-                            acquiringPercent={acquiringPercent}
-                            acquiringPercentDetkov={acquiringPercentDetkov}
-                            acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
-                            onAcquiringPercentChange={setAcquiringPercent}
-                            onAcquiringPercentDetkovChange={setAcquiringPercentDetkov}
-                            onAcquiringPercentPutintsevSberChange={setAcquiringPercentPutintsevSber}
-                            onSaveAcquiringPercent={saveAcquiringPercent}
-                            onSaveAcquiringPercentDetkov={saveAcquiringPercentDetkov}
-                            onSaveAcquiringPercentPutintsevSber={saveAcquiringPercentPutintsevSber}
+                            profiles={acquiringProfiles}
+                            onProfilesChange={setAcquiringProfiles}
+                            onSaveProfiles={saveAcquiringProfiles}
                           />
                         }
                       />
@@ -3990,9 +3897,7 @@ function App() {
                           sellers={sellers}
                           procurementCosts={productProcurementCosts}
                           role={role}
-                          acquiringPercent={acquiringPercent}
-                          acquiringPercentDetkov={acquiringPercentDetkov}
-                          acquiringPercentPutintsevSber={acquiringPercentPutintsevSber}
+                          acquiringProfiles={acquiringProfiles}
                           onRefreshFinanceInputs={refreshFinanceInputs}
                           onLoadPlans={loadRevenuePlans}
                           onSavePlans={saveRevenuePlans}
@@ -9835,81 +9740,49 @@ function StoreInventoryControlPanel({
   );
 }
 
-const ACQUIRING_RATE_ROWS = [
-  {
-    id: 'putintsev-vtb',
-    label: 'Путинцев ВТБ',
-    placeholder: '1.94',
-  },
-  {
-    id: 'detkov-vtb',
-    label: 'Детков ВТБ',
-    placeholder: '2',
-  },
-  {
-    id: 'putintsev-sber',
-    label: 'Путинцев Сбербанк',
-    placeholder: '1.8',
-  },
-] as const;
+const ACQUIRING_PERCENT_PLACEHOLDER: Record<AcquiringProfileId, string> = {
+  'putintsev-vtb': '1.94',
+  'detkov-vtb': '2',
+  'putintsev-sber': '1.8',
+  'lyokha-rs': '1.8',
+};
 
 function AccountantProcurementPanel({
   layout = 'horizontal',
   token,
-  acquiringPercent,
-  acquiringPercentDetkov,
-  acquiringPercentPutintsevSber,
-  onAcquiringPercentChange,
-  onAcquiringPercentDetkovChange,
-  onAcquiringPercentPutintsevSberChange,
-  onSaveAcquiringPercent,
-  onSaveAcquiringPercentDetkov,
-  onSaveAcquiringPercentPutintsevSber,
+  profiles,
+  onProfilesChange,
+  onSaveProfiles,
 }: {
   layout?: 'horizontal' | 'vertical';
   token: string;
-  acquiringPercent: string;
-  acquiringPercentDetkov: string;
-  acquiringPercentPutintsevSber: string;
-  onAcquiringPercentChange: (value: string) => void;
-  onAcquiringPercentDetkovChange: (value: string) => void;
-  onAcquiringPercentPutintsevSberChange: (value: string) => void;
-  onSaveAcquiringPercent: (token: string, value: string) => Promise<void>;
-  onSaveAcquiringPercentDetkov: (token: string, value: string) => Promise<void>;
-  onSaveAcquiringPercentPutintsevSber: (token: string, value: string) => Promise<void>;
+  profiles: AcquiringProfile[];
+  onProfilesChange: (profiles: AcquiringProfile[]) => void;
+  onSaveProfiles: (token: string, profiles: AcquiringProfile[]) => Promise<void>;
 }) {
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [saved, setSaved] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const profilesRef = useRef(profiles);
+  profilesRef.current = profiles;
 
-  const values: Record<(typeof ACQUIRING_RATE_ROWS)[number]['id'], string> = {
-    'putintsev-vtb': acquiringPercent,
-    'detkov-vtb': acquiringPercentDetkov,
-    'putintsev-sber': acquiringPercentPutintsevSber,
-  };
-
-  const setters: Record<(typeof ACQUIRING_RATE_ROWS)[number]['id'], (value: string) => void> = {
-    'putintsev-vtb': onAcquiringPercentChange,
-    'detkov-vtb': onAcquiringPercentDetkovChange,
-    'putintsev-sber': onAcquiringPercentPutintsevSberChange,
-  };
-
-  const savers: Record<(typeof ACQUIRING_RATE_ROWS)[number]['id'], (token: string, value: string) => Promise<void>> = {
-    'putintsev-vtb': onSaveAcquiringPercent,
-    'detkov-vtb': onSaveAcquiringPercentDetkov,
-    'putintsev-sber': onSaveAcquiringPercentPutintsevSber,
-  };
-
-  const persistRate = async (id: (typeof ACQUIRING_RATE_ROWS)[number]['id'], value: string) => {
-    setErrors((current) => ({ ...current, [id]: '' }));
-    try {
-      await savers[id](token, value);
-      setSaved((current) => ({ ...current, [id]: true }));
-      window.setTimeout(() => {
-        setSaved((current) => ({ ...current, [id]: false }));
-      }, 1200);
-    } catch {
-      setErrors((current) => ({ ...current, [id]: 'Не удалось сохранить' }));
+  const queueSave = (next: AcquiringProfile[]) => {
+    onProfilesChange(next);
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
     }
+    saveTimerRef.current = setTimeout(() => {
+      void (async () => {
+        setError('');
+        try {
+          await onSaveProfiles(token, next);
+          setSaved(true);
+          window.setTimeout(() => setSaved(false), 1200);
+        } catch {
+          setError('Не удалось сохранить');
+        }
+      })();
+    }, 400);
   };
 
   const isVertical = layout === 'vertical';
@@ -9917,43 +9790,91 @@ function AccountantProcurementPanel({
   return (
     <div className={`acquiringPanelRoot${isVertical ? ' acquiringPanelRoot--vertical' : ''}`}>
       <div className="acquiringPanelShell">
-        <header className="acquiringPanelHead">
+        <header className="acquiringPanelHead acquiringPanelHead--compact">
           <div>
             <h3 className="acquiringPanelTitle">Эквайринг</h3>
-            <p className="acquiringPanelLead">Комиссия банка, % от безналичной выручки</p>
+            <p className="acquiringPanelLead">% от безнала · точки в строке</p>
           </div>
+          {saved ? <span className="acquiringPanelSaved acquiringPanelSaved--head">Сохранено</span> : null}
         </header>
 
+        {error ? (
+          <p className="acquiringPanelError" role="alert">
+            {error}
+          </p>
+        ) : null}
+
         <div className={`acquiringPanelGrid${isVertical ? ' acquiringPanelGrid--vertical' : ''}`}>
-          {ACQUIRING_RATE_ROWS.map((row) => (
-            <div className="acquiringPanelCard" key={row.id}>
-              <span className="acquiringPanelCardLabel">{row.label}</span>
-              <div className="acquiringPanelCardField">
-                <input
-                  className="acquiringPanelInput"
-                  inputMode="decimal"
-                  value={values[row.id]}
-                  onChange={(event) => {
-                    setErrors((current) => ({ ...current, [row.id]: '' }));
-                    setters[row.id](event.target.value);
-                  }}
-                  onBlur={(event) => void persistRate(row.id, event.currentTarget.value)}
-                  placeholder={row.placeholder}
-                  aria-label={`${row.label}, процент`}
-                />
-                <span className="acquiringPanelUnit" aria-hidden>
-                  %
-                </span>
+          {profiles.map((profile) => {
+            const storeCount = profile.storeNames.length;
+            return (
+              <div className="acquiringPanelCard acquiringPanelCard--compact" key={profile.id}>
+                <div className="acquiringPanelCardTop">
+                  <span className="acquiringPanelCardLabel">{profile.label}</span>
+                  <div className="acquiringPanelCardField">
+                    <input
+                      className="acquiringPanelInput"
+                      inputMode="decimal"
+                      value={String(profile.percent)}
+                      onChange={(event) => {
+                        const raw = event.target.value.replace(',', '.');
+                        if (raw.trim() === '' || raw === '.' || raw === ',') {
+                          return;
+                        }
+                        const num = Number(raw);
+                        if (!Number.isFinite(num)) {
+                          return;
+                        }
+                        onProfilesChange(setProfilePercent(profilesRef.current, profile.id, num));
+                      }}
+                      onBlur={(event) => {
+                        const num = Number(String(event.target.value).replace(',', '.'));
+                        if (!Number.isFinite(num) || num < 0 || num > 100) {
+                          return;
+                        }
+                        queueSave(setProfilePercent(profilesRef.current, profile.id, num));
+                      }}
+                      placeholder={ACQUIRING_PERCENT_PLACEHOLDER[profile.id]}
+                      aria-label={`${profile.label}, процент`}
+                    />
+                    <span className="acquiringPanelUnit" aria-hidden>
+                      %
+                    </span>
+                  </div>
+                </div>
+                <details className="acquiringStoresFold">
+                  <summary className="acquiringStoresFoldSummary">
+                    {storeCount > 0 ? `${storeCount} точ.` : 'точки'}
+                  </summary>
+                  <div className="acquiringStoresChips" role="group" aria-label={`Точки: ${profile.label}`}>
+                    {ALL_DEMO_STORE_NAMES.map((storeName) => {
+                      const on = profile.storeNames.some(
+                        (s) =>
+                          s.toLocaleLowerCase('ru-RU').trim() ===
+                          storeName.toLocaleLowerCase('ru-RU').trim(),
+                      );
+                      return (
+                        <button
+                          key={`${profile.id}-${storeName}`}
+                          type="button"
+                          className={`acquiringStoreChip${on ? ' acquiringStoreChip--on' : ''}`}
+                          title={storeName}
+                          aria-pressed={on}
+                          onClick={() => {
+                            queueSave(
+                              toggleStoreOnProfile(profilesRef.current, profile.id, storeName, !on),
+                            );
+                          }}
+                        >
+                          {acquiringStoreChipLabel(storeName)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </details>
               </div>
-              {errors[row.id] ? (
-                <p className="acquiringPanelError" role="alert">
-                  {errors[row.id]}
-                </p>
-              ) : saved[row.id] ? (
-                <p className="acquiringPanelSaved">Сохранено</p>
-              ) : null}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -9966,9 +9887,7 @@ function FinanceReportPanel({
   sellers,
   procurementCosts,
   role,
-  acquiringPercent,
-  acquiringPercentDetkov,
-  acquiringPercentPutintsevSber,
+  acquiringProfiles,
   onRefreshFinanceInputs,
   onLoadPlans,
   onSavePlans,
@@ -9978,9 +9897,7 @@ function FinanceReportPanel({
   sellers: SellerProfile[];
   procurementCosts: ProductProcurementCost[];
   role: 'DIRECTOR' | 'ACCOUNTANT' | 'ADMIN' | 'SELLER';
-  acquiringPercent: string;
-  acquiringPercentDetkov: string;
-  acquiringPercentPutintsevSber: string;
+  acquiringProfiles: AcquiringProfile[];
   onRefreshFinanceInputs: () => Promise<void>;
   onLoadPlans: (token: string, dayKey: string) => Promise<StoreRevenuePlan[]>;
   onSavePlans: (
@@ -10044,9 +9961,6 @@ function FinanceReportPanel({
     ]),
   ).sort((a, b) => a.localeCompare(b, 'ru-RU'));
 
-  const acquiringRateDefault = Math.max(0, Number(acquiringPercent) || 0);
-  const acquiringRateDetkov = Math.max(0, Number(acquiringPercentDetkov) || 0);
-  const acquiringRatePutintsevSber = Math.max(0, Number(acquiringPercentPutintsevSber) || 0);
   const rows = storeNames.map((storeName) => {
     const sellerIds = new Set(
       sellers.filter((seller) => seller.storeName === storeName).map((seller) => seller.id),
@@ -10062,11 +9976,7 @@ function FinanceReportPanel({
     const cashRevenue = storeSales
       .filter((sale) => sale.paymentType !== 'NON_CASH' && sale.paymentType !== 'TRANSFER')
       .reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const acquiringRateForStore = isDetkovAcquiringStore(storeName)
-      ? acquiringRateDetkov
-      : isPutintsevSberAcquiringStore(storeName)
-        ? acquiringRatePutintsevSber
-        : acquiringRateDefault;
+    const acquiringRateForStore = percentForStore(storeName, acquiringProfiles);
     const acquiringFee = (nonCashRevenue * acquiringRateForStore) / 100;
     const goodsSpent = storeSales.reduce((sum, sale) => {
       const fromApi = parseGoodsCost(sale.goodsCost);

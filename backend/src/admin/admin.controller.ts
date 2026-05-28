@@ -460,11 +460,19 @@ export class AdminController {
   @Get('acquiring-percent')
   getAcquiringPercent(@Headers('authorization') authorization?: string) {
     this.requireFinanceRead(authorization);
-    return {
-      percent: this.authService.getAcquiringPercent(),
-      detkovPercent: this.authService.getAcquiringPercentDetkov(),
-      putintsevSberPercent: this.authService.getAcquiringPercentPutintsevSber(),
-    };
+    return this.authService.getAcquiringConfig();
+  }
+
+  @Put('acquiring-profiles')
+  setAcquiringProfiles(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { profiles?: unknown },
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    if (!body.profiles) {
+      throw new BadRequestException('profiles is required');
+    }
+    return this.authService.setAcquiringProfiles(body.profiles, session.nickname);
   }
 
   @Put('acquiring-percent')
@@ -509,6 +517,22 @@ export class AdminController {
       throw new BadRequestException('percent is required');
     }
     const result = this.authService.setAcquiringPercentPutintsevSber(body.percent, session.nickname);
+    if (!result) {
+      throw new BadRequestException('percent must be between 0 and 100');
+    }
+    return result;
+  }
+
+  @Put('acquiring-percent/lyokha')
+  setAcquiringPercentLyokha(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: AcquiringPercentBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    if (body.percent === undefined || !Number.isFinite(body.percent)) {
+      throw new BadRequestException('percent is required');
+    }
+    const result = this.authService.setAcquiringPercentLyokha(body.percent, session.nickname);
     if (!result) {
       throw new BadRequestException('percent must be between 0 and 100');
     }

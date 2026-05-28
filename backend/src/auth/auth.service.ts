@@ -11,6 +11,14 @@ import {
   UserRole as PrismaUserRole,
   WriteOffReason,
 } from '@prisma/client';
+import {
+  type AcquiringProfile,
+  defaultAcquiringProfiles,
+  normalizeAcquiringProfiles,
+  parseAcquiringProfilesJson,
+  serializeAcquiringProfiles,
+  syncLegacyPercentsFromProfiles,
+} from '../acquiring/acquiring-profiles';
 import { ensureDemoData, ensureManagerUserIfMissing, ensureRetoucherUsersIfMissing } from '../database/ensure-demo-data';
 import { migrateLegacyDemoNicknames } from '../database/migrate-demo-nicknames';
 import { PrismaService } from '../prisma/prisma.service';
@@ -319,6 +327,8 @@ export class AuthService implements OnModuleInit {
   private acquiringPercent = 1.8;
   private acquiringPercentDetkov = 1.8;
   private acquiringPercentPutintsevSber = 1.8;
+  private acquiringPercentLyokha = 1.8;
+  private acquiringProfilesJson: string | null = null;
   private shiftHistory: Shift[] = [];
   private cashDisciplineEvents: CashDisciplineEvent[] = [];
   private staff: StaffMember[] = [];
@@ -776,6 +786,49 @@ export class AuthService implements OnModuleInit {
     return this.acquiringPercentPutintsevSber;
   }
 
+  getAcquiringPercentLyokha() {
+    return this.acquiringPercentLyokha;
+  }
+
+  getAcquiringProfiles(): AcquiringProfile[] {
+    return parseAcquiringProfilesJson(this.acquiringProfilesJson, {
+      putintsevVtb: this.acquiringPercent,
+      detkovVtb: this.acquiringPercentDetkov,
+      putintsevSber: this.acquiringPercentPutintsevSber,
+      lyokhaRs: this.acquiringPercentLyokha,
+    });
+  }
+
+  getAcquiringConfig() {
+    const profiles = this.getAcquiringProfiles();
+    const legacy = syncLegacyPercentsFromProfiles(profiles);
+    return {
+      percent: legacy.acquiringPercent,
+      detkovPercent: legacy.acquiringPercentDetkov,
+      putintsevSberPercent: legacy.acquiringPercentPutintsevSber,
+      lyokhaPercent: legacy.acquiringPercentLyokha,
+      profiles,
+    };
+  }
+
+  setAcquiringProfiles(profilesInput: unknown, actor = 'system') {
+    const profiles = normalizeAcquiringProfiles(profilesInput, {
+      putintsevVtb: this.acquiringPercent,
+      detkovVtb: this.acquiringPercentDetkov,
+      putintsevSber: this.acquiringPercentPutintsevSber,
+      lyokhaRs: this.acquiringPercentLyokha,
+    });
+    const legacy = syncLegacyPercentsFromProfiles(profiles);
+    this.acquiringPercent = legacy.acquiringPercent;
+    this.acquiringPercentDetkov = legacy.acquiringPercentDetkov;
+    this.acquiringPercentPutintsevSber = legacy.acquiringPercentPutintsevSber;
+    this.acquiringPercentLyokha = legacy.acquiringPercentLyokha;
+    this.acquiringProfilesJson = serializeAcquiringProfiles(profiles);
+    this.pushAudit(actor, 'ACQUIRING_PROFILES_UPDATED', `${profiles.length} profiles`);
+    this.queuePersist();
+    return this.getAcquiringConfig();
+  }
+
   getFinanceOpsSnapshot() {
     const accounts = this.financeAccounts
       .map((item) => ({ ...item }))
@@ -815,6 +868,7 @@ export class AuthService implements OnModuleInit {
     }
     this.acquiringPercent = Math.round(percent * 1000) / 1000;
     this.pushAudit(actor, 'ACQUIRING_PERCENT_UPDATED', String(this.acquiringPercent));
+    this.syncAcquiringProfilesJsonFromLegacyPercents();
     this.queuePersist();
     return { percent: this.acquiringPercent };
   }
@@ -825,6 +879,7 @@ export class AuthService implements OnModuleInit {
     }
     this.acquiringPercentDetkov = Math.round(percent * 1000) / 1000;
     this.pushAudit(actor, 'ACQUIRING_PERCENT_DETKOV_UPDATED', String(this.acquiringPercentDetkov));
+    this.syncAcquiringProfilesJsonFromLegacyPercents();
     this.queuePersist();
     return { percent: this.acquiringPercentDetkov };
   }
@@ -839,8 +894,40 @@ export class AuthService implements OnModuleInit {
       'ACQUIRING_PERCENT_PUTINTSEV_SBER_UPDATED',
       String(this.acquiringPercentPutintsevSber),
     );
+    this.syncAcquiringProfilesJsonFromLegacyPercents();
     this.queuePersist();
     return { percent: this.acquiringPercentPutintsevSber };
+  }
+
+  setAcquiringPercentLyokha(percent: number, actor = 'system') {
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      return null;
+    }
+    this.acquiringPercentLyokha = Math.round(percent * 1000) / 1000;
+    this.pushAudit(actor, 'ACQUIRING_PERCENT_LYOKHA_UPDATED', String(this.acquiringPercentLyokha));
+    this.syncAcquiringProfilesJsonFromLegacyPercents();
+    this.queuePersist();
+    return { percent: this.acquiringPercentLyokha };
+  }
+
+  private syncAcquiringProfilesJsonFromLegacyPercents() {
+    const profiles = this.getAcquiringProfiles();
+    const byId = new Map(profiles.map((p) => [p.id, p]));
+    if (byId.has('putintsev-vtb')) {
+      byId.get('putintsev-vtb')!.percent = this.acquiringPercent;
+    }
+    if (byId.has('detkov-vtb')) {
+      byId.get('detkov-vtb')!.percent = this.acquiringPercentDetkov;
+    }
+    if (byId.has('putintsev-sber')) {
+      byId.get('putintsev-sber')!.percent = this.acquiringPercentPutintsevSber;
+    }
+    if (byId.has('lyokha-rs')) {
+      byId.get('lyokha-rs')!.percent = this.acquiringPercentLyokha;
+    }
+    this.acquiringProfilesJson = serializeAcquiringProfiles(
+      profiles.map((p) => byId.get(p.id) ?? p),
+    );
   }
 
   setFinanceAccountBalance(id: string, balance: number, actor = 'system') {
@@ -3524,6 +3611,8 @@ export class AuthService implements OnModuleInit {
     this.acquiringPercent = 1.8;
     this.acquiringPercentDetkov = 1.8;
     this.acquiringPercentPutintsevSber = 1.8;
+    this.acquiringPercentLyokha = 1.8;
+    this.acquiringProfilesJson = serializeAcquiringProfiles(defaultAcquiringProfiles());
     this.storeEquipmentByStore = {};
     this.storeEquipmentCustomTypes = [];
     for (const sn of DEMO_STORE_NAMES) {
@@ -3801,6 +3890,19 @@ export class AuthService implements OnModuleInit {
       appState?.acquiringPercentPutintsevSber != null
         ? appState.acquiringPercentPutintsevSber
         : 1.8;
+    this.acquiringPercentLyokha =
+      appState?.acquiringPercentLyokha != null ? appState.acquiringPercentLyokha : 1.8;
+    this.acquiringProfilesJson = appState?.acquiringProfilesJson ?? null;
+    if (!this.acquiringProfilesJson) {
+      this.acquiringProfilesJson = serializeAcquiringProfiles(
+        defaultAcquiringProfiles({
+          putintsevVtb: this.acquiringPercent,
+          detkovVtb: this.acquiringPercentDetkov,
+          putintsevSber: this.acquiringPercentPutintsevSber,
+          lyokhaRs: this.acquiringPercentLyokha,
+        }),
+      );
+    }
 
     this.storeEquipmentCustomTypes = storeEquipmentCustomTypeRows.map((row) => ({
       id: row.id,
@@ -3844,6 +3946,8 @@ export class AuthService implements OnModuleInit {
           acquiringPercent: this.acquiringPercent,
           acquiringPercentDetkov: this.acquiringPercentDetkov,
           acquiringPercentPutintsevSber: this.acquiringPercentPutintsevSber,
+          acquiringPercentLyokha: this.acquiringPercentLyokha,
+          acquiringProfilesJson: this.acquiringProfilesJson,
         },
         create: {
           id: 1,
@@ -3852,6 +3956,8 @@ export class AuthService implements OnModuleInit {
           acquiringPercent: this.acquiringPercent,
           acquiringPercentDetkov: this.acquiringPercentDetkov,
           acquiringPercentPutintsevSber: this.acquiringPercentPutintsevSber,
+          acquiringPercentLyokha: this.acquiringPercentLyokha,
+          acquiringProfilesJson: this.acquiringProfilesJson,
         },
       });
 
