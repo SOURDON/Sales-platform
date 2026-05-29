@@ -25,3 +25,9 @@ export {
   outboxCountForUser,
 } from './outbox';
 export { startSyncEngine, type SyncEngineOptions } from './syncEngine';
+export {
+  roleUsesSyncCache,
+  roleUsesSyncEngine,
+  roleUsesAdminDesktopOutbox,
+} from './roleSync';
+export { useLiveSessionRefresh } from './useLiveSessionRefresh';

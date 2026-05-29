@@ -62,6 +62,10 @@ import {
   newClientId,
   runAdminMutation,
   startSyncEngine,
+  roleUsesSyncCache,
+  roleUsesSyncEngine,
+  roleUsesAdminDesktopOutbox,
+  useLiveSessionRefresh,
 } from './sync';
 import {
   loadRevenuePlansWithCache,
@@ -988,6 +992,15 @@ function App() {
     applyDesktopTheme(desktopTheme);
   }, [isDesktopShell, desktopTheme]);
 
+  useEffect(() => {
+    const role = session?.user?.role;
+    if (role !== 'DIRECTOR' && role !== 'ACCOUNTANT') {
+      return;
+    }
+    void import('./desktop/desktopFinanceOps.css');
+    void import('./desktop/desktopDirectorHome.css');
+  }, [session?.user?.role]);
+
   const handleDesktopThemeChange = useCallback((theme: DesktopTheme) => {
     setDesktopTheme(theme);
     storeDesktopTheme(theme);
@@ -1019,9 +1032,10 @@ function App() {
     void import('./desktop/desktopAcquiring.css');
   }, [isDesktopShell]);
 
+  const usesSyncEngine = roleUsesSyncEngine(session?.user?.role);
   const desktopConnection = useDesktopConnection(
     outboxSyncing,
-    isDesktopShell ? apiReachable : undefined,
+    usesSyncEngine || isDesktopShell ? apiReachable : undefined,
   );
   const [commissionRequests, setCommissionRequests] = useState<CommissionRequest[]>([]);
   const [shifts, setShifts] = useState<ShiftInfo[]>([]);
@@ -1165,7 +1179,7 @@ function App() {
   const refreshFinanceFromCache = useCallback(async () => {
     const userId = session?.user?.id;
     const role = session?.user?.role;
-    if (!isDesktopShell || userId === undefined) {
+    if (userId === undefined || !roleUsesSyncCache(role)) {
       return;
     }
     if (role === 'MANAGER') {
@@ -1203,7 +1217,7 @@ function App() {
     if (cachedSellers) {
       setSellers(cachedSellers);
     }
-  }, [isDesktopShell, session?.user?.id, session?.user?.role]);
+  }, [session?.user?.id, session?.user?.role]);
 
   useEffect(() => {
     void refreshOfflinePending();
@@ -1347,10 +1361,7 @@ function App() {
       return (await response.json()) as DashboardResponse;
     };
     const role = session?.user?.role;
-    const desktopDashboardCache =
-      isDesktopShell &&
-      (role === 'DIRECTOR' || role === 'ACCOUNTANT' || role === 'MANAGER') &&
-      session?.user?.id != null;
+    const desktopDashboardCache = roleUsesSyncCache(role) && session?.user?.id != null;
     try {
       if (desktopDashboardCache) {
         const result = await loadSyncResource(
@@ -1383,9 +1394,8 @@ function App() {
     };
     const role = session?.user?.role;
     if (
-      isDesktopShell &&
-      (role === 'ADMIN' || role === 'DIRECTOR' || role === 'ACCOUNTANT') &&
-      session?.user?.id != null
+      session?.user?.id != null &&
+      (roleUsesSyncCache(role) || roleUsesAdminDesktopOutbox(role, isDesktopShell))
     ) {
       const result = await loadSyncResource(API_BASE_URL, session.user.id, 'sellers', fetcher, []);
       setSellers(result.data);
@@ -1435,11 +1445,7 @@ function App() {
         return normalizeInventoryOverview(await response.json());
       };
       const role = session?.user?.role;
-      if (
-        isDesktopShell &&
-        (role === 'DIRECTOR' || role === 'ACCOUNTANT') &&
-        session?.user?.id != null
-      ) {
+      if (roleUsesSyncCache(role) && session?.user?.id != null) {
         const result = await loadSyncResource(
           API_BASE_URL,
           session.user.id,
@@ -1740,11 +1746,7 @@ function App() {
     };
     const uid = session?.user?.id;
     const role = session?.user?.role;
-    if (
-      isDesktopShell &&
-      uid != null &&
-      (role === 'DIRECTOR' || role === 'ACCOUNTANT')
-    ) {
+    if (uid != null && (role === 'DIRECTOR' || role === 'ACCOUNTANT')) {
       const result = await loadRevenuePlansWithCache(API_BASE_URL, uid, dayKey, fetcher);
       return result.data as StoreRevenuePlan[];
     }
@@ -1772,11 +1774,7 @@ function App() {
     };
     const uid = session?.user?.id;
     const role = session?.user?.role;
-    if (
-      isDesktopShell &&
-      uid != null &&
-      (role === 'DIRECTOR' || role === 'ACCOUNTANT')
-    ) {
+    if (uid != null && (role === 'DIRECTOR' || role === 'ACCOUNTANT')) {
       const patchId = newClientId('rev-plan');
       const payload = {
         patchId,
@@ -1893,11 +1891,7 @@ function App() {
     };
     const role = session?.user?.role;
     const empty = normalizeFinanceOps({});
-    if (
-      isDesktopShell &&
-      (role === 'DIRECTOR' || role === 'ACCOUNTANT') &&
-      session?.user?.id != null
-    ) {
+    if (roleUsesSyncCache(role) && session?.user?.id != null) {
       const result = await loadSyncResource(API_BASE_URL, session.user.id, 'financeOps', fetcher, empty);
       setFinanceOps(result.data);
       return;
@@ -1938,7 +1932,6 @@ function App() {
     }
     const uid = session?.user?.id;
     const financeOffline =
-      isDesktopShell &&
       (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'ACCOUNTANT') &&
       uid !== undefined;
     const incomeId = newClientId('finc');
@@ -2000,7 +1993,6 @@ function App() {
     }
     const uid = session?.user?.id;
     const financeOffline =
-      isDesktopShell &&
       (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'ACCOUNTANT') &&
       uid !== undefined;
     const expenseId = newClientId('fexp');
@@ -2065,7 +2057,7 @@ function App() {
       return;
     }
     const uid = session?.user?.id;
-    const directorOffline = isDesktopShell && session?.user?.role === 'DIRECTOR' && uid !== undefined;
+    const directorOffline = session?.user?.role === 'DIRECTOR' && uid !== undefined;
     const patchId = newClientId('fbal');
     const createdAt = new Date().toISOString();
     const body = { patchId, accountId, balance: num, createdAt };
@@ -2146,7 +2138,7 @@ function App() {
       }
       return (await response.json()) as CommissionRequest[];
     };
-    if (isDesktopShell && session?.user?.role === 'DIRECTOR' && session.user.id != null) {
+    if (session?.user?.role === 'DIRECTOR' && session.user.id != null) {
       const result = await loadSyncResource(API_BASE_URL, session.user.id, 'commissionRequests', fetcher, []);
       setCommissionRequests(result.data);
       return;
@@ -2216,7 +2208,7 @@ function App() {
 
   const setDirectorPercent = async (token: string, sellerId: number, ratePercent: number) => {
     const uid = session?.user?.id;
-    const directorOffline = isDesktopShell && session?.user?.role === 'DIRECTOR' && uid !== undefined;
+    const directorOffline = session?.user?.role === 'DIRECTOR' && uid !== undefined;
     const clientId = newClientId('pct');
     const createdAt = new Date().toISOString();
     const body = { clientId, sellerId, ratePercent, createdAt };
@@ -2251,7 +2243,7 @@ function App() {
 
   const decideRequest = async (token: string, requestId: string, decision: 'APPROVE' | 'REJECT') => {
     const uid = session?.user?.id;
-    const directorOffline = isDesktopShell && session?.user?.role === 'DIRECTOR' && uid !== undefined;
+    const directorOffline = session?.user?.role === 'DIRECTOR' && uid !== undefined;
     const clientId = `${requestId}-${decision}`;
     const createdAt = new Date().toISOString();
     const body = { requestId, decision, createdAt };
@@ -2303,7 +2295,7 @@ function App() {
       createdAt: new Date().toISOString(),
     };
     const uid = session?.user?.id;
-    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const adminDesktop = roleUsesAdminDesktopOutbox(session?.user?.role, isDesktopShell) && uid !== undefined;
 
     const postSale = async () => {
       const response = await fetch(`${API_BASE_URL}/admin/sales`, {
@@ -2366,7 +2358,7 @@ function App() {
     reason: 'Брак' | 'Поломка',
   ) => {
     const uid = session?.user?.id;
-    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const adminDesktop = roleUsesAdminDesktopOutbox(session?.user?.role, isDesktopShell) && uid !== undefined;
     const requestId = newClientId('wo');
     const createdAt = new Date().toISOString();
     const payload = { requestId, name, qty, reason, createdAt };
@@ -2484,7 +2476,7 @@ function App() {
 
   const openShift = async (token: string, assignedSellerIds: number[]) => {
     const uid = session?.user?.id;
-    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const adminDesktop = roleUsesAdminDesktopOutbox(session?.user?.role, isDesktopShell) && uid !== undefined;
     const clientShiftId = newClientId('shift');
     const createdAt = new Date().toISOString();
     const payload = { clientShiftId, assignedSellerIds, createdAt };
@@ -2514,7 +2506,7 @@ function App() {
 
   const closeShift = async (token: string, assignedSellerIds: number[] = []) => {
     const uid = session?.user?.id;
-    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const adminDesktop = roleUsesAdminDesktopOutbox(session?.user?.role, isDesktopShell) && uid !== undefined;
     const closeId = newClientId('shift-close');
     const createdAt = new Date().toISOString();
     const payload = { assignedSellerIds, createdAt };
@@ -2544,7 +2536,7 @@ function App() {
 
   const addStaffMember = async (token: string, fullName: string, nickname: string) => {
     const uid = session?.user?.id;
-    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const adminDesktop = roleUsesAdminDesktopOutbox(session?.user?.role, isDesktopShell) && uid !== undefined;
     const clientMemberId = newClientId('staff');
     const createdAt = new Date().toISOString();
     const payload = { clientMemberId, fullName, nickname, createdAt };
@@ -2576,7 +2568,7 @@ function App() {
 
   const addStaffFromBase = async (token: string, employeeId: number) => {
     const uid = session?.user?.id;
-    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const adminDesktop = roleUsesAdminDesktopOutbox(session?.user?.role, isDesktopShell) && uid !== undefined;
     const clientId = newClientId('staff-base');
     const createdAt = new Date().toISOString();
     const payload = { employeeId, createdAt };
@@ -2607,7 +2599,7 @@ function App() {
 
   const removeStaffFromStore = async (token: string, id: number, storeName?: string) => {
     const uid = session?.user?.id;
-    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const adminDesktop = roleUsesAdminDesktopOutbox(session?.user?.role, isDesktopShell) && uid !== undefined;
     const clientId = newClientId('staff-remove');
     const createdAt = new Date().toISOString();
     const payload = { staffId: id, storeName, createdAt };
@@ -2637,7 +2629,7 @@ function App() {
 
   const restoreStaffToStore = async (token: string, staffId: number, storeName: string) => {
     const uid = session?.user?.id;
-    const adminDesktop = isDesktopShell && session?.user?.role === 'ADMIN' && uid !== undefined;
+    const adminDesktop = roleUsesAdminDesktopOutbox(session?.user?.role, isDesktopShell) && uid !== undefined;
     const clientId = newClientId('staff-restore');
     const createdAt = new Date().toISOString();
     const payload = { staffId, storeName, createdAt };
@@ -2928,7 +2920,7 @@ function App() {
   }, [rememberMe, session]);
 
   useEffect(() => {
-    if (!isDesktopShell || !session?.token || session.user.id == null) {
+    if (!session?.token || session.user.id == null || !roleUsesSyncEngine(session.user.role)) {
       return;
     }
     const token = session.token;
@@ -2970,7 +2962,7 @@ function App() {
       },
     });
     return stop;
-  }, [isDesktopShell, session?.token, session?.user?.id, session?.user?.role]);
+  }, [session?.token, session?.user?.id, session?.user?.role]);
 
   useEffect(() => {
     if (isDesktopShell || !session?.token || session.user.id == null) {
@@ -3054,7 +3046,11 @@ function App() {
           ]);
           await Promise.allSettled([
             ...(session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT'
-              ? [loadInventoryOverview(session.token)]
+              ? [
+                  loadInventoryOverview(session.token),
+                  loadFinanceOps(session.token),
+                  loadAcquiringProfiles(session.token),
+                ]
               : []),
             ...(session.user.role === 'DIRECTOR' ? [loadManagerStoreCommissions(session.token)] : []),
             ...(session.user.role === 'ADMIN' ? [loadStoreInventory(session.token)] : []),
@@ -3065,6 +3061,7 @@ function App() {
       }
     })();
   }, [
+    loadFinanceOps,
     loadInventoryOverview,
     loadManagerStoreCommissions,
     loadProductProcurementCosts,
@@ -3099,7 +3096,7 @@ function App() {
   }, [loadManagerStoreCommissions, location.pathname, session]);
 
   useEffect(() => {
-    if (!isDesktopShell || !session?.token) {
+    if (!session?.token) {
       return;
     }
     const token = session.token;
@@ -3136,7 +3133,40 @@ function App() {
       await Promise.allSettled(loads);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- один прогон при входе / смене роли
-  }, [isDesktopShell, session?.token, session?.user?.role]);
+  }, [session?.token, session?.user?.role]);
+
+  const refreshAdminWebLive = useCallback(() => {
+    if (!session?.token || isDesktopShell || session.user.role !== 'ADMIN') {
+      return;
+    }
+    const token = session.token;
+    void Promise.allSettled([
+      loadDashboard(token),
+      loadSales(token),
+      loadSellers(token),
+      loadProducts(token),
+      loadShifts(token),
+      loadStaff(token),
+      loadStoreInventory(token),
+      loadGlobalEmployees(token),
+    ]);
+  }, [
+    isDesktopShell,
+    session,
+    loadDashboard,
+    loadSales,
+    loadSellers,
+    loadProducts,
+    loadShifts,
+    loadStaff,
+    loadStoreInventory,
+    loadGlobalEmployees,
+  ]);
+
+  useLiveSessionRefresh(
+    Boolean(session?.token) && !isDesktopShell && session?.user.role === 'ADMIN',
+    refreshAdminWebLive,
+  );
 
   const mobileNavItems = useMemo((): MobileNavItem[] => {
     if (!session?.user) {
@@ -3514,7 +3544,7 @@ function App() {
                       ? ' dashboard--shiftDesktop'
                       : isDesktopShell && role === 'ACCOUNTANT'
                         ? ' dashboard--financeDesktop dashboard--accountantEquip'
-                        : isDesktopShell && isFinanceViewer
+                        : isFinanceViewer
                           ? ' dashboard--financeDesktop'
                           : ''
                   }`}
@@ -3523,15 +3553,18 @@ function App() {
                     {isManager ? null : role === 'ACCOUNTANT' ? (
                       <AccountantStoreEquipmentStoresPanel token={session.token} />
                     ) : isFinanceViewer ? (
-                      <FinanceOpsPanel
-                        token={session.token}
-                        isDirector={role === 'DIRECTOR'}
-                        snapshot={financeOps}
-                        onAddIncome={addFinanceIncome}
-                        onAddExpense={addFinanceExpense}
-                        onSetAccountBalance={setFinanceAccountBalance}
-                        onSetCategoryAmount={setFinanceExpenseCategoryAmount}
-                      />
+                      <div className={isDesktopShell ? undefined : 'financeOpsWebBridge'}>
+                        <FinanceOpsPanel
+                          token={session.token}
+                          isDirector={role === 'DIRECTOR'}
+                          snapshot={financeOps}
+                          onAddIncome={addFinanceIncome}
+                          onAddExpense={addFinanceExpense}
+                          onSetAccountBalance={setFinanceAccountBalance}
+                          onSetCategoryAmount={setFinanceExpenseCategoryAmount}
+                          preferDesktopLayout={isDesktopShell}
+                        />
+                      </div>
                     ) : (
                       <>
                         <ShiftPanel
@@ -4094,9 +4127,9 @@ function App() {
 
   return (
     <main
-      className={`app appWorkspace${messengerChromeLayout ? ' appWorkspace--messengerChrome' : ''}${
-        messengerChromeLayout && chatComposerSurfaceActive ? ' appWorkspace--messengerComposerGrip' : ''
-      }`}
+      className={`app appWorkspace${isFinanceViewer ? ' app--desktop' : ''}${
+        messengerChromeLayout ? ' appWorkspace--messengerChrome' : ''
+      }${messengerChromeLayout && chatComposerSurfaceActive ? ' appWorkspace--messengerComposerGrip' : ''}`}
     >
       <section
         className={`card cardWorkspace${messengerChromeLayout ? ' cardWorkspace--messengerChrome' : ''}`}
@@ -5682,101 +5715,18 @@ function DirectorCashflowPanel({
     return null;
   }
 
-  if (isTauriRuntime()) {
-    return (
-      <section className="directorCashflowStrip directorHomeZone" aria-label="Итоги по всем точкам">
-        <h4 className="directorHomeSectionTitle">Итоги по всем точкам</h4>
-        <div className="directorCashflowChips">
-          {pages.map((page) => (
-            <article key={page.key} className="directorCashflowChip">
-              <span className="directorCashflowChipLabel">{page.title}</span>
-              <strong className="directorCashflowChipValue">{formatRub(page.amount)}</strong>
-            </article>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  return <DirectorCashflowCarousel pages={pages} />;
-}
-
-function DirectorCashflowCarousel({
-  pages,
-}: {
-  pages: Array<{ key: string; title: string; amount: number }>;
-}) {
-  const [index, setIndex] = useState(0);
-  const touchStartX = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (pages.length === 0) {
-      setIndex(0);
-      return;
-    }
-    setIndex((current) => Math.min(current, pages.length - 1));
-  }, [pages.length]);
-
-  const onTouchStart = (e: TouchEvent) => {
-    touchStartX.current = e.changedTouches[0]?.clientX ?? null;
-  };
-
-  const onTouchEnd = (e: TouchEvent) => {
-    const start = touchStartX.current;
-    touchStartX.current = null;
-    if (start == null || pages.length < 2) {
-      return;
-    }
-    const end = e.changedTouches[0]?.clientX ?? start;
-    const dx = end - start;
-    const threshold = 48;
-    if (dx > threshold) {
-      setIndex((i) => Math.max(0, i - 1));
-    } else if (dx < -threshold) {
-      setIndex((i) => Math.min(pages.length - 1, i + 1));
-    }
-  };
-
-  if (pages.length === 0) {
-    return null;
-  }
-
-  const current = pages[index] ?? pages[0];
   return (
-    <div className="directorCashflowCarousel" aria-label="Наличные и поступления по точкам">
-      <div className="directorCashflowCarouselHeader">
-        <h4 className="directorCashflowCarouselTitle">Итоги по всем точкам</h4>
-        <span className="directorCashflowCarouselBadge">{pages.length}</span>
+    <section className="directorCashflowStrip directorHomeZone" aria-label="Итоги по всем точкам">
+      <h4 className="directorHomeSectionTitle">Итоги по всем точкам</h4>
+      <div className="directorCashflowChips">
+        {pages.map((page) => (
+          <article key={page.key} className="directorCashflowChip">
+            <span className="directorCashflowChipLabel">{page.title}</span>
+            <strong className="directorCashflowChipValue">{formatRub(page.amount)}</strong>
+          </article>
+        ))}
       </div>
-      <div
-        className="directorCashflowCarouselViewport"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-        role="region"
-        aria-roledescription="carousel"
-      >
-        <article className="directorCashflowCarouselCard">
-          <div className="directorCashflowMainRow">
-            <span className="directorCashflowAccountTitle">{current.title}</span>
-            <strong className="directorCashflowAccountValue">{formatRub(current.amount)}</strong>
-          </div>
-        </article>
-      </div>
-      {pages.length > 1 ? (
-        <div className="directorCashflowCarouselDots" role="tablist" aria-label="Выбор точки">
-          {pages.map((page, i) => (
-            <button
-              key={page.key}
-              type="button"
-              className={`directorCashflowCarouselDot ${i === index ? 'directorCashflowCarouselDotActive' : ''}`}
-              aria-label={page.title}
-              aria-current={i === index}
-              onClick={() => setIndex(i)}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
+    </section>
   );
 }
 
@@ -6048,6 +5998,25 @@ function FinanceOpsHistoryStrip({
   );
 }
 
+function useWideFinanceLayout(preferDesktop: boolean) {
+  const [wide, setWide] = useState(
+    () =>
+      preferDesktop ||
+      (typeof window !== 'undefined' && window.matchMedia('(min-width: 880px)').matches),
+  );
+  useEffect(() => {
+    if (preferDesktop) {
+      return;
+    }
+    const mq = window.matchMedia('(min-width: 880px)');
+    const apply = () => setWide(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, [preferDesktop]);
+  return wide;
+}
+
 function FinanceOpsPanel({
   token,
   isDirector,
@@ -6056,6 +6025,7 @@ function FinanceOpsPanel({
   onAddExpense,
   onSetAccountBalance,
   onSetCategoryAmount,
+  preferDesktopLayout = false,
 }: {
   token: string;
   isDirector: boolean;
@@ -6070,6 +6040,7 @@ function FinanceOpsPanel({
   ) => Promise<void>;
   onSetAccountBalance: (token: string, accountId: string, balance: string) => Promise<void>;
   onSetCategoryAmount?: (token: string, title: string, amount: string) => Promise<void>;
+  preferDesktopLayout?: boolean;
 }) {
   const cashAccount = snapshot.accounts.find((a) => a.kind === 'CASH');
   const bankAccounts = snapshot.accounts.filter((a) => a.kind === 'BANK');
@@ -6109,8 +6080,8 @@ function FinanceOpsPanel({
   const [adjustError, setAdjustError] = useState('');
   const [incomesHistoryOpen, setIncomesHistoryOpen] = useState(false);
   const [expensesHistoryOpen, setExpensesHistoryOpen] = useState(false);
-  const desktopFinance = isTauriRuntime();
-  const [expenseArticlesSheetOpen, setExpenseArticlesSheetOpen] = useState(desktopFinance);
+  const compactFinanceUi = useWideFinanceLayout(preferDesktopLayout);
+  const [expenseArticlesSheetOpen, setExpenseArticlesSheetOpen] = useState(compactFinanceUi);
   const [editingCategoryTitle, setEditingCategoryTitle] = useState<string | null>(null);
   const [editingCategoryAmount, setEditingCategoryAmount] = useState('');
   const [categoryAmountBusy, setCategoryAmountBusy] = useState('');
@@ -6270,7 +6241,7 @@ function FinanceOpsPanel({
     }
   };
 
-  const activeFlowAccountId = desktopFinance ? selectedFlowAccountId : selectedIncomeAccountId;
+  const activeFlowAccountId = compactFinanceUi ? selectedFlowAccountId : selectedIncomeAccountId;
 
   const submitIncomeForSelectedAccount = async () => {
     setError('');
@@ -6305,7 +6276,7 @@ function FinanceOpsPanel({
     }
   };
 
-  const expenseAccountIdForForm = desktopFinance ? selectedFlowAccountId : expenseAccountId;
+  const expenseAccountIdForForm = compactFinanceUi ? selectedFlowAccountId : expenseAccountId;
   const expenseAccountForForm = snapshot.accounts.find((a) => a.id === expenseAccountIdForForm);
   const parsedExpenseAmount = parseFinanceMoneyInput(expenseAmount);
   const expenseInsufficientMessage =
@@ -6469,10 +6440,10 @@ function FinanceOpsPanel({
   return (
     <div
       className={`opsCard financeOpsCard ${isDirector ? 'financeOpsCardDirector' : ''}${
-        desktopFinance ? ' financeOpsCard--desktop' : ''
+        compactFinanceUi ? ' financeOpsCard--desktop' : ''
       }`}
     >
-      <div className={`financeOpsShell${desktopFinance ? ' financeOpsShell--desktop' : ''}`}>
+      <div className={`financeOpsShell${compactFinanceUi ? ' financeOpsShell--desktop' : ''}`}>
       <header className="financeOpsHero">
         <h4 className="financeOpsPageTitle">Оперативные финансы</h4>
         <div className="financeOpsHeroMain">
@@ -6580,7 +6551,7 @@ function FinanceOpsPanel({
         </div>
       </header>
 
-      {desktopFinance ? (
+      {compactFinanceUi ? (
         <section className="financeOpsZone financeOpsZone--flows addSaleForm">
           <h4 className="financeOpsZoneTitle">Приход и расход</h4>
           <div className="financeOpsFlowsMain">
@@ -6830,10 +6801,10 @@ function FinanceOpsPanel({
 
       <section
         className={`financeOpsZone financeOpsZone--articles financeOpsExpenseArticlesSheet${
-          desktopFinance ? ' financeOpsExpenseArticlesSheet--desktop' : ''
+          compactFinanceUi ? ' financeOpsExpenseArticlesSheet--desktop' : ''
         }${expenseArticlesSheetOpen ? ' financeOpsExpenseArticlesSheet--open' : ''}`}
       >
-        {desktopFinance ? (
+        {compactFinanceUi ? (
           <>
             <div className="financeOpsArticlesHead">
               <h4 className="financeOpsZoneTitle">Расходы по статьям</h4>
@@ -6890,7 +6861,7 @@ function FinanceOpsPanel({
         )}
       </section>
 
-      {desktopFinance ? (
+      {compactFinanceUi ? (
         <section className="financeOpsZone financeOpsZone--historyMini">
           <div className="financeOpsHistoryMiniRow">
             <FinanceOpsHistoryStrip
