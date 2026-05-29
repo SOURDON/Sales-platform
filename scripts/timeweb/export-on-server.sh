@@ -37,16 +37,20 @@ if [[ -n "${PG_DUMP_IMAGE:-}" ]]; then
 else
   echo "Определяем версию PostgreSQL на Render..."
   docker pull "$PROBE_IMAGE" >/dev/null
-  VERSION="$(
+  VERSION_NUM="$(
     docker run --rm -e RENDER_DATABASE_URL "$PROBE_IMAGE" \
-      psql "$RENDER_DATABASE_URL" -tAc "SHOW server_version;" | tr -d '[:space:]'
+      psql "$RENDER_DATABASE_URL" -tAc "SHOW server_version_num;" | tr -d '[:space:]'
   )"
-  if [[ -z "$VERSION" ]]; then
+  VERSION_LABEL="$(
+    docker run --rm -e RENDER_DATABASE_URL "$PROBE_IMAGE" \
+      psql "$RENDER_DATABASE_URL" -tAc "SHOW server_version;" | head -1 | tr -d '\r'
+  )"
+  if [[ -z "$VERSION_NUM" ]] || ! [[ "$VERSION_NUM" =~ ^[0-9]+$ ]]; then
     echo "Не удалось подключиться к Render. Проверьте RENDER_DATABASE_URL и что база Available."
     exit 1
   fi
-  MAJOR="${VERSION%%.*}"
-  echo "Render PostgreSQL: $VERSION (major $MAJOR)"
+  MAJOR=$((VERSION_NUM / 10000))
+  echo "Render PostgreSQL: ${VERSION_LABEL:-$VERSION_NUM} (major $MAJOR)"
   PG_IMAGE="$(pick_dump_image "$MAJOR")"
   echo "Образ для pg_dump: $PG_IMAGE"
 fi
