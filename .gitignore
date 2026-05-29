@@ -16,3 +16,4 @@ coverage/
 deploy/timeweb/.env
 deploy/timeweb/.env.local
 deploy/timeweb/backups/*.dump
+.render-database-url

@@ -337,8 +337,11 @@ export class AuthService implements OnModuleInit {
   private readonly logger = new Logger(AuthService.name);
   private readonly persistenceEnabled = Boolean(process.env.DATABASE_URL);
   private static readonly MAX_AUDIT_LOG_ITEMS = 3000;
-  /** Продажи старше этого окна не держим в RAM (отчёты директора — из БД по запросу). */
-  private static readonly SALES_MEMORY_DAYS = 120;
+  /** Продажи старше этого окна не держим в RAM. На Timeweb задайте SALES_MEMORY_DAYS=1825 в .env. */
+  private static salesMemoryDays(): number {
+    const n = Number(process.env.SALES_MEMORY_DAYS ?? 730);
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 3650) : 730;
+  }
   /** Склеивает частые записи в одну, чтобы не переписывать всю БД на каждый чих. */
   private static readonly PERSIST_DEBOUNCE_MS = 2000;
   private persistChain: Promise<void> = Promise.resolve();
@@ -4205,7 +4208,7 @@ export class AuthService implements OnModuleInit {
         where: {
           createdAt: {
             gte: new Date(
-              Date.now() - AuthService.SALES_MEMORY_DAYS * 24 * 60 * 60 * 1000,
+              Date.now() - AuthService.salesMemoryDays() * 24 * 60 * 60 * 1000,
             ),
           },
         },
