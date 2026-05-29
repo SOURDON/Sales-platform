@@ -13,17 +13,18 @@ if [[ -z "${RENDER_DATABASE_URL:-}" ]]; then
 fi
 
 OUT="/opt/sales-platform/backup.dump"
-# Render = PG 16; нужен pg_dump >= 16 (на зеркалах иногда тянется старый postgres:16-alpine с pg_dump 15)
-PG_IMAGE="${PG_DUMP_IMAGE:-postgres:17-alpine}"
+# Render = PG 16.3. Нужен pg_dump 16.x (17 не дампит 16; зеркало Timeweb иногда отдаёт pg_dump 15 под тегом 16-alpine).
+PG_IMAGE="${PG_DUMP_IMAGE:-docker.io/library/postgres:16.6-alpine}"
 
 echo "Экспорт с Render в $OUT (образ $PG_IMAGE) ..."
 docker pull "$PG_IMAGE"
+docker run --rm "$PG_IMAGE" pg_dump --version
 
 docker run --rm \
   -e RENDER_DATABASE_URL \
   -v /opt/sales-platform:/data \
   "$PG_IMAGE" \
-  sh -c 'pg_dump --version && pg_dump "$RENDER_DATABASE_URL" -Fc --no-owner --no-acl -f /data/backup.dump'
+  sh -c 'pg_dump "$RENDER_DATABASE_URL" -Fc --no-owner --no-acl -f /data/backup.dump'
 
 ls -lh "$OUT"
 echo "Готово. Импорт: /opt/sales-platform/scripts/timeweb/import-on-server.sh"

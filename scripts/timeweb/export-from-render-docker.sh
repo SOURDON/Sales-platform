@@ -19,7 +19,7 @@ mkdir -p "$OUT_DIR"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 FILE="$OUT_DIR/render-${STAMP}.dump"
 
-PG_IMAGE="${PG_DUMP_IMAGE:-postgres:17-alpine}"
+PG_IMAGE="${PG_DUMP_IMAGE:-docker.io/library/postgres:16.6-alpine}"
 echo "Экспорт в $FILE (через Docker, $PG_IMAGE) ..."
 docker pull "$PG_IMAGE"
 docker run --rm \
