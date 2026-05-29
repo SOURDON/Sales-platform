@@ -5,8 +5,8 @@
 set -euo pipefail
 
 ROOT="/opt/sales-platform"
-export-on-server="$ROOT/scripts/timeweb/export-on-server.sh"
-import-on-server="$ROOT/scripts/timeweb/import-on-server.sh"
+EXPORT_ON_SERVER="$ROOT/scripts/timeweb/export-on-server.sh"
+IMPORT_ON_SERVER="$ROOT/scripts/timeweb/import-on-server.sh"
 
 if [[ -z "${RENDER_DATABASE_URL:-}" ]]; then
   echo "Задайте RENDER_DATABASE_URL (Render → PostgreSQL → External URL)."
