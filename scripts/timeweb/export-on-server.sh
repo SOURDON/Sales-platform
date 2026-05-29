@@ -3,7 +3,7 @@
 #
 #   export RENDER_DATABASE_URL='postgresql://...'
 #   /opt/sales-platform/scripts/timeweb/export-on-server.sh
-set -euo pipefail
+set -eo pipefail
 
 if [[ -z "${RENDER_DATABASE_URL:-}" ]]; then
   echo "Задайте: export RENDER_DATABASE_URL='postgresql://...'"
@@ -38,11 +38,11 @@ else
   echo "Определяем версию PostgreSQL на Render..."
   docker pull "$PROBE_IMAGE" >/dev/null
   VERSION_NUM="$(
-    docker run --rm -e RENDER_DATABASE_URL "$PROBE_IMAGE" \
+    docker run --rm -e "RENDER_DATABASE_URL=${RENDER_DATABASE_URL}" "$PROBE_IMAGE" \
       psql "$RENDER_DATABASE_URL" -tAc "SHOW server_version_num;" | tr -d '[:space:]'
   )"
   VERSION_LABEL="$(
-    docker run --rm -e RENDER_DATABASE_URL "$PROBE_IMAGE" \
+    docker run --rm -e "RENDER_DATABASE_URL=${RENDER_DATABASE_URL}" "$PROBE_IMAGE" \
       psql "$RENDER_DATABASE_URL" -tAc "SHOW server_version;" | head -1 | tr -d '\r'
   )"
   if [[ -z "$VERSION_NUM" ]] || ! [[ "$VERSION_NUM" =~ ^[0-9]+$ ]]; then
@@ -60,7 +60,7 @@ docker pull "$PG_IMAGE"
 docker run --rm "$PG_IMAGE" pg_dump --version
 
 docker run --rm \
-  -e RENDER_DATABASE_URL \
+  -e "RENDER_DATABASE_URL=${RENDER_DATABASE_URL}" \
   -v /opt/sales-platform:/data \
   "$PG_IMAGE" \
   sh -c 'pg_dump "$RENDER_DATABASE_URL" -Fc --no-owner --no-acl -f /data/backup.dump'

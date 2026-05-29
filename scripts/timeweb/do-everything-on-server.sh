@@ -7,7 +7,7 @@
 #
 # Запуск:
 #   bash /opt/sales-platform/scripts/timeweb/do-everything-on-server.sh
-set -euo pipefail
+set -eo pipefail
 
 ROOT="/opt/sales-platform"
 URL_FILE="$ROOT/.render-database-url"
