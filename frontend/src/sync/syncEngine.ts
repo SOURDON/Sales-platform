@@ -60,7 +60,7 @@ export function startSyncEngine(options: SyncEngineOptions): () => void {
 
   const onOnline = () => void flushAndRefresh();
   window.addEventListener('online', onOnline);
-  const interval = window.setInterval(() => void runFlush(), 60_000);
+  const interval = window.setInterval(() => void runFlush(), 120_000);
 
   return () => {
     network.dispose();

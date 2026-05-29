@@ -853,7 +853,7 @@ export class AuthService implements OnModuleInit {
     this.acquiringPercentLyokha = legacy.acquiringPercentLyokha;
     this.acquiringProfilesJson = serializeAcquiringProfiles(profiles);
     this.pushAudit(actor, 'ACQUIRING_PROFILES_UPDATED', `${profiles.length} profiles`);
-    this.queuePersist();
+    this.queueIncremental(() => this.persistIncrementalAcquiringConfig());
     return this.getAcquiringConfig();
   }
 
@@ -912,7 +912,8 @@ export class AuthService implements OnModuleInit {
     const safe = Math.round(amount * 100) / 100;
     this.financeExpenseCategoryAmounts[trimmed] = safe;
     this.pushAudit(actor, 'FINANCE_CATEGORY_AMOUNT_UPDATED', `${trimmed}=${safe}`);
-    this.queuePersist();
+    this.invalidateDashboardCache();
+    this.queueIncremental(() => this.persistIncrementalFinanceCategoryAmounts());
     return { title: trimmed, amount: safe };
   }
 
@@ -923,7 +924,7 @@ export class AuthService implements OnModuleInit {
     this.acquiringPercent = Math.round(percent * 1000) / 1000;
     this.pushAudit(actor, 'ACQUIRING_PERCENT_UPDATED', String(this.acquiringPercent));
     this.syncAcquiringProfilesJsonFromLegacyPercents();
-    this.queuePersist();
+    this.queueIncremental(() => this.persistIncrementalAcquiringConfig());
     return { percent: this.acquiringPercent };
   }
 
@@ -934,7 +935,7 @@ export class AuthService implements OnModuleInit {
     this.acquiringPercentDetkov = Math.round(percent * 1000) / 1000;
     this.pushAudit(actor, 'ACQUIRING_PERCENT_DETKOV_UPDATED', String(this.acquiringPercentDetkov));
     this.syncAcquiringProfilesJsonFromLegacyPercents();
-    this.queuePersist();
+    this.queueIncremental(() => this.persistIncrementalAcquiringConfig());
     return { percent: this.acquiringPercentDetkov };
   }
 
@@ -949,7 +950,7 @@ export class AuthService implements OnModuleInit {
       String(this.acquiringPercentPutintsevSber),
     );
     this.syncAcquiringProfilesJsonFromLegacyPercents();
-    this.queuePersist();
+    this.queueIncremental(() => this.persistIncrementalAcquiringConfig());
     return { percent: this.acquiringPercentPutintsevSber };
   }
 
@@ -960,7 +961,7 @@ export class AuthService implements OnModuleInit {
     this.acquiringPercentLyokha = Math.round(percent * 1000) / 1000;
     this.pushAudit(actor, 'ACQUIRING_PERCENT_LYOKHA_UPDATED', String(this.acquiringPercentLyokha));
     this.syncAcquiringProfilesJsonFromLegacyPercents();
-    this.queuePersist();
+    this.queueIncremental(() => this.persistIncrementalAcquiringConfig());
     return { percent: this.acquiringPercentLyokha };
   }
 
@@ -994,7 +995,8 @@ export class AuthService implements OnModuleInit {
     }
     account.balance = Math.round(balance * 100) / 100;
     this.pushAudit(actor, 'FINANCE_ACCOUNT_BALANCE_UPDATED', `${account.name}=${account.balance}`);
-    this.queuePersist();
+    this.invalidateDashboardCache();
+    this.queueIncremental(() => this.persistIncrementalFinanceAccountBalance(account.id));
     return account;
   }
 
@@ -1046,7 +1048,8 @@ export class AuthService implements OnModuleInit {
       'FINANCE_INCOME_ADDED',
       `day=${payload.workDay} ${account.name} +${amount}`,
     );
-    this.queuePersist();
+    this.invalidateDashboardCache();
+    this.queueIncremental(() => this.persistIncrementalFinanceIncome(income));
     return income;
   }
 
@@ -1101,7 +1104,8 @@ export class AuthService implements OnModuleInit {
     this.financeExpenseCategoryAmounts[categoryKey] =
       Math.round((prevCategory + amount) * 100) / 100;
     this.pushAudit(actor, 'FINANCE_EXPENSE_ADDED', `${title}: ${amount} from ${account.name}`);
-    this.queuePersist();
+    this.invalidateDashboardCache();
+    this.queueIncremental(() => this.persistIncrementalFinanceExpense(expense));
     return expense;
   }
 
@@ -1120,7 +1124,8 @@ export class AuthService implements OnModuleInit {
       'FINANCE_OPS_RESET',
       `expenses=${expenseCount} incomes=${incomeCount} balances=0`,
     );
-    this.queuePersist();
+    this.invalidateDashboardCache();
+    this.queueIncremental(() => this.persistIncrementalFinanceReset());
     return this.getFinanceOpsSnapshot();
   }
 
@@ -1141,7 +1146,7 @@ export class AuthService implements OnModuleInit {
     }
     this.pushAudit(actor, 'PRODUCT_COSTS_UPDATED', `rows=${updates.length}`);
     this.syncProcurementKeysWithCatalog();
-    this.queuePersist();
+    this.queueIncremental(() => this.persistIncrementalProcurementCosts());
     return this.getProductProcurementCosts();
   }
 
@@ -1457,6 +1462,10 @@ export class AuthService implements OnModuleInit {
     this.pushAudit(actor, 'MANAGER_STORE_COMMISSIONS_UPDATED', 'rates');
     this.queuePersist();
     return this.getManagerStoreCommissions();
+  }
+
+  private invalidateDashboardCache() {
+    this.dashboardOverviewCache = null;
   }
 
   private cacheDashboardOverview(nickname: string, payload: unknown) {
@@ -2470,7 +2479,7 @@ export class AuthService implements OnModuleInit {
       'SALE_CREATED',
       `sale=${sale.id}, seller=${seller.fullName}, total=${totalAmount}, pay=${paymentType}`,
     );
-    this.dashboardOverviewCache = null;
+    this.invalidateDashboardCache();
     this.queueIncremental(() => this.persistIncrementalSale(sale, sellerId, storeKey));
     return sale;
   }
@@ -3821,6 +3830,163 @@ export class AuthService implements OnModuleInit {
         cardReader: e.cardReader,
         extra: e.extra ?? {},
       },
+    });
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistFinanceAppStateSlice(tx: Prisma.TransactionClient) {
+    await tx.appState.upsert({
+      where: { id: 1 },
+      update: {
+        acquiringPercent: this.acquiringPercent,
+        acquiringPercentDetkov: this.acquiringPercentDetkov,
+        acquiringPercentPutintsevSber: this.acquiringPercentPutintsevSber,
+        acquiringPercentLyokha: this.acquiringPercentLyokha,
+        acquiringProfilesJson: this.acquiringProfilesJson,
+        financeExpenseCategoryAmountsJson: serializeFinanceCategoryAmounts(
+          this.financeExpenseCategoryAmounts,
+        ),
+      },
+      create: {
+        id: 1,
+        currentShiftId: this.currentShiftId,
+        lastSaleAt: this.lastSaleAt ? new Date(this.lastSaleAt) : null,
+        acquiringPercent: this.acquiringPercent,
+        acquiringPercentDetkov: this.acquiringPercentDetkov,
+        acquiringPercentPutintsevSber: this.acquiringPercentPutintsevSber,
+        acquiringPercentLyokha: this.acquiringPercentLyokha,
+        acquiringProfilesJson: this.acquiringProfilesJson,
+        financeExpenseCategoryAmountsJson: serializeFinanceCategoryAmounts(
+          this.financeExpenseCategoryAmounts,
+        ),
+      },
+    });
+  }
+
+  private async persistIncrementalFinanceIncome(income: FinanceIncome) {
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.financeIncome.findUnique({ where: { id: income.id }, select: { id: true } });
+      if (existing) {
+        return;
+      }
+      await tx.financeIncome.create({
+        data: {
+          id: income.id,
+          createdAt: new Date(income.createdAt),
+          workDay: income.workDay,
+          accountId: income.accountId,
+          accountName: income.accountName,
+          amount: income.amount,
+          comment: income.comment ?? null,
+          createdBy: income.createdBy,
+        },
+      });
+      const account = this.financeAccounts.find((a) => a.id === income.accountId)!;
+      await tx.financeAccount.upsert({
+        where: { id: account.id },
+        create: {
+          id: account.id,
+          name: account.name,
+          kind: account.kind === 'CASH' ? PrismaFinanceAccountKind.CASH : PrismaFinanceAccountKind.BANK,
+          balance: account.balance,
+        },
+        update: { balance: account.balance },
+      });
+      await this.persistFinanceAppStateSlice(tx);
+    });
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistIncrementalFinanceExpense(expense: FinanceExpense) {
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.financeExpense.findUnique({
+        where: { id: expense.id },
+        select: { id: true },
+      });
+      if (existing) {
+        return;
+      }
+      await tx.financeExpense.create({
+        data: {
+          id: expense.id,
+          createdAt: new Date(expense.createdAt),
+          title: expense.title,
+          amount: expense.amount,
+          comment: expense.comment ?? null,
+          createdBy: expense.createdBy,
+          accountId: expense.accountId,
+          accountName: expense.accountName,
+        },
+      });
+      const account = this.financeAccounts.find((a) => a.id === expense.accountId)!;
+      await tx.financeAccount.upsert({
+        where: { id: account.id },
+        create: {
+          id: account.id,
+          name: account.name,
+          kind: account.kind === 'CASH' ? PrismaFinanceAccountKind.CASH : PrismaFinanceAccountKind.BANK,
+          balance: account.balance,
+        },
+        update: { balance: account.balance },
+      });
+      await this.persistFinanceAppStateSlice(tx);
+    });
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistIncrementalFinanceAccountBalance(accountId: string) {
+    const account = this.financeAccounts.find((item) => item.id === accountId);
+    if (!account) {
+      return;
+    }
+    await this.prisma.financeAccount.update({
+      where: { id: accountId },
+      data: { balance: account.balance },
+    });
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistIncrementalFinanceCategoryAmounts() {
+    await this.persistFinanceAppStateSlice(this.prisma);
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistIncrementalAcquiringConfig() {
+    await this.persistFinanceAppStateSlice(this.prisma);
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistIncrementalFinanceReset() {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financeExpense.deleteMany();
+      await tx.financeIncome.deleteMany();
+      for (const account of this.financeAccounts) {
+        await tx.financeAccount.upsert({
+          where: { id: account.id },
+          create: {
+            id: account.id,
+            name: account.name,
+            kind: account.kind === 'CASH' ? PrismaFinanceAccountKind.CASH : PrismaFinanceAccountKind.BANK,
+            balance: 0,
+          },
+          update: { balance: 0 },
+        });
+      }
+      await this.persistFinanceAppStateSlice(tx);
+    });
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistIncrementalProcurementCosts() {
+    const rows = Object.entries(this.productProcurementCosts).map(([name, cost]) => ({
+      name,
+      cost,
+    }));
+    await this.prisma.$transaction(async (tx) => {
+      await tx.productProcurementCost.deleteMany();
+      if (rows.length > 0) {
+        await tx.productProcurementCost.createMany({ data: rows });
+      }
     });
     await this.persistLatestAuditEntry();
   }

@@ -2737,52 +2737,32 @@ function App() {
       data.user.role === 'MANAGER'
     ) {
       setAdminError('');
-      const baseLoads = await Promise.allSettled([
-        loadSellers(data.token),
-        loadProducts(data.token),
-        loadProductProcurementCosts(data.token),
-        loadSales(data.token),
-        loadCommissionRequests(data.token),
-        loadShifts(data.token),
-        loadStaff(data.token),
-        loadGlobalEmployees(data.token),
-      ]);
-
-      await Promise.allSettled([
-        ...(data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT'
-          ? [loadInventoryOverview(data.token)]
-          : []),
-        ...(data.user.role === 'ADMIN' ? [loadStoreInventory(data.token)] : []),
-      ]);
-
-      if (data.user.role === 'DIRECTOR' || data.user.role === 'ACCOUNTANT') {
-        const financeLoads = await Promise.allSettled([
-          loadAcquiringProfiles(data.token),
-          loadFinanceOps(data.token),
+      if (data.user.role === 'DIRECTOR') {
+        await Promise.allSettled([loadCommissionRequests(data.token)]);
+      } else if (data.user.role === 'ACCOUNTANT') {
+        await Promise.allSettled([loadFinanceOps(data.token)]);
+      } else if (data.user.role === 'MANAGER') {
+        await Promise.allSettled([
+          loadSellers(data.token),
+          loadSales(data.token),
+          loadStaff(data.token),
         ]);
-        const hasFinanceFailure = financeLoads.some((item) => item.status === 'rejected');
-        if (hasFinanceFailure) {
-          setAcquiringProfiles(defaultAcquiringProfiles());
-          setFinanceOps({
-            accounts: [],
-            expenses: [],
-            incomes: [],
-            totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
-          });
-        }
       } else {
-        setAcquiringProfiles(defaultAcquiringProfiles());
-        setFinanceOps({
-          accounts: [],
-          expenses: [],
-          incomes: [],
-          totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0 },
-        });
-      }
-
-      const hasBaseFailure = baseLoads.some((item) => item.status === 'rejected');
-      if (hasBaseFailure) {
-        setAdminError('Часть данных загрузилась с задержкой. Обновите страницу, если что-то не появилось.');
+        const baseLoads = await Promise.allSettled([
+          loadSellers(data.token),
+          loadProducts(data.token),
+          loadProductProcurementCosts(data.token),
+          loadSales(data.token),
+          loadCommissionRequests(data.token),
+          loadShifts(data.token),
+          loadStaff(data.token),
+          loadGlobalEmployees(data.token),
+          loadStoreInventory(data.token),
+        ]);
+        const failed = baseLoads.filter((item) => item.status === 'rejected').length;
+        if (failed > 0) {
+          setAdminError('Часть данных точки не загрузилась. Проверьте сеть.');
+        }
       }
     } else {
       setSellers([]);
@@ -3099,12 +3079,7 @@ function App() {
           await new Promise((resolve) => window.setTimeout(resolve, 350));
           await loadDashboard(session.token);
         }
-        if (
-          session.user.role === 'ADMIN' ||
-          session.user.role === 'DIRECTOR' ||
-          session.user.role === 'ACCOUNTANT' ||
-          session.user.role === 'MANAGER'
-        ) {
+        if (session.user.role === 'ADMIN') {
           await Promise.allSettled([
             loadSellers(session.token),
             loadProducts(session.token),
@@ -3114,17 +3089,17 @@ function App() {
             loadShifts(session.token),
             loadStaff(session.token),
             loadGlobalEmployees(session.token),
+            loadStoreInventory(session.token),
           ]);
+        } else if (session.user.role === 'DIRECTOR') {
+          await Promise.allSettled([loadCommissionRequests(session.token)]);
+        } else if (session.user.role === 'ACCOUNTANT') {
+          await Promise.allSettled([loadFinanceOps(session.token)]);
+        } else if (session.user.role === 'MANAGER') {
           await Promise.allSettled([
-            ...(session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT'
-              ? [
-                  loadInventoryOverview(session.token),
-                  loadFinanceOps(session.token),
-                  loadAcquiringProfiles(session.token),
-                ]
-              : []),
-            ...(session.user.role === 'DIRECTOR' ? [loadManagerStoreCommissions(session.token)] : []),
-            ...(session.user.role === 'ADMIN' ? [loadStoreInventory(session.token)] : []),
+            loadSellers(session.token),
+            loadSales(session.token),
+            loadStaff(session.token),
           ]);
         }
       } catch {
@@ -3175,17 +3150,10 @@ function App() {
     void (async () => {
       await loadDashboard(token);
       const loads: Promise<unknown>[] = [];
-      if (role === 'DIRECTOR' || role === 'ACCOUNTANT') {
-        loads.push(
-          loadFinanceOps(token),
-          loadSellers(token),
-          loadSales(token),
-          loadProductProcurementCosts(token),
-          loadInventoryOverview(token),
-          loadManagerStoreCommissions(token),
-          loadAcquiringProfiles(token),
-          loadProducts(token),
-        );
+      if (role === 'DIRECTOR') {
+        loads.push(loadCommissionRequests(token));
+      } else if (role === 'ACCOUNTANT') {
+        loads.push(loadFinanceOps(token));
       } else if (role === 'ADMIN') {
         loads.push(
           loadSellers(token),
@@ -3206,6 +3174,39 @@ function App() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- один прогон при входе / смене роли
   }, [session?.token, session?.user?.role]);
+
+  /** Тяжёлые разделы директора/бухгалтера — грузим по переходу, не всё сразу при входе. */
+  useEffect(() => {
+    if (!session?.token) {
+      return;
+    }
+    const token = session.token;
+    const role = session.user.role;
+    const path = location.pathname;
+    if (role === 'DIRECTOR' || role === 'ACCOUNTANT') {
+      if (path === '/shift') {
+        void loadFinanceOps(token);
+      }
+      if (path === '/sales' || path === '/accounting/procurement') {
+        void loadInventoryOverview(token);
+        void loadProductProcurementCosts(token);
+        void loadProducts(token);
+      }
+      if (path === '/sales') {
+        void loadSales(token);
+        void loadSellers(token);
+        void loadAcquiringProfiles(token);
+      }
+      if (role === 'DIRECTOR' && path === '/team') {
+        void loadManagerStoreCommissions(token);
+      }
+      return;
+    }
+    if (role === 'MANAGER' && path === '/sales') {
+      void loadSales(token);
+      void loadSellers(token);
+    }
+  }, [location.pathname, session?.token, session?.user?.role]);
 
   const refreshAdminWebLive = useCallback(() => {
     if (!session?.token || isDesktopShell || session.user.role !== 'ADMIN') {

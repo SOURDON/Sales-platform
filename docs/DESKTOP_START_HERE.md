@@ -110,6 +110,18 @@ chmod +x scripts/desktop-dev.sh
 
 ---
 
+## Production API на Render (пока вы настраиваете сервер)
+
+1. **Instance type** — RAM **≥ 1 GB** (не free 512 MB).
+2. **Manual Deploy** ветки `main` (последний коммит с `fix(api)` / `fix: стабильная сводка`).
+3. **Environment**:
+   - `NODE_OPTIONS` = `--max-old-space-size=384` (на 1 GB можно `512`)
+   - `CORS_ORIGIN` — URL Vercel + `tauri://localhost` (см. [DESKTOP_USER_GUIDE.md](./DESKTOP_USER_GUIDE.md))
+4. Проверка: `https://sales-platform-1.onrender.com/health` → `{"ok":true}`.
+5. Пересобрать desktop **1.0.17+** с `desktop/.env` → `VITE_API_URL=https://sales-platform-1.onrender.com`.
+
+---
+
 ## Что уже сделано в репозитории (вам не трогать)
 
 - Офлайн-sync для ADMIN, DIRECTOR, ACCOUNTANT, MANAGER
