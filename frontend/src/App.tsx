@@ -748,7 +748,7 @@ function describeLoginFetchError(error: unknown): string {
       if (import.meta.env.DEV) {
         return 'Приложение не достучалось до сервера (это не ошибка пароля). В dev-режиме нужен CORS для http://localhost:5173 на Render — см. docs/DESKTOP_START_HERE.md или соберите .dmg.';
       }
-      return 'Приложение не достучалось до сервера (это не ошибка пароля). Обновите backend на Render или добавьте в CORS_ORIGIN: tauri://localhost,https://tauri.localhost';
+      return 'Приложение не достучалось до сервера (это не ошибка пароля). Установите новый .dmg (1.0.18+), проверьте VITE_API_URL в desktop/.env и что API отвечает. Для HTTP на macOS нужна сборка с ATS; лучше HTTPS и домен.';
     }
     return error.message;
   }
