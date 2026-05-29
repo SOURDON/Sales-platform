@@ -137,7 +137,20 @@ docker compose --env-file .env exec -T postgres pg_dump -U sales sales_platform 
 
 | Симптом | Решение |
 |--------|---------|
+| `unauthenticated pull rate limit` | Зеркало Timeweb (см. ниже) или `docker login` на hub.docker.com |
 | `health` не отвечает | `docker compose logs api --tail 100` |
+
+### Лимит Docker Hub (rate limit)
+
+На VPS Timeweb выполните один раз:
+
+```bash
+mkdir -p /etc/docker
+printf '%s\n' '{ "registry-mirrors": ["https://dockerhub.timeweb.cloud"] }' > /etc/docker/daemon.json
+systemctl reload docker
+```
+
+Затем снова: `docker compose --env-file .env up -d --build`
 | Desktop «не достучалось» | Проверьте `CORS_ORIGIN`, URL в сборке, firewall 80/443 |
 | Медленно после простоя | На VPS сна нет — это норма Render free, не Timeweb |
 
