@@ -1,0 +1,7 @@
+# HTTP на порту 80 (проверка: http://IP_СЕРВЕРА/health).
+# После привязки домена замените этот файл на Caddyfile.domain (см. MIGRATION.md).
+
+:80 {
+	encode gzip
+	reverse_proxy api:3000
+}

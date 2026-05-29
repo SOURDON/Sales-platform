@@ -1,0 +1,14 @@
+# HTTPS с Let's Encrypt. Скопируйте поверх Caddyfile:
+# cp Caddyfile.domain Caddyfile && docker compose restart caddy
+#
+# В .env задайте API_DOMAIN=api.ваш-домен.ru
+# A-запись домена → IP VPS. Откройте порты 80 и 443 в панели Timeweb.
+
+{
+	email {$ACME_EMAIL:admin@example.com}
+}
+
+{$API_DOMAIN:localhost} {
+	encode gzip
+	reverse_proxy api:3000
+}
