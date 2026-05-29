@@ -162,6 +162,40 @@ function staffAssignedStores(member: StaffMember): string[] {
   return member.storeName ? [member.storeName] : [];
 }
 
+/** Продавцы в открытой смене — по assignedShiftId (как на экране «Смена»), не только assignedSellerIds. */
+function sellersOnOpenShift(
+  staff: StaffMember[],
+  sellers: SellerProfile[],
+  shifts: ShiftInfo[],
+): SellerProfile[] {
+  const open = shifts.find((shift) => shift.status === 'OPEN');
+  if (!open) {
+    return [];
+  }
+  const sellerById = new Map(sellers.map((seller) => [seller.id, seller]));
+  const picked: SellerProfile[] = [];
+  for (const member of staff) {
+    if (!member.isActive || member.assignedShiftId !== open.id || member.staffPosition !== 'SALES') {
+      continue;
+    }
+    const profile = sellerById.get(member.id);
+    picked.push(
+      profile ?? {
+        id: member.id,
+        fullName: member.fullName,
+        nickname: member.nickname,
+        storeName: member.storeName,
+        ratePercent: 30,
+        salesAmount: 0,
+        checksCount: 0,
+        commissionAmount: 0,
+      },
+    );
+  }
+  picked.sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
+  return picked;
+}
+
 function storeRevenueForReportDay(
   storeName: string,
   sales: AdminSale[],
@@ -231,7 +265,15 @@ function buildAdminHomeDashboard(
   const today = todayKeyMoscow();
   const openShift = shifts.find((sh) => sh.status === 'OPEN');
   const inOpenShiftIds = openShift
-    ? openShift.assignedSellerIds.filter((id) => staffAtStoreIds.has(id))
+    ? staff
+        .filter(
+          (member) =>
+            member.isActive &&
+            member.assignedShiftId === openShift.id &&
+            member.staffPosition === 'SALES' &&
+            staffAtStoreIds.has(member.id),
+        )
+        .map((member) => member.id)
     : [];
 
   let storeRevenue = 0;
@@ -3630,13 +3672,7 @@ function App() {
                           <>
                             <section className="sectionCard sectionCard--addSale">
                               <AddSaleForm
-                                sellers={(() => {
-                                  const open = shifts.find((s) => s.status === 'OPEN');
-                                  if (!open) {
-                                    return [] as SellerProfile[];
-                                  }
-                                  return sellers.filter((x) => open.assignedSellerIds.includes(x.id));
-                                })()}
+                                sellers={sellersOnOpenShift(staff, sellers, shifts)}
                                 hasOpenShift={shifts.some((s) => s.status === 'OPEN')}
                                 products={products}
                                 token={session.token}

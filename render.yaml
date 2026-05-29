@@ -11,6 +11,9 @@ services:
         value: production
       - key: PORT
         value: 3000
+      # Ограничиваем heap ниже лимита инстанса Render (512MB на Starter), чтобы реже ловить OOM-kill.
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
       - key: DATABASE_URL
         sync: false
       - key: CORS_ORIGIN
@@ -28,6 +31,8 @@ services:
         value: production
       - key: PORT
         value: 3000
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
       - key: DATABASE_URL
         sync: false
       - key: CORS_ORIGIN

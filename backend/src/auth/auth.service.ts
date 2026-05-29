@@ -6,6 +6,7 @@ import {
   DirectorApprovalState as PrismaDirectorApprovalState,
   FinanceAccountKind as PrismaFinanceAccountKind,
   PaymentType as PrismaPaymentType,
+  Prisma,
   StaffPosition,
   ShiftStatus,
   UserRole as PrismaUserRole,
@@ -335,7 +336,14 @@ export class AuthService implements OnModuleInit {
 
   private readonly logger = new Logger(AuthService.name);
   private readonly persistenceEnabled = Boolean(process.env.DATABASE_URL);
+  private static readonly MAX_AUDIT_LOG_ITEMS = 3000;
+  /** Продажи старше этого окна не держим в RAM (отчёты директора — из БД по запросу). */
+  private static readonly SALES_MEMORY_DAYS = 120;
+  /** Склеивает частые записи в одну, чтобы не переписывать всю БД на каждый чих. */
+  private static readonly PERSIST_DEBOUNCE_MS = 2000;
   private persistChain: Promise<void> = Promise.resolve();
+  private persistDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private persistFlushScheduled = false;
 
   private commissionChangeRequests: CommissionChangeRequest[] = [];
   private directorApprovalRequests: DirectorApprovalRequestMem[] = [];
@@ -1368,7 +1376,7 @@ export class AuthService implements OnModuleInit {
     }
     this.storeEquipmentByStore[storeName] = next;
     this.pushAudit(actorNickname, 'STORE_EQUIPMENT_UPDATED', storeName);
-    this.queuePersist();
+    this.queueIncremental(() => this.persistIncrementalStoreEquipment(storeName));
     return next;
   }
 
@@ -2369,6 +2377,7 @@ export class AuthService implements OnModuleInit {
     if (!shiftOpen) {
       return null;
     }
+    this.reconcileOpenShiftAssignees();
     if (!shiftOpen.assignedSellerIds.includes(sellerId)) {
       return null;
     }
@@ -2444,7 +2453,7 @@ export class AuthService implements OnModuleInit {
       'SALE_CREATED',
       `sale=${sale.id}, seller=${seller.fullName}, total=${totalAmount}, pay=${paymentType}`,
     );
-    this.queuePersist();
+    this.queueIncremental(() => this.persistIncrementalSale(sale, sellerId, storeKey));
     return sale;
   }
 
@@ -2471,7 +2480,7 @@ export class AuthService implements OnModuleInit {
     this.adminWriteOffs.push(writeOff);
     this.addStockDelta(storeKey, name, -writeOff.qty);
     this.pushAudit(actor, 'WRITE_OFF_CREATED', `${name} qty=${writeOff.qty}, reason=${reason}`);
-    this.queuePersist();
+    this.queueIncremental(() => this.persistIncrementalWriteOff(writeOff, storeKey));
     return writeOff;
   }
 
@@ -2548,7 +2557,8 @@ export class AuthService implements OnModuleInit {
         'SHIFT_OPEN_ASSIGNEES',
         `shift=${existingOpen.id} sellers=${merged.join(',')}`,
       );
-      this.queuePersist();
+      this.reconcileOpenShiftAssignees();
+      this.queueIncremental(() => this.persistIncrementalShiftState());
       return existingOpen;
     }
     const shift: Shift = {
@@ -2566,7 +2576,8 @@ export class AuthService implements OnModuleInit {
       member.assignedShiftId = allowedIds.includes(member.id) ? shift.id : undefined;
     }
     this.pushAudit(openedBy, 'SHIFT_OPENED', `shift=${shift.id}`);
-    this.queuePersist();
+    this.reconcileOpenShiftAssignees();
+    this.queueIncremental(() => this.persistIncrementalShiftState());
     return shift;
   }
 
@@ -2589,7 +2600,7 @@ export class AuthService implements OnModuleInit {
       }
       this.pushAudit(closedBy, 'SHIFT_PARTIAL_CLOSED', `shift=${shift.id} sellers=${selectedIds.join(',')}`);
       if (shift.assignedSellerIds.length > 0) {
-        this.queuePersist();
+        this.queueIncremental(() => this.persistIncrementalShiftState());
         return shift;
       }
     }
@@ -2603,12 +2614,38 @@ export class AuthService implements OnModuleInit {
       }
     }
     this.pushAudit(closedBy, 'SHIFT_CLOSED', `shift=${shift.id}`);
-    this.queuePersist();
+    this.queueIncremental(() => this.persistIncrementalShiftState());
     return shift;
+  }
+
+  /**
+   * Keeps shift.assignedSellerIds and staff.assignedShiftId aligned for the open shift.
+   */
+  private reconcileOpenShiftAssignees(): boolean {
+    const open = this.shiftHistory.find((item) => item.status === 'OPEN');
+    if (!open) {
+      return false;
+    }
+    let changed = false;
+    for (const member of this.staff) {
+      if (!member.isActive || member.staffPosition !== 'SALES') {
+        continue;
+      }
+      if (member.assignedShiftId === open.id && !open.assignedSellerIds.includes(member.id)) {
+        open.assignedSellerIds.push(member.id);
+        changed = true;
+      }
+      if (open.assignedSellerIds.includes(member.id) && member.assignedShiftId !== open.id) {
+        member.assignedShiftId = open.id;
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   getShifts() {
     this.ensureActiveShiftForToday();
+    this.reconcileOpenShiftAssignees();
     return [...this.shiftHistory].sort(
       (a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime(),
     );
@@ -2639,6 +2676,7 @@ export class AuthService implements OnModuleInit {
 
   getStaff() {
     this.syncRetoucherEarnings();
+    this.reconcileOpenShiftAssignees();
     return this.staff.map((member) => {
       const u = this.demoUsers.find((d) => d.id === member.id);
       const assignedStores = this.storeStaffAssignments
@@ -3501,6 +3539,15 @@ export class AuthService implements OnModuleInit {
       action,
       details,
     });
+    if (this.auditLog.length > AuthService.MAX_AUDIT_LOG_ITEMS) {
+      this.auditLog.splice(0, this.auditLog.length - AuthService.MAX_AUDIT_LOG_ITEMS);
+    }
+  }
+
+  private trimAuditLogInMemory() {
+    if (this.auditLog.length > AuthService.MAX_AUDIT_LOG_ITEMS) {
+      this.auditLog = this.auditLog.slice(-AuthService.MAX_AUDIT_LOG_ITEMS);
+    }
   }
 
   private getStoreBusinessDayKey(valueIso: string) {
@@ -3563,10 +3610,252 @@ export class AuthService implements OnModuleInit {
     }
   }
 
+  /** Лёгкая запись в БД без полного снапшота (продажи, смена, спецтехника). */
+  private queueIncremental(job: () => Promise<void>) {
+    if (!this.persistenceEnabled) {
+      return;
+    }
+    this.persistChain = this.persistChain
+      .then(job)
+      .catch((error: unknown) => {
+        this.logger.error('Incremental persist failed, scheduling full snapshot', error as Error);
+        this.queuePersist();
+      });
+  }
+
+  private async persistAppStateSlice(tx: Prisma.TransactionClient) {
+    await tx.appState.upsert({
+      where: { id: 1 },
+      update: {
+        currentShiftId: this.currentShiftId,
+        lastSaleAt: this.lastSaleAt ? new Date(this.lastSaleAt) : null,
+      },
+      create: {
+        id: 1,
+        currentShiftId: this.currentShiftId,
+        lastSaleAt: this.lastSaleAt ? new Date(this.lastSaleAt) : null,
+        acquiringPercent: this.acquiringPercent,
+        acquiringPercentDetkov: this.acquiringPercentDetkov,
+        acquiringPercentPutintsevSber: this.acquiringPercentPutintsevSber,
+        acquiringPercentLyokha: this.acquiringPercentLyokha,
+        acquiringProfilesJson: this.acquiringProfilesJson,
+        financeExpenseCategoryAmountsJson: serializeFinanceCategoryAmounts(
+          this.financeExpenseCategoryAmounts,
+        ),
+      },
+    });
+  }
+
+  private async persistLatestAuditEntry() {
+    const item = this.auditLog[this.auditLog.length - 1];
+    if (!item) {
+      return;
+    }
+    await this.prisma.auditLogItem.upsert({
+      where: { id: item.id },
+      create: {
+        id: item.id,
+        createdAt: new Date(item.createdAt),
+        actor: item.actor,
+        action: item.action,
+        details: item.details,
+      },
+      update: {
+        actor: item.actor,
+        action: item.action,
+        details: item.details,
+      },
+    });
+  }
+
+  private async persistIncrementalSale(sale: SaleRecord, sellerId: number, storeKey: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.sale.findUnique({ where: { id: sale.id }, select: { id: true } });
+      if (existing) {
+        return;
+      }
+      await tx.sale.create({
+        data: {
+          id: sale.id,
+          createdAt: new Date(sale.createdAt),
+          totalAmount: sale.totalAmount,
+          units: sale.units,
+          sellerId,
+          paymentType: internalPaymentTypeToPrisma(sale.paymentType),
+          items: {
+            create: sale.items.map((line, index) => ({
+              id: `${sale.id}-${index}`,
+              name: line.name.trim(),
+              qty: line.qty,
+            })),
+          },
+        },
+      });
+      await this.persistAppStateSlice(tx);
+      if (this.currentShiftId) {
+        const shift = this.shiftHistory.find((item) => item.id === this.currentShiftId);
+        if (shift) {
+          await tx.shift.update({
+            where: { id: shift.id },
+            data: {
+              checksCount: shift.checksCount,
+              itemsCount: shift.itemsCount,
+            },
+          });
+        }
+      }
+      for (const line of sale.items) {
+        const productName = line.name.trim();
+        const qty = this.getStockQty(storeKey, productName);
+        await tx.productStockLocation.upsert({
+          where: {
+            locationKey_productName: { locationKey: storeKey, productName },
+          },
+          create: { locationKey: storeKey, productName, qty },
+          update: { qty },
+        });
+      }
+    });
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistIncrementalShiftState() {
+    await this.prisma.$transaction(async (tx) => {
+      await this.persistAppStateSlice(tx);
+      const open = this.shiftHistory.find((item) => item.status === 'OPEN');
+      if (open) {
+        await tx.shift.upsert({
+          where: { id: open.id },
+          create: {
+            id: open.id,
+            openedAt: new Date(open.openedAt),
+            openedBy: open.openedBy,
+            checksCount: open.checksCount,
+            itemsCount: open.itemsCount,
+            status: ShiftStatus.OPEN,
+          },
+          update: {
+            checksCount: open.checksCount,
+            itemsCount: open.itemsCount,
+            status: ShiftStatus.OPEN,
+            closedAt: null,
+            closedBy: null,
+          },
+        });
+        await tx.shiftAssignment.deleteMany({ where: { shiftId: open.id } });
+        if (open.assignedSellerIds.length > 0) {
+          await tx.shiftAssignment.createMany({
+            data: open.assignedSellerIds.map((sellerId) => ({
+              shiftId: open.id,
+              sellerId,
+            })),
+          });
+        }
+      }
+      for (const member of this.staff) {
+        await tx.staffMember.updateMany({
+          where: { id: member.id },
+          data: { assignedShiftId: member.assignedShiftId ?? null },
+        });
+      }
+      const closedToday = this.shiftHistory.filter((item) => item.status === 'CLOSED' && item.closedAt);
+      const lastClosed = closedToday.sort(
+        (a, b) => new Date(b.closedAt!).getTime() - new Date(a.closedAt!).getTime(),
+      )[0];
+      if (lastClosed && !open) {
+        await tx.shift.update({
+          where: { id: lastClosed.id },
+          data: {
+            status: ShiftStatus.CLOSED,
+            closedAt: lastClosed.closedAt ? new Date(lastClosed.closedAt) : new Date(),
+            closedBy: lastClosed.closedBy ?? null,
+            checksCount: lastClosed.checksCount,
+            itemsCount: lastClosed.itemsCount,
+          },
+        });
+        await tx.shiftAssignment.deleteMany({ where: { shiftId: lastClosed.id } });
+      }
+    });
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistIncrementalStoreEquipment(storeName: string) {
+    const e = this.storeEquipmentByStore[storeName] ?? emptyStoreEquipmentCounts();
+    await this.prisma.storeEquipment.upsert({
+      where: { storeName },
+      create: {
+        storeName,
+        pc: e.pc,
+        camera: e.camera,
+        printer: e.printer,
+        sdCard: e.sdCard,
+        monitor: e.monitor,
+        mouse: e.mouse,
+        keyboard: e.keyboard,
+        cardReader: e.cardReader,
+        extra: e.extra ?? {},
+      },
+      update: {
+        pc: e.pc,
+        camera: e.camera,
+        printer: e.printer,
+        sdCard: e.sdCard,
+        monitor: e.monitor,
+        mouse: e.mouse,
+        keyboard: e.keyboard,
+        cardReader: e.cardReader,
+        extra: e.extra ?? {},
+      },
+    });
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistIncrementalWriteOff(writeOff: WriteOffItem, storeKey: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.writeOff.findUnique({ where: { id: writeOff.id }, select: { id: true } });
+      if (!existing) {
+        await tx.writeOff.create({
+          data: {
+            id: writeOff.id,
+            createdAt: new Date(writeOff.createdAt),
+            name: writeOff.name,
+            qty: writeOff.qty,
+            reason: writeOff.reason === 'Брак' ? WriteOffReason.BRAK : WriteOffReason.POLOMKA,
+          },
+        });
+      }
+      const productName = writeOff.name.trim();
+      const qty = this.getStockQty(storeKey, productName);
+      await tx.productStockLocation.upsert({
+        where: {
+          locationKey_productName: { locationKey: storeKey, productName },
+        },
+        create: { locationKey: storeKey, productName, qty },
+        update: { qty },
+      });
+    });
+    await this.persistLatestAuditEntry();
+  }
+
   private queuePersist() {
     if (!this.persistenceEnabled) {
       return;
     }
+    if (this.persistDebounceTimer) {
+      return;
+    }
+    this.persistFlushScheduled = true;
+    this.persistDebounceTimer = setTimeout(() => {
+      this.persistDebounceTimer = null;
+      if (!this.persistFlushScheduled) {
+        return;
+      }
+      this.persistFlushScheduled = false;
+      this.flushPersistNow();
+    }, AuthService.PERSIST_DEBOUNCE_MS);
+  }
+
+  private flushPersistNow() {
     this.persistChain = this.persistChain
       .then(async () => this.persistState())
       .catch((error: unknown) => {
@@ -3732,6 +4021,13 @@ export class AuthService implements OnModuleInit {
       this.prisma.user.findMany(),
       this.prisma.sellerProfile.findMany(),
       this.prisma.sale.findMany({
+        where: {
+          createdAt: {
+            gte: new Date(
+              Date.now() - AuthService.SALES_MEMORY_DAYS * 24 * 60 * 60 * 1000,
+            ),
+          },
+        },
         include: { items: true },
         orderBy: { createdAt: 'asc' },
       }),
@@ -3746,7 +4042,10 @@ export class AuthService implements OnModuleInit {
       this.prisma.productProcurementCost.findMany(),
       this.prisma.storeRevenuePlan.findMany(),
       this.prisma.commissionChangeRequest.findMany(),
-      this.prisma.auditLogItem.findMany(),
+      this.prisma.auditLogItem.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: AuthService.MAX_AUDIT_LOG_ITEMS,
+      }),
       this.prisma.financeAccount.findMany(),
       this.prisma.financeExpense.findMany(),
       this.prisma.financeIncome.findMany(),
@@ -3926,13 +4225,16 @@ export class AuthService implements OnModuleInit {
         resolvedBy: item.resolvedBy ?? undefined,
       };
     });
-    this.auditLog = audit.map((item) => ({
-      id: item.id,
-      createdAt: item.createdAt.toISOString(),
-      actor: item.actor,
-      action: item.action,
-      details: item.details,
-    }));
+    this.auditLog = audit
+      .map((item) => ({
+        id: item.id,
+        createdAt: item.createdAt.toISOString(),
+        actor: item.actor,
+        action: item.action,
+        details: item.details,
+      }))
+      .reverse();
+    this.trimAuditLogInMemory();
     this.financeAccounts = financeAccounts.map((item) => ({
       id: item.id,
       name: item.name,

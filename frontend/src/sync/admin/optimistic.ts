@@ -123,22 +123,31 @@ async function applySaleStock(userId: number, payload: AdminSaleOutboxPayload): 
 
 async function applyShiftOpen(userId: number, payload: AdminShiftOpenOutboxPayload): Promise<void> {
   const shifts = (await loadAdminCache<ShiftLike[]>(userId, 'shifts')) ?? [];
-  const withoutOpen = shifts.filter((s) => s.status !== 'OPEN');
-  const open: ShiftLike = {
-    id: payload.clientShiftId,
-    openedAt: payload.createdAt,
-    openedBy: 'offline',
-    assignedSellerIds: [...payload.assignedSellerIds],
-    checksCount: 0,
-    itemsCount: 0,
-    status: 'OPEN',
-  };
-  await saveAdminCache(userId, 'shifts', [...withoutOpen, open]);
+  const existingOpen = shifts.find((s) => s.status === 'OPEN');
+  const mergedIds = existingOpen
+    ? [...new Set([...existingOpen.assignedSellerIds, ...payload.assignedSellerIds])]
+    : [...payload.assignedSellerIds];
+  const shiftId = existingOpen?.id ?? payload.clientShiftId;
+  const nextShifts = existingOpen
+    ? shifts.map((s) =>
+        s.id === existingOpen.id ? { ...s, assignedSellerIds: mergedIds } : s,
+      )
+    : [
+        ...shifts.filter((s) => s.status !== 'OPEN'),
+        {
+          id: payload.clientShiftId,
+          openedAt: payload.createdAt,
+          openedBy: 'offline',
+          assignedSellerIds: mergedIds,
+          checksCount: 0,
+          itemsCount: 0,
+          status: 'OPEN' as const,
+        },
+      ];
+  await saveAdminCache(userId, 'shifts', nextShifts);
   const staff = (await loadAdminCache<StaffLike[]>(userId, 'staff')) ?? [];
   const updatedStaff = staff.map((m) =>
-    payload.assignedSellerIds.includes(m.id)
-      ? { ...m, assignedShiftId: payload.clientShiftId }
-      : m,
+    mergedIds.includes(m.id) ? { ...m, assignedShiftId: shiftId } : m,
   );
   await saveAdminCache(userId, 'staff', updatedStaff);
 }
