@@ -16,8 +16,8 @@ export async function loadSyncResource<T>(
 ): Promise<LoadResourceResult<T>> {
   const reachable = await isApiReachable(apiBaseUrl);
   if (reachable) {
-    try {
-      const data = await Promise.race([
+    const fetchWithTimeout = () =>
+      Promise.race([
         fetcher(),
         new Promise<never>((_, reject) => {
           window.setTimeout(
@@ -26,10 +26,20 @@ export async function loadSyncResource<T>(
           );
         }),
       ]);
+
+    try {
+      const data = await fetchWithTimeout();
       await saveSyncCache(userId, cacheKey, data);
       return { data, fromCache: false };
     } catch {
-      // fall through to cache
+      try {
+        const data = await fetchWithTimeout();
+        await saveSyncCache(userId, cacheKey, data);
+        return { data, fromCache: false };
+      } catch {
+        // При онлайне не подставляем устаревший кэш — иначе суммы «прыгают».
+        return { data: fallback, fromCache: false };
+      }
     }
   }
   const cached = await loadSyncCache<T>(userId, cacheKey);

@@ -1207,9 +1207,15 @@ function App() {
 
   useEffect(() => {
     void refreshOfflinePending();
+  }, [refreshOfflinePending, offlineQueueTick]);
+
+  useEffect(() => {
+    if (apiReachable) {
+      return;
+    }
     void refreshAdminFromCache();
     void refreshFinanceFromCache();
-  }, [refreshOfflinePending, refreshAdminFromCache, refreshFinanceFromCache, offlineQueueTick]);
+  }, [apiReachable, refreshAdminFromCache, refreshFinanceFromCache]);
 
   const pendingOfflineSales = useMemo(
     () => offlineQueueToAdminSales(offlinePendingSales, sellers),
@@ -1864,6 +1870,17 @@ function App() {
     };
   };
 
+  const applyCachedFinanceOps = async () => {
+    const uid = session?.user?.id;
+    if (uid === undefined) {
+      return;
+    }
+    const cached = await loadSyncCache<FinanceOpsSnapshot>(uid, 'financeOps');
+    if (cached) {
+      setFinanceOps(normalizeFinanceOps(cached));
+    }
+  };
+
   const loadFinanceOps = async (token: string) => {
     const fetcher = async () => {
       const response = await fetch(`${API_BASE_URL}/admin/finance/ops`, {
@@ -1959,6 +1976,7 @@ function App() {
       const mode = await runAdminMutation(uid, incomeId, 'FINANCE_INCOME', body, post);
       if (mode === 'queued') {
         setOfflineQueueTick((x) => x + 1);
+        await applyCachedFinanceOps();
         return;
       }
     } else {
@@ -2032,6 +2050,7 @@ function App() {
       const mode = await runAdminMutation(uid, expenseId, 'FINANCE_EXPENSE', body, post);
       if (mode === 'queued') {
         setOfflineQueueTick((x) => x + 1);
+        await applyCachedFinanceOps();
         return;
       }
     } else {
@@ -2072,6 +2091,7 @@ function App() {
       const mode = await runAdminMutation(uid, patchId, 'FINANCE_ACCOUNT_BALANCE', body, put);
       if (mode === 'queued') {
         setOfflineQueueTick((x) => x + 1);
+        await applyCachedFinanceOps();
         return;
       }
     } else {
@@ -2092,8 +2112,15 @@ function App() {
         }
         return (await response.json()) as AdminSale[];
       };
-      if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
-        const result = await loadAdminResource(API_BASE_URL, session.user.id, 'sales', fetcher, []);
+      if (
+        isDesktopShell &&
+        session?.user?.id != null &&
+        (session.user.role === 'ADMIN' ||
+          session.user.role === 'DIRECTOR' ||
+          session.user.role === 'ACCOUNTANT' ||
+          session.user.role === 'MANAGER')
+      ) {
+        const result = await loadSyncResource(API_BASE_URL, session.user.id, 'sales', fetcher, []);
         setSales(result.data);
         return;
       }
