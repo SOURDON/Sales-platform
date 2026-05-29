@@ -27,8 +27,15 @@ fi
 cd "$ROOT"
 git pull
 
-echo "=== Импорт с Render ==="
+echo "=== Импорт с Render (5–15 мин) ==="
 bash "$ROOT/scripts/timeweb/reimport-from-render.sh"
+
+DUMP_SIZE=$(stat -c%s "$ROOT/backup.dump" 2>/dev/null || stat -f%z "$ROOT/backup.dump")
+if [[ ! -f "$ROOT/backup.dump" ]] || [[ "$DUMP_SIZE" -lt 10000 ]]; then
+  echo "ОШИБКА: backup.dump слишком маленький ($DUMP_SIZE байт) — экспорт не удался."
+  exit 1
+fi
+ls -lh "$ROOT/backup.dump"
 
 echo "=== Обновление API (больше истории продаж в памяти) ==="
 if ! grep -q '^SALES_MEMORY_DAYS=' "$ROOT/deploy/timeweb/.env" 2>/dev/null; then
@@ -44,4 +51,4 @@ echo ""
 bash "$ROOT/scripts/timeweb/verify-data-on-server.sh"
 
 echo ""
-echo "Готово. Desktop: director / Foto-2026-9kLq (или сброс: NEW_PASSWORD=... reset-director-password.sh)"
+echo "Готово. Desktop: director / пароль как на Render (обычно Bufet000). Проверьте Sale > 0 выше."

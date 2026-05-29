@@ -20,6 +20,14 @@ ORDER BY 1;
 SQL
 
 echo ""
+SALE_COUNT=$($COMPOSE exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc 'SELECT count(*) FROM "Sale";' | tr -d '[:space:]')
+if [[ "${SALE_COUNT:-0}" -lt 1 ]]; then
+  echo "⚠️  Sale=0 — импорт с Render не прошёл. Запустите: bash $ROOT/scripts/timeweb/do-everything-on-server.sh"
+else
+  echo "✓ Продаж в базе: $SALE_COUNT (импорт похоже успешен)"
+fi
+
+echo ""
 echo "=== Продажи по месяцам (последние 6) ==="
 $COMPOSE exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
 SELECT to_char("createdAt", 'YYYY-MM') AS month, count(*) AS sales
