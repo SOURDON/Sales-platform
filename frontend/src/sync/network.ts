@@ -38,7 +38,7 @@ export type NetworkSubscription = {
 export function subscribeNetwork(
   apiBaseUrl: string,
   onChange: (reachable: boolean) => void,
-  pollMs = 30_000,
+  pollMs = 90_000,
 ): NetworkSubscription {
   let reachable = false;
   let disposed = false;

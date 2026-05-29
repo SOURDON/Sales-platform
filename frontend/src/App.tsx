@@ -1391,8 +1391,11 @@ function App() {
     ];
   }, [acquiringProfiles, salesMerged, sellers, session?.user.role]);
 
-  const loadDashboard = async (token: string) => {
-    setDashboardLoading(true);
+  const loadDashboard = async (token: string, options?: { background?: boolean }) => {
+    const background = options?.background === true;
+    if (!background) {
+      setDashboardLoading(true);
+    }
     const fetcher = async () => {
       const response = await fetchWithTimeout(`${API_BASE_URL}/dashboard/overview`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -1406,21 +1409,28 @@ function App() {
     const desktopDashboardCache = roleUsesSyncCache(role) && session?.user?.id != null;
     try {
       if (desktopDashboardCache) {
+        const cachedFallback =
+          (await loadSyncCache<DashboardResponse>(session!.user.id, 'dashboard')) ??
+          (null as unknown as DashboardResponse);
         const result = await loadSyncResource(
           API_BASE_URL,
-          session.user.id,
+          session!.user.id,
           'dashboard',
           fetcher,
-          null as unknown as DashboardResponse,
+          cachedFallback,
         );
-        setDashboard(result.data);
+        if (result.data) {
+          setDashboard(result.data);
+        }
       } else {
         setDashboard(await fetcher());
       }
     } catch {
-      setDashboard(null);
+      setDashboard((current) => current);
     } finally {
-      setDashboardLoading(false);
+      if (!background) {
+        setDashboardLoading(false);
+      }
     }
   };
 
@@ -2961,12 +2971,28 @@ function App() {
     window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
   }, [rememberMe, session]);
 
+  const postFlushRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    const role = session?.user?.role;
+    if (userId === undefined || !roleUsesSyncCache(role)) {
+      return;
+    }
+    void loadSyncCache<DashboardResponse>(userId, 'dashboard').then((cached) => {
+      if (cached) {
+        setDashboard((current) => current ?? cached);
+      }
+    });
+  }, [session?.token, session?.user?.id, session?.user?.role]);
+
   useEffect(() => {
     if (!session?.token || session.user.id == null || !roleUsesSyncEngine(session.user.role)) {
       return;
     }
     const token = session.token;
     const userId = session.user.id;
+    const role = session.user.role;
     const stop = startSyncEngine({
       apiBaseUrl: API_BASE_URL,
       token,
@@ -2975,7 +3001,7 @@ function App() {
       onReachableChange: setApiReachable,
       onFlushed: () => {
         setOfflineQueueTick((x) => x + 1);
-        if (session.user.role === 'ADMIN') {
+        if (role === 'ADMIN') {
           void Promise.allSettled([
             loadSales(token),
             loadSellers(token),
@@ -2985,25 +3011,28 @@ function App() {
             loadStoreInventory(token),
             loadGlobalEmployees(token),
           ]);
-        } else if (session.user.role === 'MANAGER') {
-          void loadDashboard(token).catch(() => undefined);
-        } else if (session.user.role === 'DIRECTOR' || session.user.role === 'ACCOUNTANT') {
-          void Promise.allSettled([
-            loadDashboard(token),
-            loadFinanceOps(token),
-            loadInventoryOverview(token),
-            loadSellers(token),
-            ...(session.user.role === 'DIRECTOR'
-              ? [loadCommissionRequests(token)]
-              : []),
-          ]);
-        } else {
-          void loadSales(token).catch(() => undefined);
-          void loadSellers(token).catch(() => undefined);
+          return;
         }
+        if (role === 'MANAGER' || role === 'DIRECTOR' || role === 'ACCOUNTANT') {
+          if (postFlushRefreshRef.current) {
+            window.clearTimeout(postFlushRefreshRef.current);
+          }
+          postFlushRefreshRef.current = window.setTimeout(() => {
+            postFlushRefreshRef.current = null;
+            void loadDashboard(token, { background: true }).catch(() => undefined);
+          }, 2500);
+          return;
+        }
+        void loadSales(token).catch(() => undefined);
+        void loadSellers(token).catch(() => undefined);
       },
     });
-    return stop;
+    return () => {
+      if (postFlushRefreshRef.current) {
+        window.clearTimeout(postFlushRefreshRef.current);
+      }
+      stop();
+    };
   }, [session?.token, session?.user?.id, session?.user?.role]);
 
   useEffect(() => {
@@ -3144,7 +3173,8 @@ function App() {
     const token = session.token;
     const role = session.user.role;
     void (async () => {
-      const loads: Promise<unknown>[] = [loadDashboard(token)];
+      await loadDashboard(token);
+      const loads: Promise<unknown>[] = [];
       if (role === 'DIRECTOR' || role === 'ACCOUNTANT') {
         loads.push(
           loadFinanceOps(token),
@@ -3353,7 +3383,7 @@ function App() {
                   }`}
                 >
                   <section className="sectionCard homePanelSection">
-                    {dashboardLoading ? (
+                    {dashboardLoading && !homeDashboard ? (
                       <p className="muted">Загружаем сводку...</p>
                     ) : !homeDashboard ? (
                       <p className="muted">
@@ -3370,7 +3400,7 @@ function App() {
                               token={session.token}
                               userId={session.user.id}
                               onDecided={() => {
-                                void loadDashboard(session.token);
+                                void loadDashboard(session.token, { background: true });
                               }}
                             />
                           ) : null}

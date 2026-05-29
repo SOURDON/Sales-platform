@@ -43,8 +43,10 @@ export function startSyncEngine(options: SyncEngineOptions): () => void {
   };
 
   const flushAndRefresh = async () => {
-    await runFlush();
-    onFlushed?.();
+    const didFlush = await runFlush();
+    if (didFlush) {
+      onFlushed?.();
+    }
   };
 
   void migrateLegacyOfflineSalesQueue(userId).then(() => void flushAndRefresh());

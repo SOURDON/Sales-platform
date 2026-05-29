@@ -32,14 +32,11 @@ export async function loadSyncResource<T>(
       await saveSyncCache(userId, cacheKey, data);
       return { data, fromCache: false };
     } catch {
-      try {
-        const data = await fetchWithTimeout();
-        await saveSyncCache(userId, cacheKey, data);
-        return { data, fromCache: false };
-      } catch {
-        // При онлайне не подставляем устаревший кэш — иначе суммы «прыгают».
-        return { data: fallback, fromCache: false };
+      const cached = await loadSyncCache<T>(userId, cacheKey);
+      if (cached !== null) {
+        return { data: cached, fromCache: true };
       }
+      return { data: fallback, fromCache: false };
     }
   }
   const cached = await loadSyncCache<T>(userId, cacheKey);

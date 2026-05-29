@@ -344,6 +344,8 @@ export class AuthService implements OnModuleInit {
   private persistChain: Promise<void> = Promise.resolve();
   private persistDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private persistFlushScheduled = false;
+  private dashboardOverviewCache: { nickname: string; at: number; payload: unknown } | null = null;
+  private static readonly DASHBOARD_OVERVIEW_CACHE_MS = 20_000;
 
   private commissionChangeRequests: CommissionChangeRequest[] = [];
   private directorApprovalRequests: DirectorApprovalRequestMem[] = [];
@@ -1457,10 +1459,25 @@ export class AuthService implements OnModuleInit {
     return this.getManagerStoreCommissions();
   }
 
+  private cacheDashboardOverview(nickname: string, payload: unknown) {
+    if (payload) {
+      this.dashboardOverviewCache = { nickname, at: Date.now(), payload };
+    }
+    return payload;
+  }
+
   getDashboardOverview(nickname: string) {
     const user = this.demoUsers.find((item) => item.nickname === nickname);
     if (!user) {
       return null;
+    }
+    const cacheHit = this.dashboardOverviewCache;
+    if (
+      cacheHit &&
+      cacheHit.nickname === nickname &&
+      Date.now() - cacheHit.at < AuthService.DASHBOARD_OVERVIEW_CACHE_MS
+    ) {
+      return cacheHit.payload;
     }
     this.ensureActiveShiftForToday();
 
@@ -1514,7 +1531,7 @@ export class AuthService implements OnModuleInit {
           salaries: this.formatCurrency(salaries),
         };
       });
-      return {
+      return this.cacheDashboardOverview(nickname, {
         role: user.role,
         sellerDataManagedByAdmin: true,
         title: user.role === 'DIRECTOR' ? 'Сводка директора' : 'Сводка бухгалтера',
@@ -1524,7 +1541,7 @@ export class AuthService implements OnModuleInit {
           { label: 'Выплаты персоналу', value: this.formatCurrency(Math.round(totalCommission)) },
         ],
         stores: storeRows,
-      };
+      });
     }
 
     if (user.role === 'MANAGER') {
@@ -1557,7 +1574,7 @@ export class AuthService implements OnModuleInit {
           return { storeName, planRub, actualRub, hasPlan, met, progressPct };
         }),
       };
-      return {
+      return this.cacheDashboardOverview(nickname, {
         role: user.role,
         sellerDataManagedByAdmin: true,
         title: 'Сводка управляющего',
@@ -1570,7 +1587,7 @@ export class AuthService implements OnModuleInit {
         ],
         stores: storeRows,
         managerRevenuePlanCompliance,
-      };
+      });
     }
 
     if (user.role === 'ADMIN') {
@@ -1654,7 +1671,7 @@ export class AuthService implements OnModuleInit {
           })
           .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
 
-      return {
+      return this.cacheDashboardOverview(nickname, {
         role: user.role,
         sellerDataManagedByAdmin: true,
         title: user.storeName,
@@ -1673,7 +1690,7 @@ export class AuthService implements OnModuleInit {
           },
         ],
         sellerRegister,
-      };
+      });
     }
 
     if (user.role === 'RETOUCHER') {
@@ -2453,6 +2470,7 @@ export class AuthService implements OnModuleInit {
       'SALE_CREATED',
       `sale=${sale.id}, seller=${seller.fullName}, total=${totalAmount}, pay=${paymentType}`,
     );
+    this.dashboardOverviewCache = null;
     this.queueIncremental(() => this.persistIncrementalSale(sale, sellerId, storeKey));
     return sale;
   }
@@ -3615,12 +3633,9 @@ export class AuthService implements OnModuleInit {
     if (!this.persistenceEnabled) {
       return;
     }
-    this.persistChain = this.persistChain
-      .then(job)
-      .catch((error: unknown) => {
-        this.logger.error('Incremental persist failed, scheduling full snapshot', error as Error);
-        this.queuePersist();
-      });
+    this.persistChain = this.persistChain.then(job).catch((error: unknown) => {
+      this.logger.error('Incremental persist failed', error as Error);
+    });
   }
 
   private async persistAppStateSlice(tx: Prisma.TransactionClient) {
