@@ -4850,4 +4850,185 @@ export class AuthService implements OnModuleInit {
       }
     });
   }
+
+  /** Перенос снимка с Render (HTTP) → PostgreSQL на Timeweb. */
+  async applyRenderMigrationSnapshot(snapshot: {
+    financeOps?: {
+      accounts?: Array<{ id: string; name: string; kind: 'CASH' | 'BANK'; balance: number }>;
+      expenses?: Array<{
+        id: string;
+        createdAt: string;
+        title: string;
+        amount: number;
+        comment?: string;
+        createdBy: string;
+        accountId: string;
+        accountName: string;
+      }>;
+      incomes?: Array<{
+        id: string;
+        createdAt: string;
+        workDay: string;
+        amount: number;
+        comment?: string;
+        createdBy: string;
+        accountId: string;
+        accountName: string;
+      }>;
+      categoryAmounts?: Array<{ title: string; amount: number }>;
+    };
+    sales?: Array<{
+      id: string;
+      createdAt: string;
+      sellerId: number;
+      totalAmount: number;
+      units: number;
+      items?: Array<{ name: string; qty: number }>;
+      paymentType?: SalePaymentType;
+    }>;
+    sellers?: Array<{
+      id: number;
+      fullName: string;
+      nickname: string;
+      storeName: string;
+      ratePercent: number;
+    }>;
+    staff?: StaffMember[];
+    shifts?: Shift[];
+    writeOffs?: WriteOffItem[];
+    products?: Array<{ name: string; price: number }>;
+    procurementCosts?: Array<{ name: string; cost: number }>;
+  }): Promise<{ sales: number; expenses: number; incomes: number }> {
+    if (!this.persistenceEnabled) {
+      throw new Error('DATABASE_URL is required for migration');
+    }
+    const fo = snapshot.financeOps;
+    if (fo?.accounts?.length) {
+      this.financeAccounts = fo.accounts.map((a) => ({
+        id: a.id,
+        name: a.name,
+        kind: a.kind,
+        balance: Number(a.balance) || 0,
+      }));
+    }
+    if (fo?.expenses) {
+      this.financeExpenses = fo.expenses.map((e) => ({
+        id: e.id,
+        createdAt: e.createdAt,
+        title: e.title,
+        amount: Number(e.amount) || 0,
+        comment: e.comment,
+        createdBy: e.createdBy,
+        accountId: e.accountId,
+        accountName: e.accountName,
+      }));
+    }
+    if (fo?.incomes) {
+      this.financeIncomes = fo.incomes.map((i) => ({
+        id: i.id,
+        createdAt: i.createdAt,
+        workDay: i.workDay,
+        amount: Number(i.amount) || 0,
+        comment: i.comment,
+        createdBy: i.createdBy,
+        accountId: i.accountId,
+        accountName: i.accountName,
+      }));
+    }
+    if (fo?.categoryAmounts?.length) {
+      const map: Record<string, number> = {};
+      for (const row of fo.categoryAmounts) {
+        if (isFinanceExpenseCategoryLabel(row.title)) {
+          map[row.title] = Number(row.amount) || 0;
+        }
+      }
+      this.financeExpenseCategoryAmounts = normalizeFinanceCategoryAmounts(map);
+    }
+
+    const salesBySeller = new Map<number, SaleRecord[]>();
+    for (const sale of snapshot.sales ?? []) {
+      const sellerId = Number(sale.sellerId);
+      if (!Number.isFinite(sellerId)) {
+        continue;
+      }
+      const pt: SalePaymentType =
+        sale.paymentType === 'NON_CASH' || sale.paymentType === 'TRANSFER'
+          ? sale.paymentType
+          : 'CASH';
+      const list = salesBySeller.get(sellerId) ?? [];
+      list.push({
+        id: String(sale.id),
+        createdAt: String(sale.createdAt),
+        items: (sale.items ?? []).map((line) => ({
+          name: String(line.name).trim(),
+          qty: Number(line.qty) || 0,
+        })),
+        totalAmount: Number(sale.totalAmount) || 0,
+        units: Number(sale.units) || 0,
+        paymentType: pt,
+      });
+      salesBySeller.set(sellerId, list);
+    }
+
+    const sellers = snapshot.sellers ?? [];
+    this.sellerProfiles = sellers.map((s) => {
+      const sales = (salesBySeller.get(s.id) ?? []).sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+      const profile: SellerProfile = {
+        id: s.id,
+        fullName: s.fullName,
+        nickname: s.nickname,
+        storeName: s.storeName,
+        ratePercent: Number(s.ratePercent) || 0,
+        salesAmount: 0,
+        checksCount: 0,
+        sales,
+        commissionAmount: 0,
+      };
+      this.recomputeSeller(profile);
+      return profile;
+    });
+
+    if (snapshot.staff?.length) {
+      this.staff = snapshot.staff.map((m) => ({
+        ...m,
+        earningsAmount: m.earningsAmount ?? 0,
+      }));
+    }
+    if (snapshot.shifts?.length) {
+      this.shiftHistory = snapshot.shifts;
+      const open = this.shiftHistory.find((s) => s.status === 'OPEN');
+      this.currentShiftId = open?.id ?? null;
+    }
+    if (snapshot.writeOffs?.length) {
+      this.adminWriteOffs = snapshot.writeOffs;
+    }
+    if (snapshot.products?.length) {
+      this.productCatalog = snapshot.products.map((p) => ({
+        name: String(p.name).trim(),
+        price: Number(p.price) || 0,
+      }));
+    }
+    if (snapshot.procurementCosts?.length) {
+      const map: Record<string, number> = {};
+      for (const row of snapshot.procurementCosts) {
+        const name = String(row.name).trim();
+        if (name) {
+          map[name] = Number(row.cost) || 0;
+        }
+      }
+      this.productProcurementCosts = map;
+    }
+
+    this.dashboardOverviewCache = null;
+    await this.persistState();
+    await this.loadState();
+
+    return {
+      sales: (snapshot.sales ?? []).length,
+      expenses: this.financeExpenses.length,
+      incomes: this.financeIncomes.length,
+    };
+  }
 }

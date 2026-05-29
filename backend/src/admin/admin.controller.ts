@@ -545,6 +545,22 @@ export class AdminController {
     return this.authService.getFinanceOpsSnapshot() as unknown;
   }
 
+  /** Одноразовый перенос с Render (снимок с GET-эндпоинтов). Только директор. */
+  @Post('migrate/render-snapshot')
+  async migrateRenderSnapshot(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: Record<string, unknown>,
+  ) {
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'DIRECTOR') {
+      throw new ForbiddenException('Только директор может запускать перенос');
+    }
+    const result = await this.authService.applyRenderMigrationSnapshot(
+      body as Parameters<AuthService['applyRenderMigrationSnapshot']>[0],
+    );
+    return { ok: true, ...result };
+  }
+
   @Put('finance/expense-category-amount')
   setFinanceExpenseCategoryAmount(
     @Headers('authorization') authorization: string | undefined,
