@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
-# Экспорт БД Render прямо на VPS (Docker уже установлен). Без Mac и без scp.
+# Экспорт БД Render на VPS. Подбирает образ pg_dump под версию сервера.
 #
-# На сервере:
-#   export RENDER_DATABASE_URL='postgresql://...'   # Render → PostgreSQL → External URL
+#   export RENDER_DATABASE_URL='postgresql://...'
 #   /opt/sales-platform/scripts/timeweb/export-on-server.sh
-#   /opt/sales-platform/scripts/timeweb/import-on-server.sh
 set -euo pipefail
 
 if [[ -z "${RENDER_DATABASE_URL:-}" ]]; then
@@ -13,10 +11,47 @@ if [[ -z "${RENDER_DATABASE_URL:-}" ]]; then
 fi
 
 OUT="/opt/sales-platform/backup.dump"
-# Render = PG 16.3. Нужен pg_dump 16.x (17 не дампит 16; зеркало Timeweb иногда отдаёт pg_dump 15 под тегом 16-alpine).
-PG_IMAGE="${PG_DUMP_IMAGE:-docker.io/library/postgres:16.6-alpine}"
+PROBE_IMAGE="${PG_PROBE_IMAGE:-docker.io/library/postgres:16.6-alpine}"
 
-echo "Экспорт с Render в $OUT (образ $PG_IMAGE) ..."
+pick_dump_image() {
+  local major="$1"
+  case "$major" in
+    10) echo "docker.io/library/postgres:10.23-alpine" ;;
+    11) echo "docker.io/library/postgres:11.22-alpine" ;;
+    12) echo "docker.io/library/postgres:12.22-alpine" ;;
+    13) echo "docker.io/library/postgres:13.16-alpine" ;;
+    14) echo "docker.io/library/postgres:14.13-alpine" ;;
+    15) echo "docker.io/library/postgres:15.10-alpine" ;;
+    16) echo "docker.io/library/postgres:16.6-alpine" ;;
+    17) echo "docker.io/library/postgres:17.2-alpine" ;;
+    *)
+      echo "Неизвестная major-версия: $major" >&2
+      exit 1
+      ;;
+  esac
+}
+
+if [[ -n "${PG_DUMP_IMAGE:-}" ]]; then
+  PG_IMAGE="$PG_DUMP_IMAGE"
+  echo "Используем PG_DUMP_IMAGE=$PG_IMAGE"
+else
+  echo "Определяем версию PostgreSQL на Render..."
+  docker pull "$PROBE_IMAGE" >/dev/null
+  VERSION="$(
+    docker run --rm -e RENDER_DATABASE_URL "$PROBE_IMAGE" \
+      psql "$RENDER_DATABASE_URL" -tAc "SHOW server_version;" | tr -d '[:space:]'
+  )"
+  if [[ -z "$VERSION" ]]; then
+    echo "Не удалось подключиться к Render. Проверьте RENDER_DATABASE_URL и что база Available."
+    exit 1
+  fi
+  MAJOR="${VERSION%%.*}"
+  echo "Render PostgreSQL: $VERSION (major $MAJOR)"
+  PG_IMAGE="$(pick_dump_image "$MAJOR")"
+  echo "Образ для pg_dump: $PG_IMAGE"
+fi
+
+echo "Экспорт в $OUT ..."
 docker pull "$PG_IMAGE"
 docker run --rm "$PG_IMAGE" pg_dump --version
 
