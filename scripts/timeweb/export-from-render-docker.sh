@@ -19,11 +19,13 @@ mkdir -p "$OUT_DIR"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 FILE="$OUT_DIR/render-${STAMP}.dump"
 
-echo "Экспорт в $FILE (через Docker) ..."
+PG_IMAGE="${PG_DUMP_IMAGE:-postgres:17-alpine}"
+echo "Экспорт в $FILE (через Docker, $PG_IMAGE) ..."
+docker pull "$PG_IMAGE"
 docker run --rm \
   -e RENDER_DATABASE_URL \
   -v "$OUT_DIR:/backups" \
-  postgres:16-alpine \
+  "$PG_IMAGE" \
   sh -c 'pg_dump "$RENDER_DATABASE_URL" -Fc --no-owner --no-acl -f "/backups/render-'"$STAMP"'.dump"'
 
 echo "Готово: $FILE"
