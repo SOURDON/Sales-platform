@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Кладёт ярлыки перезапуска на рабочий стол (macOS).
+# Кладёт ярлыки перезапуска в папку «работа над приложением» (macOS).
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-TARGET_DEV="$HOME/Desktop/Перезапуск Фотографы (dev).command"
-TARGET_APP="$HOME/Desktop/Перезапуск Fotografy.command"
+# shellcheck source=lib/desktop-work-dir.sh
+source "$REPO/scripts/lib/desktop-work-dir.sh"
+TARGET_DEV="$DESKTOP_WORK_DIR/Перезапуск Фотографы (dev).command"
+TARGET_APP="$DESKTOP_WORK_DIR/Перезапуск Fotografy.command"
+SRC_APP="$REPO/scripts/mac/Перезапуск-Fotografy.command"
 RESTART_DEV="$REPO/scripts/restart-desktop-dev.sh"
 RESTART_APP="$REPO/scripts/restart-desktop-installed.sh"
 
@@ -31,7 +34,12 @@ EOF
   chmod +x "$target"
 }
 
-write_shortcut "$TARGET_APP" "$RESTART_APP"
+if [[ -f "$SRC_APP" ]]; then
+  cp "$SRC_APP" "$TARGET_APP"
+  chmod +x "$TARGET_APP"
+else
+  write_shortcut "$TARGET_APP" "$RESTART_APP"
+fi
 write_shortcut "$TARGET_DEV" "$RESTART_DEV"
 
 echo "Готово."

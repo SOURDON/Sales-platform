@@ -230,6 +230,12 @@ interface DirectorApprovalPayloadMem {
   name?: string;
   qty?: number;
   reason?: string;
+  totalAmount?: number;
+  units?: number;
+  items?: Array<{ name: string; qty: number }>;
+  sellerId?: number;
+  sellerName?: string;
+  sellerNickname?: string;
 }
 
 interface DirectorApprovalRequestMem {
@@ -1690,17 +1696,18 @@ export class AuthService implements OnModuleInit {
         }
         return total;
       };
-      const sellerRegister: Array<{ staffId: number; fullName: string; cash: string }> =
+      const sellerRegister: Array<{ staffId: number; fullName: string; nickname: string; cash: string }> =
         inOpenShiftIds
           .map((staffId) => {
             const member = this.staff.find((m) => m.id === staffId);
             const profile = this.sellerProfiles.find((p) => p.id === staffId);
             const fullName = member?.fullName ?? profile?.fullName ?? `Сотрудник #${staffId}`;
+            const nickname = member?.nickname ?? profile?.nickname ?? '';
             const cash =
               member?.staffPosition === 'RETOUCHER'
                 ? this.formatCurrency(Math.round(member.earningsAmount))
                 : this.formatCurrency(Math.round(sellerRegisterToday(staffId)));
-            return { staffId, fullName, cash };
+            return { staffId, fullName, nickname, cash };
           })
           .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
 
@@ -2132,7 +2139,34 @@ export class AuthService implements OnModuleInit {
   private describeDirectorApproval(row: DirectorApprovalRequestMem): string {
     if (row.kind === 'SALE_DELETE') {
       const sid = row.payload.saleId ?? row.id;
-      return `Отмена продажи — «${row.storeName}», от ${row.requestedByNickname}. Чек: ${sid}`;
+      const store = row.storeName?.trim() || '—';
+      const sellerName = row.payload.sellerName?.trim() || '';
+      const sellerNick = row.payload.sellerNickname?.trim() || '';
+      const sellerLabel = sellerName
+        ? sellerNick
+          ? `${sellerName} · ${sellerNick}`
+          : sellerName
+        : row.requestedByNickname;
+      const amount =
+        typeof row.payload.totalAmount === 'number'
+          ? `${Math.round(row.payload.totalAmount).toLocaleString('ru-RU')} ₽`
+          : null;
+      const units =
+        typeof row.payload.units === 'number' ? `${row.payload.units} шт.` : null;
+      const parts = [`«${store}»`, `продавец: ${sellerLabel}`];
+      if (amount) {
+        parts.push(`сумма: ${amount}`);
+      }
+      if (units) {
+        parts.push(`кол-во: ${units}`);
+      }
+      const lines = row.payload.items ?? [];
+      if (lines.length > 0) {
+        parts.push(
+          lines.map((line) => `${line.name} × ${line.qty}`).join(', '),
+        );
+      }
+      return `Отмена продажи — ${parts.join(' · ')}. Чек: ${sid}`;
     }
     const n = row.payload.name ?? '';
     const q = row.payload.qty ?? 0;
@@ -2261,6 +2295,7 @@ export class AuthService implements OnModuleInit {
     ) {
       return null;
     }
+    const sale = hit.seller.sales[hit.idx];
     const row: DirectorApprovalRequestMem = {
       id: `dap-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
       createdAt: new Date().toISOString(),
@@ -2268,7 +2303,15 @@ export class AuthService implements OnModuleInit {
       state: 'PENDING',
       requestedByNickname: actorNickname,
       storeName: admin.storeName,
-      payload: { saleId: sid },
+      payload: {
+        saleId: sid,
+        totalAmount: sale.totalAmount,
+        units: sale.units,
+        items: sale.items.map((line) => ({ name: line.name, qty: line.qty })),
+        sellerId: hit.seller.id,
+        sellerName: hit.seller.fullName,
+        sellerNickname: hit.seller.nickname,
+      },
     };
     this.directorApprovalRequests.unshift(row);
     this.pushAudit(actorNickname, 'SALE_DELETE_REQUESTED', `sale=${sid}, store=${admin.storeName}`);

@@ -38,7 +38,11 @@ jobs:
       - name: Prepare desktop env (production API)
         shell: bash
         run: |
-          echo 'VITE_API_URL=http://77.233.223.48' > desktop/.env
+          VERSION=$(node -pe "JSON.parse(require('fs').readFileSync('desktop/src-tauri/tauri.conf.json','utf8')).version")
+          {
+            echo 'VITE_API_URL=http://77.233.223.48'
+            echo "VITE_APP_VERSION=${VERSION}"
+          } > desktop/.env
 
       - name: Smoke API
         shell: bash

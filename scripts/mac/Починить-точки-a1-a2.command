@@ -2,7 +2,7 @@
 # Двойной клик на Mac: починить a1/a2 на Timeweb + проверка.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# С рабочего стола $0 — Desktop/….command; репозиторий обычно здесь:
+# Запуск из «работа над приложением» или из репозитория:
 REPO="${SALES_PLATFORM_ROOT:-$HOME/Projects/Sales-platform}"
 if [[ ! -f "$REPO/scripts/repair-missing-demo-admins.sh" ]]; then
   # Запуск из репозитория: scripts/mac/….command

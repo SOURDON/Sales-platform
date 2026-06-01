@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readAppVersion } from './read-app-version.mjs';
 
 const DEV_HOST = '127.0.0.1';
 const DEV_PORT = 5173;
@@ -41,8 +42,16 @@ if (apiUrl.includes('onrender.com')) {
   apiUrl = TIMEWEB_API;
 }
 
-const env = { ...process.env, VITE_API_URL: apiUrl };
+const appVersion = readAppVersion();
+const env = {
+  ...process.env,
+  VITE_API_URL: apiUrl,
+  ...(appVersion ? { VITE_APP_VERSION: appVersion } : {}),
+};
 console.log(`[dev-frontend] API Timeweb → ${apiUrl}`);
+if (appVersion) {
+  console.log(`[dev-frontend] Версия: ${appVersion}`);
+}
 
 console.log(`[dev-frontend] http://${DEV_HOST}:${DEV_PORT}/ (strictPort — освободите порт, если занят)`);
 

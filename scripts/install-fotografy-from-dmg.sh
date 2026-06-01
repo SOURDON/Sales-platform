@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Ставит Fotografy.app на рабочий стол из последнего .dmg в desktop/dist.
+# Ставит Fotografy.app в «работа над приложением» из последнего .dmg в desktop/dist.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-DEST="${1:-$HOME/Desktop/Fotografy.app}"
+# shellcheck source=lib/desktop-work-dir.sh
+source "$REPO/scripts/lib/desktop-work-dir.sh"
+DEST="${1:-$DESKTOP_WORK_DIR/Fotografy.app}"
 DMG="$(ls -t "$REPO"/desktop/dist/Fotografy_*.dmg 2>/dev/null | head -1)"
 
 if [[ -z "$DMG" ]]; then

@@ -1,0 +1,14 @@
+---
+description: Куда класть файлы для пользователя на Mac (не корень Desktop)
+alwaysApply: true
+---
+
+# Папка «работа над приложением»
+
+На Mac все доставляемые пользователю файлы проекта Fotografy/Sales-platform кладите в:
+
+`~/Desktop/работа над приложением`
+
+Не в корень `~/Desktop`.
+
+Используйте `scripts/lib/desktop-work-dir.sh` (`$DESKTOP_WORK_DIR`) и `scripts/install-work-folder-shortcuts.sh` после сборки .dmg.

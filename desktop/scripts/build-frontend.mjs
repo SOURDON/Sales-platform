@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readAppVersion } from './read-app-version.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(__dirname, '..');
@@ -43,12 +44,17 @@ if (String(apiUrl).includes('onrender.com')) {
   console.warn(`[build-frontend] Render → Timeweb: ${TIMEWEB_API}`);
   apiUrl = TIMEWEB_API;
 }
+const appVersion = readAppVersion();
 const env = {
   ...process.env,
   ...fromFrontend,
   ...fromDesktop,
   VITE_API_URL: apiUrl,
+  ...(appVersion ? { VITE_APP_VERSION: appVersion } : {}),
 };
+if (appVersion) {
+  console.log(`[build-frontend] Версия приложения: ${appVersion}`);
+}
 
 const isWin = process.platform === 'win32';
 const result = spawnSync(isWin ? 'npm.cmd' : 'npm', ['run', 'build'], {

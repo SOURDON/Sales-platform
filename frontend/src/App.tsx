@@ -7,6 +7,7 @@ import { ChatOfflineNotice } from './desktop/ChatOfflineNotice';
 import { ConnectionBanner } from './desktop/ConnectionBanner';
 import { DesktopAppLayout } from './desktop/DesktopAppLayout';
 import { DirectorAccountSwitcher } from './desktop/DirectorAccountSwitcher';
+import { appVersionLabel } from './appVersion';
 import { isTauriRuntime } from './desktop/tauri';
 import {
   applyDesktopTheme,
@@ -373,11 +374,12 @@ function buildAdminHomeDashboard(
       const member = staff.find((m) => m.id === staffId);
       const seller = sellers.find((s) => s.id === staffId);
       const fullName = member?.fullName ?? seller?.fullName ?? `Сотрудник #${staffId}`;
+      const nickname = member?.nickname ?? seller?.nickname ?? '';
       const cash =
         member?.staffPosition === 'RETOUCHER'
           ? formatRub(Math.round(member.earningsAmount))
           : formatRub(sellerRegisterToday(staffId));
-      return { staffId, fullName, cash };
+      return { staffId, fullName, nickname, cash };
     })
     .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru-RU'));
 
@@ -434,7 +436,7 @@ type DashboardResponse = {
     qty: number;
     reason: 'Брак' | 'Поломка';
   }>;
-  sellerRegister?: Array<{ staffId: number; fullName: string; cash: string }>;
+  sellerRegister?: Array<{ staffId: number; fullName: string; nickname: string; cash: string }>;
 };
 
 type SellerProfile = {
@@ -591,6 +593,66 @@ type MessengerLine = {
   authorNickname: string;
   outgoing: boolean;
 };
+
+/** Новые продажи сверху; офлайн-очередь в общем порядке по времени, не в конце списка. */
+function sortSalesByCreatedAtDesc(rows: AdminSale[]): AdminSale[] {
+  return [...rows].sort(
+    (a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
+  );
+}
+
+/** Имя сотрудника и ник (если есть) для списков продаж и касс. */
+function formatPersonWithNickname(fullName: string, nickname?: string | null): string {
+  const name = fullName.trim();
+  const nick = nickname?.trim();
+  if (!name) {
+    return nick ?? '';
+  }
+  return nick ? `${name} · ${nick}` : name;
+}
+
+function sellerLabelFromProfiles(
+  sellers: SellerProfile[],
+  sellerId: number,
+  sellerName: string,
+): string {
+  const seller = sellers.find((item) => item.id === sellerId);
+  return formatPersonWithNickname(sellerName, seller?.nickname);
+}
+
+function formatSaleDeleteApprovalSummary(item: DirectorControlRequest): string {
+  const payload = item.payload;
+  const store = item.storeName?.trim() || '—';
+  const sellerName = typeof payload.sellerName === 'string' ? payload.sellerName : '';
+  const sellerNick =
+    typeof payload.sellerNickname === 'string' ? payload.sellerNickname : '';
+  const sellerLabel = sellerName
+    ? formatPersonWithNickname(sellerName, sellerNick)
+    : item.requestedByNickname;
+  const amount =
+    typeof payload.totalAmount === 'number'
+      ? `${Math.round(payload.totalAmount).toLocaleString('ru-RU')} ₽`
+      : null;
+  const units = typeof payload.units === 'number' ? `${payload.units} шт.` : null;
+  const lines = Array.isArray(payload.items)
+    ? (payload.items as Array<{ name?: string; qty?: number }>)
+    : [];
+  const parts = [`«${store}»`, `продавец: ${sellerLabel}`];
+  if (amount) {
+    parts.push(`сумма: ${amount}`);
+  }
+  if (units) {
+    parts.push(`кол-во: ${units}`);
+  }
+  if (lines.length > 0) {
+    parts.push(lines.map((line) => `${line.name ?? '?'} × ${line.qty ?? 0}`).join(', '));
+  }
+  if (parts.length <= 2 && !amount && !units) {
+    return item.summary;
+  }
+  const sid = typeof payload.saleId === 'string' ? payload.saleId : item.id;
+  return `${parts.join(' · ')}. Чек: ${sid}`;
+}
 
 function offlineQueueToAdminSales(queue: OfflineQueuedSale[], sellers: SellerProfile[]): AdminSale[] {
   return queue.map((q) => {
@@ -1404,7 +1466,7 @@ function App() {
   );
 
   const salesMerged = useMemo(
-    () => [...sales, ...pendingOfflineSales],
+    () => sortSalesByCreatedAtDesc([...sales, ...pendingOfflineSales]),
     [sales, pendingOfflineSales],
   );
 
@@ -3689,6 +3751,7 @@ function App() {
   );
 
   if (!session) {
+    const loginVersionLabel = isDesktopShell ? appVersionLabel() : null;
     return (
       <main className={`app loginScreen${isDesktopShell ? ' app--desktop' : ''}`}>
         {isDesktopShell ? (
@@ -3757,6 +3820,11 @@ function App() {
             </button>
           </form>
         </section>
+        {loginVersionLabel ? (
+          <p className="loginAppVersion" role="status">
+            {loginVersionLabel}
+          </p>
+        ) : null}
       </main>
     );
   }
@@ -3968,7 +4036,9 @@ function App() {
                                   <ul>
                                     {homeDashboard.sellerRegister.map((row) => (
                                       <li key={row.staffId}>
-                                        <span className="adminSellerRegisterName">{row.fullName}</span>
+                                        <span className="adminSellerRegisterName">
+                                          {formatPersonWithNickname(row.fullName, row.nickname)}
+                                        </span>
                                         <span className="adminSellerRegisterAmount">{row.cash}</span>
                                       </li>
                                     ))}
@@ -4212,7 +4282,7 @@ function App() {
                                     >
                                       <p className="saleHeader">
                                         <strong>{new Date(sale.createdAt).toLocaleTimeString('ru-RU')}</strong> –{' '}
-                                        {sale.sellerName}
+                                        {sellerLabelFromProfiles(sellers, sale.sellerId, sale.sellerName)}
                                         {sale.pendingSync ? (
                                           <span className="salePendingBadge"> нет сети · отправится позже</span>
                                         ) : null}
@@ -5229,7 +5299,11 @@ function DirectorHomeApprovalsCarousel({
       <p className="directorApprovalsCarouselKind">
         {item.kind === 'SALE_DELETE' ? 'Отмена продажи' : 'Списание товара'}
       </p>
-      <p className="directorApprovalsCarouselSummary">{item.summary}</p>
+      <p className="directorApprovalsCarouselSummary">
+        {item.kind === 'SALE_DELETE'
+          ? formatSaleDeleteApprovalSummary(item)
+          : item.summary}
+      </p>
       <p className="directorApprovalsCarouselMeta">{formatApprovalTime(item.createdAt)}</p>
       <div className="directorApprovalsCarouselActions">
         <button
@@ -7518,7 +7592,7 @@ function ShiftPanel({
           <label
             key={member.id}
             className="shiftSellerRow"
-            title={`${member.fullName} (${member.storeName})`}
+            title={`${formatPersonWithNickname(member.fullName, member.nickname)} (${member.storeName})`}
           >
             <span className="shiftSellerControl">
               <input
@@ -7530,7 +7604,12 @@ function ShiftPanel({
               />
             </span>
             <span className="shiftSellerText">
-              <span className="shiftSellerName">{member.fullName}</span>
+              <span className="shiftSellerName">
+                {member.fullName}
+                {member.nickname?.trim() ? (
+                  <span className="teamMemberNick"> ({member.nickname})</span>
+                ) : null}
+              </span>
               <span className="shiftSellerStore">
                 {' '}
                 — {member.storeName} {member.staffPosition === 'RETOUCHER' ? '(ретушёр)' : '(продавец)'}

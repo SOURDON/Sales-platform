@@ -3,11 +3,14 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib/desktop-work-dir.sh
+source "$REPO/scripts/lib/desktop-work-dir.sh"
 INSTALL_SCRIPT="$REPO/scripts/install-fotografy-from-dmg.sh"
 
 find_app() {
   local candidate
   for candidate in \
+    "$DESKTOP_WORK_DIR/Fotografy.app" \
     "$HOME/Desktop/Fotografy.app" \
     "/Applications/Fotografy.app" \
     "$HOME/Applications/Fotografy.app"; do
@@ -37,13 +40,13 @@ sleep 1
 
 APP="$(find_app || true)"
 if [[ -z "$APP" ]]; then
-  echo "Fotografy.app не найден — ставим на рабочий стол из последнего .dmg…"
+  echo "Fotografy.app не найден — ставим в «работа над приложением» из последнего .dmg…"
   if [[ ! -x "$INSTALL_SCRIPT" ]]; then
     echo "Не найден: $INSTALL_SCRIPT" >&2
     exit 1
   fi
-  bash "$INSTALL_SCRIPT" "$HOME/Desktop/Fotografy.app"
-  APP="$HOME/Desktop/Fotografy.app"
+  bash "$INSTALL_SCRIPT" "$DESKTOP_WORK_DIR/Fotografy.app"
+  APP="$DESKTOP_WORK_DIR/Fotografy.app"
 fi
 
 if [[ ! -d "$APP" ]]; then

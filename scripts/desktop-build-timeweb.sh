@@ -39,6 +39,6 @@ fi
 DESKTOP_BUILD_SKIP_CONFIRM=1 DESKTOP_BUILD_SKIP_SMOKE=1 bash "$REPO/scripts/desktop-build.sh"
 
 echo ""
-echo "Готово. Установите: bash scripts/install-fotografy-from-dmg.sh"
-echo "Или дважды: Перезапуск Fotografy.command на рабочем столе"
+echo "Готово. Установите: bash scripts/install-work-folder-shortcuts.sh"
+echo "Или дважды: «Перезапуск Fotografy.command» в ~/Desktop/работа над приложением"
 echo "Вход: director / Bufet000"

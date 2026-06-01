@@ -66,6 +66,10 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   if [[ -n "$DMG" ]]; then
     cp "$DMG" "$OUT_DIR/"
     echo "Скопировано в $OUT_DIR/$(basename "$DMG")"
+    # shellcheck source=lib/desktop-work-dir.sh
+    source "$REPO/scripts/lib/desktop-work-dir.sh"
+    cp "$DMG" "$DESKTOP_WORK_DIR/"
+    echo "Копия .dmg: $DESKTOP_WORK_DIR/$(basename "$DMG")"
   else
     echo "Ошибка: .dmg не найден после tauri build (проверьте target/ или CARGO_TARGET_DIR)"
     exit 1
@@ -81,3 +85,6 @@ else
   fi
 fi
 echo "Инструкция для пользователей: docs/DESKTOP_USER_GUIDE.md"
+if [[ "$(uname -s)" == "Darwin" && "${DESKTOP_BUILD_SKIP_WORK_FOLDER:-}" != "1" ]]; then
+  bash "$REPO/scripts/install-work-folder-shortcuts.sh" || true
+fi
