@@ -45,6 +45,8 @@ import { getDefaultDemoPassword } from './demo-password';
 import {
   CENTRAL_WAREHOUSE_LOCATION_KEY,
   DEMO_STORE_NAMES,
+  MANAGER_ASSIGNED_STORE_NAMES,
+  MANAGER_USER_NICKNAME,
   WAREHOUSE_KEYS,
   WAREHOUSE_SADY_KEY,
   WAREHOUSES,
@@ -282,6 +284,25 @@ interface StaffMember {
 interface StoreStaffAssignment {
   storeName: string;
   staffId: number;
+}
+
+type StaffMigrationRow = StaffMember & {
+  storeName?: string;
+  assignedStores?: string[];
+};
+
+function staffStoresFromMigrationRow(row: StaffMigrationRow): string[] {
+  if (Array.isArray(row.assignedStores) && row.assignedStores.length > 0) {
+    return [...row.assignedStores];
+  }
+  const home = row.storeName?.trim();
+  if (home && home !== 'Все точки') {
+    return [home];
+  }
+  if (row.staffPosition === 'MANAGER' || row.nickname === MANAGER_USER_NICKNAME) {
+    return [...MANAGER_ASSIGNED_STORE_NAMES];
+  }
+  return [];
 }
 
 interface ThresholdNotification {
@@ -2709,10 +2730,18 @@ export class AuthService implements OnModuleInit {
     this.reconcileOpenShiftAssignees();
     return this.staff.map((member) => {
       const u = this.demoUsers.find((d) => d.id === member.id);
-      const assignedStores = this.storeStaffAssignments
+      let assignedStores = this.storeStaffAssignments
         .filter((item) => item.staffId === member.id)
         .map((item) => item.storeName)
         .sort((a, b) => a.localeCompare(b, 'ru-RU'));
+      if (assignedStores.length === 0) {
+        const home = u?.storeName?.trim() ?? '';
+        if (member.staffPosition === 'MANAGER' || member.nickname === MANAGER_USER_NICKNAME) {
+          assignedStores = [...MANAGER_ASSIGNED_STORE_NAMES];
+        } else if (home && home !== 'Все точки') {
+          assignedStores = [home];
+        }
+      }
       return {
         id: member.id,
         fullName: member.fullName,
@@ -4902,13 +4931,16 @@ export class AuthService implements OnModuleInit {
     }
 
     for (const member of staff) {
+      const row = member as StaffMigrationRow;
       const role: UserRole =
         member.staffPosition === 'RETOUCHER'
           ? 'RETOUCHER'
           : member.staffPosition === 'MANAGER'
             ? 'MANAGER'
             : 'SELLER';
+      const stores = staffStoresFromMigrationRow(row);
       const storeName =
+        stores[0] ??
         sellers.find((s) => s.id === member.id)?.storeName ??
         byId.get(member.id)?.storeName ??
         DEMO_STORE_NAMES[0];
@@ -5096,14 +5128,17 @@ export class AuthService implements OnModuleInit {
     }
 
     this.syncDemoUsersForRenderMigration(sellers, this.staff);
-    if (this.staff.length > 0) {
-      this.storeStaffAssignments = this.staff.map((member) => ({
-        staffId: member.id,
-        storeName:
-          sellers.find((s) => s.id === member.id)?.storeName ??
-          this.demoUsers.find((u) => u.id === member.id)?.storeName ??
-          DEMO_STORE_NAMES[0],
-      }));
+    const staffRows = (snapshot.staff ?? []) as StaffMigrationRow[];
+    this.storeStaffAssignments = [];
+    for (const row of staffRows) {
+      for (const storeName of staffStoresFromMigrationRow(row)) {
+        const exists = this.storeStaffAssignments.some(
+          (item) => item.staffId === row.id && item.storeName === storeName,
+        );
+        if (!exists) {
+          this.storeStaffAssignments.push({ staffId: row.id, storeName });
+        }
+      }
     }
 
     this.dashboardOverviewCache = null;

@@ -154,12 +154,17 @@ type StaffMember = {
   earningsAmount: number;
 };
 
-/** Точки сотрудника; до выката API со старыми клиентами — по домашней точке из профиля. */
+/** Точки сотрудника; если привязок нет — домашняя точка из профиля. */
 function staffAssignedStores(member: StaffMember): string[] {
-  if (Array.isArray(member.assignedStores)) {
-    return member.assignedStores;
+  const fromApi = Array.isArray(member.assignedStores) ? member.assignedStores : [];
+  if (fromApi.length > 0) {
+    return fromApi;
   }
-  return member.storeName ? [member.storeName] : [];
+  const home = member.storeName?.trim();
+  if (home && home !== 'Все точки') {
+    return [home];
+  }
+  return [];
 }
 
 /** Продавцы в открытой смене — по assignedShiftId (как на экране «Смена»), не только assignedSellerIds. */
