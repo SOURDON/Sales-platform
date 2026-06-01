@@ -91,27 +91,27 @@ chmod +x /opt/sales-platform/scripts/timeweb/import-on-server.sh
 
 После импорта сид **не** запускайте повторно — данные уже на месте.
 
-## Часть 3 — HTTPS и домен
+## Часть 3 — Сайт на домене .ru (веб + API на Timeweb)
 
-Когда A-запись `api.ваш-домен.ru` указывает на IP:
+1. В DNS (Timeweb / Reg.ru): **A-запись** `@` → IP VPS, при необходимости `www` → тот же IP.
+2. В `deploy/timeweb/.env`:
+   ```text
+   SITE_DOMAIN=fotografy.ru
+   ACME_EMAIL=ваш@email.ru
+   ```
+3. На сервере:
+   ```bash
+   bash /opt/sales-platform/scripts/timeweb/enable-site-ru.sh
+   ```
+4. Откройте **https://fotografy.ru** (ваш `SITE_DOMAIN`).
 
-```bash
-cd /opt/sales-platform/deploy/timeweb
-cp Caddyfile.domain Caddyfile
-# в .env: API_DOMAIN=api.ваш-домен.ru и ACME_EMAIL=ваш@email.ru
-docker compose --env-file .env up -d caddy
-```
-
-Проверка: `https://api.ваш-домен.ru/health`
+Проверка: `https://ваш-домен.ru/health` → `{"ok":true}`
 
 ## Часть 4 — desktop и сотрудники
 
-Пересоберите desktop с новым API:
-
 ```bash
 # desktop/.env
-VITE_API_URL=https://api.ваш-домен.ru
-# или пока без домена: http://IP_СЕРВЕРА
+VITE_API_URL=https://ваш-домен.ru
 
 ./scripts/desktop-build.sh
 ```

@@ -1,0 +1,26 @@
+# Сайт + API на одном домене (.ru). Переменные из .env: SITE_DOMAIN, ACME_EMAIL
+# cp Caddyfile.site Caddyfile && docker compose up -d --build
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$SITE_DOMAIN} {
+	encode gzip
+
+	@api path /health /health* /auth /auth/* /admin /admin/* /director /director/* /dashboard /dashboard/*
+	handle @api {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# Редирект с www (опционально; задайте WWW_REDIRECT=1 в .env и раскомментируйте при необходимости)
+# www.{$SITE_DOMAIN} {
+# 	redir https://{$SITE_DOMAIN}{uri} permanent
+# }

@@ -1,5 +1,5 @@
-# Production stack для Timeweb VPS: PostgreSQL + API + Caddy (HTTPS).
-# Запуск из этой папки: docker compose --env-file .env up -d --build
+# Timeweb: PostgreSQL + API + сайт (React) + Caddy HTTPS.
+# cp env.example .env && nano .env  →  bash scripts/timeweb/enable-site-ru.sh
 
 services:
   postgres:
@@ -38,11 +38,17 @@ services:
       - npx prisma migrate deploy && node dist/src/main.js
 
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: ../..
+      dockerfile: deploy/timeweb/Dockerfile.caddy
     restart: unless-stopped
     ports:
       - '80:80'
       - '443:443'
+    env_file: .env
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

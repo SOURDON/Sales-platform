@@ -1,0 +1,15 @@
+# HTTP без домена (только IP): сайт + API на :80
+:80 {
+	encode gzip
+
+	@api path /health /health* /auth /auth/* /admin /admin/* /director /director/* /dashboard /dashboard/*
+	handle @api {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
+}
