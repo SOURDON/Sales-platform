@@ -7,6 +7,8 @@ export type {
 } from './types';
 export { flushOutbox, type FlushOutboxResult } from './flushOutbox';
 export {
+  getApiReachableDisplayed,
+  installApiReachabilityHook,
   isApiReachable,
   markApiReachableSuccess,
   resetApiReachabilityCache,

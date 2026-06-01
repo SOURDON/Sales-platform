@@ -1,79 +1,137 @@
-let cachedReachable: boolean | null = null;
-let cachedReachableAt = 0;
-const REACHABILITY_TTL_MS = 45_000;
+/**
+ * Доступность API для десктопа (Tauri).
+ *
+ * Принцип: «онлайн» по умолчанию; «офлайн» только после нескольких неудачных проверок
+ * и если давно не было успешных запросов. Любой успешный fetch к API снова включает «онлайн».
+ */
+
+const SUCCESS_GRACE_MS = 5 * 60_000;
+const OFFLINE_AFTER_FAILURES = 3;
+const PROBE_TIMEOUT_MS = 8_000;
+const DEFAULT_POLL_MS = 300_000;
+
+let lastApiSuccessAt = Date.now();
+let consecutiveProbeFailures = 0;
+let displayedReachable = true;
 
 const reachabilityListeners = new Set<(reachable: boolean) => void>();
 
+function shouldTreatAsOffline(): boolean {
+  if (Date.now() - lastApiSuccessAt < SUCCESS_GRACE_MS) {
+    return false;
+  }
+  return consecutiveProbeFailures >= OFFLINE_AFTER_FAILURES;
+}
+
 function emitReachability(reachable: boolean): void {
-  cachedReachable = reachable;
-  cachedReachableAt = Date.now();
+  if (displayedReachable === reachable) {
+    return;
+  }
+  displayedReachable = reachable;
   for (const listener of reachabilityListeners) {
     listener(reachable);
   }
 }
 
-/** Подписка на смену доступности API (в т.ч. после успешного запроса без /health). */
+function reconcileDisplayedReachability(): void {
+  emitReachability(!shouldTreatAsOffline());
+}
+
+/** Подписка на смену доступности API. */
 export function subscribeReachability(onChange: (reachable: boolean) => void): () => void {
   reachabilityListeners.add(onChange);
-  if (cachedReachable !== null) {
-    onChange(cachedReachable);
-  }
+  onChange(displayedReachable);
   return () => {
     reachabilityListeners.delete(onChange);
   };
 }
 
-/** Успешный API-запрос — считаем сеть доступной (не ждём отдельный /health). */
+/** Успешный ответ API — считаем сеть доступной. */
 export function markApiReachableSuccess(): void {
-  if (cachedReachable === true && Date.now() - cachedReachableAt < REACHABILITY_TTL_MS) {
-    return;
-  }
-  emitReachability(true);
+  lastApiSuccessAt = Date.now();
+  consecutiveProbeFailures = 0;
+  reconcileDisplayedReachability();
 }
 
 export function resetApiReachabilityCache(): void {
-  cachedReachable = null;
-  cachedReachableAt = 0;
+  lastApiSuccessAt = Date.now();
+  consecutiveProbeFailures = 0;
+  displayedReachable = true;
+  reconcileDisplayedReachability();
 }
 
-export async function isApiReachable(
-  apiBaseUrl: string,
-  timeoutMs = 5_000,
-): Promise<boolean> {
+export function getApiReachableDisplayed(): boolean {
+  return displayedReachable;
+}
+
+async function probeHealth(apiBaseUrl: string, timeoutMs = PROBE_TIMEOUT_MS): Promise<boolean> {
   const base = apiBaseUrl.replace(/\/$/, '');
   if (!base) {
     return false;
   }
-
-  const now = Date.now();
-  if (cachedReachable !== null && now - cachedReachableAt < REACHABILITY_TTL_MS) {
-    return cachedReachable;
-  }
-
-  const probe = async (): Promise<boolean> => {
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(`${base}/health`, {
-        method: 'GET',
-        signal: controller.signal,
-        cache: 'no-store',
-      });
-      if (!response.ok) {
-        return false;
-      }
-      const body = (await response.json()) as { ok?: boolean };
-      return body?.ok === true;
-    } catch {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${base}/health`, {
+      method: 'GET',
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!response.ok) {
       return false;
-    } finally {
-      window.clearTimeout(timer);
     }
-  };
+    const body = (await response.json()) as { ok?: boolean };
+    return body?.ok === true;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
 
-  const ok = await probe();
-  emitReachability(ok);
-  return ok;
+/** Для outbox: можно ли пробовать отправку (оптимистично при недавнем успехе). */
+export async function isApiReachable(apiBaseUrl: string): Promise<boolean> {
+  if (!shouldTreatAsOffline()) {
+    return true;
+  }
+  const ok = await probeHealth(apiBaseUrl);
+  if (ok) {
+    markApiReachableSuccess();
+    return true;
+  }
+  consecutiveProbeFailures += 1;
+  reconcileDisplayedReachability();
+  return false;
+}
+
+/** Патч fetch: любой успешный ответ нашего API → «на связи». */
+export function installApiReachabilityHook(apiBaseUrl: string): () => void {
+  const base = apiBaseUrl.replace(/\/$/, '');
+  if (!base || typeof window === 'undefined') {
+    return () => undefined;
+  }
+  const original = window.fetch.bind(window);
+  const patched: typeof fetch = async (input, init) => {
+    const response = await original(input, init);
+    try {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      if (url.startsWith(base) && response.ok) {
+        markApiReachableSuccess();
+      }
+    } catch {
+      /* ignore */
+    }
+    return response;
+  };
+  window.fetch = patched;
+  return () => {
+    window.fetch = original;
+  };
 }
 
 export type NetworkSubscription = {
@@ -81,14 +139,26 @@ export type NetworkSubscription = {
   dispose: () => void;
 };
 
-/** Периодический healthcheck; старт — оптимистично «онлайн», если браузер onLine. */
+export type SubscribeNetworkOptions = {
+  /** В Tauri navigator.onLine часто врёт — не переводить в офлайн по событию offline. */
+  ignoreNavigatorOffline?: boolean;
+  pollMs?: number;
+};
+
+/**
+ * Фоновые healthcheck'и; UI «офлайн» не включается от одного сбоя.
+ */
 export function subscribeNetwork(
   apiBaseUrl: string,
   onChange: (reachable: boolean) => void,
-  pollMs = 180_000,
+  options?: SubscribeNetworkOptions | number,
 ): NetworkSubscription {
-  let reachable =
-    typeof navigator === 'undefined' ? false : navigator.onLine;
+  const opts: SubscribeNetworkOptions =
+    typeof options === 'number' ? { pollMs: options } : (options ?? {});
+  const pollMs = opts.pollMs ?? DEFAULT_POLL_MS;
+  const ignoreNavigatorOffline = opts.ignoreNavigatorOffline === true;
+
+  let reachable = true;
   let disposed = false;
 
   const emit = (next: boolean) => {
@@ -98,33 +168,40 @@ export function subscribeNetwork(
     }
   };
 
-  const runCheck = async () => {
-    if (disposed) {
-      return;
-    }
-    const next = await isApiReachable(apiBaseUrl);
-    emit(next);
-  };
-
-  const onNavigatorOnline = () => {
-    markApiReachableSuccess();
-    emit(true);
-    void runCheck();
-  };
-  const onNavigatorOffline = () => emit(false);
-
   const unsubReachability = subscribeReachability((next) => {
     if (!disposed) {
       emit(next);
     }
   });
 
-  if (reachable) {
-    onChange(true);
-  } else {
-    onChange(false);
-  }
-  void runCheck();
+  const runCheck = async () => {
+    if (disposed) {
+      return;
+    }
+    const ok = await probeHealth(apiBaseUrl);
+    if (ok) {
+      markApiReachableSuccess();
+    } else {
+      consecutiveProbeFailures += 1;
+      reconcileDisplayedReachability();
+    }
+  };
+
+  const onNavigatorOnline = () => {
+    markApiReachableSuccess();
+    void runCheck();
+  };
+
+  const onNavigatorOffline = () => {
+    if (ignoreNavigatorOffline) {
+      return;
+    }
+    consecutiveProbeFailures = OFFLINE_AFTER_FAILURES;
+    reconcileDisplayedReachability();
+  };
+
+  emit(true);
+  const initialProbeDelay = window.setTimeout(() => void runCheck(), 2_500);
   window.addEventListener('online', onNavigatorOnline);
   window.addEventListener('offline', onNavigatorOffline);
   const interval = window.setInterval(() => void runCheck(), pollMs);
@@ -135,6 +212,7 @@ export function subscribeNetwork(
     },
     dispose: () => {
       disposed = true;
+      window.clearTimeout(initialProbeDelay);
       unsubReachability();
       window.removeEventListener('online', onNavigatorOnline);
       window.removeEventListener('offline', onNavigatorOffline);

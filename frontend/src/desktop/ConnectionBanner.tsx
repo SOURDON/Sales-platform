@@ -21,7 +21,7 @@ export function ConnectionBanner({ online, syncing, variant = 'bar' }: Props) {
   const syncingNow = syncing;
   const message = syncingNow
     ? 'Синхронизация…'
-    : 'Нет сети — данные сохраняются локально';
+    : 'Нет связи с сервером — изменения сохраняются локально и уйдут при подключении';
 
   if (variant === 'pill') {
     return (

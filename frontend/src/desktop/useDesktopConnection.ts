@@ -5,28 +5,41 @@ export type DesktopConnectionState = {
   syncing: boolean;
 };
 
+export type UseDesktopConnectionOptions = {
+  /** Tauri: не требовать navigator.onLine (часто ложный офлайн). */
+  trustApiOnly?: boolean;
+};
+
 export function useDesktopConnection(
   syncing = false,
-  /** Healthcheck API (Tauri); если не задан — только navigator.onLine. */
   apiReachable?: boolean,
+  options?: UseDesktopConnectionOptions,
 ): DesktopConnectionState {
-  const [navigatorOnline, setNavigatorOnline] = useState(
-    () => typeof navigator !== 'undefined' && navigator.onLine,
-  );
+  const trustApiOnly = options?.trustApiOnly === true;
+  const [navigatorOnline, setNavigatorOnline] = useState(true);
 
   useEffect(() => {
-    const onOnline = () => setNavigatorOnline(true);
-    const onOffline = () => setNavigatorOnline(false);
-    window.addEventListener('online', onOnline);
-    window.addEventListener('offline', onOffline);
+    if (trustApiOnly) {
+      return;
+    }
+    const sync = () => setNavigatorOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
+    sync();
+    window.addEventListener('online', sync);
+    window.addEventListener('offline', sync);
     return () => {
-      window.removeEventListener('online', onOnline);
-      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('online', sync);
+      window.removeEventListener('offline', sync);
     };
-  }, []);
+  }, [trustApiOnly]);
 
   const online =
-    apiReachable !== undefined ? apiReachable && navigatorOnline : navigatorOnline;
+    apiReachable !== undefined
+      ? trustApiOnly
+        ? apiReachable
+        : apiReachable && navigatorOnline
+      : trustApiOnly
+        ? true
+        : navigatorOnline;
 
   return { online, syncing };
 }

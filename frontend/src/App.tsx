@@ -65,6 +65,7 @@ import {
   startSyncEngine,
   flushOutbox,
   listOutboxForUser,
+  installApiReachabilityHook,
   markApiReachableSuccess,
   subscribeNetwork,
   roleUsesSyncCache,
@@ -1115,7 +1116,15 @@ function App() {
   const desktopConnection = useDesktopConnection(
     outboxSyncing,
     usesSyncEngine || isDesktopShell ? apiReachable : undefined,
+    { trustApiOnly: isDesktopShell },
   );
+
+  useEffect(() => {
+    if (!API_BASE_URL) {
+      return;
+    }
+    return installApiReachabilityHook(API_BASE_URL);
+  }, []);
   const [commissionRequests, setCommissionRequests] = useState<CommissionRequest[]>([]);
   const [shifts, setShifts] = useState<ShiftInfo[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -1218,7 +1227,9 @@ function App() {
     if (roleUsesSyncEngine(session.user.role)) {
       return;
     }
-    const net = subscribeNetwork(API_BASE_URL, setApiReachable);
+    const net = subscribeNetwork(API_BASE_URL, setApiReachable, {
+      ignoreNavigatorOffline: true,
+    });
     return () => net.dispose();
   }, [isDesktopShell, session?.token, session?.user?.role]);
 
@@ -1371,12 +1382,12 @@ function App() {
   ]);
 
   useEffect(() => {
-    if (apiReachable) {
+    if (apiReachable || isDesktopShell) {
       return;
     }
     void refreshAdminFromCache();
     void refreshFinanceFromCache();
-  }, [apiReachable, refreshAdminFromCache, refreshFinanceFromCache]);
+  }, [apiReachable, isDesktopShell, refreshAdminFromCache, refreshFinanceFromCache]);
 
   const pendingOfflineSales = useMemo(
     () => offlineQueueToAdminSales(offlinePendingSales, sellers),

@@ -56,7 +56,7 @@ export function startSyncEngine(options: SyncEngineOptions): () => void {
     if (reachable) {
       void flushAndRefresh();
     }
-  });
+  }, { ignoreNavigatorOffline: true });
 
   const onOnline = () => void flushAndRefresh();
   window.addEventListener('online', onOnline);
