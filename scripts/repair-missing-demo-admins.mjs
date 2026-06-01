@@ -51,9 +51,9 @@ async function main() {
   }
   const missing = EXPECTED_SADY_ADMINS.filter((e) => !admins.some((a) => a.nickname === e.nick));
   if (missing.length > 0) {
-    console.log('\nНа сервере выполните (восстановит демо-пользователей в БД):');
+    console.log('\nНа сервере (SSH), НЕ на Mac:');
     console.log('  cd /opt/sales-platform && git pull');
-    console.log('  docker compose -f docker-compose.timeweb.yml exec api node dist/database/ensure-demo-data.js');
+    console.log('  bash scripts/timeweb/ensure-demo-admins.sh');
     process.exit(2);
   }
   console.log('\nВсе точки «Сады морей» на месте.');
