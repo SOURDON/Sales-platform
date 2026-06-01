@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
 # Двойной клик на Mac: починить a1/a2 на Timeweb + проверка.
 set -euo pipefail
-REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# С рабочего стола $0 — Desktop/….command; репозиторий обычно здесь:
+REPO="${SALES_PLATFORM_ROOT:-$HOME/Projects/Sales-platform}"
+if [[ ! -f "$REPO/scripts/repair-missing-demo-admins.sh" ]]; then
+  # Запуск из репозитория: scripts/mac/….command
+  REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+if [[ ! -f "$REPO/scripts/repair-missing-demo-admins.sh" ]]; then
+  echo "Не найден $REPO/scripts/repair-missing-demo-admins.sh"
+  echo "Укажите путь: SALES_PLATFORM_ROOT=/path/to/Sales-platform"
+  exit 1
+fi
 SERVER="${TIMEWEB_SSH:-root@77.233.223.48}"
 
 echo "=== 1/2 Сервер: ensure-demo-admins + перезапуск API ==="
