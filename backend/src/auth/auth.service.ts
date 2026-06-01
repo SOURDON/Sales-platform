@@ -4851,6 +4851,80 @@ export class AuthService implements OnModuleInit {
     });
   }
 
+  /** Синхронизирует demoUsers с продавцами/персоналом перед persistState (иначе FK User/SellerProfile). */
+  private syncDemoUsersForRenderMigration(
+    sellers: Array<{ id: number; fullName: string; nickname: string; storeName: string }>,
+    staff: StaffMember[],
+  ): void {
+    const byId = new Map<number, DemoUser>();
+    const byNick = new Map<string, DemoUser>();
+    const defaultPwd = getDefaultDemoPassword();
+
+    const put = (user: DemoUser) => {
+      byId.set(user.id, user);
+      byNick.set(user.nickname, user);
+    };
+
+    for (const user of this.demoUsers) {
+      if (['DIRECTOR', 'ACCOUNTANT', 'MANAGER', 'ADMIN'].includes(user.role)) {
+        put(user);
+      }
+    }
+
+    const ensure = (row: {
+      id: number;
+      nickname: string;
+      fullName: string;
+      role: UserRole;
+      storeName: string;
+      isActive?: boolean;
+    }) => {
+      const existing = byId.get(row.id) ?? byNick.get(row.nickname);
+      put({
+        id: row.id,
+        nickname: row.nickname,
+        password: existing?.password ?? defaultPwd,
+        fullName: row.fullName,
+        role: row.role,
+        storeName: row.storeName,
+        isActive: row.isActive ?? true,
+      });
+    };
+
+    for (const seller of sellers) {
+      ensure({
+        id: seller.id,
+        nickname: seller.nickname,
+        fullName: seller.fullName,
+        role: 'SELLER',
+        storeName: seller.storeName,
+      });
+    }
+
+    for (const member of staff) {
+      const role: UserRole =
+        member.staffPosition === 'RETOUCHER'
+          ? 'RETOUCHER'
+          : member.staffPosition === 'MANAGER'
+            ? 'MANAGER'
+            : 'SELLER';
+      const storeName =
+        sellers.find((s) => s.id === member.id)?.storeName ??
+        byId.get(member.id)?.storeName ??
+        DEMO_STORE_NAMES[0];
+      ensure({
+        id: member.id,
+        nickname: member.nickname,
+        fullName: member.fullName,
+        role,
+        storeName,
+        isActive: member.isActive,
+      });
+    }
+
+    this.demoUsers = Array.from(byId.values()).sort((a, b) => a.id - b.id);
+  }
+
   /** Перенос снимка с Render (HTTP) → PostgreSQL на Timeweb. */
   async applyRenderMigrationSnapshot(snapshot: {
     financeOps?: {
@@ -5019,6 +5093,17 @@ export class AuthService implements OnModuleInit {
         }
       }
       this.productProcurementCosts = map;
+    }
+
+    this.syncDemoUsersForRenderMigration(sellers, this.staff);
+    if (this.staff.length > 0) {
+      this.storeStaffAssignments = this.staff.map((member) => ({
+        staffId: member.id,
+        storeName:
+          sellers.find((s) => s.id === member.id)?.storeName ??
+          this.demoUsers.find((u) => u.id === member.id)?.storeName ??
+          DEMO_STORE_NAMES[0],
+      }));
     }
 
     this.dashboardOverviewCache = null;

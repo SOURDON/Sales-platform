@@ -6,7 +6,7 @@
 const RENDER = process.env.RENDER_URL ?? 'https://sales-platform-1.onrender.com';
 const TIMEWEB = process.env.TIMEWEB_URL ?? 'http://77.233.223.48';
 const RENDER_PASSWORD = process.env.RENDER_PASSWORD ?? 'Bufet000';
-const TIMEWEB_PASSWORD = process.env.TIMEWEB_PASSWORD ?? 'Foto-2026-9kLq';
+const TIMEWEB_PASSWORD = process.env.TIMEWEB_PASSWORD ?? 'Bufet000';
 
 async function login(base, password) {
   const res = await fetch(`${base}/auth/login`, {

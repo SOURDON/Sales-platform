@@ -5,7 +5,7 @@ ROOT="/opt/sales-platform"
 RENDER="${RENDER_URL:-https://sales-platform-1.onrender.com}"
 TIMEWEB="${TIMEWEB_URL:-http://127.0.0.1}"
 RENDER_PASSWORD="${RENDER_PASSWORD:-Bufet000}"
-TIMEWEB_PASSWORD="${TIMEWEB_PASSWORD:-Foto-2026-9kLq}"
+TIMEWEB_PASSWORD="${TIMEWEB_PASSWORD:-Bufet000}"
 
 login() {
   local base="$1" pwd="$2"
