@@ -770,9 +770,10 @@ async function readApiErrorMessage(response: Response, fallback: string): Promis
 }
 
 function describeLoginFetchError(error: unknown): string {
+  const serverHint = API_BASE_URL ? apiServerLabel(API_BASE_URL) : 'Timeweb';
   if (error instanceof Error) {
     if (error.name === 'AbortError') {
-      return 'Сервер не ответил за 15 секунд. На Render сервис мог «засыпать» — подождите 30 секунд и войдите снова.';
+      return `Сервер не ответил за 15 секунд (${serverHint}). Подождите полминуты и войдите снова. Если повторяется — на VPS: docker compose restart api.`;
     }
     const msg = error.message.trim().toLowerCase();
     if (
@@ -782,9 +783,9 @@ function describeLoginFetchError(error: unknown): string {
       msg.includes('network request failed')
     ) {
       if (import.meta.env.DEV) {
-        return 'Приложение не достучалось до сервера (это не ошибка пароля). В dev-режиме нужен CORS для http://localhost:5173 на Render — см. docs/DESKTOP_START_HERE.md или соберите .dmg.';
+        return `Нет связи с API (${serverHint}). Проверьте VITE_API_URL и CORS на сервере — см. docs/DESKTOP_START_HERE.md.`;
       }
-      return 'Приложение не достучалось до сервера (это не ошибка пароля). Установите новый .dmg (1.0.18+), проверьте VITE_API_URL в desktop/.env и что API отвечает. Для HTTP на macOS нужна сборка с ATS; лучше HTTPS и домен.';
+      return `Нет связи с сервером ${serverHint} (это не ошибка пароля). Проверьте интернет и что API отвечает: ${API_BASE_URL || 'VITE_API_URL не задан'}/health`;
     }
     return error.message;
   }

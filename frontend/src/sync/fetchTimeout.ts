@@ -1,6 +1,6 @@
 const DEFAULT_MS = 20_000;
 
-/** fetch с таймаутом — иначе на Render/Tauri запрос может висеть минутами. */
+/** fetch с таймаутом — иначе на медленном API запрос может висеть минутами. */
 export async function fetchWithTimeout(
   input: RequestInfo | URL,
   init?: RequestInit,
