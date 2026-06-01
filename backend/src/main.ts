@@ -41,6 +41,30 @@ async function bootstrap() {
     return false;
   };
 
+  /** Сайт по IP на Timeweb (http://77.x.x.x) — иначе браузер даёт «Ошибка входа: 500». */
+  const isAllowedWebOrigin = (origin: string | undefined): boolean => {
+    if (!origin) {
+      return false;
+    }
+    try {
+      const url = new URL(origin);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        return false;
+      }
+      const host = url.hostname;
+      if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
+        return true;
+      }
+      const site = process.env.SITE_DOMAIN?.trim();
+      if (site && (host === site || host === `www.${site}`)) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  };
+
   app.enableCors({
     origin:
       corsOrigins.length > 0
@@ -48,11 +72,16 @@ async function bootstrap() {
             origin: string | undefined,
             callback: (error: Error | null, allow?: boolean) => void,
           ) => {
-            if (!origin || corsOrigins.includes(origin) || isDesktopAppOrigin(origin)) {
+            if (
+              !origin ||
+              corsOrigins.includes(origin) ||
+              isDesktopAppOrigin(origin) ||
+              isAllowedWebOrigin(origin)
+            ) {
               callback(null, true);
               return;
             }
-            callback(new Error('Not allowed by CORS'));
+            callback(null, false);
           }
         : true,
     credentials: true,
