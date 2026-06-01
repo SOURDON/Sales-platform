@@ -1980,8 +1980,10 @@ export class AuthService implements OnModuleInit {
       return all;
     }
     if (user.role === 'ADMIN') {
-      const assignedIds = new Set(this.getStoreAssignedStaffIds(user.storeName));
-      return all.filter((member) => assignedIds.has(member.id));
+      const store = user.storeName.trim();
+      return all.filter((member) =>
+        (member.assignedStores ?? []).includes(store),
+      );
     }
     return [];
   }

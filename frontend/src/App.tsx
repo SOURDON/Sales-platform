@@ -178,6 +178,15 @@ function staffAssignedStores(member: StaffMember): string[] {
   return [];
 }
 
+/** Сотрудники, привязанные к торговой точке (для экрана «Смена» у админа). */
+function staffAtStore(staff: StaffMember[], storeName: string): StaffMember[] {
+  const store = storeName.trim();
+  if (!store) {
+    return [];
+  }
+  return staff.filter((member) => member.isActive && staffAssignedStores(member).includes(store));
+}
+
 /** Продавцы в открытой смене — по assignedShiftId (как на экране «Смена»), не только assignedSellerIds. */
 function sellersOnOpenShift(
   staff: StaffMember[],
@@ -3037,6 +3046,13 @@ function App() {
   const bootstrapLoggedInUser = async (data: LoginResponse) => {
     setSession(data);
     if (isDesktopShell) {
+      setStaff([]);
+      setSellers([]);
+      setSales([]);
+      setShifts([]);
+      setGlobalEmployees([]);
+      setProducts([]);
+      setStoreInventory(null);
       await hydrateRoleCacheForUser(data);
     }
     const dashboardLoaded = await loadDashboardWithRetry(data.token);
@@ -3045,6 +3061,14 @@ function App() {
     }
     if (isDesktopShell) {
       setAdminError('');
+      if (data.user.role === 'ADMIN') {
+        await Promise.allSettled([
+          loadStaff(data.token),
+          loadSellers(data.token),
+          loadShifts(data.token),
+          loadGlobalEmployees(data.token),
+        ]);
+      }
       return;
     }
     if (
@@ -3569,7 +3593,15 @@ function App() {
       void loadSales(token);
       void loadSellers(token);
     }
-  }, [location.pathname, session?.token, session?.user?.role]);
+    if (isDesktopShell && role === 'ADMIN' && (path === '/shift' || path === '/home')) {
+      void Promise.allSettled([
+        loadStaff(token),
+        loadSellers(token),
+        loadShifts(token),
+        loadGlobalEmployees(token),
+      ]);
+    }
+  }, [isDesktopShell, location.pathname, session?.token, session?.user?.role]);
 
   const refreshAdminWebLive = useCallback(() => {
     if (!session?.token || isDesktopShell || session.user.role !== 'ADMIN') {
@@ -4023,6 +4055,7 @@ function App() {
                           staff={staff}
                           shifts={shifts}
                           role={role}
+                          storeName={role === 'ADMIN' ? session.user.storeName : undefined}
                           readOnly={isReadOnlyObserver}
                           onOpen={openShift}
                           onClose={closeShift}
@@ -4034,6 +4067,7 @@ function App() {
                           globalEmployees={globalEmployees}
                           shifts={shifts}
                           role={role}
+                          storeName={role === 'ADMIN' ? session.user.storeName : undefined}
                           readOnly={isReadOnlyObserver}
                           onAdd={addStaffMember}
                           onAddFromBase={addStaffFromBase}
@@ -4049,6 +4083,7 @@ function App() {
                             globalEmployees={globalEmployees}
                             shifts={shifts}
                             role={role}
+                            storeName={session.user.storeName}
                             readOnly={isReadOnlyObserver}
                             onAdd={addStaffMember}
                             onAddFromBase={addStaffFromBase}
@@ -7430,6 +7465,7 @@ function ShiftPanel({
   staff,
   shifts,
   role,
+  storeName,
   readOnly,
   onOpen,
   onClose,
@@ -7438,6 +7474,8 @@ function ShiftPanel({
   staff: StaffMember[];
   shifts: ShiftInfo[];
   role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+  /** Для админа — только сотрудники этой торговой точки. */
+  storeName?: string;
   readOnly?: boolean;
   onOpen: (token: string, assignedSellerIds: number[]) => Promise<void>;
   onClose: (token: string, assignedSellerIds: number[]) => Promise<void>;
@@ -7445,10 +7483,13 @@ function ShiftPanel({
   const [selectedStaffIds, setSelectedStaffIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const openShift = shifts.find((item) => item.status === 'OPEN');
-  const shiftAssignableStaff = useMemo(
-    () => staff.filter((member) => member.isActive),
-    [staff],
-  );
+  const shiftAssignableStaff = useMemo(() => {
+    const active = staff.filter((member) => member.isActive);
+    if (role === 'ADMIN' && storeName?.trim()) {
+      return staffAtStore(active, storeName);
+    }
+    return active;
+  }, [staff, role, storeName]);
 
   const toggleStaff = (id: number) => {
     setSelectedStaffIds((current) =>
@@ -8542,6 +8583,7 @@ function StaffPanel({
   globalEmployees,
   shifts,
   role,
+  storeName,
   readOnly,
   showOnlyCards,
   hideCards,
@@ -8557,6 +8599,7 @@ function StaffPanel({
   globalEmployees: GlobalEmployee[];
   shifts: ShiftInfo[];
   role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
+  storeName?: string;
   readOnly?: boolean;
   showOnlyCards?: boolean;
   hideCards?: boolean;
@@ -8569,8 +8612,14 @@ function StaffPanel({
   const [fullName, setFullName] = useState('');
   const [nickname, setNickname] = useState('');
   const [pickedEmployeeId, setPickedEmployeeId] = useState<number | null>(null);
+  const staffForPanel = useMemo(() => {
+    if (role === 'ADMIN' && storeName?.trim()) {
+      return staffAtStore(staff, storeName);
+    }
+    return staff.filter((member) => member.isActive);
+  }, [staff, role, storeName]);
   const baseCandidates = globalEmployees.filter((employee) => {
-    const existing = staff.find((member) => member.id === employee.id);
+    const existing = staffForPanel.find((member) => member.id === employee.id);
     return existing?.staffPosition !== 'RETOUCHER';
   });
   const firstGlobalId = baseCandidates[0]?.id ?? 0;
@@ -8578,11 +8627,11 @@ function StaffPanel({
     pickedEmployeeId !== null && baseCandidates.some((employee) => employee.id === pickedEmployeeId)
       ? pickedEmployeeId
       : firstGlobalId;
-  const staffIds = new Set(staff.map((member) => member.id));
+  const staffIds = new Set(staffForPanel.map((member) => member.id));
   const selectedEmployee = baseCandidates.find((employee) => employee.id === selectedEmployeeId);
   const alreadyInStore = selectedEmployee ? staffIds.has(selectedEmployee.id) : false;
   const openShift = shifts.find((item) => item.status === 'OPEN');
-  const removableSalesStaff = staff.filter((member) => member.staffPosition === 'SALES');
+  const removableSalesStaff = staffForPanel.filter((member) => member.staffPosition === 'SALES');
   const [pickedRemovalStaffId, setPickedRemovalStaffId] = useState<number | null>(null);
   const firstRemovableStaffId = removableSalesStaff[0]?.id ?? 0;
   const selectedRemovalStaffId =
@@ -8595,7 +8644,7 @@ function StaffPanel({
   const [managementAccordionOpen, setManagementAccordionOpen] = useState(false);
   const desktopFlat = isTauriRuntime();
 
-  const staffRosterCards = staff.map((member) => {
+  const staffRosterCards = staffForPanel.map((member) => {
     const seller = sellers.find((item) => item.id === member.id);
     return (
       <TeamMemberCard
