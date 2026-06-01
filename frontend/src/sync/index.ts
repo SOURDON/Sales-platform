@@ -11,6 +11,7 @@ export {
   markApiReachableSuccess,
   resetApiReachabilityCache,
   subscribeNetwork,
+  subscribeReachability,
 } from './network';
 export { saveAdminCache, loadAdminCache, saveSyncCache, loadSyncCache } from './cache';
 export {

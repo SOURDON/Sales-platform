@@ -15,6 +15,7 @@ import {
   type DesktopTheme,
 } from './desktop/desktopTheme';
 import { DesktopThemeToggle } from './desktop/DesktopThemeToggle';
+import { DesktopSyncToolbar } from './desktop/DesktopSyncToolbar';
 import {
   ACQUIRING_DEFAULT_PROFILE_ID,
   type AcquiringProfile,
@@ -62,11 +63,20 @@ import {
   newClientId,
   runAdminMutation,
   startSyncEngine,
+  flushOutbox,
+  listOutboxForUser,
+  markApiReachableSuccess,
+  subscribeNetwork,
   roleUsesSyncCache,
   roleUsesSyncEngine,
   roleUsesAdminDesktopOutbox,
   useLiveSessionRefresh,
 } from './sync';
+import {
+  loadStoreEquipmentCache,
+  saveStoreEquipmentCache,
+  type StoreEquipmentCachePayload,
+} from './sync/equipmentCache';
 import {
   loadRevenuePlansWithCache,
   patchRevenuePlansCache,
@@ -1045,9 +1055,8 @@ function App() {
   const [offlineQueueTick, setOfflineQueueTick] = useState(0);
   const [offlinePendingSales, setOfflinePendingSales] = useState<OfflineQueuedSale[]>([]);
   const [outboxSyncing, setOutboxSyncing] = useState(false);
-  const [apiReachable, setApiReachable] = useState(
-    () => typeof navigator === 'undefined' || navigator.onLine,
-  );
+  const [outboxPendingCount, setOutboxPendingCount] = useState(0);
+  const [apiReachable, setApiReachable] = useState(true);
   const isDesktopShell = isTauriRuntime();
   const [desktopTheme, setDesktopTheme] = useState<DesktopTheme>(() =>
     isTauriRuntime() ? getStoredDesktopTheme() : 'dark',
@@ -1159,7 +1168,7 @@ function App() {
   }, [session?.token, session?.user?.role]);
 
   useEffect(() => {
-    if (!session?.token) {
+    if (!session?.token || isDesktopShell) {
       return;
     }
     const r = session.user.role;
@@ -1185,7 +1194,31 @@ function App() {
       document.removeEventListener('visibilitychange', onVis);
       window.clearInterval(intervalId);
     };
-  }, [session?.token, session?.user?.role, refreshMessengerInbox]);
+  }, [isDesktopShell, session?.token, session?.user?.role, refreshMessengerInbox]);
+
+  const refreshOutboxPendingCount = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (userId === undefined) {
+      setOutboxPendingCount(0);
+      return;
+    }
+    setOutboxPendingCount((await listOutboxForUser(userId)).length);
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    void refreshOutboxPendingCount();
+  }, [refreshOutboxPendingCount, offlineQueueTick]);
+
+  useEffect(() => {
+    if (!isDesktopShell || !session?.token) {
+      return;
+    }
+    if (roleUsesSyncEngine(session.user.role)) {
+      return;
+    }
+    const net = subscribeNetwork(API_BASE_URL, setApiReachable);
+    return () => net.dispose();
+  }, [isDesktopShell, session?.token, session?.user?.role]);
 
   useEffect(() => {
     if (location.pathname !== '/control') {
@@ -1320,6 +1353,20 @@ function App() {
   useEffect(() => {
     void refreshOfflinePending();
   }, [refreshOfflinePending, offlineQueueTick]);
+
+  useEffect(() => {
+    if (!isDesktopShell || !session?.token) {
+      return;
+    }
+    void refreshFinanceFromCache();
+    void refreshAdminFromCache();
+  }, [
+    isDesktopShell,
+    session?.token,
+    session?.user?.role,
+    refreshFinanceFromCache,
+    refreshAdminFromCache,
+  ]);
 
   useEffect(() => {
     if (apiReachable) {
@@ -1474,9 +1521,13 @@ function App() {
           'dashboard',
           fetcher,
           cachedFallback,
+          { onFresh: (data) => setDashboard(data) },
         );
         if (result.data) {
           setDashboard(result.data);
+        }
+        if (result.fromCache) {
+          markApiReachableSuccess();
         }
       } else {
         setDashboard(await fetcher());
@@ -1505,7 +1556,9 @@ function App() {
       session?.user?.id != null &&
       (roleUsesSyncCache(role) || roleUsesAdminDesktopOutbox(role, isDesktopShell))
     ) {
-      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'sellers', fetcher, []);
+      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'sellers', fetcher, [], {
+        onFresh: (data) => setSellers(data),
+      });
       setSellers(result.data);
       if (role === 'ADMIN') {
         setAdminError(
@@ -1560,6 +1613,10 @@ function App() {
           'inventoryOverview',
           fetcher,
           null as unknown as InventoryOverviewResponse,
+          {
+            onFresh: (data) =>
+              setInventoryOverview(data ? normalizeInventoryOverview(data) : null),
+          },
         );
         setInventoryOverview(
           result.data ? normalizeInventoryOverview(result.data) : null,
@@ -2000,7 +2057,9 @@ function App() {
     const role = session?.user?.role;
     const empty = normalizeFinanceOps({});
     if (roleUsesSyncCache(role) && session?.user?.id != null) {
-      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'financeOps', fetcher, empty);
+      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'financeOps', fetcher, empty, {
+        onFresh: (data) => setFinanceOps(data),
+      });
       setFinanceOps(result.data);
       return;
     }
@@ -2220,7 +2279,9 @@ function App() {
           session.user.role === 'ACCOUNTANT' ||
           session.user.role === 'MANAGER')
       ) {
-        const result = await loadSyncResource(API_BASE_URL, session.user.id, 'sales', fetcher, []);
+        const result = await loadSyncResource(API_BASE_URL, session.user.id, 'sales', fetcher, [], {
+          onFresh: (data) => setSales(data),
+        });
         setSales(result.data);
         return;
       }
@@ -2247,7 +2308,14 @@ function App() {
       return (await response.json()) as CommissionRequest[];
     };
     if (session?.user?.role === 'DIRECTOR' && session.user.id != null) {
-      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'commissionRequests', fetcher, []);
+      const result = await loadSyncResource(
+        API_BASE_URL,
+        session.user.id,
+        'commissionRequests',
+        fetcher,
+        [],
+        { onFresh: (data) => setCommissionRequests(data) },
+      );
       setCommissionRequests(result.data);
       return;
     }
@@ -2267,7 +2335,9 @@ function App() {
     const role = session?.user?.role;
     const uid = session?.user?.id;
     if (uid != null && (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))) {
-      const result = await loadSyncResource(API_BASE_URL, uid, 'shifts', fetcher, []);
+      const result = await loadSyncResource(API_BASE_URL, uid, 'shifts', fetcher, [], {
+        onFresh: (data) => setShifts(data),
+      });
       setShifts(result.data);
       return;
     }
@@ -2287,7 +2357,9 @@ function App() {
     const role = session?.user?.role;
     const uid = session?.user?.id;
     if (uid != null && (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))) {
-      const result = await loadSyncResource(API_BASE_URL, uid, 'staff', fetcher, []);
+      const result = await loadSyncResource(API_BASE_URL, uid, 'staff', fetcher, [], {
+        onFresh: (data) => setStaff(data),
+      });
       setStaff(result.data);
       return;
     }
@@ -2317,6 +2389,78 @@ function App() {
     }
     setGlobalEmployees(await fetcher());
   };
+
+  const runDesktopManualSync = useCallback(async () => {
+    const token = session?.token;
+    const userId = session?.user?.id;
+    const role = session?.user?.role;
+    if (!token || userId === undefined || !role) {
+      return;
+    }
+    setOutboxSyncing(true);
+    markApiReachableSuccess();
+    setApiReachable(true);
+    try {
+      await flushOutbox(API_BASE_URL, token, userId);
+      const loads: Promise<unknown>[] = [loadDashboard(token)];
+      if (role === 'DIRECTOR') {
+        loads.push(
+          loadFinanceOps(token),
+          loadInventoryOverview(token),
+          loadCommissionRequests(token),
+          loadStaff(token),
+          loadSellers(token),
+          loadSales(token),
+          loadShifts(token),
+          loadProducts(token),
+          loadProductProcurementCosts(token),
+        );
+      } else if (role === 'ACCOUNTANT') {
+        loads.push(
+          loadFinanceOps(token),
+          loadInventoryOverview(token),
+          loadSales(token),
+          loadSellers(token),
+          loadProducts(token),
+          loadProductProcurementCosts(token),
+        );
+      } else if (role === 'MANAGER') {
+        loads.push(loadStaff(token), loadSellers(token), loadSales(token));
+      } else if (role === 'ADMIN') {
+        loads.push(
+          loadSales(token),
+          loadSellers(token),
+          loadProducts(token),
+          loadShifts(token),
+          loadStaff(token),
+          loadStoreInventory(token),
+          loadGlobalEmployees(token),
+        );
+      }
+      await Promise.allSettled(loads);
+      setOfflineQueueTick((x) => x + 1);
+    } finally {
+      setOutboxSyncing(false);
+      await refreshOutboxPendingCount();
+    }
+  }, [
+    session?.token,
+    session?.user?.id,
+    session?.user?.role,
+    loadDashboard,
+    loadFinanceOps,
+    loadInventoryOverview,
+    loadCommissionRequests,
+    loadStaff,
+    loadSellers,
+    loadSales,
+    loadShifts,
+    loadProducts,
+    loadProductProcurementCosts,
+    loadStoreInventory,
+    loadGlobalEmployees,
+    refreshOutboxPendingCount,
+  ]);
 
   const setDirectorPercent = async (token: string, sellerId: number, ratePercent: number) => {
     const uid = session?.user?.id;
@@ -2784,11 +2928,108 @@ function App() {
     }
   };
 
+  const hydrateRoleCacheForUser = async (data: LoginResponse) => {
+    const uid = data.user.id;
+    const role = data.user.role;
+    if (role === 'DIRECTOR' || role === 'ACCOUNTANT') {
+      const [cachedFinance, cachedInventory, cachedCommission, cachedSellers] = await Promise.all([
+        loadSyncCache<FinanceOpsSnapshot>(uid, 'financeOps'),
+        loadSyncCache<InventoryOverviewResponse>(uid, 'inventoryOverview'),
+        role === 'DIRECTOR'
+          ? loadSyncCache<CommissionRequest[]>(uid, 'commissionRequests')
+          : Promise.resolve(null),
+        loadSyncCache<SellerProfile[]>(uid, 'sellers'),
+      ]);
+      if (cachedFinance) {
+        setFinanceOps(normalizeFinanceOps(cachedFinance));
+      }
+      if (cachedInventory) {
+        setInventoryOverview(normalizeInventoryOverview(cachedInventory));
+      }
+      if (cachedCommission) {
+        setCommissionRequests(cachedCommission);
+      }
+      if (cachedSellers) {
+        setSellers(cachedSellers);
+      }
+      if (role === 'DIRECTOR') {
+        const [cachedStaff, cachedSales, cachedShifts] = await Promise.all([
+          loadSyncCache<StaffMember[]>(uid, 'staff'),
+          loadSyncCache<AdminSale[]>(uid, 'sales'),
+          loadSyncCache<ShiftInfo[]>(uid, 'shifts'),
+        ]);
+        if (cachedStaff?.length) {
+          setStaff(cachedStaff);
+        }
+        if (cachedSales?.length) {
+          setSales(cachedSales);
+        }
+        if (cachedShifts?.length) {
+          setShifts(cachedShifts);
+        }
+      }
+      return;
+    }
+    if (role === 'MANAGER') {
+      const [cachedStaff, cachedSales, cachedSellers] = await Promise.all([
+        loadSyncCache<StaffMember[]>(uid, 'staff'),
+        loadSyncCache<AdminSale[]>(uid, 'sales'),
+        loadSyncCache<SellerProfile[]>(uid, 'sellers'),
+      ]);
+      if (cachedStaff?.length) {
+        setStaff(cachedStaff);
+      }
+      if (cachedSales?.length) {
+        setSales(cachedSales);
+      }
+      if (cachedSellers) {
+        setSellers(cachedSellers);
+      }
+      return;
+    }
+    if (role === 'ADMIN') {
+      const [cachedSellers, cachedProducts, cachedStaff, cachedShifts, cachedSales, cachedInv] =
+        await Promise.all([
+          loadAdminCache<SellerProfile[]>(uid, 'sellers'),
+          loadAdminCache<ProductItem[]>(uid, 'products'),
+          loadAdminCache<StaffMember[]>(uid, 'staff'),
+          loadAdminCache<ShiftInfo[]>(uid, 'shifts'),
+          loadAdminCache<AdminSale[]>(uid, 'sales'),
+          loadAdminCache<StoreInventoryDetailResponse | null>(uid, 'storeInventory'),
+        ]);
+      if (cachedSellers) {
+        setSellers(cachedSellers);
+      }
+      if (cachedProducts) {
+        setProducts(cachedProducts);
+      }
+      if (cachedStaff) {
+        setStaff(cachedStaff);
+      }
+      if (cachedShifts) {
+        setShifts(cachedShifts);
+      }
+      if (cachedSales) {
+        setSales(cachedSales);
+      }
+      if (cachedInv !== null) {
+        setStoreInventory(cachedInv);
+      }
+    }
+  };
+
   const bootstrapLoggedInUser = async (data: LoginResponse) => {
     setSession(data);
+    if (isDesktopShell) {
+      await hydrateRoleCacheForUser(data);
+    }
     const dashboardLoaded = await loadDashboardWithRetry(data.token);
     if (!dashboardLoaded) {
-      setAdminError('Вход выполнен, но сводка загрузится с задержкой. Обновите страницу через пару секунд.');
+      setAdminError('Вход выполнен, но сводка загрузится с задержкой. Нажмите «Обновить данные».');
+    }
+    if (isDesktopShell) {
+      setAdminError('');
+      return;
     }
     if (
       data.user.role === 'ADMIN' ||
@@ -3048,6 +3289,17 @@ function App() {
       onReachableChange: setApiReachable,
       onFlushed: () => {
         setOfflineQueueTick((x) => x + 1);
+        void refreshOutboxPendingCount();
+        if (isDesktopShell) {
+          if (postFlushRefreshRef.current) {
+            window.clearTimeout(postFlushRefreshRef.current);
+          }
+          postFlushRefreshRef.current = window.setTimeout(() => {
+            postFlushRefreshRef.current = null;
+            void runDesktopManualSync();
+          }, 400);
+          return;
+        }
         if (role === 'ADMIN') {
           void Promise.allSettled([
             loadSales(token),
@@ -3080,7 +3332,14 @@ function App() {
       }
       stop();
     };
-  }, [session?.token, session?.user?.id, session?.user?.role]);
+  }, [
+    session?.token,
+    session?.user?.id,
+    session?.user?.role,
+    isDesktopShell,
+    runDesktopManualSync,
+    refreshOutboxPendingCount,
+  ]);
 
   useEffect(() => {
     if (isDesktopShell || !session?.token || session.user.id == null) {
@@ -3135,7 +3394,7 @@ function App() {
   }, [isDesktopShell, session?.token, session?.user?.id, loadSales, loadSellers]);
 
   useEffect(() => {
-    if (!restoredSession || !session || restoredSession.token !== session.token) {
+    if (isDesktopShell || !restoredSession || !session || restoredSession.token !== session.token) {
       return;
     }
     void (async () => {
@@ -3215,7 +3474,7 @@ function App() {
   }, [loadManagerStoreCommissions, location.pathname, session]);
 
   useEffect(() => {
-    if (!session?.token) {
+    if (isDesktopShell || !session?.token) {
       return;
     }
     const token = session.token;
@@ -3252,7 +3511,7 @@ function App() {
       await Promise.allSettled(loads);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- один прогон при входе / смене роли
-  }, [session?.token, session?.user?.role]);
+  }, [isDesktopShell, session?.token, session?.user?.role]);
 
   /** Тяжёлые разделы директора/бухгалтера — грузим по переходу, не всё сразу при входе. */
   useEffect(() => {
@@ -3375,6 +3634,11 @@ function App() {
     );
     return base;
   }, [session, messengerUnreadTotal]);
+
+  const desktopNavItems = useMemo(
+    () => (isDesktopShell ? mobileNavItems.filter((item) => item.to !== '/control') : mobileNavItems),
+    [isDesktopShell, mobileNavItems],
+  );
 
   if (!session) {
     return (
@@ -3718,7 +3982,7 @@ function App() {
                 >
                   <section className="sectionCard">
                     {isManager ? null : role === 'ACCOUNTANT' ? (
-                      <AccountantStoreEquipmentStoresPanel token={session.token} />
+                      <AccountantStoreEquipmentStoresPanel token={session.token} userId={session.user.id} />
                     ) : isFinanceViewer ? (
                       <div className={isDesktopShell ? undefined : 'financeOpsWebBridge'}>
                         <FinanceOpsPanel
@@ -4040,7 +4304,7 @@ function App() {
                     }`}
                   >
                     <section className="sectionCard">
-                      <AccountantStoreEquipmentStoresPanel token={session.token} />
+                      <AccountantStoreEquipmentStoresPanel token={session.token} userId={session.user.id} />
                     </section>
                   </div>
                 )
@@ -4258,10 +4522,18 @@ function App() {
           <DesktopAppLayout
             connection={desktopConnection}
             adminError={adminError || undefined}
-            navItems={mobileNavItems}
+            navItems={desktopNavItems}
             userLabel={session.user.nickname}
             roleLabel={desktopRoleLabel}
             onLogout={handleLogout}
+            syncToolbar={
+              <DesktopSyncToolbar
+                online={desktopConnection.online}
+                syncing={desktopConnection.syncing}
+                pendingCount={outboxPendingCount}
+                onSync={runDesktopManualSync}
+              />
+            }
             desktopTheme={desktopTheme}
             onDesktopThemeChange={handleDesktopThemeChange}
             directorAccountSwitcher={
@@ -8759,9 +9031,7 @@ function DirectorWarehousePanel({
   const warehouseSections =
     overview?.warehouses && overview.warehouses.length > 0
       ? overview.warehouses
-      : overview
-        ? DEFAULT_INVENTORY_WAREHOUSES.map((w) => ({ ...w, storeNames: [...w.storeNames] }))
-        : [];
+      : DEFAULT_INVENTORY_WAREHOUSES.map((w) => ({ ...w, storeNames: [...w.storeNames] }));
   const productRows = overview?.products ?? [];
   const costByName = new Map(procurementCosts.map((item) => [item.name.trim(), item.cost]));
   const orderedNames = [
@@ -9156,11 +9426,8 @@ function DirectorWarehousePanel({
         ) : null}
 
         <div className="directorWarehouseLayout">
-          {warehouseSections.length === 0 ? (
-            <p className="invTableEmpty directorWarehouseLoading">Загрузка остатков…</p>
-          ) : (
-            <div className="directorWarehouseCards">
-              {warehouseSections.map((section) => {
+          <div className="directorWarehouseCards">
+            {warehouseSections.map((section) => {
                 const rows = rowsForWarehouse(section.key);
                 const tone = warehouseCardTone(section.key);
                 return (
@@ -9288,8 +9555,7 @@ function DirectorWarehousePanel({
                   </article>
                 );
               })}
-            </div>
-          )}
+          </div>
 
           {showProcurement || canDeleteProduct ? (
             <div className={`directorWarehouseFooterRow${bottomAside ? ' directorWarehouseFooterRow--withAside' : ''}`}>
@@ -9561,12 +9827,29 @@ function StoreEquipmentReadAccordion({ token }: { token: string }) {
   );
 }
 
-function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
+function AccountantStoreEquipmentStoresPanel({
+  token,
+  userId,
+}: {
+  token: string;
+  userId?: number;
+}) {
   type StoreRow = { storeName: string } & StoreEquipmentCounts;
   const isDesktop = isTauriRuntime();
   const [stores, setStores] = useState<StoreRow[] | null>(null);
   const [customTypes, setCustomTypes] = useState<StoreEquipmentCustomType[]>([]);
   const [draftByStore, setDraftByStore] = useState<Record<string, StoreEquipmentCounts>>({});
+  const applyEquipmentPayload = useCallback((payload: StoreEquipmentCachePayload) => {
+    const rows = payload.stores as StoreRow[];
+    setStores(rows);
+    setCustomTypes(payload.customTypes ?? []);
+    const nextDraft: Record<string, StoreEquipmentCounts> = {};
+    for (const row of rows) {
+      const { storeName, ...counts } = row;
+      nextDraft[storeName] = normalizeStoreEquipmentCounts(counts);
+    }
+    setDraftByStore(nextDraft);
+  }, []);
   const [selectedStore, setSelectedStore] = useState('');
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
@@ -9585,56 +9868,74 @@ function AccountantStoreEquipmentStoresPanel({ token }: { token: string }) {
     return [...stores].sort((a, b) => a.storeName.localeCompare(b.storeName, 'ru-RU'));
   }, [stores]);
 
-  const load = useCallback(async () => {
-    setError('');
-    setStatus('');
-    try {
-      const response = await fetchWithTimeout(`${API_BASE_URL}/admin/store-equipment`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        const errBody = (await response.json().catch(() => null)) as {
-          message?: string | string[];
-        } | null;
-        const msg = Array.isArray(errBody?.message)
-          ? errBody.message[0]
-          : errBody?.message;
-        if (response.status === 403) {
-          setError(
-            typeof msg === 'string' && msg.includes('бухгалтер')
-              ? 'Сервер ещё не обновлён: директору нужен деплой backend с доступом к спецтехнике. Бухгалтер видит этот раздел.'
-              : 'Нет доступа к своду по точкам',
-          );
-        } else if (response.status === 401) {
-          setError('Сессия истекла — выйдите и войдите снова');
-        } else {
-          setError(
-            typeof msg === 'string' && msg.length > 0
-              ? msg
-              : `Не удалось загрузить свод (${response.status})`,
-          );
+  const load = useCallback(
+    async (options?: { background?: boolean }) => {
+      if (!options?.background) {
+        setError('');
+        setStatus('');
+      }
+      if (userId !== undefined) {
+        const cached = await loadStoreEquipmentCache(userId);
+        if (cached?.stores?.length) {
+          applyEquipmentPayload(cached);
         }
-        setStores(null);
-        return;
       }
-      const data = (await response.json()) as {
-        stores?: StoreRow[];
-        customTypes?: StoreEquipmentCustomType[];
-      };
-      const rows = Array.isArray(data.stores) ? data.stores : [];
-      setStores(rows);
-      setCustomTypes(data.customTypes ?? []);
-      const nextDraft: Record<string, StoreEquipmentCounts> = {};
-      for (const row of rows) {
-        const { storeName, ...counts } = row;
-        nextDraft[storeName] = normalizeStoreEquipmentCounts(counts);
+      try {
+        const response = await fetchWithTimeout(
+          `${API_BASE_URL}/admin/store-equipment`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+          10_000,
+        );
+        if (!response.ok) {
+          const errBody = (await response.json().catch(() => null)) as {
+            message?: string | string[];
+          } | null;
+          const msg = Array.isArray(errBody?.message)
+            ? errBody.message[0]
+            : errBody?.message;
+          if (stores === null) {
+            if (response.status === 403) {
+              setError(
+                typeof msg === 'string' && msg.includes('бухгалтер')
+                  ? 'Сервер ещё не обновлён: директору нужен деплой backend с доступом к спецтехнике. Бухгалтер видит этот раздел.'
+                  : 'Нет доступа к своду по точкам',
+              );
+            } else if (response.status === 401) {
+              setError('Сессия истекла — выйдите и войдите снова');
+            } else {
+              setError(
+                typeof msg === 'string' && msg.length > 0
+                  ? msg
+                  : `Не удалось загрузить свод (${response.status})`,
+              );
+            }
+          }
+          return;
+        }
+        const data = (await response.json()) as {
+          stores?: StoreRow[];
+          customTypes?: StoreEquipmentCustomType[];
+        };
+        const rows = Array.isArray(data.stores) ? data.stores : [];
+        const payload: StoreEquipmentCachePayload = {
+          stores: rows,
+          customTypes: data.customTypes ?? [],
+        };
+        if (userId !== undefined) {
+          await saveStoreEquipmentCache(userId, payload);
+        }
+        applyEquipmentPayload(payload);
+        markApiReachableSuccess();
+      } catch {
+        if (stores === null) {
+          setError('Не удалось загрузить свод — нажмите «Обновить данные» вверху или проверьте сеть');
+        }
       }
-      setDraftByStore(nextDraft);
-    } catch {
-      setStores(null);
-      setError('Не удалось загрузить свод по точкам — проверьте сеть и адрес API');
-    }
-  }, [token]);
+    },
+    [applyEquipmentPayload, stores, token, userId],
+  );
 
   useEffect(() => {
     void load();

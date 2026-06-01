@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { isTauriRuntime } from './tauri';
 import { newClientId, runAdminMutation } from '../sync';
-
-export type DirectorDemoAccountRow = {
-  nickname: string;
-  fullName: string;
-  role: string;
-  storeName: string;
-  password: string;
-};
+import {
+  readDirectorDemoAccountsCache,
+  writeDirectorDemoAccountsCache,
+  type DirectorDemoAccountRow,
+} from '../sync/equipmentCache';
 
 function accountSecondaryLine(row: DirectorDemoAccountRow): string {
   if (row.role === 'ADMIN') {
@@ -77,8 +74,8 @@ export function DirectorAccountSwitcher({
   const rootRef = useRef<HTMLDivElement>(null);
   const pwdRowRef = useRef<HTMLLIElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState<DirectorDemoAccountRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<DirectorDemoAccountRow[]>(() => readDirectorDemoAccountsCache() ?? []);
+  const [loading, setLoading] = useState(() => readDirectorDemoAccountsCache() === null);
   const [switchingNick, setSwitchingNick] = useState<string | null>(null);
   const [err, setErr] = useState('');
   const [hint, setHint] = useState('');
@@ -109,16 +106,15 @@ export function DirectorAccountSwitcher({
       }
       const data = (await res.json()) as DirectorDemoAccountRow[];
       setRows(data);
+      writeDirectorDemoAccountsCache(data);
     } catch {
-      setErr('Не удалось загрузить учётные записи');
+      if (rows.length === 0) {
+        setErr('Не удалось загрузить учётные записи');
+      }
     } finally {
       setLoading(false);
     }
-  }, [apiBaseUrl, directorToken]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  }, [apiBaseUrl, directorToken, rows.length]);
 
   useEffect(() => {
     if (open) {

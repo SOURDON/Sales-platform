@@ -34,6 +34,7 @@ export function DesktopAppLayout({
   roleLabel,
   onLogout,
   directorAccountSwitcher,
+  syncToolbar,
   desktopTheme,
   onDesktopThemeChange,
   children,
@@ -45,6 +46,7 @@ export function DesktopAppLayout({
   roleLabel?: string;
   onLogout: () => void;
   directorAccountSwitcher?: ReactNode;
+  syncToolbar?: ReactNode;
   desktopTheme: DesktopTheme;
   onDesktopThemeChange: (theme: DesktopTheme) => void;
   children: ReactNode;
@@ -115,6 +117,7 @@ export function DesktopAppLayout({
               <h2 className="desktopTitlebarTitle">{pageTitle}</h2>
             </div>
             <div className="desktopTitlebarTrailing">
+              {syncToolbar}
               <ConnectionBanner {...connection} variant="pill" />
             </div>
           </div>

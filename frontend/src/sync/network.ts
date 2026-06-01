@@ -1,11 +1,34 @@
 let cachedReachable: boolean | null = null;
 let cachedReachableAt = 0;
-const REACHABILITY_TTL_MS = 30_000;
+const REACHABILITY_TTL_MS = 45_000;
+
+const reachabilityListeners = new Set<(reachable: boolean) => void>();
+
+function emitReachability(reachable: boolean): void {
+  cachedReachable = reachable;
+  cachedReachableAt = Date.now();
+  for (const listener of reachabilityListeners) {
+    listener(reachable);
+  }
+}
+
+/** Подписка на смену доступности API (в т.ч. после успешного запроса без /health). */
+export function subscribeReachability(onChange: (reachable: boolean) => void): () => void {
+  reachabilityListeners.add(onChange);
+  if (cachedReachable !== null) {
+    onChange(cachedReachable);
+  }
+  return () => {
+    reachabilityListeners.delete(onChange);
+  };
+}
 
 /** Успешный API-запрос — считаем сеть доступной (не ждём отдельный /health). */
 export function markApiReachableSuccess(): void {
-  cachedReachable = true;
-  cachedReachableAt = Date.now();
+  if (cachedReachable === true && Date.now() - cachedReachableAt < REACHABILITY_TTL_MS) {
+    return;
+  }
+  emitReachability(true);
 }
 
 export function resetApiReachabilityCache(): void {
@@ -15,11 +38,8 @@ export function resetApiReachabilityCache(): void {
 
 export async function isApiReachable(
   apiBaseUrl: string,
-  timeoutMs = 12_000,
+  timeoutMs = 5_000,
 ): Promise<boolean> {
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    return false;
-  }
   const base = apiBaseUrl.replace(/\/$/, '');
   if (!base) {
     return false;
@@ -51,21 +71,9 @@ export async function isApiReachable(
     }
   };
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const ok = await probe();
-    if (ok) {
-      cachedReachable = true;
-      cachedReachableAt = Date.now();
-      return true;
-    }
-    if (attempt === 0) {
-      await new Promise((r) => window.setTimeout(r, 400));
-    }
-  }
-
-  cachedReachable = false;
-  cachedReachableAt = Date.now();
-  return false;
+  const ok = await probe();
+  emitReachability(ok);
+  return ok;
 }
 
 export type NetworkSubscription = {
@@ -73,11 +81,11 @@ export type NetworkSubscription = {
   dispose: () => void;
 };
 
-/** navigator.onLine + периодический healthcheck (без ложного «офлайн» при старте). */
+/** Периодический healthcheck; старт — оптимистично «онлайн», если браузер onLine. */
 export function subscribeNetwork(
   apiBaseUrl: string,
   onChange: (reachable: boolean) => void,
-  pollMs = 120_000,
+  pollMs = 180_000,
 ): NetworkSubscription {
   let reachable =
     typeof navigator === 'undefined' ? false : navigator.onLine;
@@ -94,22 +102,27 @@ export function subscribeNetwork(
     if (disposed) {
       return;
     }
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      emit(false);
-      return;
-    }
     const next = await isApiReachable(apiBaseUrl);
     emit(next);
   };
 
   const onNavigatorOnline = () => {
+    markApiReachableSuccess();
     emit(true);
     void runCheck();
   };
   const onNavigatorOffline = () => emit(false);
 
+  const unsubReachability = subscribeReachability((next) => {
+    if (!disposed) {
+      emit(next);
+    }
+  });
+
   if (reachable) {
     onChange(true);
+  } else {
+    onChange(false);
   }
   void runCheck();
   window.addEventListener('online', onNavigatorOnline);
@@ -122,6 +135,7 @@ export function subscribeNetwork(
     },
     dispose: () => {
       disposed = true;
+      unsubReachability();
       window.removeEventListener('online', onNavigatorOnline);
       window.removeEventListener('offline', onNavigatorOffline);
       window.clearInterval(interval);

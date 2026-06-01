@@ -173,7 +173,8 @@ export type FinanceCacheKey =
   | 'financeOps'
   | 'inventoryOverview'
   | 'commissionRequests'
-  | 'revenuePlansByDay';
+  | 'revenuePlansByDay'
+  | 'storeEquipment';
 
 export type SyncCacheKey = AdminCacheKey | FinanceCacheKey;
 
