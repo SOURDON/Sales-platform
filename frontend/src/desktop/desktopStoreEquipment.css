@@ -33,6 +33,15 @@
   overflow: hidden;
 }
 
+.app.app--desktop .storeEquipAccountantRoot--desktop .storeEquipReloadBtn {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--desktop-border, rgba(255, 255, 255, 0.12));
+}
+
 .app.app--desktop .storeEquipAccountantRoot--desktop .storeEquipAccountantHead {
   flex-shrink: 0;
   display: flex;

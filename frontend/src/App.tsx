@@ -1057,6 +1057,7 @@ function App() {
   const [offlinePendingSales, setOfflinePendingSales] = useState<OfflineQueuedSale[]>([]);
   const [outboxSyncing, setOutboxSyncing] = useState(false);
   const [outboxPendingCount, setOutboxPendingCount] = useState(0);
+  const [equipmentRefreshKey, setEquipmentRefreshKey] = useState(0);
   const [apiReachable, setApiReachable] = useState(true);
   const isDesktopShell = isTauriRuntime();
   const [desktopTheme, setDesktopTheme] = useState<DesktopTheme>(() =>
@@ -2439,6 +2440,9 @@ function App() {
         );
       }
       await Promise.allSettled(loads);
+      if (role === 'DIRECTOR' || role === 'ACCOUNTANT') {
+        setEquipmentRefreshKey((k) => k + 1);
+      }
       setOfflineQueueTick((x) => x + 1);
     } finally {
       setOutboxSyncing(false);
@@ -3983,7 +3987,11 @@ function App() {
                 >
                   <section className="sectionCard">
                     {isManager ? null : role === 'ACCOUNTANT' ? (
-                      <AccountantStoreEquipmentStoresPanel token={session.token} userId={session.user.id} />
+                      <AccountantStoreEquipmentStoresPanel
+                        token={session.token}
+                        userId={session.user.id}
+                        refreshKey={equipmentRefreshKey}
+                      />
                     ) : isFinanceViewer ? (
                       <div className={isDesktopShell ? undefined : 'financeOpsWebBridge'}>
                         <FinanceOpsPanel
@@ -4305,7 +4313,11 @@ function App() {
                     }`}
                   >
                     <section className="sectionCard">
-                      <AccountantStoreEquipmentStoresPanel token={session.token} userId={session.user.id} />
+                      <AccountantStoreEquipmentStoresPanel
+                        token={session.token}
+                        userId={session.user.id}
+                        refreshKey={equipmentRefreshKey}
+                      />
                     </section>
                   </div>
                 )
@@ -9831,9 +9843,11 @@ function StoreEquipmentReadAccordion({ token }: { token: string }) {
 function AccountantStoreEquipmentStoresPanel({
   token,
   userId,
+  refreshKey = 0,
 }: {
   token: string;
   userId?: number;
+  refreshKey?: number;
 }) {
   type StoreRow = { storeName: string } & StoreEquipmentCounts;
   const isDesktop = isTauriRuntime();
@@ -9858,9 +9872,21 @@ function AccountantStoreEquipmentStoresPanel({
   const [addingType, setAddingType] = useState(false);
   const [newTypeLabel, setNewTypeLabel] = useState('');
   const [busyAddType, setBusyAddType] = useState(false);
+  const [reloading, setReloading] = useState(false);
   const swipeStartX = useRef<number | null>(null);
+  const hasLoadedOnceRef = useRef(false);
 
   const equipmentFields = useMemo(() => buildStoreEquipmentFields(customTypes), [customTypes]);
+
+  const persistEquipmentCache = useCallback(
+    async (rows: StoreRow[], types: StoreEquipmentCustomType[]) => {
+      if (userId === undefined) {
+        return;
+      }
+      await saveStoreEquipmentCache(userId, { stores: rows, customTypes: types });
+    },
+    [userId],
+  );
 
   const sortedStores = useMemo(() => {
     if (!stores?.length) {
@@ -9871,47 +9897,49 @@ function AccountantStoreEquipmentStoresPanel({
 
   const load = useCallback(
     async (options?: { background?: boolean }) => {
-      if (!options?.background) {
+      const background = options?.background === true;
+      if (!background) {
         setError('');
-        setStatus('');
+        if (!hasLoadedOnceRef.current) {
+          setStatus('');
+        }
+      } else {
+        setReloading(true);
       }
-      if (userId !== undefined) {
+
+      const offline = typeof navigator !== 'undefined' && !navigator.onLine;
+      if (offline && userId !== undefined && !hasLoadedOnceRef.current) {
         const cached = await loadStoreEquipmentCache(userId);
         if (cached?.stores?.length) {
           applyEquipmentPayload(cached);
+          hasLoadedOnceRef.current = true;
         }
       }
+
       try {
         const response = await fetchWithTimeout(
           `${API_BASE_URL}/admin/store-equipment`,
           {
             headers: { Authorization: `Bearer ${token}` },
           },
-          10_000,
+          15_000,
         );
         if (!response.ok) {
-          const errBody = (await response.json().catch(() => null)) as {
-            message?: string | string[];
-          } | null;
-          const msg = Array.isArray(errBody?.message)
-            ? errBody.message[0]
-            : errBody?.message;
-          if (stores === null) {
+          const msg = await readApiErrorMessage(response, 'Не удалось загрузить свод по точкам');
+          if (!hasLoadedOnceRef.current) {
             if (response.status === 403) {
               setError(
-                typeof msg === 'string' && msg.includes('бухгалтер')
-                  ? 'Сервер ещё не обновлён: директору нужен деплой backend с доступом к спецтехнике. Бухгалтер видит этот раздел.'
-                  : 'Нет доступа к своду по точкам',
+                msg.includes('бухгалтер')
+                  ? 'Сервер ещё не обновлён: директору нужен деплой backend с доступом к спецтехнике.'
+                  : msg,
               );
             } else if (response.status === 401) {
               setError('Сессия истекла — выйдите и войдите снова');
             } else {
-              setError(
-                typeof msg === 'string' && msg.length > 0
-                  ? msg
-                  : `Не удалось загрузить свод (${response.status})`,
-              );
+              setError(msg);
             }
+          } else if (!background) {
+            setError(msg);
           }
           return;
         }
@@ -9920,27 +9948,36 @@ function AccountantStoreEquipmentStoresPanel({
           customTypes?: StoreEquipmentCustomType[];
         };
         const rows = Array.isArray(data.stores) ? data.stores : [];
-        const payload: StoreEquipmentCachePayload = {
-          stores: rows,
-          customTypes: data.customTypes ?? [],
-        };
-        if (userId !== undefined) {
-          await saveStoreEquipmentCache(userId, payload);
-        }
-        applyEquipmentPayload(payload);
+        const types = data.customTypes ?? [];
+        applyEquipmentPayload({ stores: rows, customTypes: types });
+        await persistEquipmentCache(rows, types);
         markApiReachableSuccess();
-      } catch {
-        if (stores === null) {
-          setError('Не удалось загрузить свод — нажмите «Обновить данные» вверху или проверьте сеть');
+        hasLoadedOnceRef.current = true;
+        if (background) {
+          setStatus('Данные обновлены');
         }
+      } catch {
+        if (!hasLoadedOnceRef.current) {
+          setError('Не удалось загрузить свод — проверьте сеть и нажмите ↻');
+        } else if (!background) {
+          setError('Не удалось обновить — проверьте сеть');
+        }
+      } finally {
+        setReloading(false);
       }
     },
-    [applyEquipmentPayload, stores, token, userId],
+    [applyEquipmentPayload, persistEquipmentCache, token, userId],
   );
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (refreshKey > 0) {
+      void load({ background: true });
+    }
+  }, [refreshKey, load]);
 
   useEffect(() => {
     if (!sortedStores.length) {
@@ -10031,28 +10068,51 @@ function AccountantStoreEquipmentStoresPanel({
     setStatus('');
     setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/store-equipment`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+      const response = await fetchWithTimeout(
+        `${API_BASE_URL}/admin/store-equipment`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            storeName,
+            pc: row.pc,
+            camera: row.camera,
+            printer: row.printer,
+            sdCard: row.sdCard,
+            monitor: row.monitor,
+            mouse: row.mouse,
+            keyboard: row.keyboard,
+            cardReader: row.cardReader,
+            extra: row.extra ?? {},
+          }),
         },
-        body: JSON.stringify({
-          storeName,
-          ...row,
-        }),
-      });
+        20_000,
+      );
       if (!response.ok) {
-        throw new Error('save');
+        throw new Error(await readApiErrorMessage(response, 'Не удалось сохранить'));
       }
       const data = (await response.json()) as { storeName: string; equipment: StoreEquipmentCounts };
+      const equipment = normalizeStoreEquipmentCounts(data.equipment);
+      const savedRow: StoreRow = { storeName: data.storeName, ...equipment };
       setDraftByStore((current) => ({
         ...current,
-        [data.storeName]: normalizeStoreEquipmentCounts(data.equipment),
+        [data.storeName]: equipment,
       }));
+      let nextStores: StoreRow[] = [];
+      setStores((current) => {
+        nextStores = current
+          ? current.map((item) => (item.storeName === data.storeName ? savedRow : item))
+          : [savedRow];
+        return nextStores;
+      });
+      await persistEquipmentCache(nextStores, customTypes);
+      markApiReachableSuccess();
       setStatus(`Сохранено: ${data.storeName}`);
-    } catch {
-      setError('Не удалось сохранить');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось сохранить');
     } finally {
       setBusyStore(null);
     }
@@ -10234,6 +10294,15 @@ function AccountantStoreEquipmentStoresPanel({
             </p>
           ) : null}
         </div>
+        <button
+          type="button"
+          className="ghost storeEquipReloadBtn"
+          title="Обновить с сервера"
+          disabled={reloading || Boolean(busyStore)}
+          onClick={() => void load({ background: true })}
+        >
+          {reloading ? 'Обновление…' : '↻ Обновить'}
+        </button>
         {error ? (
           <p className="invInlineError storeInvMessage" role="alert">
             {error}
