@@ -27,6 +27,20 @@ ensureDemoData(prisma)
 "
 
 echo ""
+echo "=== Перезапуск API (подтянуть a1/a2 из БД в память) ==="
+docker compose --env-file .env restart api
+sleep 12
+
+echo ""
+echo "=== Админы в PostgreSQL ==="
+set -a
+# shellcheck disable=SC1091
+source .env
+set +a
+docker compose --env-file .env exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+  "SELECT nickname, \"storeName\", \"isActive\" FROM \"User\" WHERE role='ADMIN' ORDER BY nickname;"
+
+echo ""
 echo "=== Проверка /director/demo-accounts (нужен пароль director) ==="
 DIRECTOR_PASSWORD="${DIRECTOR_PASSWORD:-Bufet000}"
 TOKEN=$(curl -s -X POST http://127.0.0.1/auth/login \
@@ -38,18 +52,21 @@ if [[ -z "$TOKEN" ]]; then
   exit 1
 fi
 
-curl -s http://127.0.0.1/director/demo-accounts \
-  -H "Authorization: Bearer $TOKEN" \
-  | node -e "
-const rows = JSON.parse(require('fs').readFileSync(0,'utf8'));
-const admins = rows.filter(r => r.role === 'ADMIN').map(r => r.nickname + ' → ' + r.storeName);
-console.log('Admin accounts (' + admins.length + '):');
-admins.sort().forEach(l => console.log('  ' + l));
-const need = ['a1','a2'];
-for (const n of need) {
-  if (!rows.some(r => r.nickname === n)) console.log('MISSING:', n);
-}
-" 2>/dev/null || echo "(для списка установите node на сервере или проверьте с Mac: node scripts/repair-missing-demo-admins.mjs)"
+ACCOUNTS_JSON=$(curl -s http://127.0.0.1/director/demo-accounts -H "Authorization: Bearer $TOKEN")
+echo "$ACCOUNTS_JSON" | grep -o '"nickname":"a[0-9]*"' | tr -d '"' | sed 's/nickname://' | sort -u | while read -r nick; do
+  store=$(echo "$ACCOUNTS_JSON" | grep -o "\"nickname\":\"$nick\"[^}]*\"storeName\":\"[^\"]*\"" | head -1 | sed 's/.*"storeName":"//;s/"$//')
+  echo "  $nick → ${store:-?}"
+done
+if echo "$ACCOUNTS_JSON" | grep -q '"nickname":"a1"'; then
+  echo "OK: a1 в API"
+else
+  echo "MISSING: a1 в API — проверьте вывод PostgreSQL выше"
+fi
+if echo "$ACCOUNTS_JSON" | grep -q '"nickname":"a2"'; then
+  echo "OK: a2 в API"
+else
+  echo "MISSING: a2 в API"
+fi
 
 echo ""
 echo "Готово. В десктопе откройте переключатель учёток — должны появиться a1 и a2."
