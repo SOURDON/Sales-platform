@@ -1,6 +1,14 @@
 import type { OutboxEntry, SyncCacheRow } from './types';
 
-const DB_NAME = 'sales-platform-sync-v1';
+function syncDbName(): string {
+  const api =
+    (typeof import.meta !== 'undefined' &&
+      (import.meta.env.VITE_API_URL as string | undefined)?.trim()) ||
+    'same-origin';
+  const slug = api.replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 48);
+  return `sales-platform-sync-v3-${slug}`;
+}
+
 const DB_VERSION = 2;
 const OUTBOX_STORE = 'outbox';
 const CACHE_STORE = 'cache';
@@ -15,7 +23,7 @@ function openDatabase(): Promise<IDBDatabase> {
     return dbPromise;
   }
   dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(syncDbName(), DB_VERSION);
     request.onerror = () => reject(request.error ?? new Error('IndexedDB open failed'));
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = (event) => {

@@ -6,7 +6,12 @@ export type {
   OutboxMutationType,
 } from './types';
 export { flushOutbox, type FlushOutboxResult } from './flushOutbox';
-export { isApiReachable, subscribeNetwork } from './network';
+export {
+  isApiReachable,
+  markApiReachableSuccess,
+  resetApiReachabilityCache,
+  subscribeNetwork,
+} from './network';
 export { saveAdminCache, loadAdminCache, saveSyncCache, loadSyncCache } from './cache';
 export {
   loadAdminResource,

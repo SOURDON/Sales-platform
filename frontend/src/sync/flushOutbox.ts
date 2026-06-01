@@ -7,7 +7,7 @@ import { flushDirectorEntry } from './handlers/director';
 import { flushFinanceEntry } from './handlers/finance';
 import { flushManagerRevenuePlansEntry } from './handlers/managerRevenuePlans';
 import type { FlushOutcome } from './handlers/flushEntry';
-import { isApiReachable } from './network';
+import { isApiReachable, markApiReachableSuccess } from './network';
 import { listOutboxForUser } from './outbox';
 import type { OutboxEntry } from './types';
 
@@ -70,6 +70,7 @@ export async function flushOutbox(
     const outcome = await flushEntry(apiBaseUrl, token, entry);
     if (outcome === 'ok') {
       sent += 1;
+      markApiReachableSuccess();
       continue;
     }
     if (outcome === 'drop') {

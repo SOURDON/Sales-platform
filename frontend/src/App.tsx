@@ -1046,7 +1046,7 @@ function App() {
   const [offlinePendingSales, setOfflinePendingSales] = useState<OfflineQueuedSale[]>([]);
   const [outboxSyncing, setOutboxSyncing] = useState(false);
   const [apiReachable, setApiReachable] = useState(
-    () => typeof navigator !== 'undefined' && navigator.onLine,
+    () => typeof navigator === 'undefined' || navigator.onLine,
   );
   const isDesktopShell = isTauriRuntime();
   const [desktopTheme, setDesktopTheme] = useState<DesktopTheme>(() =>
@@ -1284,6 +1284,22 @@ function App() {
     }
     if (cachedSellers) {
       setSellers(cachedSellers);
+    }
+    if (role === 'DIRECTOR' || role === 'MANAGER') {
+      const [cachedStaff, cachedSales, cachedShifts] = await Promise.all([
+        loadSyncCache<StaffMember[]>(userId, 'staff'),
+        loadSyncCache<AdminSale[]>(userId, 'sales'),
+        loadSyncCache<ShiftInfo[]>(userId, 'shifts'),
+      ]);
+      if (cachedStaff?.length) {
+        setStaff(cachedStaff);
+      }
+      if (cachedSales?.length) {
+        setSales(cachedSales);
+      }
+      if (cachedShifts?.length) {
+        setShifts(cachedShifts);
+      }
     }
   }, [session?.user?.id, session?.user?.role]);
 
@@ -2234,8 +2250,10 @@ function App() {
       }
       return (await response.json()) as ShiftInfo[];
     };
-    if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
-      const result = await loadAdminResource(API_BASE_URL, session.user.id, 'shifts', fetcher, []);
+    const role = session?.user?.role;
+    const uid = session?.user?.id;
+    if (uid != null && (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))) {
+      const result = await loadSyncResource(API_BASE_URL, uid, 'shifts', fetcher, []);
       setShifts(result.data);
       return;
     }
@@ -2252,8 +2270,10 @@ function App() {
       }
       return (await response.json()) as StaffMember[];
     };
-    if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
-      const result = await loadAdminResource(API_BASE_URL, session.user.id, 'staff', fetcher, []);
+    const role = session?.user?.role;
+    const uid = session?.user?.id;
+    if (uid != null && (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))) {
+      const result = await loadSyncResource(API_BASE_URL, uid, 'staff', fetcher, []);
       setStaff(result.data);
       return;
     }
@@ -2764,7 +2784,13 @@ function App() {
     ) {
       setAdminError('');
       if (data.user.role === 'DIRECTOR') {
-        await Promise.allSettled([loadCommissionRequests(data.token)]);
+        await Promise.allSettled([
+          loadCommissionRequests(data.token),
+          loadStaff(data.token),
+          loadSellers(data.token),
+          loadSales(data.token),
+          loadShifts(data.token),
+        ]);
       } else if (data.user.role === 'ACCOUNTANT') {
         await Promise.allSettled([loadFinanceOps(data.token)]);
       } else if (data.user.role === 'MANAGER') {
@@ -2899,6 +2925,7 @@ function App() {
 
     try {
       const data = await loginWithNicknamePassword(nickname, password);
+      setApiReachable(true);
       writeDirectorRootSession(null);
       setDirectorRootSession(null);
       setPassword('');
@@ -3118,7 +3145,13 @@ function App() {
             loadStoreInventory(session.token),
           ]);
         } else if (session.user.role === 'DIRECTOR') {
-          await Promise.allSettled([loadCommissionRequests(session.token)]);
+          await Promise.allSettled([
+            loadCommissionRequests(session.token),
+            loadStaff(session.token),
+            loadSellers(session.token),
+            loadSales(session.token),
+            loadShifts(session.token),
+          ]);
         } else if (session.user.role === 'ACCOUNTANT') {
           await Promise.allSettled([loadFinanceOps(session.token)]);
         } else if (session.user.role === 'MANAGER') {
@@ -3177,7 +3210,13 @@ function App() {
       await loadDashboard(token);
       const loads: Promise<unknown>[] = [];
       if (role === 'DIRECTOR') {
-        loads.push(loadCommissionRequests(token));
+        loads.push(
+          loadCommissionRequests(token),
+          loadStaff(token),
+          loadSellers(token),
+          loadSales(token),
+          loadShifts(token),
+        );
       } else if (role === 'ACCOUNTANT') {
         loads.push(loadFinanceOps(token));
       } else if (role === 'ADMIN') {
@@ -3224,7 +3263,16 @@ function App() {
         void loadAcquiringProfiles(token);
       }
       if (role === 'DIRECTOR' && path === '/team') {
-        void loadManagerStoreCommissions(token);
+        void Promise.allSettled([
+          loadManagerStoreCommissions(token),
+          loadStaff(token),
+          loadSellers(token),
+          loadSales(token),
+          loadShifts(token),
+        ]);
+      }
+      if (role === 'MANAGER' && path === '/team') {
+        void Promise.allSettled([loadStaff(token), loadSellers(token), loadSales(token)]);
       }
       return;
     }
