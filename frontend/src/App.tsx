@@ -701,7 +701,7 @@ type FinanceOpsSnapshot = {
   };
 };
 
-/** Backend base URL. In production builds, only VITE_API_URL (set at build time in Vercel) is used. */
+/** Backend base URL. VITE_API_URL при сборке; иначе в браузере — тот же origin (Timeweb: сайт + API на одном домене). */
 const API_BASE_URL = (() => {
   const fromEnv = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
   if (fromEnv) {
@@ -713,12 +713,15 @@ const API_BASE_URL = (() => {
     }
     return 'http://localhost:3000';
   }
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
   return '';
 })();
 
 const API_CONFIG_ERROR =
-  !import.meta.env.DEV && !API_BASE_URL
-    ? 'Сборка без адреса API: в Vercel добавьте переменную VITE_API_URL = https://… (URL backend на Render) и сделайте Redeploy.'
+  !import.meta.env.DEV && !API_BASE_URL && typeof window === 'undefined'
+    ? 'Сборка без адреса API: задайте VITE_API_URL при сборке frontend.'
     : '';
 
 const MANAGER_COMMISSIONS_DEPLOY_HINT =
