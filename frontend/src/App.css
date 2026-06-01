@@ -5274,6 +5274,12 @@ h1 {
   font-weight: 500;
 }
 
+.app.loginScreen .loginServerHint {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
 .app.loginScreen .form {
   gap: 14px;
 }

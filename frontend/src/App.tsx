@@ -725,7 +725,25 @@ const API_CONFIG_ERROR =
     : '';
 
 const MANAGER_COMMISSIONS_DEPLOY_HINT =
-  'На сервере (Render) ещё нет API для процентов управляющего. Сделайте Manual Deploy ветки main, подождите 2–3 минуты и нажмите ↻.';
+  'На сервере ещё нет API для процентов управляющего. Обновите API на Timeweb (git pull + docker compose up -d --build api) и нажмите ↻.';
+
+function apiServerLabel(baseUrl: string): string {
+  try {
+    const host = new URL(baseUrl).hostname;
+    if (host.includes('onrender.com')) {
+      return 'Render (устарело — смените VITE_API_URL на Timeweb)';
+    }
+    if (host === '77.233.223.48') {
+      return 'Timeweb';
+    }
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'Локальный сервер';
+    }
+    return host;
+  } catch {
+    return baseUrl;
+  }
+}
 
 async function readApiErrorMessage(response: Response, fallback: string): Promise<string> {
   const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
@@ -3308,6 +3326,12 @@ function App() {
           <header className="brandHeader">
             <h1>Фотографы</h1>
             <p className="subtitle">Авторизация в системе</p>
+            {API_BASE_URL ? (
+              <p className="subtitle loginServerHint">
+                Сервер: {apiServerLabel(API_BASE_URL)}
+                {import.meta.env.DEV ? ` · ${API_BASE_URL}` : null}
+              </p>
+            ) : null}
           </header>
 
           {API_CONFIG_ERROR ? (

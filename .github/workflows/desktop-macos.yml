@@ -33,10 +33,10 @@ jobs:
 
       - name: Prepare desktop env (production API)
         run: |
-          echo 'VITE_API_URL=https://sales-platform-1.onrender.com' > desktop/.env
+          echo 'VITE_API_URL=http://77.233.223.48' > desktop/.env
 
       - name: Smoke API
-        run: bash scripts/desktop-smoke.sh https://sales-platform-1.onrender.com
+        run: bash scripts/desktop-smoke.sh http://77.233.223.48
 
       - name: Build Tauri bundle
         env:

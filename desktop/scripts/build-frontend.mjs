@@ -34,11 +34,20 @@ function loadEnvFile(filePath) {
   return out;
 }
 
-// desktop/.env имеет приоритет над frontend/.env (prod URL для установщика)
+// desktop/.env имеет приоритет; Render в .env не используем
+const TIMEWEB_API = 'http://77.233.223.48';
+const fromFrontend = loadEnvFile(resolve(frontendRoot, '.env'));
+const fromDesktop = loadEnvFile(resolve(desktopRoot, '.env'));
+let apiUrl = fromDesktop.VITE_API_URL || fromFrontend.VITE_API_URL || TIMEWEB_API;
+if (String(apiUrl).includes('onrender.com')) {
+  console.warn(`[build-frontend] Render → Timeweb: ${TIMEWEB_API}`);
+  apiUrl = TIMEWEB_API;
+}
 const env = {
   ...process.env,
-  ...loadEnvFile(resolve(frontendRoot, '.env')),
-  ...loadEnvFile(resolve(desktopRoot, '.env')),
+  ...fromFrontend,
+  ...fromDesktop,
+  VITE_API_URL: apiUrl,
 };
 
 const isWin = process.platform === 'win32';

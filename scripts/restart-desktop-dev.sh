@@ -16,7 +16,11 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
+API_URL="$(grep -E '^VITE_API_URL=' "$REPO/desktop/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+[[ -z "$API_URL" || "$API_URL" == *onrender* ]] && API_URL="http://77.233.223.48"
+
 echo "=== Перезапуск «Фотографы» (разработка) ==="
+echo "API: Timeweb → $API_URL"
 echo ""
 
 echo "Останавливаем предыдущий запуск…"

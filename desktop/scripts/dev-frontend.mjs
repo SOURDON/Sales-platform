@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 const DEV_HOST = '127.0.0.1';
 const DEV_PORT = 5173;
 
+const TIMEWEB_API = 'http://77.233.223.48';
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../..');
 const frontendDir = path.resolve(repoRoot, 'frontend');
@@ -31,12 +33,16 @@ function readDesktopApiUrl() {
   return undefined;
 }
 
-const apiUrl = readDesktopApiUrl();
-const env = { ...process.env };
-if (apiUrl) {
-  env.VITE_API_URL = apiUrl;
-  console.log(`[dev-frontend] VITE_API_URL=${apiUrl} (из desktop/.env)`);
+let apiUrl = readDesktopApiUrl() || TIMEWEB_API;
+if (apiUrl.includes('onrender.com')) {
+  console.warn(
+    `[dev-frontend] Render отключён — используем Timeweb: ${TIMEWEB_API} (обновите desktop/.env)`,
+  );
+  apiUrl = TIMEWEB_API;
 }
+
+const env = { ...process.env, VITE_API_URL: apiUrl };
+console.log(`[dev-frontend] API Timeweb → ${apiUrl}`);
 
 console.log(`[dev-frontend] http://${DEV_HOST}:${DEV_PORT}/ (strictPort — освободите порт, если занят)`);
 
