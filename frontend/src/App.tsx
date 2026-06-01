@@ -1251,9 +1251,23 @@ function App() {
       return;
     }
     if (role === 'MANAGER') {
-      const cachedDashboard = await loadSyncCache<DashboardResponse>(userId, 'dashboard');
+      const [cachedDashboard, cachedStaff, cachedSales, cachedShifts] = await Promise.all([
+        loadSyncCache<DashboardResponse>(userId, 'dashboard'),
+        loadSyncCache<StaffMember[]>(userId, 'staff'),
+        loadSyncCache<AdminSale[]>(userId, 'sales'),
+        loadSyncCache<ShiftInfo[]>(userId, 'shifts'),
+      ]);
       if (cachedDashboard) {
         setDashboard(cachedDashboard);
+      }
+      if (cachedStaff?.length) {
+        setStaff(cachedStaff);
+      }
+      if (cachedSales?.length) {
+        setSales(cachedSales);
+      }
+      if (cachedShifts?.length) {
+        setShifts(cachedShifts);
       }
       return;
     }
@@ -1285,7 +1299,7 @@ function App() {
     if (cachedSellers) {
       setSellers(cachedSellers);
     }
-    if (role === 'DIRECTOR' || role === 'MANAGER') {
+    if (role === 'DIRECTOR') {
       const [cachedStaff, cachedSales, cachedShifts] = await Promise.all([
         loadSyncCache<StaffMember[]>(userId, 'staff'),
         loadSyncCache<AdminSale[]>(userId, 'sales'),
@@ -3271,10 +3285,10 @@ function App() {
           loadShifts(token),
         ]);
       }
-      if (role === 'MANAGER' && path === '/team') {
-        void Promise.allSettled([loadStaff(token), loadSellers(token), loadSales(token)]);
-      }
       return;
+    }
+    if (role === 'MANAGER' && path === '/team') {
+      void Promise.allSettled([loadStaff(token), loadSellers(token), loadSales(token)]);
     }
     if (role === 'MANAGER' && path === '/sales') {
       void loadSales(token);

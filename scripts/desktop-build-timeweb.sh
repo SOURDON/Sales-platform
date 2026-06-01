@@ -1,10 +1,29 @@
 #!/usr/bin/env bash
-# Сборка Fotografy для Timeweb (проверка API + .dmg).
+# Сборка Fotografy для Timeweb (только на Mac, не на SSH-сервере).
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 API_URL="${VITE_API_URL:-http://77.233.223.48}"
 
-echo "=== Fotografy → Timeweb ==="
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "Сборка .dmg только на macOS. На сервере Timeweb — только: git pull && bash scripts/timeweb/fix-cors-for-ip.sh"
+  exit 1
+fi
+
+# Portable Node из репозитория (если нет системного npm)
+if [[ -d "$REPO/.node-portable" ]]; then
+  NODE_DIR="$(find "$REPO/.node-portable" -maxdepth 1 -type d -name 'node-v*' 2>/dev/null | head -1)"
+  if [[ -n "$NODE_DIR" && -x "$NODE_DIR/bin/npm" ]]; then
+    export PATH="$NODE_DIR/bin:$PATH"
+  fi
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "Установите Node.js LTS: https://nodejs.org/"
+  echo "Или откройте проект в Cursor — в репозитории есть .node-portable."
+  exit 1
+fi
+
+echo "=== Fotografy → Timeweb (сборка на Mac) ==="
 echo "API: $API_URL"
 echo ""
 
@@ -20,6 +39,6 @@ fi
 DESKTOP_BUILD_SKIP_CONFIRM=1 DESKTOP_BUILD_SKIP_SMOKE=1 bash "$REPO/scripts/desktop-build.sh"
 
 echo ""
-echo "Готово. Установите новый .dmg из desktop/dist/"
+echo "Готово. Установите: bash scripts/install-fotografy-from-dmg.sh"
+echo "Или дважды: Перезапуск Fotografy.command на рабочем столе"
 echo "Вход: director / Bufet000"
-echo "Старый Render можно остановить в панели Render."
