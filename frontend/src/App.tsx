@@ -8835,7 +8835,7 @@ function StaffPanel({
               if (!selectedRemovalStaff) {
                 return;
               }
-              await onRemoveFromStore(token, selectedRemovalStaff.id, selectedRemovalStaff.storeName);
+              await onRemoveFromStore(token, selectedRemovalStaff.id, storeName ?? selectedRemovalStaff.storeName);
               setPickedRemovalStaffId(null);
             }}
           >
@@ -8921,7 +8921,7 @@ function StaffPanel({
               if (!selectedRemovalStaff) {
                 return;
               }
-              await onRemoveFromStore(token, selectedRemovalStaff.id, selectedRemovalStaff.storeName);
+              await onRemoveFromStore(token, selectedRemovalStaff.id, storeName ?? selectedRemovalStaff.storeName);
               setPickedRemovalStaffId(null);
             }}
           >
@@ -9087,7 +9087,7 @@ function StaffPanel({
                     if (!selectedRemovalStaff) {
                       return;
                     }
-                    await onRemoveFromStore(token, selectedRemovalStaff.id, selectedRemovalStaff.storeName);
+                    await onRemoveFromStore(token, selectedRemovalStaff.id, storeName ?? selectedRemovalStaff.storeName);
                     setPickedRemovalStaffId(null);
                   }}
                 >

@@ -2783,7 +2783,9 @@ export class AuthService implements OnModuleInit {
         const home = u?.storeName?.trim() ?? '';
         if (member.staffPosition === 'MANAGER' || member.nickname === MANAGER_USER_NICKNAME) {
           assignedStores = [...MANAGER_ASSIGNED_STORE_NAMES];
-        } else if (home && home !== 'Все точки') {
+        } else if (this.storeStaffAssignments.length === 0 && home && home !== 'Все точки') {
+          // Legacy fallback only: when assignment table is globally empty.
+          // If specific staff was removed from a store, keep it removed.
           assignedStores = [home];
         }
       }
@@ -2991,12 +2993,25 @@ export class AuthService implements OnModuleInit {
     if (!targetStoreName) {
       return null;
     }
+    const hadStaffAssignments = this.storeStaffAssignments.some((item) => item.staffId === id);
     const beforeCount = this.storeStaffAssignments.length;
     this.storeStaffAssignments = this.storeStaffAssignments.filter(
       (item) => !(item.staffId === id && item.storeName === targetStoreName),
     );
-    if (this.storeStaffAssignments.length === beforeCount) {
-      return null;
+    const removedDirectAssignment = this.storeStaffAssignments.length !== beforeCount;
+
+    if (!removedDirectAssignment) {
+      // Legacy fallback: old data may have no assignment rows for staff,
+      // while UI still shows them by home store. Allow one-time removal.
+      const sellerProfile = this.sellerProfiles.find((item) => item.id === id);
+      const homeStore = targetUser?.storeName?.trim() ?? '';
+      const sellerStore = sellerProfile?.storeName?.trim() ?? '';
+      const matchesLegacyHome = homeStore === targetStoreName || sellerStore === targetStoreName;
+      if (!hadStaffAssignments && matchesLegacyHome && targetUser) {
+        targetUser.storeName = 'Все точки';
+      } else {
+        return null;
+      }
     }
     for (const shift of this.shiftHistory) {
       if (shift.status !== 'OPEN') {
