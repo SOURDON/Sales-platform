@@ -166,17 +166,10 @@ type StaffMember = {
   earningsAmount: number;
 };
 
-/** Точки сотрудника; если привязок нет — домашняя точка из профиля. */
+/** Точки сотрудника из API (источник истины — привязки на сервере). */
 function staffAssignedStores(member: StaffMember): string[] {
   const fromApi = Array.isArray(member.assignedStores) ? member.assignedStores : [];
-  if (fromApi.length > 0) {
-    return fromApi;
-  }
-  const home = member.storeName?.trim();
-  if (home && home !== 'Все точки') {
-    return [home];
-  }
-  return [];
+  return fromApi.filter((name) => typeof name === 'string' && name.trim().length > 0);
 }
 
 /** Сотрудники, привязанные к торговой точке (для экрана «Смена» у админа). */
@@ -7964,6 +7957,7 @@ function TeamStoresOverview({
 
   const [restorePickStore, setRestorePickStore] = useState<Record<number, string>>({});
   const [restoreBusyId, setRestoreBusyId] = useState<number | null>(null);
+  const [removeError, setRemoveError] = useState('');
 
   const [storeAccordionOpen, setStoreAccordionOpen] = useState<Record<string, boolean>>({});
   const desktopWarehouse = isTauriRuntime();
@@ -8184,8 +8178,11 @@ function TeamStoresOverview({
                     return;
                   }
                   setRemovingMemberId(member.id);
+                  setRemoveError('');
                   try {
                     await onRemoveFromStore(token, member.id, storeName);
+                  } catch (error) {
+                    setRemoveError(error instanceof Error ? error.message : 'Не удалось убрать сотрудника из точки');
                   } finally {
                     setRemovingMemberId(null);
                   }
@@ -8533,6 +8530,7 @@ function TeamStoresOverview({
           <h4 className="teamWarehouseTitle">Сотрудники по точкам</h4>
           {reportDateBar}
         </header>
+        {removeError ? <p className="notice">{removeError}</p> : null}
         <div className="teamWarehouseWorkspace">
           <aside className="teamWarehouseStoresRail" role="tablist" aria-label="Точки продаж">
             {storesSorted.map((storeName) => {

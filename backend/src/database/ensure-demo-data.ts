@@ -52,7 +52,9 @@ async function ensureDemoUsers(prisma: PrismaClient) {
         data: {
           fullName: row.fullName,
           role: toPrismaUserRole(row.role),
-          storeName: row.storeName,
+          // Preserve current store assignment for existing users.
+          // Otherwise each ensureDemoData call can undo manual staff moves between stores.
+          storeName: existing.storeName?.trim() ? existing.storeName : row.storeName,
           isActive: row.isActive,
           ...(forcePwd ? { password: row.password } : {}),
         },
