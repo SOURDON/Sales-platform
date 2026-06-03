@@ -559,7 +559,7 @@ html[data-dt-theme='light'] .app.app--desktop.loginScreen .loginAppVersion {
   text-transform: uppercase;
 }
 
-.app.app--desktop h3:not(.messengerHubTitle):not(.messengerThreadNavTitle),
+.app.app--desktop h3,
 .app.app--desktop h4 {
   color: var(--dt-text);
   font-weight: 600;
@@ -713,7 +713,7 @@ html[data-dt-theme='light'] .app.app--desktop.loginScreen .loginAppVersion {
 
 .app.app--desktop button.primaryAction,
 .app.app--desktop
-  button:not(.ghost):not(.addSaleQtyBtn):not(.saleDeleteRequestIconBtn):not(.saleDeleteBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.messengerThreadRow):not(.messengerTgPill):not(.orgChatSendFab):not(.directorApprovalsCarouselDot):not(.directorCashflowCarouselDot):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.desktopThemeToggleBtn) {
+  button:not(.ghost):not(.addSaleQtyBtn):not(.saleDeleteRequestIconBtn):not(.saleDeleteBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.directorApprovalsCarouselDot):not(.directorCashflowCarouselDot):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.desktopThemeToggleBtn) {
   min-height: var(--dt-control-h);
   font-weight: 600;
   color: var(--dt-accent-text, #0b1410);
@@ -742,7 +742,7 @@ html[data-dt-theme='light'] .app.app--desktop.loginScreen .loginAppVersion {
 /* Поля */
 .app.app--desktop input:not([type='checkbox']):not([type='radio']):not(.financeOpsIncomeEntryInput):not(.financeOpsExpenseEntryInput),
 .app.app--desktop select,
-.app.app--desktop textarea:not(.orgChatInput--tg) {
+.app.app--desktop textarea {
   min-height: var(--dt-control-h);
   padding: 6px 10px;
   font-size: 13px;
@@ -792,8 +792,6 @@ html[data-dt-theme='light'] .app.app--desktop.loginScreen .loginAppVersion {
 .app.app--desktop table tbody tr:hover td {
   background: rgba(255, 255, 255, 0.03);
 }
-
-/* Чат — см. desktopMessenger.css */
 
 /* Уведомления */
 .app.app--desktop .error {

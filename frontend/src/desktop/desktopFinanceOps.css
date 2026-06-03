@@ -865,6 +865,158 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ——— Оперативка автоматическая ——— */
+.app.app--desktop .financeAutoOpsShell,
+.financeAutoOpsShell {
+  gap: 18px !important;
+}
+
+.financeAutoOpsLead {
+  margin: 0 0 14px;
+  max-width: 52rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--dt-text-muted, var(--muted));
+}
+
+.financeAutoOpsDayRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+}
+
+.financeAutoOpsDayLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dt-text-dim, var(--muted));
+}
+
+.financeAutoOpsDayInput {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: var(--dt-radius-sm, 8px);
+  border: 1px solid var(--dt-border-hairline, rgba(255, 255, 255, 0.12));
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--dt-text, inherit);
+  font-size: 0.95rem;
+}
+
+.app.app--desktop .financeAutoOpsRefreshBtn {
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: var(--dt-radius-sm, 8px);
+}
+
+.financeAutoOpsPreview {
+  padding: 16px 0 4px;
+  box-shadow: inset 0 1px 0 var(--dt-border-hairline, rgba(255, 255, 255, 0.08));
+}
+
+.financeAutoOpsPreviewHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.financeAutoOpsPreviewLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dt-text-dim, var(--muted));
+}
+
+.financeAutoOpsPreviewTotal {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--dt-gold, var(--accent));
+  font-variant-numeric: tabular-nums;
+}
+
+.financeAutoOpsPreviewGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.financeAutoOpsPreviewChip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--dt-radius-md, 10px);
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px var(--dt-border-hairline, rgba(255, 255, 255, 0.08));
+}
+
+.financeAutoOpsPreviewChip--empty {
+  opacity: 0.55;
+}
+
+.financeAutoOpsPreviewChip--synced {
+  box-shadow:
+    inset 0 0 0 1px rgba(154, 163, 173, 0.35),
+    inset 0 0 0 1px var(--dt-border-hairline, rgba(255, 255, 255, 0.08));
+}
+
+.financeAutoOpsPreviewChipTitle {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--dt-text-dim, var(--muted));
+}
+
+.financeAutoOpsPreviewChipAmount {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.financeAutoOpsPreviewChipBadge {
+  font-size: 0.65rem;
+  color: var(--dt-gold-soft, var(--muted));
+}
+
+.financeAutoOpsHint,
+.financeAutoOpsActionNote {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  color: var(--dt-text-dim, var(--muted));
+}
+
+.financeAutoOpsAction {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.app.app--desktop .financeAutoOpsSyncBtn {
+  min-height: 48px;
+  padding: 12px 22px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: var(--dt-radius-md, 10px);
+}
+
+.financeAutoOpsStatus {
+  margin: 0;
+}
+
+.financeAutoOpsError {
+  margin: 0;
+}
+
 @media (max-width: 1100px) {
   .app.app--desktop .financeOpsHeroMain,
   .app.app--desktop .financeOpsFlowsMain {

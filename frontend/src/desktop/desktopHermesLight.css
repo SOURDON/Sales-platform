@@ -62,29 +62,6 @@ html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop .finan
   text-transform: uppercase !important;
 }
 
-/* Мессенджер */
-html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .orgChatSendFab {
-  background: var(--dt-accent-gradient) !important;
-  border: 1px solid var(--dt-accent-edge) !important;
-  color: #92a1ac !important;
-  box-shadow: 0 4px 14px rgba(25, 23, 26, 0.22) !important;
-}
-
-html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .orgChatSendFab:hover:not(:disabled) {
-  background: var(--dt-accent-gradient-hover) !important;
-}
-
-html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadRow {
-  border-bottom: 1px solid var(--hermes-line, rgba(245, 247, 250, 0.12)) !important;
-  color: var(--dt-text-muted, #e2e8ed) !important;
-}
-
-html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadRow--active {
-  background: rgba(91, 154, 173, 0.18) !important;
-  color: var(--dt-text, #f5f7fa) !important;
-  box-shadow: inset 3px 0 0 var(--cb-accent, #5b9aad) !important;
-}
-
 /* Спецтехника */
 html[data-dt-theme='light'] .app.app--desktop .storeEquipAccountantRoot--desktop {
   background: var(--hermes-white, #92a1ac) !important;

@@ -53,7 +53,6 @@
 ### Этап 5 — MANAGER + стабилизация (~1–2 нед)
 
 - [x] Кэш главной (MANAGER dashboard); планы выручки (кэш + outbox для DIRECTOR/ACCOUNTANT)
-- [x] Чат — **только онлайн** в Tauri (`ChatOfflineNotice`, блок отправки)
 - [x] Чеклист тестов: `docs/DESKTOP_TEST_CHECKLIST.md`
 - [x] Инструкция для пользователей: `docs/DESKTOP_USER_GUIDE.md` (сборка — `desktop/README.md`)
 

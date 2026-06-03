@@ -125,7 +125,6 @@ chmod +x scripts/desktop-dev.sh
 ## Что уже сделано в репозитории (вам не трогать)
 
 - Офлайн-sync для ADMIN, DIRECTOR, ACCOUNTANT, MANAGER
-- Чат только онлайн в десктопе
 - Иконки приложения в `desktop/src-tauri/icons/`
 - Скрипты: `scripts/desktop-dev.sh`, `scripts/desktop-build.sh`, `desktop/scripts/generate-icons.sh`
 

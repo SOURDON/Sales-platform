@@ -196,7 +196,7 @@ html[data-dt-theme='light'] .app.app--desktop.appWorkspace .directorCashflowCaro
 
 html[data-dt-theme='light'] .app.app--desktop button.primaryAction,
 html[data-dt-theme='light'] .app.app--desktop
-  button:not(.ghost):not(.addSaleQtyBtn):not(.paymentTypeBtn):not(.saleDeleteBtn):not(.saleDeleteRequestIconBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.messengerThreadRow):not(.messengerTgPill):not(.orgChatSendFab):not(.directorApprovalsCarouselDot):not(.directorCashflowCarouselDot):not(.desktopTitlebarBtn):not(.desktopSyncToolbarBtn):not(.teamWarehouseStoreBtn):not(.statPercentToggleBtn):not(.teamMemberDeletePill):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.directorDemoAccountsListBtn):not(.desktopThemeToggleBtn):not(.directorDemoAccountsToggle):not(.directorDemoAccountsNavBtn):not(.directorDemoAccountsDot) {
+  button:not(.ghost):not(.addSaleQtyBtn):not(.paymentTypeBtn):not(.saleDeleteBtn):not(.saleDeleteRequestIconBtn):not(.desktopSidebarLink):not(.desktopSidebarLogout):not(.directorApprovalsCarouselDot):not(.directorCashflowCarouselDot):not(.desktopTitlebarBtn):not(.desktopSyncToolbarBtn):not(.teamWarehouseStoreBtn):not(.statPercentToggleBtn):not(.teamMemberDeletePill):not(.desktopDirectorSwitcherTrigger):not(.desktopDirectorSwitcherCardMain):not(.desktopDirectorSwitcherGear):not(.desktopDirectorSwitcherCard--back):not(.directorDemoAccountsListBtn):not(.desktopThemeToggleBtn):not(.directorDemoAccountsToggle):not(.directorDemoAccountsNavBtn):not(.directorDemoAccountsDot) {
   font-weight: 600 !important;
   letter-spacing: 0.04em !important;
   color: var(--dt-accent-text) !important;
@@ -232,7 +232,7 @@ html[data-dt-theme='light'] .app.app--desktop button.ghost:hover:not(:disabled) 
 
 html[data-dt-theme='light'] .app.app--desktop input:not([type='checkbox']):not([type='radio']):not(.financeOpsIncomeEntryInput):not(.financeOpsExpenseEntryInput),
 html[data-dt-theme='light'] .app.app--desktop select,
-html[data-dt-theme='light'] .app.app--desktop textarea:not(.orgChatInput--tg) {
+html[data-dt-theme='light'] .app.app--desktop textarea {
   background: #6e7d8b !important;
   color: var(--cb-light) !important;
   -webkit-text-fill-color: var(--cb-light) !important;

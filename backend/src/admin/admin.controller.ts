@@ -134,24 +134,6 @@ interface StoreEquipmentTypePostBody {
   label?: string;
 }
 
-interface OrgChatPostBody {
-  body?: string;
-}
-
-interface ChatThreadMessageBody {
-  threadKey?: string;
-  body?: string;
-}
-
-interface ChatReadBody {
-  threadKey?: string;
-}
-
-interface ChatDmBody {
-  toNickname?: string;
-  body?: string;
-}
-
 @Controller('admin')
 export class AdminController {
   constructor(private readonly authService: AuthService) {}
@@ -647,6 +629,46 @@ export class AdminController {
     return expense as unknown;
   }
 
+  @Get('finance/auto-incomes/preview')
+  previewAutoFinanceIncomes(
+    @Headers('authorization') authorization?: string,
+    @Query('workDay') workDay?: string,
+  ) {
+    this.requireFinancePlanningAccess(authorization);
+    const safeDay =
+      workDay && /^\d{4}-\d{2}-\d{2}$/.test(workDay)
+        ? workDay
+        : new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Europe/Moscow',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          }).format(new Date());
+    return this.authService.previewAutoFinanceIncomesFromSales(safeDay) as unknown;
+  }
+
+  @Post('finance/auto-incomes/sync')
+  syncAutoFinanceIncomes(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { workDay?: string },
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    const safeDay =
+      body.workDay && /^\d{4}-\d{2}-\d{2}$/.test(body.workDay)
+        ? body.workDay
+        : new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Europe/Moscow',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          }).format(new Date());
+    const result = this.authService.syncFinanceIncomesFromSales(safeDay, session.nickname);
+    if (!result) {
+      throw new BadRequestException('Invalid workDay');
+    }
+    return result as unknown;
+  }
+
   @Post('finance/incomes')
   addFinanceIncome(
     @Headers('authorization') authorization: string | undefined,
@@ -892,125 +914,6 @@ export class AdminController {
     return this.authService.getAuditLog() as unknown;
   }
 
-  @Get('org-chat/messages')
-  async listOrgChatMessages(@Headers('authorization') authorization?: string) {
-    this.requireOrgChatParticipant(authorization);
-    const messages = await this.authService.listOrgChatMessages(500);
-    return { messages } as unknown;
-  }
-
-  @Post('org-chat/messages')
-  async createOrgChatMessage(
-    @Headers('authorization') authorization: string | undefined,
-    @Body() body: OrgChatPostBody,
-  ) {
-    const session = this.requireOrgChatParticipant(authorization);
-    const msg = await this.authService.postOrgChatMessage(session.nickname, session.role, String(body.body ?? ''));
-    if (!msg) {
-      throw new BadRequestException('Сообщение не отправлено: проверьте текст (до 4000 символов)');
-    }
-    return msg as unknown;
-  }
-
-  @Get('chat/peers')
-  getChatPeers(@Headers('authorization') authorization?: string) {
-    const session = this.requireOrgChatParticipant(authorization);
-    const peers = this.authService.getMessengerPeers(session.nickname, session.role);
-    if (!peers) {
-      throw new ForbiddenException('Нет доступа');
-    }
-    return { peers };
-  }
-
-  @Get('chat/inbox')
-  async getChatInbox(@Headers('authorization') authorization?: string) {
-    const session = this.requireOrgChatParticipant(authorization);
-    const inbox = await this.authService.getMessengerInbox(session.nickname, session.role);
-    if (!inbox) {
-      throw new BadRequestException('Не удалось загрузить инбокс');
-    }
-    return inbox as unknown;
-  }
-
-  @Get('chat/messages')
-  async getChatMessages(
-    @Headers('authorization') authorization?: string,
-    @Query('threadKey') threadKey?: string,
-  ) {
-    const session = this.requireOrgChatParticipant(authorization);
-    const key = String(threadKey ?? '').trim();
-    if (!key) {
-      throw new BadRequestException('Нужен параметр threadKey');
-    }
-    const messages = await this.authService.getMessengerThreadMessages(
-      session.nickname,
-      session.role,
-      key,
-    );
-    if (!messages) {
-      throw new BadRequestException('Нет доступа к переписке');
-    }
-    return { messages } as unknown;
-  }
-
-  @Post('chat/messages')
-  async postChatThreadMessage(
-    @Headers('authorization') authorization: string | undefined,
-    @Body() body: ChatThreadMessageBody,
-  ) {
-    const session = this.requireOrgChatParticipant(authorization);
-    const key = String(body.threadKey ?? '').trim();
-    if (!key) {
-      throw new BadRequestException('Нужен threadKey');
-    }
-    const msg = await this.authService.postMessengerThreadMessage(
-      session.nickname,
-      session.role,
-      key,
-      String(body.body ?? ''),
-    );
-    if (!msg) {
-      throw new BadRequestException('Сообщение не отправлено');
-    }
-    return msg as unknown;
-  }
-
-  @Post('chat/read')
-  async postChatRead(
-    @Headers('authorization') authorization: string | undefined,
-    @Body() body: ChatReadBody,
-  ) {
-    const session = this.requireOrgChatParticipant(authorization);
-    const key = String(body.threadKey ?? '').trim();
-    if (!key) {
-      throw new BadRequestException('Нужен threadKey');
-    }
-    const ok = await this.authService.markMessengerThreadRead(session.nickname, session.role, key);
-    if (!ok) {
-      throw new BadRequestException('Не удалось отметить прочитанным');
-    }
-    return { ok: true };
-  }
-
-  @Post('chat/dm')
-  async postChatDm(
-    @Headers('authorization') authorization: string | undefined,
-    @Body() body: ChatDmBody,
-  ) {
-    const session = this.requireOrgChatParticipant(authorization);
-    const to = String(body.toNickname ?? '').trim();
-    const msg = await this.authService.postDirectMessage(
-      session.nickname,
-      session.role,
-      to,
-      String(body.body ?? ''),
-    );
-    if (!msg) {
-      throw new BadRequestException('Не удалось отправить личное сообщение');
-    }
-    return msg as unknown;
-  }
-
   @Get('write-offs/export')
   exportWriteOffsCsv(
     @Headers('authorization') authorization: string | undefined,
@@ -1218,22 +1121,6 @@ export class AdminController {
       throw new BadRequestException('Write-off not found');
     }
     return { ok: true };
-  }
-
-  /** Общий чат сети: только точки, директор и управляющий (не бухгалтер). */
-  private requireOrgChatParticipant(authorization?: string) {
-    const token = authorization?.replace('Bearer ', '').trim();
-    if (!token) {
-      throw new UnauthorizedException('Missing token');
-    }
-    const session = this.authService.parseToken(token);
-    if (
-      !session ||
-      (session.role !== 'ADMIN' && session.role !== 'DIRECTOR' && session.role !== 'MANAGER')
-    ) {
-      throw new UnauthorizedException('Чат доступен только точкам, директору и управляющему');
-    }
-    return session;
   }
 
   private requireFinanceRead(authorization?: string) {

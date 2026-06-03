@@ -17,6 +17,8 @@ import {
   defaultAcquiringProfiles,
   normalizeAcquiringProfiles,
   parseAcquiringProfilesJson,
+  percentForStore,
+  profileIdForStore,
   serializeAcquiringProfiles,
   syncLegacyPercentsFromProfiles,
 } from '../acquiring/acquiring-profiles';
@@ -1081,6 +1083,185 @@ export class AuthService implements OnModuleInit {
     this.invalidateDashboardCache();
     this.queueIncremental(() => this.persistIncrementalFinanceIncome(income));
     return income;
+  }
+
+  private static readonly AUTO_FINANCE_INCOME_ACCOUNT_BY_BUCKET: Record<string, string> = {
+    'detkov-vtb': 'fa-bank-extra',
+    'putintsev-vtb': 'fa-bank-main',
+    'putintsev-sber': 'fa-bank-putintsev-sber',
+    'lyokha-rs': 'fa-bank-lyokha',
+    cash: 'fa-cash-main',
+    transfer: 'fa-transfer',
+  };
+
+  private autoFinanceIncomeId(workDay: string, accountId: string) {
+    return `auto-sync-${workDay}-${accountId}`;
+  }
+
+  /** Суммы приходов по счетам из продаж всех точек за календарный день (МСК). */
+  computeFinanceIncomeBucketsFromSales(workDay: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDay)) {
+      return [];
+    }
+    const profiles = this.getAcquiringProfiles();
+    const buckets = new Map<string, number>();
+    const add = (key: string, value: number) => {
+      const prev = buckets.get(key) ?? 0;
+      buckets.set(key, Math.round((prev + value) * 100) / 100);
+    };
+
+    for (const seller of this.sellerProfiles) {
+      this.recomputeSeller(seller);
+      const storeName = seller.storeName;
+      for (const sale of seller.sales) {
+        if (this.getStoreBusinessDayKey(sale.createdAt) !== workDay) {
+          continue;
+        }
+        const amount = sale.totalAmount;
+        if (sale.paymentType === 'TRANSFER') {
+          add('transfer', amount);
+          continue;
+        }
+        if (sale.paymentType !== 'NON_CASH') {
+          add('cash', amount);
+          continue;
+        }
+        const rate = percentForStore(storeName, profiles);
+        const netAmount = amount - (amount * rate) / 100;
+        add(profileIdForStore(storeName, profiles), netAmount);
+      }
+    }
+
+    const order = [
+      'putintsev-vtb',
+      'detkov-vtb',
+      'putintsev-sber',
+      'lyokha-rs',
+      'cash',
+      'transfer',
+    ] as const;
+
+    return order
+      .map((bucket) => {
+        const amount = buckets.get(bucket) ?? 0;
+        const accountId = AuthService.AUTO_FINANCE_INCOME_ACCOUNT_BY_BUCKET[bucket];
+        const account = accountId
+          ? this.financeAccounts.find((item) => item.id === accountId)
+          : undefined;
+        return {
+          bucket,
+          accountId: account?.id ?? accountId ?? '',
+          accountName: account?.name ?? bucket,
+          amount: Math.round(amount * 100) / 100,
+        };
+      })
+      .filter((row) => row.accountId);
+  }
+
+  previewAutoFinanceIncomesFromSales(workDay: string) {
+    const rows = this.computeFinanceIncomeBucketsFromSales(workDay);
+    const existingByAccount = new Map(
+      this.financeIncomes
+        .filter((item) => item.workDay === workDay && item.id.startsWith(`auto-sync-${workDay}-`))
+        .map((item) => [item.accountId, item]),
+    );
+    return {
+      workDay,
+      rows: rows.map((row) => ({
+        ...row,
+        alreadySynced: existingByAccount.has(row.accountId),
+        previousAmount: existingByAccount.get(row.accountId)?.amount ?? 0,
+      })),
+      totalToSync: Math.round(rows.reduce((sum, row) => sum + row.amount, 0) * 100) / 100,
+    };
+  }
+
+  private upsertAutoFinanceIncomeFromSales(
+    workDay: string,
+    accountId: string,
+    amount: number,
+    actor: string,
+  ) {
+    const safeAmount = Math.round(amount * 100) / 100;
+    if (!accountId || safeAmount <= 0) {
+      return { income: null, created: false, updated: false, skipped: true as const };
+    }
+    const account = this.financeAccounts.find((item) => item.id === accountId);
+    if (!account) {
+      return { income: null, created: false, updated: false, skipped: true as const };
+    }
+
+    const incomeId = this.autoFinanceIncomeId(workDay, accountId);
+    const comment = `Авто: продажи всех точек за ${workDay}`;
+    const existing = this.financeIncomes.find((item) => item.id === incomeId);
+    if (existing) {
+      const delta = Math.round((safeAmount - existing.amount) * 100) / 100;
+      if (Math.abs(delta) < 0.005) {
+        return { income: existing, created: false, updated: false, skipped: false as const };
+      }
+      account.balance = Math.round((account.balance + delta) * 100) / 100;
+      existing.amount = safeAmount;
+      existing.comment = comment;
+      this.pushAudit(
+        actor,
+        'FINANCE_INCOME_AUTO_UPDATED',
+        `day=${workDay} ${account.name} ${existing.amount}→${safeAmount}`,
+      );
+      this.invalidateDashboardCache();
+      this.queueIncremental(() => this.persistFinanceIncomeAmountUpdate(existing));
+      return { income: existing, created: false, updated: true, skipped: false as const };
+    }
+
+    const income = this.addFinanceIncome(
+      {
+        accountId,
+        amount: safeAmount,
+        workDay,
+        comment,
+        incomeId,
+      },
+      actor,
+    );
+    return {
+      income,
+      created: Boolean(income),
+      updated: false,
+      skipped: !income,
+    };
+  }
+
+  syncFinanceIncomesFromSales(workDay: string, actor = 'system') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDay)) {
+      return null;
+    }
+    const rows = this.computeFinanceIncomeBucketsFromSales(workDay);
+    const applied: Array<{
+      accountId: string;
+      accountName: string;
+      amount: number;
+      created: boolean;
+      updated: boolean;
+      skipped: boolean;
+    }> = [];
+
+    for (const row of rows) {
+      const result = this.upsertAutoFinanceIncomeFromSales(workDay, row.accountId, row.amount, actor);
+      applied.push({
+        accountId: row.accountId,
+        accountName: row.accountName,
+        amount: row.amount,
+        created: result.created,
+        updated: result.updated,
+        skipped: result.skipped,
+      });
+    }
+
+    this.pushAudit(actor, 'FINANCE_INCOMES_AUTO_SYNCED', `day=${workDay} rows=${applied.length}`);
+    return {
+      workDay,
+      applied,
+      snapshot: this.getFinanceOpsSnapshot(),
+    };
   }
 
   addFinanceExpense(
@@ -3075,434 +3256,6 @@ export class AuthService implements OnModuleInit {
     return member;
   }
 
-  async listOrgChatMessages(limit = 500) {
-    const take = Math.max(1, Math.min(limit, 800));
-    const rows = await this.prisma.orgChatMessage.findMany({
-      orderBy: { createdAt: 'desc' },
-      take,
-    });
-    rows.reverse();
-    return rows.map((m) => ({
-      id: m.id,
-      createdAt: m.createdAt.toISOString(),
-      body: m.body,
-      senderRole: m.senderRole as UserRole,
-      senderDisplay: m.senderDisplay,
-      authorNickname: m.authorNickname,
-    }));
-  }
-
-  async postOrgChatMessage(actorNickname: string, actorRole: UserRole, rawBody: string) {
-    if (actorRole !== 'ADMIN' && actorRole !== 'DIRECTOR' && actorRole !== 'MANAGER') {
-      return null;
-    }
-    const body = rawBody.trim();
-    if (!body || body.length > 4000) {
-      return null;
-    }
-    const user = this.demoUsers.find((u) => u.nickname === actorNickname);
-    if (!user || user.role !== actorRole) {
-      return null;
-    }
-    let senderDisplay: string;
-    if (actorRole === 'ADMIN') {
-      senderDisplay = user.storeName?.trim() || 'Точка';
-    } else if (actorRole === 'DIRECTOR') {
-      senderDisplay = 'Директор';
-    } else {
-      senderDisplay = 'Управляющий';
-    }
-
-    const row = await this.prisma.orgChatMessage.create({
-      data: {
-        body,
-        senderRole: actorRole as PrismaUserRole,
-        senderDisplay,
-        authorNickname: actorNickname,
-      },
-    });
-    this.pushAudit(actorNickname, 'ORG_CHAT_MESSAGE', senderDisplay);
-    void this.queuePersist();
-    return {
-      id: row.id,
-      createdAt: row.createdAt.toISOString(),
-      body: row.body,
-      senderRole: row.senderRole as UserRole,
-      senderDisplay: row.senderDisplay,
-      authorNickname: row.authorNickname,
-    };
-  }
-
-  messengerEligibleRole(role: UserRole): boolean {
-    return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER';
-  }
-
-  messengerPeerDisplay(user: DemoUser): string {
-    if (user.role === 'ADMIN') {
-      return user.storeName?.trim() || user.nickname;
-    }
-    if (user.role === 'DIRECTOR') {
-      return 'Директор';
-    }
-    if (user.role === 'MANAGER') {
-      return 'Управляющий';
-    }
-    return user.fullName || user.nickname;
-  }
-
-  dmThreadKey(a: string, b: string): string {
-    const [x, y] = [a, b].sort((p, q) => p.localeCompare(q, 'ru-RU'));
-    return `dm:${x}:${y}`;
-  }
-
-  parseDmThreadKey(threadKey: string): [string, string] | null {
-    if (!threadKey.startsWith('dm:')) {
-      return null;
-    }
-    const inner = threadKey.slice(3);
-    const idx = inner.indexOf(':');
-    if (idx <= 0 || idx >= inner.length - 1) {
-      return null;
-    }
-    const x = inner.slice(0, idx);
-    const y = inner.slice(idx + 1);
-    if (!x || !y || inner.includes(':', idx + 1)) {
-      return null;
-    }
-    return [x, y];
-  }
-
-  async bootstrapMessengerInbox(actorNickname: string) {
-    const existing = await this.prisma.userMessengerBootstrap.findUnique({
-      where: { userNickname: actorNickname },
-    });
-    if (existing) {
-      return;
-    }
-    await this.prisma.userMessengerBootstrap.create({
-      data: { userNickname: actorNickname },
-    });
-    await this.prisma.userChatReadState.upsert({
-      where: {
-        userNickname_threadKey: { userNickname: actorNickname, threadKey: 'general' },
-      },
-      create: {
-        userNickname: actorNickname,
-        threadKey: 'general',
-        lastReadAt: new Date(),
-      },
-      update: {},
-    });
-  }
-
-  getMessengerPeers(actorNickname: string, actorRole: UserRole) {
-    if (!this.messengerEligibleRole(actorRole)) {
-      return null;
-    }
-    return this.demoUsers
-      .filter(
-        (u) =>
-          u.isActive && this.messengerEligibleRole(u.role) && u.nickname !== actorNickname,
-      )
-      .map((u) => ({
-        nickname: u.nickname,
-        displayName: this.messengerPeerDisplay(u),
-        role: u.role,
-      }))
-      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru-RU'));
-  }
-
-  async getMessengerInbox(actorNickname: string, actorRole: UserRole) {
-    if (!this.messengerEligibleRole(actorRole)) {
-      return null;
-    }
-    await this.bootstrapMessengerInbox(actorNickname);
-
-    type ThreadRow = {
-      threadKey: string;
-      kind: 'general' | 'dm';
-      title: string;
-      peerNickname?: string;
-      lastMessageBody: string;
-      lastMessageAt: string;
-      lastOutgoing: boolean;
-      /** Подпись «кто написал» для строки как в Telegram (Вы / имя / display). */
-      lastSenderLabel: string;
-      unreadCount: number;
-    };
-
-    const peers = this.getMessengerPeers(actorNickname, actorRole);
-    if (!peers) {
-      return null;
-    }
-
-    const lastGeneral = await this.prisma.orgChatMessage.findFirst({
-      orderBy: { createdAt: 'desc' },
-    });
-    const genState = await this.prisma.userChatReadState.findUnique({
-      where: {
-        userNickname_threadKey: { userNickname: actorNickname, threadKey: 'general' },
-      },
-    });
-    const genLastRead = genState?.lastReadAt ?? new Date(0);
-    const genUnread = await this.prisma.orgChatMessage.count({
-      where: {
-        authorNickname: { not: actorNickname },
-        createdAt: { gt: genLastRead },
-      },
-    });
-    const generalLastSenderLabel =
-      lastGeneral == null
-        ? ''
-        : lastGeneral.authorNickname === actorNickname
-          ? 'Вы'
-          : lastGeneral.senderDisplay;
-    const generalThread: ThreadRow = {
-      threadKey: 'general',
-      kind: 'general',
-      title: 'Общий чат',
-      lastMessageBody: lastGeneral?.body ?? '',
-      lastMessageAt: lastGeneral?.createdAt.toISOString() ?? new Date(0).toISOString(),
-      lastOutgoing: lastGeneral ? lastGeneral.authorNickname === actorNickname : false,
-      lastSenderLabel: generalLastSenderLabel,
-      unreadCount: genUnread,
-    };
-
-    const dmThreads: ThreadRow[] = [];
-    for (const peer of peers) {
-      const partner = peer.nickname;
-      const tk = this.dmThreadKey(actorNickname, partner);
-      const peerUser = this.demoUsers.find((u) => u.nickname === partner);
-      const title = peer.displayName;
-
-      const lastDm = await this.prisma.directMessage.findFirst({
-        where: {
-          OR: [
-            { senderNickname: actorNickname, recipientNickname: partner },
-            { senderNickname: partner, recipientNickname: actorNickname },
-          ],
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      const dmState = await this.prisma.userChatReadState.findUnique({
-        where: {
-          userNickname_threadKey: { userNickname: actorNickname, threadKey: tk },
-        },
-      });
-      const dmLastRead = dmState?.lastReadAt ?? new Date(0);
-      const dmUnread = await this.prisma.directMessage.count({
-        where: {
-          senderNickname: partner,
-          recipientNickname: actorNickname,
-          createdAt: { gt: dmLastRead },
-        },
-      });
-
-      if (lastDm) {
-        const lastSenderLabel =
-          lastDm.senderNickname === actorNickname
-            ? 'Вы'
-            : peerUser
-              ? this.messengerPeerDisplay(peerUser)
-              : partner;
-        dmThreads.push({
-          threadKey: tk,
-          kind: 'dm',
-          title,
-          peerNickname: partner,
-          lastMessageBody: lastDm.body,
-          lastMessageAt: lastDm.createdAt.toISOString(),
-          lastOutgoing: lastDm.senderNickname === actorNickname,
-          lastSenderLabel,
-          unreadCount: dmUnread,
-        });
-      } else {
-        dmThreads.push({
-          threadKey: tk,
-          kind: 'dm',
-          title,
-          peerNickname: partner,
-          lastMessageBody: '',
-          lastMessageAt: new Date(0).toISOString(),
-          lastOutgoing: false,
-          lastSenderLabel: '',
-          unreadCount: 0,
-        });
-      }
-    }
-
-    dmThreads.sort((a, b) => {
-      const tb = new Date(b.lastMessageAt).getTime();
-      const ta = new Date(a.lastMessageAt).getTime();
-      if (tb !== ta) {
-        return tb - ta;
-      }
-      return a.title.localeCompare(b.title, 'ru-RU');
-    });
-
-    const threads = [generalThread, ...dmThreads];
-    const totalUnread = threads.reduce((sum, t) => sum + t.unreadCount, 0);
-    return { threads, totalUnread };
-  }
-
-  async getMessengerThreadMessages(
-    actorNickname: string,
-    actorRole: UserRole,
-    threadKey: string,
-    limit = 400,
-  ) {
-    if (!this.messengerEligibleRole(actorRole)) {
-      return null;
-    }
-    const take = Math.max(1, Math.min(limit, 600));
-
-    if (threadKey === 'general') {
-      const rows = await this.prisma.orgChatMessage.findMany({
-        orderBy: { createdAt: 'desc' },
-        take,
-      });
-      rows.reverse();
-      return rows.map((m) => ({
-        id: m.id,
-        createdAt: m.createdAt.toISOString(),
-        body: m.body,
-        senderLabel: m.senderDisplay,
-        authorNickname: m.authorNickname,
-        outgoing: m.authorNickname === actorNickname,
-      }));
-    }
-
-    const pair = this.parseDmThreadKey(threadKey);
-    if (!pair || (pair[0] !== actorNickname && pair[1] !== actorNickname)) {
-      return null;
-    }
-
-    const [x, y] = pair;
-    const rows = await this.prisma.directMessage.findMany({
-      where: {
-        OR: [
-          { senderNickname: x, recipientNickname: y },
-          { senderNickname: y, recipientNickname: x },
-        ],
-      },
-      orderBy: { createdAt: 'desc' },
-      take,
-    });
-    rows.reverse();
-    return rows.map((m) => {
-      const senderUser = this.demoUsers.find((u) => u.nickname === m.senderNickname);
-      const senderLabel = senderUser
-        ? this.messengerPeerDisplay(senderUser)
-        : m.senderNickname;
-      return {
-        id: m.id,
-        createdAt: m.createdAt.toISOString(),
-        body: m.body,
-        senderLabel,
-        authorNickname: m.senderNickname,
-        outgoing: m.senderNickname === actorNickname,
-      };
-    });
-  }
-
-  async postDirectMessage(
-    actorNickname: string,
-    actorRole: UserRole,
-    recipientNickname: string,
-    rawBody: string,
-  ) {
-    if (!this.messengerEligibleRole(actorRole)) {
-      return null;
-    }
-    const body = rawBody.trim();
-    if (!body || body.length > 4000) {
-      return null;
-    }
-    if (recipientNickname === actorNickname) {
-      return null;
-    }
-    const fromUser = this.demoUsers.find((u) => u.nickname === actorNickname);
-    const toUser = this.demoUsers.find((u) => u.nickname === recipientNickname);
-    if (
-      !fromUser ||
-      !toUser ||
-      fromUser.role !== actorRole ||
-      !this.messengerEligibleRole(toUser.role)
-    ) {
-      return null;
-    }
-
-    const row = await this.prisma.directMessage.create({
-      data: {
-        body,
-        senderNickname: actorNickname,
-        recipientNickname,
-      },
-    });
-    this.pushAudit(actorNickname, 'DIRECT_MESSAGE', recipientNickname);
-    void this.queuePersist();
-    const senderLabel = this.messengerPeerDisplay(fromUser);
-    return {
-      id: row.id,
-      createdAt: row.createdAt.toISOString(),
-      body: row.body,
-      senderLabel,
-      authorNickname: actorNickname,
-      outgoing: true,
-    };
-  }
-
-  async postMessengerThreadMessage(
-    actorNickname: string,
-    actorRole: UserRole,
-    threadKey: string,
-    rawBody: string,
-  ) {
-    if (threadKey === 'general') {
-      const msg = await this.postOrgChatMessage(actorNickname, actorRole, rawBody);
-      if (!msg) {
-        return null;
-      }
-      return {
-        id: msg.id,
-        createdAt: msg.createdAt,
-        body: msg.body,
-        senderLabel: msg.senderDisplay,
-        authorNickname: msg.authorNickname,
-        outgoing: true,
-      };
-    }
-    const pair = this.parseDmThreadKey(threadKey);
-    if (!pair || (pair[0] !== actorNickname && pair[1] !== actorNickname)) {
-      return null;
-    }
-    const recipient = pair[0] === actorNickname ? pair[1] : pair[0];
-    return this.postDirectMessage(actorNickname, actorRole, recipient, rawBody);
-  }
-
-  async markMessengerThreadRead(actorNickname: string, actorRole: UserRole, threadKey: string) {
-    if (!this.messengerEligibleRole(actorRole)) {
-      return false;
-    }
-    if (threadKey !== 'general') {
-      const pair = this.parseDmThreadKey(threadKey);
-      if (!pair || (pair[0] !== actorNickname && pair[1] !== actorNickname)) {
-        return false;
-      }
-    }
-
-    const now = new Date();
-    await this.prisma.userChatReadState.upsert({
-      where: {
-        userNickname_threadKey: { userNickname: actorNickname, threadKey },
-      },
-      create: { userNickname: actorNickname, threadKey, lastReadAt: now },
-      update: { lastReadAt: now },
-    });
-    return true;
-  }
-
   getThresholdNotifications() {
     const notifications: ThresholdNotification[] = [];
     const now = Date.now();
@@ -3953,6 +3706,32 @@ export class AuthService implements OnModuleInit {
         ),
       },
     });
+  }
+
+  private async persistFinanceIncomeAmountUpdate(income: FinanceIncome) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financeIncome.update({
+        where: { id: income.id },
+        data: {
+          amount: income.amount,
+          comment: income.comment ?? null,
+          accountName: income.accountName,
+        },
+      });
+      const account = this.financeAccounts.find((a) => a.id === income.accountId)!;
+      await tx.financeAccount.upsert({
+        where: { id: account.id },
+        create: {
+          id: account.id,
+          name: account.name,
+          kind: account.kind === 'CASH' ? PrismaFinanceAccountKind.CASH : PrismaFinanceAccountKind.BANK,
+          balance: account.balance,
+        },
+        update: { balance: account.balance },
+      });
+      await this.persistFinanceAppStateSlice(tx);
+    });
+    await this.persistLatestAuditEntry();
   }
 
   private async persistIncrementalFinanceIncome(income: FinanceIncome) {

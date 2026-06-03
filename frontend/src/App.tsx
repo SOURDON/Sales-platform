@@ -2,8 +2,6 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import type { FormEvent, ReactNode, TouchEvent } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
-import { scheduleIosVisualViewportBumps } from './iosVisualViewportHeight';
-import { ChatOfflineNotice } from './desktop/ChatOfflineNotice';
 import { ConnectionBanner } from './desktop/ConnectionBanner';
 import { DesktopAppLayout } from './desktop/DesktopAppLayout';
 import { DirectorAccountSwitcher } from './desktop/DirectorAccountSwitcher';
@@ -560,33 +558,6 @@ type DirectorControlRequest = {
   summary: string;
 };
 
-type MessengerThreadPreview = {
-  threadKey: string;
-  kind: 'general' | 'dm';
-  title: string;
-  peerNickname?: string;
-  lastMessageBody: string;
-  lastMessageAt: string;
-  lastOutgoing: boolean;
-  /** Кто отправил последнее сообщение (для второй строки, в стиле Telegram). */
-  lastSenderLabel: string;
-  unreadCount: number;
-};
-
-type MessengerInboxResponse = {
-  threads: MessengerThreadPreview[];
-  totalUnread: number;
-};
-
-type MessengerLine = {
-  id: string;
-  createdAt: string;
-  body: string;
-  senderLabel: string;
-  authorNickname: string;
-  outgoing: boolean;
-};
-
 /** Новые продажи сверху; офлайн-очередь в общем порядке по времени, не в конце списка. */
 function sortSalesByCreatedAtDesc(rows: AdminSale[]): AdminSale[] {
   return [...rows].sort(
@@ -974,6 +945,22 @@ function ShiftIcon() {
   );
 }
 
+function AutoFinanceIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg" aria-hidden>
+        <path
+          d="M12 4.5v4.2M12 15.3v4.2M7.2 12H3M21 12h-4.2M8.6 8.6 5.5 5.5M18.5 18.5l-3.1-3.1M15.4 8.6l3.1-3.1M5.5 18.5l3.1-3.1"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
+        <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    </DockIcon>
+  );
+}
+
 function SalesIcon() {
   return (
     <DockIcon>
@@ -1025,6 +1012,18 @@ function ProcurementIcon() {
   );
 }
 
+function PayrollIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg" aria-hidden>
+        <rect x="3.5" y="6.5" width="17" height="11" rx="1.8" stroke="currentColor" strokeWidth="1.8" />
+        <circle cx="12" cy="12" r="2.4" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M7.5 6.5V5.2a2.2 2.2 0 0 1 2.2-2.2h4.6a2.2 2.2 0 0 1 2.2 2.2v1.3" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    </DockIcon>
+  );
+}
+
 function WarehouseIcon() {
   return (
     <DockIcon>
@@ -1065,29 +1064,6 @@ function ControlIcon() {
         />
         <path
           d="M9.4 11.8l2 2 3.4-3.4"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </DockIcon>
-  );
-}
-
-/** Иконка «конверт» для вкладки общего чата (точки, директор, управляющий). */
-function OrgChatDockIcon() {
-  return (
-    <DockIcon>
-      <svg viewBox="0 0 24 24" fill="none" className="dockSvg">
-        <path
-          d="M4 7.4h16v10.2H4V7.4z"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M4.4 7.8L12 12.9l7.6-5.1"
           stroke="currentColor"
           strokeWidth="1.8"
           strokeLinecap="round"
@@ -1164,7 +1140,6 @@ function App() {
     void import('./desktop/desktopFinanceOps.css');
     void import('./desktop/desktopFinanceReport.css');
     void import('./desktop/desktopTeamWarehouse.css');
-    void import('./desktop/desktopMessenger.css');
     void import('./desktop/desktopDirectorAccountSwitcher.css');
     void import('./desktop/desktopThemes.css');
     void import('./desktop/desktopHermesLight.css');
@@ -1214,63 +1189,6 @@ function App() {
   );
   const [managerCommissionsApiOnline, setManagerCommissionsApiOnline] = useState(true);
   const [storeInventory, setStoreInventory] = useState<StoreInventoryDetailResponse | null>(null);
-  const [messengerInbox, setMessengerInbox] = useState<MessengerInboxResponse | null>(null);
-  const [messengerUnreadTotal, setMessengerUnreadTotal] = useState(0);
-  /** Открытый чат сохраняется при переходах по разделам; закрывается только «Назад» или выход. */
-  const [messengerPersistThreadKey, setMessengerPersistThreadKey] = useState<string | null>(null);
-  const [messengerPersistThreadTitle, setMessengerPersistThreadTitle] = useState('');
-  /** Пока открыта клавиатура в переписке — прячем нижний док и поджимаем отступы */
-  const [chatComposerSurfaceActive, setChatComposerSurfaceActive] = useState(false);
-  const refreshMessengerInbox = useCallback(async () => {
-    const token = session?.token;
-    const r = session?.user?.role;
-    if (!token || (r !== 'ADMIN' && r !== 'DIRECTOR' && r !== 'MANAGER')) {
-      return;
-    }
-    try {
-      const res = await fetchWithTimeout(`${API_BASE_URL}/admin/chat/inbox`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        return;
-      }
-      const data = (await res.json()) as MessengerInboxResponse;
-      setMessengerInbox(data);
-      setMessengerUnreadTotal(typeof data.totalUnread === 'number' ? data.totalUnread : 0);
-    } catch {
-      /* ignore */
-    }
-  }, [session?.token, session?.user?.role]);
-
-  useEffect(() => {
-    if (!session?.token || isDesktopShell) {
-      return;
-    }
-    const r = session.user.role;
-    if (r !== 'ADMIN' && r !== 'DIRECTOR' && r !== 'MANAGER') {
-      return;
-    }
-    void refreshMessengerInbox();
-    const arm = () => {
-      const ms =
-        typeof document !== 'undefined' && document.visibilityState === 'hidden' ? 45000 : 5500;
-      return window.setInterval(() => void refreshMessengerInbox(), ms);
-    };
-    let intervalId = arm();
-    const onVis = () => {
-      window.clearInterval(intervalId);
-      intervalId = arm();
-      if (document.visibilityState === 'visible') {
-        void refreshMessengerInbox();
-      }
-    };
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      document.removeEventListener('visibilitychange', onVis);
-      window.clearInterval(intervalId);
-    };
-  }, [isDesktopShell, session?.token, session?.user?.role, refreshMessengerInbox]);
-
   const refreshOutboxPendingCount = useCallback(async () => {
     const userId = session?.user?.id;
     if (userId === undefined) {
@@ -1296,12 +1214,6 @@ function App() {
     });
     return () => net.dispose();
   }, [isDesktopShell, session?.token, session?.user?.role]);
-
-  useEffect(() => {
-    if (location.pathname !== '/control') {
-      setChatComposerSurfaceActive(false);
-    }
-  }, [location.pathname]);
 
   const refreshOfflinePending = useCallback(async () => {
     const userId = session?.user?.id;
@@ -2220,6 +2132,32 @@ function App() {
       await post();
     }
     await loadFinanceOps(token);
+  };
+
+  const syncAutoFinanceIncomes = async (token: string, workDay: string) => {
+    const response = await fetch(`${API_BASE_URL}/admin/finance/auto-incomes/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ workDay }),
+    });
+    if (!response.ok) {
+      throw new Error(await readApiErrorMessage(response, 'Не удалось подтянуть приходы'));
+    }
+    await loadFinanceOps(token);
+    return (await response.json()) as {
+      workDay: string;
+      applied: Array<{
+        accountId: string;
+        accountName: string;
+        amount: number;
+        created: boolean;
+        updated: boolean;
+        skipped: boolean;
+      }>;
+    };
   };
 
   const addFinanceExpense = async (
@@ -3326,10 +3264,6 @@ function App() {
     });
     setInventoryOverview(null);
     setStoreInventory(null);
-    setMessengerInbox(null);
-    setMessengerUnreadTotal(0);
-    setMessengerPersistThreadKey(null);
-    setMessengerPersistThreadTitle('');
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
     window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     window.localStorage.removeItem(SESSION_PERSISTENCE_KEY);
@@ -3560,7 +3494,7 @@ function App() {
     if (
       (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'MANAGER') &&
       session.token &&
-      location.pathname === '/team'
+      (location.pathname === '/team' || location.pathname === '/payroll')
     ) {
       if (session.user.role === 'DIRECTOR') {
         void loadManagerStoreCommissions(session.token);
@@ -3600,9 +3534,6 @@ function App() {
       } else if (role === 'MANAGER') {
         loads.push(loadSellers(token), loadSales(token), loadStaff(token));
       }
-      if (role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER') {
-        loads.push(refreshMessengerInbox());
-      }
       await Promise.allSettled(loads);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- один прогон при входе / смене роли
@@ -3630,13 +3561,13 @@ function App() {
         void loadSellers(token);
         void loadAcquiringProfiles(token);
       }
-      if (role === 'DIRECTOR' && path === '/team') {
+      if (role === 'DIRECTOR' && (path === '/team' || path === '/payroll')) {
         void Promise.allSettled([
           loadManagerStoreCommissions(token),
           loadStaff(token),
           loadSellers(token),
           loadSales(token),
-          loadShifts(token),
+          ...(path === '/team' ? [loadShifts(token)] : []),
         ]);
       }
       return;
@@ -3698,13 +3629,8 @@ function App() {
     const r = session.user.role;
     const retoucher = r === 'RETOUCHER';
     const sellerOnly = r === 'SELLER';
-    const readOnlyObserver = r === 'ACCOUNTANT' || r === 'MANAGER';
     const financeViewer = r === 'ACCOUNTANT' || r === 'DIRECTOR' || r === 'MANAGER';
     const shiftL = financeViewer ? 'Оперативка' : 'Смена';
-    const usesOrgChat = r === 'ADMIN' || r === 'DIRECTOR' || r === 'MANAGER';
-    const controlL = usesOrgChat ? 'Чат' : readOnlyObserver ? 'Отчёт' : 'Контроль';
-    const chatBadge =
-      usesOrgChat && messengerUnreadTotal > 0 ? messengerUnreadTotal : undefined;
     if (retoucher) {
       return [{ to: '/home', label: 'Главная', icon: <HomeIcon />, end: true }];
     }
@@ -3719,29 +3645,29 @@ function App() {
       { to: '/shift', label: shiftL, icon: <ShiftIcon /> },
       { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
     ];
+    if (financeViewer && (r === 'DIRECTOR' || r === 'ACCOUNTANT')) {
+      base.splice(2, 0, {
+        to: '/finance/auto',
+        label: 'Оперативка авто',
+        icon: <AutoFinanceIcon />,
+      });
+    }
     if (r === 'DIRECTOR') {
       base.push(
         { to: '/accounting/equipment', label: 'Спецтехника', icon: <EquipmentIcon /> },
         { to: '/accounting/procurement', label: 'Закупки и склад', icon: <ProcurementIcon /> },
+        { to: '/payroll', label: 'Выплата зарплат', icon: <PayrollIcon /> },
       );
     }
     const teamNavLabel = r === 'ADMIN' ? 'Склад' : 'Сотрудники';
-    base.push(
-      { to: '/team', label: teamNavLabel, icon: <WarehouseIcon /> },
-      {
-        to: '/control',
-        label: controlL,
-        icon: usesOrgChat ? <OrgChatDockIcon /> : <ControlIcon />,
-        badge: chatBadge,
-      },
-    );
+    base.push({ to: '/team', label: teamNavLabel, icon: <WarehouseIcon /> });
+    if (r === 'ACCOUNTANT') {
+      base.push({ to: '/control', label: 'Отчёт', icon: <ControlIcon /> });
+    }
     return base;
-  }, [session, messengerUnreadTotal]);
+  }, [session]);
 
-  const desktopNavItems = useMemo(
-    () => (isDesktopShell ? mobileNavItems.filter((item) => item.to !== '/control') : mobileNavItems),
-    [isDesktopShell, mobileNavItems],
-  );
+  const desktopNavItems = mobileNavItems;
 
   if (!session) {
     const loginVersionLabel = isDesktopShell ? appVersionLabel() : null;
@@ -3829,11 +3755,6 @@ function App() {
   const isReadOnlyObserver = role === 'ACCOUNTANT' || role === 'MANAGER';
   const isFinanceViewer = role === 'ACCOUNTANT' || role === 'DIRECTOR';
   const shiftLabel = isFinanceViewer || isManager ? 'Оперативка' : 'Смена';
-  const usesOrgChat = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER';
-  const controlLabel = usesOrgChat ? 'Чат' : isReadOnlyObserver ? 'Отчёт' : 'Контроль';
-  const messengerChromeLayout =
-    !isDesktopShell && usesOrgChat && location.pathname === '/control';
-
   const routesOutlet = (
     <div className="pageOutlet">
           <Routes>
@@ -4075,6 +3996,27 @@ function App() {
                     </button>
                   </section>
                 </div>
+              }
+            />
+            <Route
+              path="/finance/auto"
+              element={
+                role === 'DIRECTOR' || role === 'ACCOUNTANT' ? (
+                  <div className={`dashboard${isDesktopShell ? ' dashboard--financeDesktop' : ''}`}>
+                    <section className="sectionCard">
+                      <div className={isDesktopShell ? undefined : 'financeOpsWebBridge'}>
+                        <AutoFinanceOpsPanel
+                          token={session.token}
+                          snapshot={financeOps}
+                          onSync={syncAutoFinanceIncomes}
+                          preferDesktopLayout={isDesktopShell}
+                        />
+                      </div>
+                    </section>
+                  </div>
+                ) : (
+                  <Navigate to="/home" replace />
+                )
               }
             />
             <Route
@@ -4471,6 +4413,52 @@ function App() {
               }
             />
             <Route
+              path="/payroll"
+              element={
+                role === 'DIRECTOR' ? (
+                  <div
+                    className={`dashboard teamPage${
+                      isDesktopShell ? ' dashboard--warehouseDesktop' : ''
+                    }`}
+                  >
+                    <section
+                      className={
+                        isDesktopShell
+                          ? 'teamPanelCard teamPanelCard--warehouseDesktop'
+                          : 'sectionCard teamPanelCard'
+                      }
+                    >
+                      <TeamStoresOverview
+                        token={session.token}
+                        staff={staff}
+                        sellers={sellers}
+                        sales={salesMerged}
+                        shifts={shifts}
+                        role={role}
+                        managerStoreCommissions={managerStoreCommissions}
+                        managerCommissionsApiOnline={managerCommissionsApiOnline}
+                        onSaveManagerStoreCommissions={saveManagerStoreCommissions}
+                        onReloadManagerCommissions={async () => {
+                          await loadManagerStoreCommissions(session.token);
+                        }}
+                        onDirectorSetPercent={setDirectorPercent}
+                        onRemoveFromStore={removeStaffFromStore}
+                        onRestoreStaffToStore={restoreStaffToStore}
+                        reportDayKey={teamDayKey}
+                        onReportDayKeyChange={setTeamDayKey}
+                        hideRemovedStaff
+                        readOnlyTeamActions
+                        payrollView
+                        panelTitle="Выплата зарплат"
+                      />
+                    </section>
+                  </div>
+                ) : (
+                  <Navigate to="/home" replace />
+                )
+              }
+            />
+            <Route
               path="/team"
               element={
                 isSellerOnly ? (
@@ -4573,42 +4561,24 @@ function App() {
               element={
                 isSellerOnly ? (
                   <Navigate to="/home" replace />
-                ) : (
-                  <div className={usesOrgChat ? 'dashboard dashboardMessengerPage' : 'dashboard'}>
-                    {usesOrgChat ? (
-                      <MessengerHub
+                ) : role === 'ACCOUNTANT' ? (
+                  <div className="dashboard">
+                    <section className="sectionCard">
+                      <FinanceReportPanel
                         token={session.token}
-                        inbox={messengerInbox}
-                        refreshInbox={refreshMessengerInbox}
-                        persistedThreadKey={messengerPersistThreadKey}
-                        persistedThreadTitle={messengerPersistThreadTitle}
-                        messagingOnline={!isDesktopShell || desktopConnection.online}
-                        onComposerFocusChange={setChatComposerSurfaceActive}
-                        onPersistThreadOpen={(key, title) => {
-                          setMessengerPersistThreadKey(key);
-                          setMessengerPersistThreadTitle(title);
-                        }}
-                        onPersistThreadClose={() => {
-                          setMessengerPersistThreadKey(null);
-                          setMessengerPersistThreadTitle('');
-                        }}
+                        sales={salesMerged}
+                        sellers={sellers}
+                        procurementCosts={productProcurementCosts}
+                        role={role}
+                        acquiringProfiles={acquiringProfiles}
+                        onRefreshFinanceInputs={refreshFinanceInputs}
+                        onLoadPlans={loadRevenuePlans}
+                        onSavePlans={saveRevenuePlans}
                       />
-                    ) : role === 'ACCOUNTANT' ? (
-                      <section className="sectionCard">
-                        <FinanceReportPanel
-                          token={session.token}
-                          sales={salesMerged}
-                          sellers={sellers}
-                          procurementCosts={productProcurementCosts}
-                          role={role}
-                          acquiringProfiles={acquiringProfiles}
-                          onRefreshFinanceInputs={refreshFinanceInputs}
-                          onLoadPlans={loadRevenuePlans}
-                          onSavePlans={saveRevenuePlans}
-                        />
-                      </section>
-                    ) : null}
+                    </section>
                   </div>
+                ) : (
+                  <Navigate to="/home" replace />
                 )
               }
             />
@@ -4681,66 +4651,55 @@ function App() {
   }
 
   return (
-    <main
-      className={`app appWorkspace${isFinanceViewer ? ' app--desktop' : ''}${
-        messengerChromeLayout ? ' appWorkspace--messengerChrome' : ''
-      }${messengerChromeLayout && chatComposerSurfaceActive ? ' appWorkspace--messengerComposerGrip' : ''}`}
-    >
-      <section
-        className={`card cardWorkspace${messengerChromeLayout ? ' cardWorkspace--messengerChrome' : ''}`}
-      >
-        {!messengerChromeLayout ? (
-          <header className="desktopAppHeader">
-            <div className="brandHeader">
-              <h1>Фотографы</h1>
-            </div>
-            <div className="quickNav desktopNav" role="tablist" aria-label="Разделы">
-              <NavLink to="/home" className={navTabClass} end>
-                Главная
+    <main className={`app appWorkspace${isFinanceViewer ? ' app--desktop' : ''}`}>
+      <section className="card cardWorkspace">
+        <header className="desktopAppHeader">
+          <div className="brandHeader">
+            <h1>Фотографы</h1>
+          </div>
+          <div className="quickNav desktopNav" role="tablist" aria-label="Разделы">
+            <NavLink to="/home" className={navTabClass} end>
+              Главная
+            </NavLink>
+            {!isRetoucher && (
+              <NavLink to="/shift" className={navTabClass}>
+                {shiftLabel}
               </NavLink>
-              {!isRetoucher && (
-                <NavLink to="/shift" className={navTabClass}>
-                  {shiftLabel}
+            )}
+            {!isRetoucher && !isSellerOnly && (
+              <>
+                <NavLink to="/sales" className={navTabClass}>
+                  Продажи
                 </NavLink>
-              )}
-              {!isRetoucher && !isSellerOnly && (
-                <>
-                  <NavLink to="/sales" className={navTabClass}>
-                    Продажи
-                  </NavLink>
-                  {role === 'DIRECTOR' ? (
-                    <>
-                      <NavLink to="/accounting/equipment" className={navTabClass}>
-                        Спецтехника
-                      </NavLink>
-                      <NavLink to="/accounting/procurement" className={navTabClass}>
-                        Закупки и склад
-                      </NavLink>
-                    </>
-                  ) : null}
-                  <NavLink to="/team" className={navTabClass}>
-                    {role === 'ADMIN' ? 'Склад' : 'Сотрудники'}
-                  </NavLink>
+                {role === 'DIRECTOR' ? (
+                  <>
+                    <NavLink to="/accounting/equipment" className={navTabClass}>
+                      Спецтехника
+                    </NavLink>
+                    <NavLink to="/accounting/procurement" className={navTabClass}>
+                      Закупки и склад
+                    </NavLink>
+                  </>
+                ) : null}
+                <NavLink to="/team" className={navTabClass}>
+                  {role === 'ADMIN' ? 'Склад' : 'Сотрудники'}
+                </NavLink>
+                {role === 'ACCOUNTANT' ? (
                   <NavLink to="/control" className={navTabClass}>
-                    {controlLabel}
-                    {usesOrgChat && messengerUnreadTotal > 0 ? (
-                      <span className="desktopChatBadge">
-                        {messengerUnreadTotal > 99 ? '99+' : messengerUnreadTotal}
-                      </span>
-                    ) : null}
+                    Отчёт
                   </NavLink>
-                </>
-              )}
-            </div>
-          </header>
-        ) : null}
+                ) : null}
+              </>
+            )}
+          </div>
+        </header>
 
         {adminError ? <p className="error">{adminError}</p> : null}
 
         {routesOutlet}
       </section>
       <nav
-        className={`mobileDock${chatComposerSurfaceActive ? ' mobileDock--hiddenForChat' : ''}`}
+        className="mobileDock"
         aria-label="Навигация по разделам"
         style={{ gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))` }}
       >
@@ -5368,574 +5327,6 @@ function DirectorHomeApprovalsCarousel({
   );
 }
 
-function formatOrgChatTimeLabel(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat('ru-RU', {
-      timeZone: 'Europe/Moscow',
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(iso));
-  } catch {
-    return '';
-  }
-}
-
-async function parseOrgChatErrorResponse(response: Response): Promise<string> {
-  try {
-    const data: unknown = await response.json();
-    if (data && typeof data === 'object' && 'message' in data) {
-      const m = (data as { message: unknown }).message;
-      if (typeof m === 'string') {
-        return m;
-      }
-      if (Array.isArray(m)) {
-        return m.map(String).join(', ');
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return (await response.text().catch(() => '')) || `Ошибка ${response.status}`;
-}
-
-function formatMessengerInboxTime(iso: string): string {
-  try {
-    const d = new Date(iso);
-    const now = new Date();
-    if (calendarDayKeyMoscow(iso) === todayKeyMoscow()) {
-      return new Intl.DateTimeFormat('ru-RU', {
-        timeZone: 'Europe/Moscow',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(d);
-    }
-    const diffMs = now.getTime() - d.getTime();
-    const weekMs = 7 * 24 * 60 * 60 * 1000;
-    if (diffMs >= 0 && diffMs < weekMs) {
-      return new Intl.DateTimeFormat('ru-RU', {
-        timeZone: 'Europe/Moscow',
-        weekday: 'short',
-      }).format(d);
-    }
-    return new Intl.DateTimeFormat('ru-RU', {
-      timeZone: 'Europe/Moscow',
-      day: 'numeric',
-      month: 'short',
-    }).format(d);
-  } catch {
-    return '';
-  }
-}
-
-/** Нижняя строка превью: только текст сообщения (имя — отдельной строкой, как в Telegram). */
-function messengerPreviewBodyLine(t: MessengerThreadPreview): string {
-  const body = (t.lastMessageBody ?? '').trim();
-  if (!body) {
-    return 'Нет сообщений';
-  }
-  return body;
-}
-
-/** Вторая строка: имя отправителя последнего сообщения. */
-function messengerListSenderLine(t: MessengerThreadPreview): string {
-  const body = (t.lastMessageBody ?? '').trim();
-  if (!body) {
-    return '';
-  }
-  return (t.lastSenderLabel ?? '').trim();
-}
-
-function messengerAvatarToneClass(seed: string): string {
-  let h = 2166136261;
-  for (let i = 0; i < seed.length; i += 1) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return `messengerAvatar--tone${Math.abs(h) % 8}`;
-}
-
-function formatMessengerUnreadCount(n: number): string {
-  if (n >= 1000) {
-    return `${(n / 1000).toFixed(1).replace('.', ',')}K`;
-  }
-  return String(n);
-}
-
-function MessengerHub({
-  token,
-  inbox,
-  refreshInbox,
-  persistedThreadKey,
-  persistedThreadTitle,
-  messagingOnline = true,
-  onPersistThreadOpen,
-  onPersistThreadClose,
-  onComposerFocusChange,
-}: {
-  token: string;
-  inbox: MessengerInboxResponse | null;
-  refreshInbox: () => Promise<void>;
-  persistedThreadKey: string | null;
-  persistedThreadTitle: string;
-  /** В десктопе false при отсутствии сети — чат только онлайн. */
-  messagingOnline?: boolean;
-  onPersistThreadOpen: (threadKey: string, title: string) => void;
-  onPersistThreadClose: () => void;
-  onComposerFocusChange?: (surfaceActive: boolean) => void;
-}) {
-  const threadKey = persistedThreadKey;
-  const threadTitleResolved = useMemo(() => {
-    if (!threadKey) {
-      return '';
-    }
-    const fromInbox = inbox?.threads?.find((t) => t.threadKey === threadKey)?.title?.trim();
-    return fromInbox || persistedThreadTitle.trim() || threadKey;
-  }, [threadKey, persistedThreadTitle, inbox?.threads]);
-
-  const [messages, setMessages] = useState<MessengerLine[]>([]);
-  const [draft, setDraft] = useState('');
-  const [loadingThread, setLoadingThread] = useState(false);
-  const [sendBusy, setSendBusy] = useState(false);
-  const [threadError, setThreadError] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const stickToBottomRef = useRef(true);
-  const composerBlurTimerRef = useRef<number | null>(null);
-  const [composerFocused, setComposerFocused] = useState(false);
-
-  const threads = inbox?.threads ?? [];
-
-  const clearComposerBlurTimer = () => {
-    if (composerBlurTimerRef.current != null) {
-      window.clearTimeout(composerBlurTimerRef.current);
-      composerBlurTimerRef.current = null;
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      clearComposerBlurTimer();
-      onComposerFocusChange?.(false);
-      document.documentElement.style.removeProperty('--chat-keyboard-inset');
-    };
-  }, [onComposerFocusChange]);
-
-  useEffect(() => {
-    if (!threadKey || !composerFocused) {
-      return;
-    }
-    const root = document.documentElement;
-    const syncViewport = () => {
-      const vv = window.visualViewport;
-      if (!vv) {
-        return;
-      }
-      const inset = Math.max(0, window.innerHeight - (vv.offsetTop + vv.height));
-      root.style.setProperty('--chat-keyboard-inset', `${inset}px`);
-      root.style.setProperty('--app-visual-vh', `${Math.max(0, Math.round(vv.height))}px`);
-    };
-    syncViewport();
-    window.visualViewport?.addEventListener('resize', syncViewport);
-    window.visualViewport?.addEventListener('scroll', syncViewport);
-    return () => {
-      window.visualViewport?.removeEventListener('resize', syncViewport);
-      window.visualViewport?.removeEventListener('scroll', syncViewport);
-    };
-  }, [threadKey, composerFocused]);
-
-  const scrollToBottom = () => {
-    requestAnimationFrame(() => {
-      const el = scrollRef.current;
-      if (!el) {
-        return;
-      }
-      el.scrollTop = el.scrollHeight;
-    });
-  };
-
-  const updateStickToBottomFromScroll = () => {
-    const el = scrollRef.current;
-    if (!el) {
-      return;
-    }
-    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-    stickToBottomRef.current = gap < 100;
-  };
-
-  const loadThreadMessages = useCallback(async () => {
-    if (!threadKey || !messagingOnline) {
-      return;
-    }
-    try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/admin/chat/messages?threadKey=${encodeURIComponent(threadKey)}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!response.ok) {
-        throw new Error(await parseOrgChatErrorResponse(response));
-      }
-      const data = (await response.json()) as { messages?: MessengerLine[] };
-      setMessages(Array.isArray(data.messages) ? data.messages : []);
-      setThreadError('');
-    } catch (e) {
-      setThreadError(e instanceof Error ? e.message : 'Не удалось загрузить переписку');
-    } finally {
-      setLoadingThread(false);
-    }
-  }, [token, threadKey, messagingOnline]);
-
-  useEffect(() => {
-    if (!threadKey) {
-      setMessages([]);
-      setThreadError('');
-      setLoadingThread(false);
-      return;
-    }
-    if (!messagingOnline) {
-      setLoadingThread(false);
-      return;
-    }
-    setLoadingThread(true);
-    stickToBottomRef.current = true;
-    void loadThreadMessages();
-
-    const markReadOnce = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/admin/chat/read`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ threadKey }),
-        });
-        if (response.ok) {
-          void refreshInbox();
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-    void markReadOnce();
-
-    const pollMs =
-      typeof document !== 'undefined' && document.visibilityState === 'hidden' ? 45000 : 5500;
-    const intervalId = window.setInterval(() => void loadThreadMessages(), pollMs);
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        void loadThreadMessages();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.clearInterval(intervalId);
-    };
-  }, [threadKey, loadThreadMessages, refreshInbox, token, messagingOnline]);
-
-  useEffect(() => {
-    if (stickToBottomRef.current) {
-      scrollToBottom();
-    }
-  }, [messages]);
-
-  const openList = () => {
-    onPersistThreadClose();
-    void refreshInbox();
-  };
-
-  const openThread = (key: string, title: string) => {
-    onPersistThreadOpen(key, title);
-    setDraft('');
-    setThreadError('');
-  };
-
-  const handleThreadSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    const text = draft.trim();
-    if (!text || sendBusy || !threadKey || !messagingOnline) {
-      return;
-    }
-    setSendBusy(true);
-    setThreadError('');
-    try {
-      const response = await fetchWithTimeout(`${API_BASE_URL}/admin/chat/messages`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ threadKey, body: text }),
-      });
-      if (!response.ok) {
-        throw new Error(await parseOrgChatErrorResponse(response));
-      }
-      setDraft('');
-      stickToBottomRef.current = true;
-      await loadThreadMessages();
-      void refreshInbox();
-    } catch (e) {
-      setThreadError(e instanceof Error ? e.message : 'Не отправлено');
-    } finally {
-      setSendBusy(false);
-    }
-  };
-
-  const desktopMessenger = isTauriRuntime();
-
-  const threadListHeader = (
-    <header className="messengerHubHeader">
-      <div className="messengerHubHeaderInner">
-        <h3 className="messengerHubTitle messengerHubTitle--chatMark">Чат</h3>
-      </div>
-    </header>
-  );
-
-  const threadListMarkup = (
-    <ul className="messengerThreadList" aria-label="Чаты">
-      {threads.map((t) => {
-        const initial = (t.title.trim()[0] ?? '?').toUpperCase();
-        const unread = t.unreadCount > 0;
-        const senderLine = messengerListSenderLine(t);
-        const previewLine = messengerPreviewBodyLine(t);
-        const hasMsg = Boolean((t.lastMessageBody ?? '').trim());
-        const isActive = threadKey === t.threadKey;
-        return (
-          <li key={t.threadKey}>
-            <button
-              type="button"
-              className={`messengerThreadRow${isActive ? ' messengerThreadRow--active' : ''}`}
-              onClick={() => openThread(t.threadKey, t.title)}
-            >
-              <span
-                className={`messengerAvatar ${messengerAvatarToneClass(t.threadKey)}`}
-                aria-hidden
-              >
-                {initial}
-              </span>
-              <span className="messengerThreadTextCol">
-                <span className="messengerTgTitleRow">
-                  <span className="messengerThreadName">{t.title}</span>
-                </span>
-                {senderLine ? <span className="messengerThreadSender">{senderLine}</span> : null}
-                <span className="messengerThreadPreview">{previewLine}</span>
-              </span>
-              <span className="messengerThreadRightCol">
-                {hasMsg ? (
-                  <span className="messengerThreadTime">{formatMessengerInboxTime(t.lastMessageAt)}</span>
-                ) : null}
-                {unread ? (
-                  <span className="messengerUnreadBadge">{formatMessengerUnreadCount(t.unreadCount)}</span>
-                ) : null}
-              </span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
-  );
-
-  const placeholder =
-    threadKey === 'general'
-      ? 'Сообщение для всех точек и руководства…'
-      : 'Личное сообщение…';
-
-  const threadSubtitle =
-    threadKey === 'general' ? 'Общий чат сети' : 'Личные сообщения';
-  const navAvatarLetter = (threadTitleResolved.trim()[0] ?? '?').toUpperCase();
-
-  const threadConversationPane = !threadKey ? null : (
-    <>
-      {threadError ? (
-        <p className="error orgChatError" role="alert">
-          {threadError}
-        </p>
-      ) : null}
-
-      <div
-        ref={scrollRef}
-        className="orgChatScroll orgChatScroll--thread"
-        aria-live="polite"
-        onScroll={updateStickToBottomFromScroll}
-      >
-        {loadingThread && messages.length === 0 ? (
-          <p className="muted orgChatEmpty">Загрузка сообщений…</p>
-        ) : messages.length === 0 ? (
-          <p className="muted orgChatEmpty">Пока нет сообщений — напишите первым.</p>
-        ) : (
-          <ul className="orgChatList">
-            {messages.map((m) => (
-              <li
-                key={m.id}
-                className={`orgChatBubbleWrap ${m.outgoing ? 'orgChatBubbleWrap--mine' : ''}`}
-              >
-                <article className={`orgChatBubble ${m.outgoing ? 'orgChatBubble--mine' : ''}`}>
-                  <div className="orgChatBubbleMeta">
-                    <span className="orgChatSender">{m.senderLabel}</span>
-                    <time className="orgChatTime" dateTime={m.createdAt}>
-                      {formatOrgChatTimeLabel(m.createdAt)}
-                    </time>
-                  </div>
-                  <p className="orgChatBody">{m.body}</p>
-                </article>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <form className="orgChatComposer orgChatComposer--tg" onSubmit={(e) => void handleThreadSubmit(e)}>
-        <div className="orgChatComposerShell">
-          <textarea
-            className="orgChatInput orgChatInput--tg"
-            rows={1}
-            maxLength={4000}
-            placeholder={placeholder}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onFocus={() => {
-              clearComposerBlurTimer();
-              setComposerFocused(true);
-              onComposerFocusChange?.(true);
-              scheduleIosVisualViewportBumps();
-              requestAnimationFrame(() => {
-                const vv = window.visualViewport as unknown as { scrollTo?: (x: number, y: number) => void } | null;
-                vv?.scrollTo?.(0, 0);
-                document.scrollingElement?.scrollTo(0, 0);
-              });
-            }}
-            onBlur={() => {
-              clearComposerBlurTimer();
-              composerBlurTimerRef.current = window.setTimeout(() => {
-                composerBlurTimerRef.current = null;
-                setComposerFocused(false);
-                onComposerFocusChange?.(false);
-                document.documentElement.style.removeProperty('--chat-keyboard-inset');
-                scheduleIosVisualViewportBumps();
-              }, 320);
-            }}
-            disabled={sendBusy || !messagingOnline}
-            aria-label="Текст сообщения"
-          />
-          <button
-            type="submit"
-            className="orgChatSendFab"
-            disabled={sendBusy || !draft.trim() || !messagingOnline}
-            aria-label={sendBusy ? 'Отправка' : 'Отправить'}
-            onMouseDown={(event) => {
-              if (!sendBusy && draft.trim()) {
-                event.preventDefault();
-              }
-            }}
-          >
-            <svg
-              className="orgChatSendFabSvg"
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden
-              focusable="false"
-            >
-              <path
-                fill="currentColor"
-                d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"
-              />
-            </svg>
-          </button>
-        </div>
-      </form>
-    </>
-  );
-
-  if (desktopMessenger) {
-    return (
-      <section className="sectionCard messengerHub messengerHub--desktop" aria-label="Чат">
-        {!messagingOnline ? <ChatOfflineNotice /> : null}
-        <div className="messengerHubDesktopSplit">
-          <aside className="messengerHubDesktopRail">
-            {threadListHeader}
-            {threadListMarkup}
-          </aside>
-          <div
-            className="messengerHubDesktopMain"
-            aria-label={threadKey ? threadTitleResolved : 'Переписка'}
-          >
-            {threadKey ? (
-              <>
-                <header className="messengerHubDesktopThreadHead">
-                  <div className="messengerHubDesktopThreadHeadText">
-                    <h3 className="messengerThreadNavTitle">{threadTitleResolved}</h3>
-                    <p className="messengerThreadNavSubtitle">{threadSubtitle}</p>
-                  </div>
-                  <div
-                    className={`messengerTgNavAvatar ${messengerAvatarToneClass(threadKey)}`}
-                    aria-hidden
-                  >
-                    {navAvatarLetter}
-                  </div>
-                </header>
-                {threadConversationPane}
-              </>
-            ) : (
-              <div className="messengerHubDesktopPlaceholder">
-                <span className="messengerHubDesktopPlaceholderIcon" aria-hidden>
-                  Ч
-                </span>
-                <h4 className="messengerHubDesktopPlaceholderTitle">Выберите чат</h4>
-                <p className="messengerHubDesktopPlaceholderHint">
-                  Общий канал сети или переписка с точкой — выберите диалог в списке слева.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (!threadKey) {
-    return (
-      <section className="sectionCard messengerHub" aria-label="Чат">
-        {!messagingOnline ? <ChatOfflineNotice /> : null}
-        {threadListHeader}
-        {threadListMarkup}
-      </section>
-    );
-  }
-
-  return (
-    <section
-      className={`sectionCard messengerHub messengerHubThread${
-        composerFocused ? ' messengerHubThread--composerFocused' : ''
-      }`}
-      aria-label={threadTitleResolved}
-    >
-      {!messagingOnline ? <ChatOfflineNotice /> : null}
-      <header className="messengerTgFloatingHeader">
-        <button type="button" className="messengerTgPill messengerTgPillBack" onClick={openList} aria-label="Назад">
-          <svg className="messengerTgBackSvg" viewBox="0 0 24 24" width="20" height="20" aria-hidden>
-            <path
-              fill="currentColor"
-              d="M15.5 19.5 8 12l7.5-7.5 1.4 1.4L10.8 12l6.1 6.1-1.4 1.4z"
-            />
-          </svg>
-        </button>
-        <div className="messengerTgPill messengerTgPillTitle">
-          <h3 className="messengerThreadNavTitle">{threadTitleResolved}</h3>
-          <p className="messengerThreadNavSubtitle">{threadSubtitle}</p>
-        </div>
-        <div
-          className={`messengerTgNavAvatar ${messengerAvatarToneClass(threadKey)}`}
-          aria-hidden
-        >
-          {navAvatarLetter}
-        </div>
-      </header>
-      {threadConversationPane}
-    </section>
-  );
-}
 
 function directorDemoRoleLabel(role: string): string {
   switch (role) {
@@ -6574,6 +5965,197 @@ function useWideFinanceLayout(preferDesktop: boolean) {
     return () => mq.removeEventListener('change', apply);
   }, [preferDesktop]);
   return wide;
+}
+
+type AutoFinancePreviewRow = {
+  bucket: string;
+  accountId: string;
+  accountName: string;
+  amount: number;
+  alreadySynced: boolean;
+  previousAmount: number;
+};
+
+function AutoFinanceOpsPanel({
+  token,
+  snapshot,
+  onSync,
+  preferDesktopLayout = false,
+}: {
+  token: string;
+  snapshot: FinanceOpsSnapshot;
+  onSync: (token: string, workDay: string) => Promise<{
+    applied: Array<{ accountName: string; amount: number; created: boolean; updated: boolean }>;
+  }>;
+  preferDesktopLayout?: boolean;
+}) {
+  const compactFinanceUi = useWideFinanceLayout(preferDesktopLayout);
+  const [workDay, setWorkDay] = useState(todayKeyMoscow);
+  const [previewRows, setPreviewRows] = useState<AutoFinancePreviewRow[]>([]);
+  const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+
+  const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
+
+  const loadPreview = useCallback(async () => {
+    setPreviewLoading(true);
+    setError('');
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/admin/finance/auto-incomes/preview?workDay=${encodeURIComponent(workDay)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!response.ok) {
+        throw new Error('preview error');
+      }
+      const data = (await response.json()) as {
+        rows: AutoFinancePreviewRow[];
+        totalToSync: number;
+      };
+      setPreviewRows(data.rows ?? []);
+      setPreviewTotal(data.totalToSync ?? 0);
+    } catch {
+      setError('Не удалось загрузить сводку по продажам');
+      setPreviewRows([]);
+      setPreviewTotal(0);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, [token, workDay]);
+
+  useEffect(() => {
+    void loadPreview();
+  }, [loadPreview]);
+
+  const rowsWithAmount = previewRows.filter((row) => row.amount > 0);
+  const syncedCount = previewRows.filter((row) => row.alreadySynced && row.amount > 0).length;
+
+  const handleSync = async () => {
+    setBusy(true);
+    setError('');
+    setStatus('');
+    try {
+      const result = await onSync(token, workDay);
+      const touched = result.applied.filter((row) => row.amount > 0 && (row.created || row.updated));
+      if (touched.length === 0) {
+        setStatus('Нет новых приходов за выбранный день — продажи не найдены или суммы уже записаны.');
+      } else {
+        const created = touched.filter((row) => row.created).length;
+        const updated = touched.filter((row) => row.updated).length;
+        const parts: string[] = [];
+        if (created > 0) {
+          parts.push(`записано ${created}`);
+        }
+        if (updated > 0) {
+          parts.push(`обновлено ${updated}`);
+        }
+        setStatus(`Готово: ${parts.join(', ')} по счетам за ${formatFinanceWorkDay(workDay)}.`);
+      }
+      await loadPreview();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      setError(message || 'Не удалось подтянуть приходы');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className={`opsCard financeOpsCard financeAutoOpsCard${
+        compactFinanceUi ? ' financeOpsCard--desktop' : ''
+      }`}
+    >
+      <div className={`financeOpsShell financeAutoOpsShell${compactFinanceUi ? ' financeOpsShell--desktop' : ''}`}>
+        <header className="financeOpsHero financeAutoOpsHero">
+          <h4 className="financeOpsPageTitle">Оперативка автоматическая</h4>
+          <p className="financeAutoOpsLead">
+            В конце дня нажмите кнопку ниже — приходы по всем точкам запишутся на счета оперативки
+            (наличные, безнал с учётом эквайринга, переводы). Повторное нажатие обновит суммы, если
+            продажи изменились.
+          </p>
+          <div className="financeAutoOpsDayRow">
+            <label className="financeAutoOpsDayLabel">
+              Рабочий день
+              <input
+                type="date"
+                className="financeAutoOpsDayInput"
+                value={workDay}
+                onChange={(event) => setWorkDay(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="ghost financeAutoOpsRefreshBtn"
+              disabled={previewLoading || busy}
+              onClick={() => void loadPreview()}
+            >
+              Обновить сводку
+            </button>
+          </div>
+        </header>
+
+        <section className="financeAutoOpsPreview">
+          <div className="financeAutoOpsPreviewHead">
+            <span className="financeAutoOpsPreviewLabel">К записи по продажам</span>
+            <strong className="financeAutoOpsPreviewTotal">
+              {previewLoading ? '…' : fmt(previewTotal)}
+            </strong>
+          </div>
+          <div className="financeAutoOpsPreviewGrid" role="list">
+            {previewRows.map((row) => (
+              <article
+                key={row.accountId}
+                className={`financeAutoOpsPreviewChip${row.amount <= 0 ? ' financeAutoOpsPreviewChip--empty' : ''}${
+                  row.alreadySynced ? ' financeAutoOpsPreviewChip--synced' : ''
+                }`}
+                role="listitem"
+              >
+                <span className="financeAutoOpsPreviewChipTitle">{row.accountName}</span>
+                <strong className="financeAutoOpsPreviewChipAmount">
+                  {row.amount > 0 ? fmt(row.amount) : '—'}
+                </strong>
+                {row.alreadySynced && row.amount > 0 ? (
+                  <span className="financeAutoOpsPreviewChipBadge">уже в оперативке</span>
+                ) : null}
+              </article>
+            ))}
+          </div>
+          {syncedCount > 0 ? (
+            <p className="financeAutoOpsHint">
+              {syncedCount} счёт(ов) уже синхронизированы за этот день — повторная синхронизация
+              скорректирует суммы.
+            </p>
+          ) : null}
+        </section>
+
+        <div className="financeAutoOpsAction">
+          <button
+            type="button"
+            className="primary financeAutoOpsSyncBtn"
+            disabled={busy || previewLoading || rowsWithAmount.length === 0}
+            onClick={() => void handleSync()}
+          >
+            {busy ? 'Подтягиваем…' : 'Подтянуть приходы со всех точек'}
+          </button>
+          <p className="financeAutoOpsActionNote">
+            Общий остаток после синхронизации:{' '}
+            <strong>{fmt(snapshot.totals.balance)}</strong>
+          </p>
+        </div>
+
+        {status ? <p className="status financeAutoOpsStatus">{status}</p> : null}
+        {error ? (
+          <p className="error financeAutoOpsError" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function FinanceOpsPanel({
@@ -7905,6 +7487,8 @@ function TeamStoresOverview({
   onReportDayKeyChange,
   hideRemovedStaff,
   readOnlyTeamActions,
+  payrollView = false,
+  panelTitle = 'Сотрудники по точкам',
 }: {
   token: string;
   staff: StaffMember[];
@@ -7926,6 +7510,8 @@ function TeamStoresOverview({
   onReportDayKeyChange?: (dayKey: string) => void;
   hideRemovedStaff?: boolean;
   readOnlyTeamActions?: boolean;
+  payrollView?: boolean;
+  panelTitle?: string;
 }) {
   const openShift = shifts.find((item) => item.status === 'OPEN');
   const openShiftId = openShift?.id;
@@ -7934,7 +7520,7 @@ function TeamStoresOverview({
   const todayActual = todayKeyMoscow();
   const calendarReportKey = reportDayKey ?? todayActual;
   const reportIsToday = calendarReportKey === todayActual;
-  const managerPayrollView = role === 'MANAGER';
+  const managerPayrollView = role === 'MANAGER' || payrollView;
   const todaySalesBySellerId = new Map<number, number>();
   const [draftPercent, setDraftPercent] = useState<Record<number, string>>({});
   const [busyPercentMemberId, setBusyPercentMemberId] = useState<number | null>(null);
@@ -7963,7 +7549,7 @@ function TeamStoresOverview({
   const desktopWarehouse = isTauriRuntime();
   const [selectedStoreName, setSelectedStoreName] = useState('');
   const managerCommissionBlock =
-    role === 'DIRECTOR' && onSaveManagerStoreCommissions ? (
+    !payrollView && role === 'DIRECTOR' && onSaveManagerStoreCommissions ? (
       <ManagerStoreCommissionPanel
         token={token}
         items={managerStoreCommissions}
@@ -8527,7 +8113,7 @@ function TeamStoresOverview({
     return (
       <div className="teamWarehouseShell teamWarehouseShell--desktop staffPanelRoot staffPanelStoresOverview">
         <header className="teamWarehouseHead">
-          <h4 className="teamWarehouseTitle">Сотрудники по точкам</h4>
+          <h4 className="teamWarehouseTitle">{panelTitle}</h4>
           {reportDateBar}
         </header>
         {removeError ? <p className="notice">{removeError}</p> : null}
@@ -8601,7 +8187,7 @@ function TeamStoresOverview({
 
   return (
     <div className="staffPanelRoot staffPanelStoresOverview">
-      <h4 className="staffPanelTitle">Сотрудники по точкам</h4>
+      <h4 className="staffPanelTitle">{panelTitle}</h4>
       {reportDateBar}
       <div className="teamStoresBoard">
         {storesSorted.map((storeName) => {

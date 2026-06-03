@@ -5,7 +5,6 @@
 html[data-dt-theme='light'] .app.app--desktop .financeOpsShell--desktop,
 html[data-dt-theme='light'] .app.app--desktop .financeOpsCard--desktop,
 html[data-dt-theme='light'] .app.app--desktop .financeReportCard--desktop,
-html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop,
 html[data-dt-theme='light'] .app.app--desktop .homeDashboardDirectorSkin > .sectionCard.homePanelSection,
 html[data-dt-theme='light'] .app.app--desktop .dashboard--teamDesktop > .teamPanelCard,
 html[data-dt-theme='light'] .app.app--desktop .storeEquipAccountantRoot--desktop,
@@ -20,14 +19,8 @@ html[data-dt-theme='light'] .app.app--desktop .financeOpsCard--desktop {
 }
 
 html[data-dt-theme='light'] .app.app--desktop .financeOpsFlowAccountChip--active,
-html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .messengerThreadRow--active,
 html[data-dt-theme='light'] .app.app--desktop .storeEquipStoreBtn--active {
   box-shadow: inset 3px 0 0 var(--cb-light, #e3dfd8) !important;
-}
-
-html[data-dt-theme='light'] .app.app--desktop .messengerHub--desktop .orgChatSendFab {
-  background: var(--cb-deep, #434d56) !important;
-  box-shadow: none !important;
 }
 
 html[data-dt-theme='light'] .app.app--desktop .directorApprovalsCarouselDot--active,
