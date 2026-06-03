@@ -675,6 +675,119 @@ export class AdminController {
     return result as unknown;
   }
 
+  @Put('finance/auto/accounts/:id/balance')
+  setAutoFinanceAccountBalance(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: FinanceAccountBalanceBody,
+  ) {
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'DIRECTOR') {
+      throw new ForbiddenException('Корректировку остатка может выполнить только директор');
+    }
+    if (body.balance === undefined || !Number.isFinite(body.balance)) {
+      throw new BadRequestException('balance is required');
+    }
+    const account = this.authService.setAutoFinanceAccountBalance(id, body.balance, session.nickname);
+    if (!account) {
+      throw new BadRequestException('Invalid finance account or balance');
+    }
+    return account as unknown;
+  }
+
+  @Put('finance/auto/expense-category-amount')
+  setAutoFinanceExpenseCategoryAmount(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { title?: string; amount?: number },
+  ) {
+    const session = this.requireFinanceRead(authorization);
+    if (session.role !== 'DIRECTOR') {
+      throw new ForbiddenException('Сумму по статье может менять только директор');
+    }
+    const title = String(body.title ?? '').trim();
+    if (body.amount === undefined || !Number.isFinite(body.amount)) {
+      throw new BadRequestException('title and amount are required');
+    }
+    const row = this.authService.setAutoFinanceExpenseCategoryAmount(
+      title,
+      body.amount,
+      session.nickname,
+    );
+    if (!row) {
+      throw new BadRequestException('Invalid category title or amount');
+    }
+    return row as unknown;
+  }
+
+  @Post('finance/auto/expenses')
+  addAutoFinanceExpense(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: FinanceExpenseBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    if (!body.accountId || !body.title || body.amount === undefined || !Number.isFinite(body.amount)) {
+      throw new BadRequestException('accountId, title and amount are required');
+    }
+    const amount = Math.round(body.amount * 100) / 100;
+    if (amount <= 0) {
+      throw new BadRequestException('amount must be greater than zero');
+    }
+    const financeOps = this.authService.getAutoFinanceOpsSnapshot() as {
+      accounts: Array<{ id: string; name: string; balance: number }>;
+    };
+    const account = financeOps.accounts.find((item) => item.id === body.accountId);
+    if (!account) {
+      throw new BadRequestException('Invalid finance account');
+    }
+    if (Math.round(account.balance * 100) < Math.round(amount * 100)) {
+      const available = account.balance.toLocaleString('ru-RU');
+      throw new BadRequestException(
+        `Недостаточно средств на счёте «${account.name}». Доступно: ${available} ₽`,
+      );
+    }
+    const expense = this.authService.addAutoFinanceExpense(
+      {
+        accountId: body.accountId,
+        title: body.title,
+        amount: body.amount,
+        comment: body.comment,
+        expenseId: body.expenseId,
+      },
+      session.nickname,
+    );
+    if (!expense) {
+      throw new BadRequestException('Invalid finance expense payload');
+    }
+    return expense as unknown;
+  }
+
+  @Post('finance/auto/incomes')
+  addAutoFinanceIncome(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: FinanceIncomeBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    const workDay =
+      body.workDay && /^\d{4}-\d{2}-\d{2}$/.test(body.workDay) ? body.workDay : undefined;
+    if (!body.accountId || body.amount === undefined || !Number.isFinite(body.amount) || !workDay) {
+      throw new BadRequestException('accountId, amount and workDay (YYYY-MM-DD) are required');
+    }
+    const income = this.authService.addAutoFinanceIncome(
+      {
+        accountId: body.accountId,
+        amount: body.amount,
+        workDay,
+        comment: body.comment,
+        incomeId: body.incomeId,
+      },
+      session.nickname,
+    );
+    if (!income) {
+      throw new BadRequestException('Invalid finance income payload');
+    }
+    return income as unknown;
+  }
+
   @Post('finance/incomes')
   addFinanceIncome(
     @Headers('authorization') authorization: string | undefined,

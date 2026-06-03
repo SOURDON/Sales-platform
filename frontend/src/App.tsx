@@ -2198,6 +2198,122 @@ function App() {
     return data;
   };
 
+  const addAutoFinanceIncome = async (
+    token: string,
+    payload: { accountId: string; amount: string; workDay: string; comment?: string },
+  ) => {
+    const num = Number(String(payload.amount).replace(',', '.'));
+    if (!Number.isFinite(num) || num <= 0) {
+      return;
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/finance/auto/incomes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        accountId: payload.accountId,
+        amount: num,
+        workDay: payload.workDay,
+        comment: payload.comment,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error('add auto finance income error');
+    }
+    await loadAutoFinanceOps(token);
+  };
+
+  const addAutoFinanceExpense = async (
+    token: string,
+    payload: { accountId: string; title: string; amount: string; comment?: string },
+  ) => {
+    const amount = parseFinanceMoneyInput(payload.amount);
+    if (amount === null) {
+      throw new Error('INVALID_EXPENSE_AMOUNT');
+    }
+    const account = autoFinanceOps.accounts.find((a) => a.id === payload.accountId);
+    const insufficient = financeExpenseInsufficientMessage(account, amount);
+    if (insufficient) {
+      throw new Error(insufficient);
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/finance/auto/expenses`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        accountId: payload.accountId,
+        title: payload.title,
+        amount,
+        comment: payload.comment,
+      }),
+    });
+    if (!response.ok) {
+      let message = 'add auto finance expense error';
+      try {
+        const data = (await response.json()) as { message?: string | string[] };
+        const raw = data.message;
+        if (typeof raw === 'string' && raw.trim()) {
+          message = raw;
+        } else if (Array.isArray(raw) && typeof raw[0] === 'string') {
+          message = raw[0];
+        }
+      } catch {
+        /* ignore */
+      }
+      throw new Error(message);
+    }
+    await loadAutoFinanceOps(token);
+  };
+
+  const setAutoFinanceAccountBalance = async (token: string, accountId: string, balanceStr: string) => {
+    const num = Number(String(balanceStr).replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0) {
+      return;
+    }
+    const response = await fetch(
+      `${API_BASE_URL}/admin/finance/auto/accounts/${encodeURIComponent(accountId)}/balance`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ balance: num }),
+      },
+    );
+    if (!response.ok) {
+      throw new Error('set auto finance account balance error');
+    }
+    await loadAutoFinanceOps(token);
+  };
+
+  const setAutoFinanceExpenseCategoryAmount = async (
+    token: string,
+    title: string,
+    amountStr: string,
+  ) => {
+    const num = Number(String(amountStr).replace(',', '.'));
+    if (!Number.isFinite(num) || num < 0) {
+      throw new Error('Укажите корректную сумму');
+    }
+    const response = await fetch(`${API_BASE_URL}/admin/finance/auto/expense-category-amount`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ title, amount: num }),
+    });
+    if (!response.ok) {
+      throw new Error(await readApiErrorMessage(response, 'Не удалось сохранить сумму по статье'));
+    }
+    await loadAutoFinanceOps(token);
+  };
+
   const addFinanceExpense = async (
     token: string,
     payload: { accountId: string; title: string; amount: string; comment?: string },
@@ -4050,11 +4166,17 @@ function App() {
                   <div className={`dashboard${isDesktopShell ? ' dashboard--financeDesktop' : ''}`}>
                     <section className="sectionCard">
                       <div className={isDesktopShell ? undefined : 'financeOpsWebBridge'}>
-                        <AutoFinanceOpsPanel
+                        <FinanceOpsPanel
                           token={session.token}
+                          isDirector={role === 'DIRECTOR'}
                           snapshot={autoFinanceOps}
-                          onSync={syncAutoFinanceIncomes}
-                          onRefresh={() => loadAutoFinanceOps(session.token)}
+                          variant="auto"
+                          onAddIncome={addAutoFinanceIncome}
+                          onAddExpense={addAutoFinanceExpense}
+                          onSetAccountBalance={setAutoFinanceAccountBalance}
+                          onSetCategoryAmount={setAutoFinanceExpenseCategoryAmount}
+                          onSyncFromSales={syncAutoFinanceIncomes}
+                          onAfterSync={() => loadAutoFinanceOps(session.token)}
                           preferDesktopLayout={isDesktopShell}
                         />
                       </div>
@@ -6031,59 +6153,31 @@ type AutoFinancePreviewRow = {
   previousAmount: number;
 };
 
-function AutoFinanceOpsPanel({
+function FinanceAutoSyncBar({
   token,
-  snapshot,
   onSync,
-  onRefresh,
-  preferDesktopLayout = false,
+  onSynced,
+  onStatus,
+  compactFinanceUi,
 }: {
   token: string;
-  snapshot: FinanceOpsSnapshot;
   onSync: (token: string, workDay: string) => Promise<{
     applied: Array<{ accountName: string; amount: number; created: boolean; updated: boolean }>;
   }>;
-  onRefresh: () => Promise<void>;
-  preferDesktopLayout?: boolean;
+  onSynced: () => Promise<void>;
+  onStatus: (message: string, isError?: boolean) => void;
+  compactFinanceUi: boolean;
 }) {
-  const compactFinanceUi = useWideFinanceLayout(preferDesktopLayout);
   const [workDay, setWorkDay] = useState(todayKeyMoscow);
-  const [previewRows, setPreviewRows] = useState<AutoFinancePreviewRow[]>([]);
   const [previewTotal, setPreviewTotal] = useState(0);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState('');
-  const [error, setError] = useState('');
+  const [hasSales, setHasSales] = useState(false);
 
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
 
-  const primaryFinanceAccounts = useMemo(() => {
-    const map = new Map(snapshot.accounts.map((a) => [a.id, a]));
-    return AUTO_FINANCE_OPS_PRIMARY_ACCOUNT_IDS.map((id) => map.get(id)).filter(
-      (a): a is FinanceAccount => Boolean(a),
-    );
-  }, [snapshot.accounts]);
-
-  const previewByAccountId = useMemo(
-    () => new Map(previewRows.map((row) => [row.accountId, row])),
-    [previewRows],
-  );
-
-  const recentIncomeHistoryItems = useMemo(() => {
-    const accountNames = new Map(snapshot.accounts.map((a) => [a.id, a.name?.trim() || 'Счёт']));
-    return [...(snapshot.incomes ?? [])]
-      .sort((a, b) => b.workDay.localeCompare(a.workDay) || b.id.localeCompare(a.id))
-      .slice(0, 24)
-      .map((item) => ({
-        key: item.id,
-        meta: `${accountNames.get(item.accountId) ?? 'Счёт'} · ${formatFinanceWorkDay(item.workDay)}`,
-        value: fmt(item.amount),
-      }));
-  }, [snapshot.incomes, snapshot.accounts]);
-
   const loadPreview = useCallback(async () => {
     setPreviewLoading(true);
-    setError('');
     try {
       const response = await fetch(
         `${API_BASE_URL}/admin/finance/auto-incomes/preview?workDay=${encodeURIComponent(workDay)}`,
@@ -6096,33 +6190,29 @@ function AutoFinanceOpsPanel({
         rows: AutoFinancePreviewRow[];
         totalToSync: number;
       };
-      setPreviewRows(data.rows ?? []);
+      const rows = data.rows ?? [];
       setPreviewTotal(data.totalToSync ?? 0);
+      setHasSales(rows.some((row) => row.amount > 0));
     } catch {
-      setError('Не удалось загрузить сводку по продажам');
-      setPreviewRows([]);
+      onStatus('Не удалось загрузить сводку по продажам', true);
       setPreviewTotal(0);
+      setHasSales(false);
     } finally {
       setPreviewLoading(false);
     }
-  }, [token, workDay]);
+  }, [token, workDay, onStatus]);
 
   useEffect(() => {
     void loadPreview();
   }, [loadPreview]);
 
-  const rowsWithAmount = previewRows.filter((row) => row.amount > 0);
-  const syncedCount = previewRows.filter((row) => row.alreadySynced && row.amount > 0).length;
-
   const handleSync = async () => {
     setBusy(true);
-    setError('');
-    setStatus('');
     try {
       const result = await onSync(token, workDay);
       const touched = result.applied.filter((row) => row.amount > 0 && (row.created || row.updated));
       if (touched.length === 0) {
-        setStatus('Нет новых приходов за выбранный день — продажи не найдены или суммы уже записаны.');
+        onStatus('Нет новых приходов за выбранный день — продажи не найдены или суммы уже записаны.');
       } else {
         const created = touched.filter((row) => row.created).length;
         const updated = touched.filter((row) => row.updated).length;
@@ -6133,12 +6223,12 @@ function AutoFinanceOpsPanel({
         if (updated > 0) {
           parts.push(`обновлено ${updated}`);
         }
-        setStatus(`Готово: ${parts.join(', ')} по счетам за ${formatFinanceWorkDay(workDay)}.`);
+        onStatus(`Приходы с продаж за ${formatFinanceWorkDay(workDay)}: ${parts.join(', ')}.`);
       }
-      await Promise.all([loadPreview(), onRefresh()]);
+      await Promise.all([loadPreview(), onSynced()]);
     } catch (err) {
       const message = err instanceof Error ? err.message : '';
-      setError(message || 'Не удалось подтянуть приходы');
+      onStatus(message || 'Не удалось подтянуть приходы', true);
     } finally {
       setBusy(false);
     }
@@ -6146,125 +6236,35 @@ function AutoFinanceOpsPanel({
 
   return (
     <div
-      className={`opsCard financeOpsCard financeAutoOpsCard${
-        compactFinanceUi ? ' financeOpsCard--desktop' : ''
-      }`}
+      className={`financeOpsAutoSyncBar${compactFinanceUi ? ' financeOpsAutoSyncBar--desktop' : ''}`}
+      role="region"
+      aria-label="Приходы с продаж всех точек"
     >
-      <div className={`financeOpsShell financeAutoOpsShell${compactFinanceUi ? ' financeOpsShell--desktop' : ''}`}>
-        <header className="financeOpsHero">
-          <h4 className="financeOpsPageTitle">Оперативные финансы (авто)</h4>
-          <p className="financeAutoOpsLead">
-            Отдельный журнал для сверки с продажами в конце дня. Ручная «Оперативка» не меняется.
-          </p>
-          <div className="financeOpsHeroMain">
-            <div className="financeOpsBankTotalCallout" role="note">
-              <span className="financeOpsBankTotalCalloutLabel">Общий остаток</span>
-              <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.balance)}</span>
-            </div>
-            <div className="financeOpsBalancesGrid">
-              {primaryFinanceAccounts.map((acc) => {
-                const preview = previewByAccountId.get(acc.id);
-                const salesHint =
-                  preview && preview.amount > 0
-                    ? `Продажи ${formatFinanceWorkDay(workDay)}: ${fmt(preview.amount)}`
-                    : null;
-                return (
-                  <article key={acc.id} className="metricCard financeOpsBalanceCard">
-                    <p>{acc.name?.trim() || 'Счёт'}</p>
-                    <div className="financeOpsBalanceCardTail">
-                      <strong>{fmt(acc.balance)}</strong>
-                    </div>
-                    {salesHint ? (
-                      <span className="financeAutoOpsBalanceSalesHint">{salesHint}</span>
-                    ) : null}
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-        </header>
-
-        <section className="financeOpsZone financeAutoOpsSyncZone">
-          <div className="financeOpsArticlesHead">
-            <h4 className="financeOpsZoneTitle">Синхронизация за день</h4>
-            <span className="financeOpsArticlesTotal">
-              {previewLoading ? '…' : fmt(previewTotal)}
-            </span>
-          </div>
-          <p className="financeAutoOpsLead financeAutoOpsSyncHint">
-            Приходы по всем точкам (наличные, безнал с эквайрингом, переводы). Повторное нажатие
-            обновит суммы, если продажи изменились.
-          </p>
-          <div className="financeAutoOpsDayRow">
-            <label className="financeAutoOpsDayLabel">
-              Рабочий день
-              <input
-                type="date"
-                className="financeAutoOpsDayInput"
-                value={workDay}
-                onChange={(event) => setWorkDay(event.target.value)}
-              />
-            </label>
-            <button
-              type="button"
-              className="ghost financeAutoOpsRefreshBtn"
-              disabled={previewLoading || busy}
-              onClick={() => void loadPreview()}
-            >
-              Обновить сводку
-            </button>
-          </div>
-          <div className="financeOpsBalancesGrid financeAutoOpsSalesGrid" role="list" aria-label="К записи по продажам">
-            {previewRows.map((row) => (
-              <article
-                key={row.accountId}
-                className={`metricCard financeOpsBalanceCard financeAutoOpsSalesCard${
-                  row.amount <= 0 ? ' financeAutoOpsSalesCard--empty' : ''
-                }${row.alreadySynced ? ' financeAutoOpsSalesCard--synced' : ''}`}
-                role="listitem"
-              >
-                <p>{row.accountName}</p>
-                <div className="financeOpsBalanceCardTail">
-                  <strong>{row.amount > 0 ? fmt(row.amount) : '—'}</strong>
-                </div>
-                {row.alreadySynced && row.amount > 0 ? (
-                  <span className="financeAutoOpsPreviewChipBadge">уже записано</span>
-                ) : null}
-              </article>
-            ))}
-          </div>
-          {syncedCount > 0 ? (
-            <p className="financeAutoOpsHint">
-              {syncedCount} счёт(ов) уже синхронизированы за этот день — повторная синхронизация
-              скорректирует суммы.
-            </p>
-          ) : null}
-          <div className="financeAutoOpsAction">
-            <button
-              type="button"
-              className="primaryAction financeAutoOpsSyncBtn"
-              disabled={busy || previewLoading || rowsWithAmount.length === 0}
-              onClick={() => void handleSync()}
-            >
-              {busy ? 'Подтягиваем…' : 'Подтянуть приходы со всех точек'}
-            </button>
-          </div>
-        </section>
-
-        {status || error ? (
-          <div className="financeOpsStatusBar" role="status">
-            {status ? <p className="success financeOpsStatusMsg">{status}</p> : null}
-            {error ? <p className="error financeOpsStatusMsg">{error}</p> : null}
-          </div>
-        ) : null}
-
-        <section className="financeOpsZone financeOpsZone--historyMini">
-          <FinanceOpsHistoryStrip
-            title="Последние приходы (авто)"
-            emptyLabel="Приходов пока нет"
-            items={recentIncomeHistoryItems}
+      <p className="financeOpsAutoSyncBarHint">
+        Тестовый журнал: приходы с продаж — кнопкой ниже, расходы и ручные правки — как в обычной
+        оперативке. Ручная «Оперативка» не связана.
+      </p>
+      <div className="financeAutoOpsDayRow">
+        <label className="financeAutoOpsDayLabel">
+          День продаж
+          <input
+            type="date"
+            className="financeAutoOpsDayInput"
+            value={workDay}
+            onChange={(event) => setWorkDay(event.target.value)}
           />
-        </section>
+        </label>
+        <span className="financeOpsAutoSyncBarTotal">
+          К записи: {previewLoading ? '…' : fmt(previewTotal)}
+        </span>
+        <button
+          type="button"
+          className="primaryAction financeOpsAutoSyncBarBtn"
+          disabled={busy || previewLoading || !hasSales}
+          onClick={() => void handleSync()}
+        >
+          {busy ? 'Подтягиваем…' : 'Подтянуть приходы со всех точек'}
+        </button>
       </div>
     </div>
   );
@@ -6278,6 +6278,9 @@ function FinanceOpsPanel({
   onAddExpense,
   onSetAccountBalance,
   onSetCategoryAmount,
+  variant = 'manual',
+  onSyncFromSales,
+  onAfterSync,
   preferDesktopLayout = false,
 }: {
   token: string;
@@ -6293,12 +6296,21 @@ function FinanceOpsPanel({
   ) => Promise<void>;
   onSetAccountBalance: (token: string, accountId: string, balance: string) => Promise<void>;
   onSetCategoryAmount?: (token: string, title: string, amount: string) => Promise<void>;
+  variant?: 'manual' | 'auto';
+  onSyncFromSales?: (token: string, workDay: string) => Promise<{
+    applied: Array<{ accountName: string; amount: number; created: boolean; updated: boolean }>;
+  }>;
+  onAfterSync?: () => Promise<void>;
   preferDesktopLayout?: boolean;
 }) {
+  const isAutoVariant = variant === 'auto';
+  const primaryAccountIds =
+    variant === 'auto' ? AUTO_FINANCE_OPS_PRIMARY_ACCOUNT_IDS : FINANCE_OPS_PRIMARY_ACCOUNT_IDS;
+
   const cashAccount = snapshot.accounts.find((a) => a.kind === 'CASH');
   const bankAccounts = snapshot.accounts.filter((a) => a.kind === 'BANK');
   const bankAccountsOrdered = useMemo(() => {
-    const primaryIds = FINANCE_OPS_PRIMARY_ACCOUNT_IDS as readonly string[];
+    const primaryIds = primaryAccountIds as readonly string[];
     const rank = (id: string) => {
       const i = primaryIds.indexOf(id);
       return i === -1 ? 50 : i;
@@ -6306,14 +6318,12 @@ function FinanceOpsPanel({
     return [...bankAccounts].sort(
       (a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name, 'ru-RU'),
     );
-  }, [bankAccounts]);
+  }, [bankAccounts, primaryAccountIds]);
 
   const primaryFinanceAccounts = useMemo(() => {
     const map = new Map(snapshot.accounts.map((a) => [a.id, a]));
-    return FINANCE_OPS_PRIMARY_ACCOUNT_IDS.map((id) => map.get(id)).filter(
-      (a): a is FinanceAccount => Boolean(a),
-    );
-  }, [snapshot.accounts]);
+    return primaryAccountIds.map((id) => map.get(id)).filter((a): a is FinanceAccount => Boolean(a));
+  }, [snapshot.accounts, primaryAccountIds]);
 
   const [incomeDraftsByAccount, setIncomeDraftsByAccount] = useState<Record<string, string>>({});
   const [selectedIncomeAccountId, setSelectedIncomeAccountId] = useState('');
@@ -6346,9 +6356,7 @@ function FinanceOpsPanel({
   }, [expenseAccountId, snapshot.accounts]);
 
   useEffect(() => {
-    const ids = FINANCE_OPS_PRIMARY_ACCOUNT_IDS.filter((id) =>
-      snapshot.accounts.some((a) => a.id === id),
-    );
+    const ids = primaryAccountIds.filter((id) => snapshot.accounts.some((a) => a.id === id));
     setIncomeDraftsByAccount((prev) => {
       const next = { ...prev };
       let changed = false;
@@ -6360,7 +6368,7 @@ function FinanceOpsPanel({
       }
       return changed ? next : prev;
     });
-  }, [snapshot.accounts]);
+  }, [snapshot.accounts, primaryAccountIds]);
 
   useEffect(() => {
     if (primaryFinanceAccounts.length === 0) {
@@ -6690,11 +6698,21 @@ function FinanceOpsPanel({
     }
   };
 
+  const handleAutoSyncStatus = (message: string, isError?: boolean) => {
+    if (isError) {
+      setError(message);
+      setStatus('');
+    } else {
+      setStatus(message);
+      setError('');
+    }
+  };
+
   return (
     <div
       className={`opsCard financeOpsCard ${isDirector ? 'financeOpsCardDirector' : ''}${
-        compactFinanceUi ? ' financeOpsCard--desktop' : ''
-      }`}
+        isAutoVariant ? ' financeOpsCard--auto' : ''
+      }${compactFinanceUi ? ' financeOpsCard--desktop' : ''}`}
     >
       <div className={`financeOpsShell${compactFinanceUi ? ' financeOpsShell--desktop' : ''}`}>
       <header className="financeOpsHero">
@@ -6803,6 +6821,16 @@ function FinanceOpsPanel({
           </div>
         </div>
       </header>
+
+      {isAutoVariant && onSyncFromSales ? (
+        <FinanceAutoSyncBar
+          token={token}
+          onSync={onSyncFromSales}
+          onSynced={onAfterSync ?? (async () => undefined)}
+          onStatus={handleAutoSyncStatus}
+          compactFinanceUi={compactFinanceUi}
+        />
+      ) : null}
 
       {compactFinanceUi ? (
         <section className="financeOpsZone financeOpsZone--flows addSaleForm">

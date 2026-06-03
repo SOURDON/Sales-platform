@@ -406,6 +406,8 @@ export class AuthService implements OnModuleInit {
   /** Отдельный журнал «Оперативка авто» — не смешивается с ручной оперативкой. */
   private autoFinanceAccounts: FinanceAccount[] = [];
   private autoFinanceIncomes: FinanceIncome[] = [];
+  private autoFinanceExpenses: FinanceExpense[] = [];
+  private autoFinanceExpenseCategoryAmounts: Record<string, number> = defaultFinanceCategoryAmounts();
   private financeExpenseCategoryAmounts: Record<string, number> = defaultFinanceCategoryAmounts();
   private storeEquipmentByStore: Record<string, StoreEquipmentCounts> = {};
   private storeEquipmentCustomTypes: StoreEquipmentCustomTypeDto[] = [];
@@ -1111,12 +1113,23 @@ export class AuthService implements OnModuleInit {
     return JSON.stringify({
       accounts: this.autoFinanceAccounts,
       incomes: this.autoFinanceIncomes,
+      expenses: this.autoFinanceExpenses,
+      categoryAmounts: this.autoFinanceExpenseCategoryAmounts,
     });
+  }
+
+  private getAutoFinanceCategoryAmountRows() {
+    return FINANCE_EXPENSE_CATEGORY_LABELS.map((title) => ({
+      title,
+      amount: Math.round((this.autoFinanceExpenseCategoryAmounts[title] ?? 0) * 100) / 100,
+    }));
   }
 
   private loadAutoFinanceStateFromJson(json: string | null | undefined) {
     this.autoFinanceAccounts = this.defaultAutoFinanceAccounts();
     this.autoFinanceIncomes = [];
+    this.autoFinanceExpenses = [];
+    this.autoFinanceExpenseCategoryAmounts = defaultFinanceCategoryAmounts();
     if (!json) {
       return;
     }
@@ -1124,6 +1137,8 @@ export class AuthService implements OnModuleInit {
       const parsed = JSON.parse(json) as {
         accounts?: FinanceAccount[];
         incomes?: FinanceIncome[];
+        expenses?: FinanceExpense[];
+        categoryAmounts?: Record<string, number>;
       };
       if (Array.isArray(parsed.accounts) && parsed.accounts.length > 0) {
         const canon = this.defaultAutoFinanceAccounts();
@@ -1140,9 +1155,26 @@ export class AuthService implements OnModuleInit {
           (item) => item && typeof item.id === 'string' && typeof item.accountId === 'string',
         );
       }
+      if (Array.isArray(parsed.expenses)) {
+        this.autoFinanceExpenses = parsed.expenses.filter(
+          (item) => item && typeof item.id === 'string' && typeof item.accountId === 'string',
+        );
+      }
+      if (parsed.categoryAmounts && typeof parsed.categoryAmounts === 'object') {
+        const base = defaultFinanceCategoryAmounts();
+        for (const label of FINANCE_EXPENSE_CATEGORY_LABELS) {
+          const raw = parsed.categoryAmounts[label];
+          if (Number.isFinite(raw) && raw >= 0) {
+            base[label] = Math.round(raw * 100) / 100;
+          }
+        }
+        this.autoFinanceExpenseCategoryAmounts = base;
+      }
     } catch {
       this.autoFinanceAccounts = this.defaultAutoFinanceAccounts();
       this.autoFinanceIncomes = [];
+      this.autoFinanceExpenses = [];
+      this.autoFinanceExpenseCategoryAmounts = defaultFinanceCategoryAmounts();
     }
   }
 
@@ -1169,6 +1201,9 @@ export class AuthService implements OnModuleInit {
     const accounts = this.autoFinanceAccounts
       .map((item) => ({ ...item }))
       .sort((a, b) => a.name.localeCompare(b.name, 'ru-RU'));
+    const expenses = [...this.autoFinanceExpenses].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
     const incomes = [...this.autoFinanceIncomes].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
@@ -1179,21 +1214,108 @@ export class AuthService implements OnModuleInit {
       .filter((item) => item.kind === 'BANK')
       .reduce((sum, item) => sum + item.balance, 0);
     const totalBalance = cashTotal + bankTotal;
+    const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
     const incomeTotal = incomes.reduce((sum, item) => sum + item.amount, 0);
+    const categoryAmounts = this.getAutoFinanceCategoryAmountRows();
+    const categoryTotal = categoryAmounts.reduce((sum, row) => sum + row.amount, 0);
     return {
       accounts,
-      expenses: [] as FinanceExpense[],
+      expenses,
       incomes,
-      categoryAmounts: [] as Array<{ title: string; amount: number }>,
+      categoryAmounts,
       totals: {
         cash: Math.round(cashTotal * 100) / 100,
         bank: Math.round(bankTotal * 100) / 100,
         balance: Math.round(totalBalance * 100) / 100,
-        expenses: 0,
+        expenses: Math.round(expenseTotal * 100) / 100,
         incomes: Math.round(incomeTotal * 100) / 100,
-        categoryTotal: 0,
+        categoryTotal: Math.round(categoryTotal * 100) / 100,
       },
     };
+  }
+
+  setAutoFinanceAccountBalance(id: string, balance: number, actor = 'system') {
+    if (!id || !Number.isFinite(balance) || balance < 0) {
+      return null;
+    }
+    const account = this.autoFinanceAccounts.find((item) => item.id === id);
+    if (!account) {
+      return null;
+    }
+    account.balance = Math.round(balance * 100) / 100;
+    this.pushAudit(actor, 'AUTO_FINANCE_ACCOUNT_BALANCE_UPDATED', `${account.name}=${account.balance}`);
+    this.queuePersistAutoFinanceState();
+    return account;
+  }
+
+  setAutoFinanceExpenseCategoryAmount(title: string, amount: number, actor = 'system') {
+    const trimmed = title.trim();
+    if (!isFinanceExpenseCategoryLabel(trimmed)) {
+      return null;
+    }
+    if (!Number.isFinite(amount) || amount < 0) {
+      return null;
+    }
+    const safe = Math.round(amount * 100) / 100;
+    this.autoFinanceExpenseCategoryAmounts[trimmed] = safe;
+    this.pushAudit(actor, 'AUTO_FINANCE_CATEGORY_AMOUNT_UPDATED', `${trimmed}=${safe}`);
+    this.queuePersistAutoFinanceState();
+    return { title: trimmed, amount: safe };
+  }
+
+  addAutoFinanceExpense(
+    payload: {
+      accountId: string;
+      title: string;
+      amount: number;
+      comment?: string;
+      expenseId?: string;
+    },
+    actor = 'system',
+  ) {
+    const title = payload.title?.trim();
+    if (!payload.accountId || !title || !Number.isFinite(payload.amount) || payload.amount <= 0) {
+      return null;
+    }
+    const trimmedExpenseId =
+      typeof payload.expenseId === 'string'
+        ? payload.expenseId.trim().slice(0, 128).replace(/[^\w.-]/g, '') || undefined
+        : undefined;
+    if (trimmedExpenseId) {
+      const existingExp = this.autoFinanceExpenses.find((item) => item.id === trimmedExpenseId);
+      if (existingExp) {
+        return existingExp;
+      }
+    }
+    const account = this.autoFinanceAccounts.find((item) => item.id === payload.accountId);
+    if (!account) {
+      return null;
+    }
+    const amount = Math.round(payload.amount * 100) / 100;
+    const balanceCents = Math.round(account.balance * 100);
+    const amountCents = Math.round(amount * 100);
+    if (balanceCents < amountCents) {
+      return null;
+    }
+    account.balance = Math.round((account.balance - amount) * 100) / 100;
+    const expense: FinanceExpense = {
+      id: trimmedExpenseId ?? `afexp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+      title,
+      amount,
+      comment: payload.comment?.trim() || undefined,
+      createdBy: actor,
+      accountId: account.id,
+      accountName: account.name,
+    };
+    this.autoFinanceExpenses.push(expense);
+    const categoryKey = isFinanceExpenseCategoryLabel(title) ? title : 'Прочие траты';
+    const prevCategory = this.autoFinanceExpenseCategoryAmounts[categoryKey] ?? 0;
+    this.autoFinanceExpenseCategoryAmounts[categoryKey] =
+      Math.round((prevCategory + amount) * 100) / 100;
+    this.pushAudit(actor, 'AUTO_FINANCE_EXPENSE_ADDED', `${title}: ${amount} from ${account.name}`);
+    this.queuePersistAutoFinanceState();
+    return expense;
   }
 
   private manualAccountIdFromAuto(accountId: string) {
@@ -1255,7 +1377,7 @@ export class AuthService implements OnModuleInit {
     return `auto-sync-${workDay}-${accountId}`;
   }
 
-  private addAutoFinanceIncome(
+  addAutoFinanceIncome(
     payload: {
       accountId: string;
       amount: number;
@@ -4239,6 +4361,8 @@ export class AuthService implements OnModuleInit {
     this.financeIncomes = [];
     this.autoFinanceAccounts = this.defaultAutoFinanceAccounts();
     this.autoFinanceIncomes = [];
+    this.autoFinanceExpenses = [];
+    this.autoFinanceExpenseCategoryAmounts = defaultFinanceCategoryAmounts();
     this.financeExpenseCategoryAmounts = defaultFinanceCategoryAmounts();
     this.currentShiftId = null;
     this.lastSaleAt = null;
