@@ -403,6 +403,9 @@ export class AuthService implements OnModuleInit {
   private financeAccounts: FinanceAccount[] = [];
   private financeExpenses: FinanceExpense[] = [];
   private financeIncomes: FinanceIncome[] = [];
+  /** Отдельный журнал «Оперативка авто» — не смешивается с ручной оперативкой. */
+  private autoFinanceAccounts: FinanceAccount[] = [];
+  private autoFinanceIncomes: FinanceIncome[] = [];
   private financeExpenseCategoryAmounts: Record<string, number> = defaultFinanceCategoryAmounts();
   private storeEquipmentByStore: Record<string, StoreEquipmentCounts> = {};
   private storeEquipmentCustomTypes: StoreEquipmentCustomTypeDto[] = [];
@@ -1085,17 +1088,223 @@ export class AuthService implements OnModuleInit {
     return income;
   }
 
+  private static readonly AUTO_FINANCE_ACCOUNT_PREFIX = 'auto-';
+
   private static readonly AUTO_FINANCE_INCOME_ACCOUNT_BY_BUCKET: Record<string, string> = {
-    'detkov-vtb': 'fa-bank-extra',
-    'putintsev-vtb': 'fa-bank-main',
-    'putintsev-sber': 'fa-bank-putintsev-sber',
-    'lyokha-rs': 'fa-bank-lyokha',
-    cash: 'fa-cash-main',
-    transfer: 'fa-transfer',
+    'detkov-vtb': 'auto-fa-bank-extra',
+    'putintsev-vtb': 'auto-fa-bank-main',
+    'putintsev-sber': 'auto-fa-bank-putintsev-sber',
+    'lyokha-rs': 'auto-fa-bank-lyokha',
+    cash: 'auto-fa-cash-main',
+    transfer: 'auto-fa-transfer',
   };
+
+  private defaultAutoFinanceAccounts(): FinanceAccount[] {
+    return this.defaultFinanceAccounts().map((item) => ({
+      ...item,
+      id: `${AuthService.AUTO_FINANCE_ACCOUNT_PREFIX}${item.id}`,
+      balance: 0,
+    }));
+  }
+
+  private serializeAutoFinanceState() {
+    return JSON.stringify({
+      accounts: this.autoFinanceAccounts,
+      incomes: this.autoFinanceIncomes,
+    });
+  }
+
+  private loadAutoFinanceStateFromJson(json: string | null | undefined) {
+    this.autoFinanceAccounts = this.defaultAutoFinanceAccounts();
+    this.autoFinanceIncomes = [];
+    if (!json) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(json) as {
+        accounts?: FinanceAccount[];
+        incomes?: FinanceIncome[];
+      };
+      if (Array.isArray(parsed.accounts) && parsed.accounts.length > 0) {
+        const canon = this.defaultAutoFinanceAccounts();
+        const byId = new Map(parsed.accounts.map((a) => [a.id, a]));
+        this.autoFinanceAccounts = canon.map((def) => {
+          const cur = byId.get(def.id);
+          return cur
+            ? { ...def, balance: Math.round(Number(cur.balance) * 100) / 100 || 0 }
+            : { ...def };
+        });
+      }
+      if (Array.isArray(parsed.incomes)) {
+        this.autoFinanceIncomes = parsed.incomes.filter(
+          (item) => item && typeof item.id === 'string' && typeof item.accountId === 'string',
+        );
+      }
+    } catch {
+      this.autoFinanceAccounts = this.defaultAutoFinanceAccounts();
+      this.autoFinanceIncomes = [];
+    }
+  }
+
+  private queuePersistAutoFinanceState() {
+    this.queueIncremental(() => this.persistAutoFinanceState());
+  }
+
+  private async persistAutoFinanceState() {
+    await this.prisma.appState.upsert({
+      where: { id: 1 },
+      update: { autoFinanceStateJson: this.serializeAutoFinanceState() },
+      create: {
+        id: 1,
+        autoFinanceStateJson: this.serializeAutoFinanceState(),
+        acquiringPercent: this.acquiringPercent,
+        acquiringPercentDetkov: this.acquiringPercentDetkov,
+        acquiringPercentPutintsevSber: this.acquiringPercentPutintsevSber,
+        acquiringPercentLyokha: this.acquiringPercentLyokha,
+      },
+    });
+  }
+
+  getAutoFinanceOpsSnapshot() {
+    const accounts = this.autoFinanceAccounts
+      .map((item) => ({ ...item }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ru-RU'));
+    const incomes = [...this.autoFinanceIncomes].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    const cashTotal = accounts
+      .filter((item) => item.kind === 'CASH')
+      .reduce((sum, item) => sum + item.balance, 0);
+    const bankTotal = accounts
+      .filter((item) => item.kind === 'BANK')
+      .reduce((sum, item) => sum + item.balance, 0);
+    const totalBalance = cashTotal + bankTotal;
+    const incomeTotal = incomes.reduce((sum, item) => sum + item.amount, 0);
+    return {
+      accounts,
+      expenses: [] as FinanceExpense[],
+      incomes,
+      categoryAmounts: [] as Array<{ title: string; amount: number }>,
+      totals: {
+        cash: Math.round(cashTotal * 100) / 100,
+        bank: Math.round(bankTotal * 100) / 100,
+        balance: Math.round(totalBalance * 100) / 100,
+        expenses: 0,
+        incomes: Math.round(incomeTotal * 100) / 100,
+        categoryTotal: 0,
+      },
+    };
+  }
+
+  private manualAccountIdFromAuto(accountId: string) {
+    return accountId.startsWith(AuthService.AUTO_FINANCE_ACCOUNT_PREFIX)
+      ? accountId.slice(AuthService.AUTO_FINANCE_ACCOUNT_PREFIX.length)
+      : accountId;
+  }
+
+  private autoAccountIdFromManual(accountId: string) {
+    return accountId.startsWith(AuthService.AUTO_FINANCE_ACCOUNT_PREFIX)
+      ? accountId
+      : `${AuthService.AUTO_FINANCE_ACCOUNT_PREFIX}${accountId}`;
+  }
+
+  /** Убирает старые auto-sync приходы из ручной оперативки (однократно после обновления). */
+  private async detachLegacyAutoIncomesFromManualLedger() {
+    const legacy = this.financeIncomes.filter((item) => item.id.startsWith('auto-sync-'));
+    if (legacy.length === 0) {
+      return;
+    }
+    this.financeIncomes = this.financeIncomes.filter((item) => !item.id.startsWith('auto-sync-'));
+    for (const income of legacy) {
+      const account = this.financeAccounts.find((item) => item.id === income.accountId);
+      if (account) {
+        account.balance = Math.round((account.balance - income.amount) * 100) / 100;
+      }
+      const autoAccountId = this.autoAccountIdFromManual(income.accountId);
+      const autoAccount = this.autoFinanceAccounts.find((item) => item.id === autoAccountId);
+      if (!autoAccount) {
+        continue;
+      }
+      const existingAuto = this.autoFinanceIncomes.find((item) => item.id === income.id);
+      if (!existingAuto) {
+        this.autoFinanceIncomes.push({
+          ...income,
+          accountId: autoAccountId,
+          accountName: autoAccount.name,
+        });
+        autoAccount.balance = Math.round((autoAccount.balance + income.amount) * 100) / 100;
+      }
+    }
+    if (this.persistenceEnabled) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.financeIncome.deleteMany({ where: { id: { startsWith: 'auto-sync-' } } });
+        for (const account of this.financeAccounts) {
+          await tx.financeAccount.update({
+            where: { id: account.id },
+            data: { balance: account.balance },
+          });
+        }
+      });
+      await this.persistAutoFinanceState();
+    }
+    this.pushAudit('system', 'FINANCE_AUTO_DETACHED_FROM_MANUAL', `moved=${legacy.length}`);
+    this.invalidateDashboardCache();
+  }
 
   private autoFinanceIncomeId(workDay: string, accountId: string) {
     return `auto-sync-${workDay}-${accountId}`;
+  }
+
+  private addAutoFinanceIncome(
+    payload: {
+      accountId: string;
+      amount: number;
+      workDay: string;
+      comment?: string;
+      incomeId?: string;
+    },
+    actor = 'system',
+  ) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.workDay)) {
+      return null;
+    }
+    if (!payload.accountId || !Number.isFinite(payload.amount) || payload.amount <= 0) {
+      return null;
+    }
+    const trimmedIncomeId =
+      typeof payload.incomeId === 'string'
+        ? payload.incomeId.trim().slice(0, 128).replace(/[^\w.-]/g, '') || undefined
+        : undefined;
+    if (trimmedIncomeId) {
+      const existing = this.autoFinanceIncomes.find((item) => item.id === trimmedIncomeId);
+      if (existing) {
+        return existing;
+      }
+    }
+    const account = this.autoFinanceAccounts.find((item) => item.id === payload.accountId);
+    if (!account) {
+      return null;
+    }
+    const amount = Math.round(payload.amount * 100) / 100;
+    account.balance = Math.round((account.balance + amount) * 100) / 100;
+    const income: FinanceIncome = {
+      id: trimmedIncomeId ?? `afinc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+      workDay: payload.workDay,
+      amount,
+      comment: payload.comment?.trim() || undefined,
+      createdBy: actor,
+      accountId: account.id,
+      accountName: account.name,
+    };
+    this.autoFinanceIncomes.push(income);
+    this.pushAudit(
+      actor,
+      'AUTO_FINANCE_INCOME_ADDED',
+      `day=${payload.workDay} ${account.name} +${amount}`,
+    );
+    this.queuePersistAutoFinanceState();
+    return income;
   }
 
   /** Суммы приходов по счетам из продаж всех точек за календарный день (МСК). */
@@ -1146,7 +1355,7 @@ export class AuthService implements OnModuleInit {
         const amount = buckets.get(bucket) ?? 0;
         const accountId = AuthService.AUTO_FINANCE_INCOME_ACCOUNT_BY_BUCKET[bucket];
         const account = accountId
-          ? this.financeAccounts.find((item) => item.id === accountId)
+          ? this.autoFinanceAccounts.find((item) => item.id === accountId)
           : undefined;
         return {
           bucket,
@@ -1161,7 +1370,7 @@ export class AuthService implements OnModuleInit {
   previewAutoFinanceIncomesFromSales(workDay: string) {
     const rows = this.computeFinanceIncomeBucketsFromSales(workDay);
     const existingByAccount = new Map(
-      this.financeIncomes
+      this.autoFinanceIncomes
         .filter((item) => item.workDay === workDay && item.id.startsWith(`auto-sync-${workDay}-`))
         .map((item) => [item.accountId, item]),
     );
@@ -1186,14 +1395,14 @@ export class AuthService implements OnModuleInit {
     if (!accountId || safeAmount <= 0) {
       return { income: null, created: false, updated: false, skipped: true as const };
     }
-    const account = this.financeAccounts.find((item) => item.id === accountId);
+    const account = this.autoFinanceAccounts.find((item) => item.id === accountId);
     if (!account) {
       return { income: null, created: false, updated: false, skipped: true as const };
     }
 
     const incomeId = this.autoFinanceIncomeId(workDay, accountId);
     const comment = `Авто: продажи всех точек за ${workDay}`;
-    const existing = this.financeIncomes.find((item) => item.id === incomeId);
+    const existing = this.autoFinanceIncomes.find((item) => item.id === incomeId);
     if (existing) {
       const delta = Math.round((safeAmount - existing.amount) * 100) / 100;
       if (Math.abs(delta) < 0.005) {
@@ -1204,15 +1413,14 @@ export class AuthService implements OnModuleInit {
       existing.comment = comment;
       this.pushAudit(
         actor,
-        'FINANCE_INCOME_AUTO_UPDATED',
-        `day=${workDay} ${account.name} ${existing.amount}→${safeAmount}`,
+        'AUTO_FINANCE_INCOME_UPDATED',
+        `day=${workDay} ${account.name} →${safeAmount}`,
       );
-      this.invalidateDashboardCache();
-      this.queueIncremental(() => this.persistFinanceIncomeAmountUpdate(existing));
+      this.queuePersistAutoFinanceState();
       return { income: existing, created: false, updated: true, skipped: false as const };
     }
 
-    const income = this.addFinanceIncome(
+    const income = this.addAutoFinanceIncome(
       {
         accountId,
         amount: safeAmount,
@@ -1256,11 +1464,11 @@ export class AuthService implements OnModuleInit {
       });
     }
 
-    this.pushAudit(actor, 'FINANCE_INCOMES_AUTO_SYNCED', `day=${workDay} rows=${applied.length}`);
+    this.pushAudit(actor, 'AUTO_FINANCE_INCOMES_SYNCED', `day=${workDay} rows=${applied.length}`);
     return {
       workDay,
       applied,
-      snapshot: this.getFinanceOpsSnapshot(),
+      snapshot: this.getAutoFinanceOpsSnapshot(),
     };
   }
 
@@ -4029,6 +4237,8 @@ export class AuthService implements OnModuleInit {
     this.financeAccounts = this.defaultFinanceAccounts();
     this.financeExpenses = [];
     this.financeIncomes = [];
+    this.autoFinanceAccounts = this.defaultAutoFinanceAccounts();
+    this.autoFinanceIncomes = [];
     this.financeExpenseCategoryAmounts = defaultFinanceCategoryAmounts();
     this.currentShiftId = null;
     this.lastSaleAt = null;
@@ -4318,6 +4528,8 @@ export class AuthService implements OnModuleInit {
       accountId: item.accountId,
       accountName: item.accountName,
     }));
+    this.loadAutoFinanceStateFromJson(appState?.autoFinanceStateJson);
+    await this.detachLegacyAutoIncomesFromManualLedger();
     this.currentShiftId = appState?.currentShiftId ?? null;
     this.lastSaleAt = appState?.lastSaleAt?.toISOString() ?? null;
     this.acquiringPercent =

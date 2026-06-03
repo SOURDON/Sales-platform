@@ -1183,6 +1183,12 @@ function App() {
     incomes: [],
     totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0, categoryTotal: 0 },
   });
+  const [autoFinanceOps, setAutoFinanceOps] = useState<FinanceOpsSnapshot>({
+    accounts: [],
+    expenses: [],
+    incomes: [],
+    totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0, categoryTotal: 0 },
+  });
   const [inventoryOverview, setInventoryOverview] = useState<InventoryOverviewResponse | null>(null);
   const [managerStoreCommissions, setManagerStoreCommissions] = useState<ManagerStoreCommissionRow[]>(
     [],
@@ -1311,6 +1317,10 @@ function App() {
     }
     if (cachedFinance) {
       setFinanceOps(cachedFinance);
+    }
+    const cachedAutoFinance = await loadSyncCache<FinanceOpsSnapshot>(userId, 'autoFinanceOps');
+    if (cachedAutoFinance) {
+      setAutoFinanceOps(normalizeFinanceOps(cachedAutoFinance));
     }
     if (cachedInventory) {
       setInventoryOverview(normalizeInventoryOverview(cachedInventory));
@@ -2055,6 +2065,28 @@ function App() {
     setFinanceOps(await fetcher());
   };
 
+  const loadAutoFinanceOps = async (token: string) => {
+    const fetcher = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/finance/auto-ops`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error('auto finance ops error');
+      }
+      return normalizeFinanceOps((await response.json()) as Partial<FinanceOpsSnapshot>);
+    };
+    const role = session?.user?.role;
+    const empty = normalizeFinanceOps({});
+    if (roleUsesSyncCache(role) && session?.user?.id != null) {
+      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'autoFinanceOps', fetcher, empty, {
+        onFresh: (data) => setAutoFinanceOps(data),
+      });
+      setAutoFinanceOps(result.data);
+      return;
+    }
+    setAutoFinanceOps(await fetcher());
+  };
+
   const setFinanceExpenseCategoryAmount = async (
     token: string,
     title: string,
@@ -2146,8 +2178,7 @@ function App() {
     if (!response.ok) {
       throw new Error(await readApiErrorMessage(response, 'Не удалось подтянуть приходы'));
     }
-    await loadFinanceOps(token);
-    return (await response.json()) as {
+    const data = (await response.json()) as {
       workDay: string;
       applied: Array<{
         accountId: string;
@@ -2157,7 +2188,14 @@ function App() {
         updated: boolean;
         skipped: boolean;
       }>;
+      snapshot?: Partial<FinanceOpsSnapshot>;
     };
+    if (data.snapshot) {
+      setAutoFinanceOps(normalizeFinanceOps(data.snapshot));
+    } else {
+      await loadAutoFinanceOps(token);
+    }
+    return data;
   };
 
   const addFinanceExpense = async (
@@ -2961,6 +2999,10 @@ function App() {
       if (cachedFinance) {
         setFinanceOps(normalizeFinanceOps(cachedFinance));
       }
+      const cachedAutoFinance = await loadSyncCache<FinanceOpsSnapshot>(uid, 'autoFinanceOps');
+      if (cachedAutoFinance) {
+        setAutoFinanceOps(normalizeFinanceOps(cachedAutoFinance));
+      }
       if (cachedInventory) {
         setInventoryOverview(normalizeInventoryOverview(cachedInventory));
       }
@@ -3551,6 +3593,9 @@ function App() {
       if (path === '/shift') {
         void loadFinanceOps(token);
       }
+      if (path === '/finance/auto') {
+        void loadAutoFinanceOps(token);
+      }
       if (path === '/sales' || path === '/accounting/procurement') {
         void loadInventoryOverview(token);
         void loadProductProcurementCosts(token);
@@ -4007,8 +4052,9 @@ function App() {
                       <div className={isDesktopShell ? undefined : 'financeOpsWebBridge'}>
                         <AutoFinanceOpsPanel
                           token={session.token}
-                          snapshot={financeOps}
+                          snapshot={autoFinanceOps}
                           onSync={syncAutoFinanceIncomes}
+                          onRefresh={() => loadAutoFinanceOps(session.token)}
                           preferDesktopLayout={isDesktopShell}
                         />
                       </div>
@@ -5900,6 +5946,15 @@ const FINANCE_OPS_PRIMARY_ACCOUNT_IDS = [
   'fa-cash-main',
 ] as const;
 
+const AUTO_FINANCE_OPS_PRIMARY_ACCOUNT_IDS = [
+  'auto-fa-bank-extra',
+  'auto-fa-bank-main',
+  'auto-fa-bank-putintsev-sber',
+  'auto-fa-bank-lyokha',
+  'auto-fa-transfer',
+  'auto-fa-cash-main',
+] as const;
+
 const FINANCE_EXPENSE_CATEGORY_LABELS = [
   'Аренда',
   'Налоги',
@@ -5980,6 +6035,7 @@ function AutoFinanceOpsPanel({
   token,
   snapshot,
   onSync,
+  onRefresh,
   preferDesktopLayout = false,
 }: {
   token: string;
@@ -5987,6 +6043,7 @@ function AutoFinanceOpsPanel({
   onSync: (token: string, workDay: string) => Promise<{
     applied: Array<{ accountName: string; amount: number; created: boolean; updated: boolean }>;
   }>;
+  onRefresh: () => Promise<void>;
   preferDesktopLayout?: boolean;
 }) {
   const compactFinanceUi = useWideFinanceLayout(preferDesktopLayout);
@@ -5999,6 +6056,30 @@ function AutoFinanceOpsPanel({
   const [error, setError] = useState('');
 
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
+
+  const primaryFinanceAccounts = useMemo(() => {
+    const map = new Map(snapshot.accounts.map((a) => [a.id, a]));
+    return AUTO_FINANCE_OPS_PRIMARY_ACCOUNT_IDS.map((id) => map.get(id)).filter(
+      (a): a is FinanceAccount => Boolean(a),
+    );
+  }, [snapshot.accounts]);
+
+  const previewByAccountId = useMemo(
+    () => new Map(previewRows.map((row) => [row.accountId, row])),
+    [previewRows],
+  );
+
+  const recentIncomeHistoryItems = useMemo(() => {
+    const accountNames = new Map(snapshot.accounts.map((a) => [a.id, a.name?.trim() || 'Счёт']));
+    return [...(snapshot.incomes ?? [])]
+      .sort((a, b) => b.workDay.localeCompare(a.workDay) || b.id.localeCompare(a.id))
+      .slice(0, 24)
+      .map((item) => ({
+        key: item.id,
+        meta: `${accountNames.get(item.accountId) ?? 'Счёт'} · ${formatFinanceWorkDay(item.workDay)}`,
+        value: fmt(item.amount),
+      }));
+  }, [snapshot.incomes, snapshot.accounts]);
 
   const loadPreview = useCallback(async () => {
     setPreviewLoading(true);
@@ -6054,7 +6135,7 @@ function AutoFinanceOpsPanel({
         }
         setStatus(`Готово: ${parts.join(', ')} по счетам за ${formatFinanceWorkDay(workDay)}.`);
       }
-      await loadPreview();
+      await Promise.all([loadPreview(), onRefresh()]);
     } catch (err) {
       const message = err instanceof Error ? err.message : '';
       setError(message || 'Не удалось подтянуть приходы');
@@ -6070,12 +6151,49 @@ function AutoFinanceOpsPanel({
       }`}
     >
       <div className={`financeOpsShell financeAutoOpsShell${compactFinanceUi ? ' financeOpsShell--desktop' : ''}`}>
-        <header className="financeOpsHero financeAutoOpsHero">
-          <h4 className="financeOpsPageTitle">Оперативка автоматическая</h4>
+        <header className="financeOpsHero">
+          <h4 className="financeOpsPageTitle">Оперативные финансы (авто)</h4>
           <p className="financeAutoOpsLead">
-            В конце дня нажмите кнопку ниже — приходы по всем точкам запишутся на счета оперативки
-            (наличные, безнал с учётом эквайринга, переводы). Повторное нажатие обновит суммы, если
-            продажи изменились.
+            Отдельный журнал для сверки с продажами в конце дня. Ручная «Оперативка» не меняется.
+          </p>
+          <div className="financeOpsHeroMain">
+            <div className="financeOpsBankTotalCallout" role="note">
+              <span className="financeOpsBankTotalCalloutLabel">Общий остаток</span>
+              <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.balance)}</span>
+            </div>
+            <div className="financeOpsBalancesGrid">
+              {primaryFinanceAccounts.map((acc) => {
+                const preview = previewByAccountId.get(acc.id);
+                const salesHint =
+                  preview && preview.amount > 0
+                    ? `Продажи ${formatFinanceWorkDay(workDay)}: ${fmt(preview.amount)}`
+                    : null;
+                return (
+                  <article key={acc.id} className="metricCard financeOpsBalanceCard">
+                    <p>{acc.name?.trim() || 'Счёт'}</p>
+                    <div className="financeOpsBalanceCardTail">
+                      <strong>{fmt(acc.balance)}</strong>
+                    </div>
+                    {salesHint ? (
+                      <span className="financeAutoOpsBalanceSalesHint">{salesHint}</span>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </header>
+
+        <section className="financeOpsZone financeAutoOpsSyncZone">
+          <div className="financeOpsArticlesHead">
+            <h4 className="financeOpsZoneTitle">Синхронизация за день</h4>
+            <span className="financeOpsArticlesTotal">
+              {previewLoading ? '…' : fmt(previewTotal)}
+            </span>
+          </div>
+          <p className="financeAutoOpsLead financeAutoOpsSyncHint">
+            Приходы по всем точкам (наличные, безнал с эквайрингом, переводы). Повторное нажатие
+            обновит суммы, если продажи изменились.
           </p>
           <div className="financeAutoOpsDayRow">
             <label className="financeAutoOpsDayLabel">
@@ -6096,30 +6214,21 @@ function AutoFinanceOpsPanel({
               Обновить сводку
             </button>
           </div>
-        </header>
-
-        <section className="financeAutoOpsPreview">
-          <div className="financeAutoOpsPreviewHead">
-            <span className="financeAutoOpsPreviewLabel">К записи по продажам</span>
-            <strong className="financeAutoOpsPreviewTotal">
-              {previewLoading ? '…' : fmt(previewTotal)}
-            </strong>
-          </div>
-          <div className="financeAutoOpsPreviewGrid" role="list">
+          <div className="financeOpsBalancesGrid financeAutoOpsSalesGrid" role="list" aria-label="К записи по продажам">
             {previewRows.map((row) => (
               <article
                 key={row.accountId}
-                className={`financeAutoOpsPreviewChip${row.amount <= 0 ? ' financeAutoOpsPreviewChip--empty' : ''}${
-                  row.alreadySynced ? ' financeAutoOpsPreviewChip--synced' : ''
-                }`}
+                className={`metricCard financeOpsBalanceCard financeAutoOpsSalesCard${
+                  row.amount <= 0 ? ' financeAutoOpsSalesCard--empty' : ''
+                }${row.alreadySynced ? ' financeAutoOpsSalesCard--synced' : ''}`}
                 role="listitem"
               >
-                <span className="financeAutoOpsPreviewChipTitle">{row.accountName}</span>
-                <strong className="financeAutoOpsPreviewChipAmount">
-                  {row.amount > 0 ? fmt(row.amount) : '—'}
-                </strong>
+                <p>{row.accountName}</p>
+                <div className="financeOpsBalanceCardTail">
+                  <strong>{row.amount > 0 ? fmt(row.amount) : '—'}</strong>
+                </div>
                 {row.alreadySynced && row.amount > 0 ? (
-                  <span className="financeAutoOpsPreviewChipBadge">уже в оперативке</span>
+                  <span className="financeAutoOpsPreviewChipBadge">уже записано</span>
                 ) : null}
               </article>
             ))}
@@ -6130,29 +6239,32 @@ function AutoFinanceOpsPanel({
               скорректирует суммы.
             </p>
           ) : null}
+          <div className="financeAutoOpsAction">
+            <button
+              type="button"
+              className="primaryAction financeAutoOpsSyncBtn"
+              disabled={busy || previewLoading || rowsWithAmount.length === 0}
+              onClick={() => void handleSync()}
+            >
+              {busy ? 'Подтягиваем…' : 'Подтянуть приходы со всех точек'}
+            </button>
+          </div>
         </section>
 
-        <div className="financeAutoOpsAction">
-          <button
-            type="button"
-            className="primary financeAutoOpsSyncBtn"
-            disabled={busy || previewLoading || rowsWithAmount.length === 0}
-            onClick={() => void handleSync()}
-          >
-            {busy ? 'Подтягиваем…' : 'Подтянуть приходы со всех точек'}
-          </button>
-          <p className="financeAutoOpsActionNote">
-            Общий остаток после синхронизации:{' '}
-            <strong>{fmt(snapshot.totals.balance)}</strong>
-          </p>
-        </div>
-
-        {status ? <p className="status financeAutoOpsStatus">{status}</p> : null}
-        {error ? (
-          <p className="error financeAutoOpsError" role="alert">
-            {error}
-          </p>
+        {status || error ? (
+          <div className="financeOpsStatusBar" role="status">
+            {status ? <p className="success financeOpsStatusMsg">{status}</p> : null}
+            {error ? <p className="error financeOpsStatusMsg">{error}</p> : null}
+          </div>
         ) : null}
+
+        <section className="financeOpsZone financeOpsZone--historyMini">
+          <FinanceOpsHistoryStrip
+            title="Последние приходы (авто)"
+            emptyLabel="Приходов пока нет"
+            items={recentIncomeHistoryItems}
+          />
+        </section>
       </div>
     </div>
   );

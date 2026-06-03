@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Десктоп (Windows / macOS)
 
-- **Артефакты на Mac** (`.app`, `.dmg`, `.command`) — только в `~/Desktop/работа над приложением`, не в корень рабочего стола. Путь: `scripts/lib/desktop-work-dir.sh`, установка ярлыков: `scripts/install-work-folder-shortcuts.sh`.
+- **Артефакты на Mac** — только в `~/Desktop/работа над приложением` (`scripts/lib/desktop-work-dir.sh`). После сборки: `publish-desktop-to-work-folder.sh` (`.dmg` + `Fotografy.app`). Ярлыки `.command` — только по запросу: `install-work-folder-shortcuts.sh`.
 - Читай `docs/DESKTOP_APP.md` — этапы, scope, статус.
 - Работа: `desktop/` (Tauri), `frontend/src/sync/` (outbox, IndexedDB), backend идемпотентность.
 - Не рефакторить весь `App.tsx` без нужды; выносить sync в `frontend/src/sync/`.

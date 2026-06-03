@@ -76,6 +76,8 @@ model AppState {
   acquiringPercentLyokha Float @default(1.8)
   acquiringProfilesJson String?
   financeExpenseCategoryAmountsJson String?
+  /// Отдельная оперативка «авто» (сверка с продажами), не связана с ручной FinanceAccount/FinanceIncome.
+  autoFinanceStateJson String?
   updatedAt        DateTime  @updatedAt
 }
 

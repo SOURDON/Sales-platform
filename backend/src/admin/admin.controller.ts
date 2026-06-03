@@ -629,6 +629,12 @@ export class AdminController {
     return expense as unknown;
   }
 
+  @Get('finance/auto-ops')
+  getAutoFinanceOps(@Headers('authorization') authorization?: string) {
+    this.requireFinancePlanningAccess(authorization);
+    return this.authService.getAutoFinanceOpsSnapshot() as unknown;
+  }
+
   @Get('finance/auto-incomes/preview')
   previewAutoFinanceIncomes(
     @Headers('authorization') authorization?: string,

@@ -171,6 +171,7 @@ export type AdminCacheKey =
 export type FinanceCacheKey =
   | 'dashboard'
   | 'financeOps'
+  | 'autoFinanceOps'
   | 'inventoryOverview'
   | 'commissionRequests'
   | 'revenuePlansByDay'

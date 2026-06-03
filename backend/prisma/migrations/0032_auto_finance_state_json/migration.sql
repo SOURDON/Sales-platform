@@ -1,0 +1,1 @@
+ALTER TABLE "AppState" ADD COLUMN IF NOT EXISTS "autoFinanceStateJson" TEXT;

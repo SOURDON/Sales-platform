@@ -5,10 +5,27 @@ alwaysApply: true
 
 # Папка «работа над приложением»
 
-На Mac все доставляемые пользователю файлы проекта Fotografy/Sales-platform кладите в:
+На Mac доставляемые пользователю файлы проекта кладите в:
 
 `~/Desktop/работа над приложением`
 
-Не в корень `~/Desktop`.
+Не в корень `~/Desktop`. Путь: `scripts/lib/desktop-work-dir.sh` (`$DESKTOP_WORK_DIR`).
 
-Используйте `scripts/lib/desktop-work-dir.sh` (`$DESKTOP_WORK_DIR`) и `scripts/install-work-folder-shortcuts.sh` после сборки .dmg.
+## По умолчанию (сборка / обновление приложения)
+
+Только:
+
+- последний `Fotografy_*.dmg`
+- `Fotografy.app`
+
+Скрипт: `bash scripts/publish-desktop-to-work-folder.sh` (вызывается автоматически из `desktop-build.sh`).
+
+**Не** запускайте `install-work-folder-shortcuts.sh` после каждой сборки — он копирует кучу `.command` в папку.
+
+## Ярлыки .command
+
+`bash scripts/install-work-folder-shortcuts.sh` — **только если пользователь просит** ярлыки (деплой, перезапуск, a1/a2) или при первой настройке Mac.
+
+## Не дублировать
+
+Не копируйте вручную файлы из `scripts/mac/`, если пользователь не просил. Не создавайте лишние `.command` с похожими именами.

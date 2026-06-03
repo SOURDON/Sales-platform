@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Все ярлыки и актуальный Fotografy.app → «работа над приложением» на рабочем столе.
+# Ярлыки .command в «работа над приложением» (один раз или по запросу).
+# Сборка десктопа по умолчанию вызывает publish-desktop-to-work-folder.sh (без ярлыков).
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=lib/desktop-work-dir.sh
 source "$REPO/scripts/lib/desktop-work-dir.sh"
+mkdir -p "$DESKTOP_WORK_DIR"
 
 bash "$REPO/scripts/install-desktop-restart-shortcut.sh"
 bash "$REPO/scripts/install-fix-a1-desktop-shortcut.sh"
@@ -15,12 +17,6 @@ for base in "Перезапуск-Fotografy.command" "Деплой-Timeweb.comma
   chmod +x "$DESKTOP_WORK_DIR/$base"
 done
 
-DMG="$(ls -t "$REPO/desktop/dist/"Fotografy_*.dmg 2>/dev/null | head -1 || true)"
-if [[ -n "$DMG" ]]; then
-  cp "$DMG" "$DESKTOP_WORK_DIR/"
-  bash "$REPO/scripts/install-fotografy-from-dmg.sh" "$DESKTOP_WORK_DIR/Fotografy.app"
-fi
-
 echo ""
-echo "Папка артефактов: $DESKTOP_WORK_DIR"
+echo "Ярлыки установлены: $DESKTOP_WORK_DIR"
 ls -la "$DESKTOP_WORK_DIR"
