@@ -17,6 +17,7 @@ alwaysApply: true
 
 - последний `Fotografy_*.dmg`
 - `Fotografy.app`
+- `Деплой-Timeweb.command` (один ярлык для обновления API)
 
 Скрипт: `bash scripts/publish-desktop-to-work-folder.sh` (вызывается автоматически из `desktop-build.sh`).
 

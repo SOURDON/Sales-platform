@@ -24,6 +24,12 @@ cp "$DMG" "$DESKTOP_WORK_DIR/$DMG_NAME"
 
 bash "$REPO/scripts/install-fotografy-from-dmg.sh" "$DESKTOP_WORK_DIR/Fotografy.app"
 
-echo "Готово (только приложение):"
+DEPLOY_SRC="$REPO/scripts/mac/Деплой-Timeweb.command"
+if [[ -f "$DEPLOY_SRC" ]]; then
+  cp "$DEPLOY_SRC" "$DESKTOP_WORK_DIR/"
+  chmod +x "$DESKTOP_WORK_DIR/Деплой-Timeweb.command"
+fi
+
+echo "Готово (приложение + деплой):"
 echo "  $DESKTOP_WORK_DIR/$DMG_NAME"
 echo "  $DESKTOP_WORK_DIR/Fotografy.app"
