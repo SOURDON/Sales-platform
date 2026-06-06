@@ -10,7 +10,7 @@ cd "$ROOT"
 SERVER="${TIMEWEB_SSH:-root@77.233.223.48}"
 
 echo "=== 1/3 Локально: отправка в GitHub (main) ==="
-if [[ -n "$(git status --porcelain)" ]]; then
+if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
   echo "Есть незакоммиченные изменения — закоммитьте или отмените деплой."
   git status -sb
   exit 1
@@ -30,4 +30,4 @@ echo "Проверка health:"
 curl -sf --connect-timeout 8 "http://77.233.223.48/health" && echo " OK" || echo " (нет ответа — подождите минуту)"
 
 echo ""
-echo "Готово. Десктоп 1.0.24 уже с фильтром смены; API обновлён на сервере."
+echo "Готово. API обновлён на сервере. В приложении нажмите ↻ для синхронизации."

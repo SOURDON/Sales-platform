@@ -1,0 +1,29 @@
+# Деплой API на Timeweb по SSH (после push в main или вручную).
+# Один раз в GitHub → Settings → Secrets → Actions:
+#   TIMEWEB_SSH_KEY — приватный SSH-ключ с доступом к root@77.233.223.48
+name: Deploy Timeweb API
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'deploy/timeweb/**'
+      - 'scripts/timeweb/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: 77.233.223.48
+          username: root
+          key: ${{ secrets.TIMEWEB_SSH_KEY }}
+          script_stop: true
+          script: |
+            bash /opt/sales-platform/scripts/timeweb/deploy-update.sh
+            bash /opt/sales-platform/scripts/timeweb/ensure-demo-admins.sh
+            curl -sf http://127.0.0.1/health && echo " health OK"

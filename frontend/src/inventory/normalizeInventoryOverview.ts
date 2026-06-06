@@ -16,12 +16,18 @@ export const ALL_DEMO_STORE_NAMES = [...SADY_STORES, ...CENTER_STORES] as const;
 /** Точки, где управляющий показывается в списке сотрудников. */
 export const MANAGER_ASSIGNED_STORE_NAMES = [...CENTER_STORES] as const;
 
-/** Дефолтные % управляющего, если API ещё не ответил. */
+/** Дефолтные % управляющего, если API ещё не ответил (совпадают с продом Timeweb). */
 export const DEFAULT_MANAGER_STORE_COMMISSIONS: ReadonlyArray<{ storeName: string; percent: number }> =
-  ALL_DEMO_STORE_NAMES.map((storeName) => ({
-    storeName,
-    percent: storeName === 'Сады морей Тех. зона' || storeName === 'Метрополь' ? 0 : 5,
-  }));
+  [
+    { storeName: 'Сады морей Тех. зона', percent: 0 },
+    { storeName: 'Сады морей Пляж', percent: 15 },
+    { storeName: 'Метрополь', percent: 0 },
+    { storeName: 'Багамы', percent: 0 },
+    { storeName: 'Спортивнй', percent: 15 },
+    { storeName: 'Центр пляж', percent: 10 },
+    { storeName: 'Центр Тех. зона', percent: 10 },
+    { storeName: 'Дельфин Тех. зона', percent: 10 },
+  ];
 
 export const DEFAULT_INVENTORY_WAREHOUSES = [
   { key: WAREHOUSE_SADY_KEY, label: 'Сады моря', storeNames: [...SADY_STORES] },
