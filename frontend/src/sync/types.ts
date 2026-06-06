@@ -166,7 +166,10 @@ export type AdminCacheKey =
   | 'shifts'
   | 'storeInventory'
   | 'sales'
-  | 'globalEmployees';
+  | 'globalEmployees'
+  | 'procurementCosts'
+  | 'acquiringProfiles'
+  | 'managerStoreCommissions';
 
 export type FinanceCacheKey =
   | 'dashboard'

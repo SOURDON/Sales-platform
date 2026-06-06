@@ -1186,6 +1186,8 @@ function App() {
   const [offlineDeleteSaleId, setOfflineDeleteSaleId] = useState<string | null>(null);
   const [offlineDeletePin, setOfflineDeletePin] = useState('');
   const [offlineDeleteBusy, setOfflineDeleteBusy] = useState(false);
+  const [dayReportBusy, setDayReportBusy] = useState(false);
+  const [dayReportNotice, setDayReportNotice] = useState('');
   const [paymentEditBusy, setPaymentEditBusy] = useState(false);
   const [teamDayKey, setTeamDayKey] = useState(todayKeyMoscow());
   const [acquiringProfiles, setAcquiringProfiles] = useState<AcquiringProfile[]>(() =>
@@ -1254,16 +1256,29 @@ function App() {
     if (!isDesktopShell || session?.user?.role !== 'ADMIN' || userId === undefined) {
       return;
     }
-    const [cachedSellers, cachedProducts, cachedStaff, cachedShifts, cachedSales, cachedInv, cachedGlobal] =
-      await Promise.all([
-        loadAdminCache<SellerProfile[]>(userId, 'sellers'),
-        loadAdminCache<ProductItem[]>(userId, 'products'),
-        loadAdminCache<StaffMember[]>(userId, 'staff'),
-        loadAdminCache<ShiftInfo[]>(userId, 'shifts'),
-        loadAdminCache<AdminSale[]>(userId, 'sales'),
-        loadAdminCache<StoreInventoryDetailResponse | null>(userId, 'storeInventory'),
-        loadAdminCache<GlobalEmployee[]>(userId, 'globalEmployees'),
-      ]);
+    const [
+      cachedSellers,
+      cachedProducts,
+      cachedStaff,
+      cachedShifts,
+      cachedSales,
+      cachedInv,
+      cachedGlobal,
+      cachedProcurement,
+      cachedAcquiring,
+      cachedManagerCommissions,
+    ] = await Promise.all([
+      loadAdminCache<SellerProfile[]>(userId, 'sellers'),
+      loadAdminCache<ProductItem[]>(userId, 'products'),
+      loadAdminCache<StaffMember[]>(userId, 'staff'),
+      loadAdminCache<ShiftInfo[]>(userId, 'shifts'),
+      loadAdminCache<AdminSale[]>(userId, 'sales'),
+      loadAdminCache<StoreInventoryDetailResponse | null>(userId, 'storeInventory'),
+      loadAdminCache<GlobalEmployee[]>(userId, 'globalEmployees'),
+      loadAdminCache<ProductProcurementCost[]>(userId, 'procurementCosts'),
+      loadAdminCache<AcquiringProfile[]>(userId, 'acquiringProfiles'),
+      loadAdminCache<ManagerStoreCommissionRow[]>(userId, 'managerStoreCommissions'),
+    ]);
     if (cachedSellers) {
       setSellers(cachedSellers);
     }
@@ -1284,6 +1299,15 @@ function App() {
     }
     if (cachedGlobal) {
       setGlobalEmployees(cachedGlobal);
+    }
+    if (cachedProcurement?.length) {
+      setProductProcurementCosts(cachedProcurement);
+    }
+    if (cachedAcquiring?.length) {
+      setAcquiringProfiles(cachedAcquiring);
+    }
+    if (cachedManagerCommissions?.length) {
+      setManagerStoreCommissions(cachedManagerCommissions);
     }
   }, [isDesktopShell, session?.user?.id, session?.user?.role]);
 
@@ -1780,23 +1804,44 @@ function App() {
     }
   };
 
-  const loadManagerStoreCommissions = useCallback(async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/manager-store-commissions`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (response.status === 404) {
-      setManagerCommissionsApiOnline(false);
-      setManagerStoreCommissions([]);
-      return;
-    }
-    if (!response.ok) {
-      setManagerCommissionsApiOnline(false);
-      throw new Error(await readApiErrorMessage(response, 'Не удалось загрузить проценты управляющего'));
-    }
-    setManagerCommissionsApiOnline(true);
-    const data = (await response.json()) as { items: ManagerStoreCommissionRow[] };
-    setManagerStoreCommissions(Array.isArray(data.items) ? data.items : []);
-  }, []);
+  const loadManagerStoreCommissions = useCallback(
+    async (token: string) => {
+      const fetcher = async () => {
+        const response = await fetch(`${API_BASE_URL}/admin/manager-store-commissions`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.status === 404) {
+          setManagerCommissionsApiOnline(false);
+          return [] as ManagerStoreCommissionRow[];
+        }
+        if (!response.ok) {
+          setManagerCommissionsApiOnline(false);
+          throw new Error(
+            await readApiErrorMessage(response, 'Не удалось загрузить проценты управляющего'),
+          );
+        }
+        setManagerCommissionsApiOnline(true);
+        const data = (await response.json()) as { items: ManagerStoreCommissionRow[] };
+        return Array.isArray(data.items) ? data.items : [];
+      };
+      const uid = session?.user?.id;
+      const role = session?.user?.role;
+      if (uid != null && isDesktopShell && role === 'ADMIN') {
+        const result = await loadSyncResource(
+          API_BASE_URL,
+          uid,
+          'managerStoreCommissions',
+          fetcher,
+          [],
+          { onFresh: (data) => setManagerStoreCommissions(data) },
+        );
+        setManagerStoreCommissions(result.data);
+        return;
+      }
+      setManagerStoreCommissions(await fetcher());
+    },
+    [isDesktopShell, session?.user?.id, session?.user?.role],
+  );
 
   const saveManagerStoreCommissions = async (
     token: string,
@@ -1884,15 +1929,35 @@ function App() {
     await loadStoreInventory(token);
   };
 
-  const loadProductProcurementCosts = useCallback(async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      throw new Error('procurement costs error');
-    }
-    setProductProcurementCosts((await response.json()) as ProductProcurementCost[]);
-  }, []);
+  const loadProductProcurementCosts = useCallback(
+    async (token: string) => {
+      const fetcher = async () => {
+        const response = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          throw new Error('procurement costs error');
+        }
+        return (await response.json()) as ProductProcurementCost[];
+      };
+      const uid = session?.user?.id;
+      const role = session?.user?.role;
+      if (uid != null && isDesktopShell && role === 'ADMIN') {
+        const result = await loadSyncResource(
+          API_BASE_URL,
+          uid,
+          'procurementCosts',
+          fetcher,
+          [],
+          { onFresh: (data) => setProductProcurementCosts(data) },
+        );
+        setProductProcurementCosts(result.data);
+        return;
+      }
+      setProductProcurementCosts(await fetcher());
+    },
+    [isDesktopShell, session?.user?.id, session?.user?.role],
+  );
 
   const saveProductProcurementCosts = async (
     token: string,
@@ -1978,29 +2043,47 @@ function App() {
     return putOnline();
   };
 
-  const loadAcquiringProfiles = async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/acquiring-percent`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      throw new Error('acquiring percent error');
-    }
-    const data = (await response.json()) as {
-      percent?: number;
-      detkovPercent?: number;
-      putintsevSberPercent?: number;
-      lyokhaPercent?: number;
-      profiles?: unknown;
-    };
-    setAcquiringProfiles(
-      normalizeAcquiringProfiles(data.profiles, {
-        putintsevVtb: data.percent,
-        detkovVtb: data.detkovPercent,
-        putintsevSber: data.putintsevSberPercent,
-        lyokhaRs: data.lyokhaPercent,
-      }),
-    );
-  };
+  const loadAcquiringProfiles = useCallback(
+    async (token: string) => {
+      const fetcher = async () => {
+        const response = await fetch(`${API_BASE_URL}/admin/acquiring-percent`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          throw new Error('acquiring percent error');
+        }
+        const data = (await response.json()) as {
+          percent?: number;
+          detkovPercent?: number;
+          putintsevSberPercent?: number;
+          lyokhaPercent?: number;
+          profiles?: unknown;
+        };
+        return normalizeAcquiringProfiles(data.profiles, {
+          putintsevVtb: data.percent,
+          detkovVtb: data.detkovPercent,
+          putintsevSber: data.putintsevSberPercent,
+          lyokhaRs: data.lyokhaPercent,
+        });
+      };
+      const uid = session?.user?.id;
+      const role = session?.user?.role;
+      if (uid != null && isDesktopShell && role === 'ADMIN') {
+        const result = await loadSyncResource(
+          API_BASE_URL,
+          uid,
+          'acquiringProfiles',
+          fetcher,
+          defaultAcquiringProfiles(),
+          { onFresh: (data) => setAcquiringProfiles(data) },
+        );
+        setAcquiringProfiles(result.data);
+        return;
+      }
+      setAcquiringProfiles(await fetcher());
+    },
+    [isDesktopShell, session?.user?.id, session?.user?.role],
+  );
 
   const saveAcquiringProfiles = async (token: string, profiles: AcquiringProfile[]) => {
     const response = await fetch(`${API_BASE_URL}/admin/acquiring-profiles`, {
@@ -2616,6 +2699,8 @@ function App() {
           loadSales(token),
           loadSellers(token),
           loadProducts(token),
+          loadProductProcurementCosts(token),
+          loadAcquiringProfiles(token),
           loadShifts(token),
           loadStaff(token),
           loadStoreInventory(token),
@@ -2645,6 +2730,7 @@ function App() {
     loadShifts,
     loadProducts,
     loadProductProcurementCosts,
+    loadAcquiringProfiles,
     loadStoreInventory,
     loadGlobalEmployees,
     refreshOutboxPendingCount,
@@ -2916,6 +3002,106 @@ function App() {
     await loadSales(token);
     await loadDashboard(token);
     setPaymentEditSaleId(null);
+  };
+
+  const downloadAdminDayReport = async (token: string) => {
+    if (!session || session.user.role !== 'ADMIN') {
+      return;
+    }
+    setDayReportNotice('');
+    setDayReportBusy(true);
+    try {
+      const userId = session.user.id;
+      let profiles = acquiringProfiles;
+      let reportSales = salesMerged;
+      let reportSellers = sellers;
+      let reportStaff = staff;
+      let reportShifts = shifts;
+      let usedOfflineCache = !apiReachable;
+      let cachedManagerCommissions: ManagerStoreCommissionRow[] | null = null;
+
+      if (isDesktopShell && userId !== undefined) {
+        const [cSales, cSellers, cStaff, cShifts, cProfiles, cManagerCommissions] =
+          await Promise.all([
+          loadSyncCache<AdminSale[]>(userId, 'sales'),
+          loadSyncCache<SellerProfile[]>(userId, 'sellers'),
+          loadSyncCache<StaffMember[]>(userId, 'staff'),
+          loadSyncCache<ShiftInfo[]>(userId, 'shifts'),
+          loadSyncCache<AcquiringProfile[]>(userId, 'acquiringProfiles'),
+          loadSyncCache<ManagerStoreCommissionRow[]>(userId, 'managerStoreCommissions'),
+        ]);
+        if (cSellers?.length) {
+          reportSellers = cSellers;
+        }
+        if (cStaff?.length) {
+          reportStaff = cStaff;
+        }
+        if (cShifts?.length) {
+          reportShifts = cShifts;
+        }
+        const pending = offlineQueueToAdminSales(offlinePendingSales, reportSellers);
+        const pendingIds = new Set(pending.map((sale) => sale.id));
+        const syncedBase = cSales ?? sales;
+        reportSales = sortSalesByCreatedAtDesc([
+          ...syncedBase.filter((sale) => !pendingIds.has(sale.id)),
+          ...pending,
+        ]);
+        if (cProfiles?.length) {
+          profiles = cProfiles;
+        }
+        if (cManagerCommissions?.length) {
+          cachedManagerCommissions = cManagerCommissions;
+        }
+        usedOfflineCache =
+          usedOfflineCache || Boolean(cSales || cSellers || cProfiles || cManagerCommissions);
+      }
+
+      const { buildStoreDayReportData, downloadStoreDayReportXlsx } = await import(
+        './export/storeDayReportXlsx'
+      );
+      let managerCommissions =
+        managerStoreCommissions.length > 0
+          ? managerStoreCommissions
+          : (cachedManagerCommissions ?? []);
+      if (apiReachable && managerCommissions.length === 0) {
+        try {
+          const response = await fetchWithTimeout(
+            `${API_BASE_URL}/admin/manager-store-commissions`,
+            { headers: { Authorization: `Bearer ${token}` } },
+            6000,
+          );
+          if (response.ok) {
+            const payload = (await response.json()) as { items?: ManagerStoreCommissionRow[] };
+            if (Array.isArray(payload.items) && payload.items.length > 0) {
+              managerCommissions = payload.items;
+            }
+          }
+        } catch {
+          // офлайн — дефолтные проценты в отчёте
+        }
+      }
+
+      const reportData = buildStoreDayReportData({
+        storeName: session.user.storeName,
+        dayKey: todayKeyMoscow(),
+        sales: reportSales,
+        sellers: reportSellers,
+        staff: reportStaff,
+        shifts: reportShifts,
+        acquiringProfiles: profiles,
+        managerStoreCommissions: managerCommissions,
+      });
+      await downloadStoreDayReportXlsx(reportData);
+      setDayReportNotice(
+        usedOfflineCache && !apiReachable
+          ? 'Отчёт за день скачан (офлайн, из локального кэша).'
+          : 'Отчёт за день скачан.',
+      );
+    } catch {
+      setDayReportNotice('Не удалось сформировать отчёт за день.');
+    } finally {
+      setDayReportBusy(false);
+    }
   };
 
   const deleteOfflinePendingSale = async (saleId: string, pin: string) => {
@@ -3207,15 +3393,27 @@ function App() {
       return;
     }
     if (role === 'ADMIN') {
-      const [cachedSellers, cachedProducts, cachedStaff, cachedShifts, cachedSales, cachedInv] =
-        await Promise.all([
-          loadAdminCache<SellerProfile[]>(uid, 'sellers'),
-          loadAdminCache<ProductItem[]>(uid, 'products'),
-          loadAdminCache<StaffMember[]>(uid, 'staff'),
-          loadAdminCache<ShiftInfo[]>(uid, 'shifts'),
-          loadAdminCache<AdminSale[]>(uid, 'sales'),
-          loadAdminCache<StoreInventoryDetailResponse | null>(uid, 'storeInventory'),
-        ]);
+      const [
+        cachedSellers,
+        cachedProducts,
+        cachedStaff,
+        cachedShifts,
+        cachedSales,
+        cachedInv,
+        cachedProcurement,
+        cachedAcquiring,
+        cachedManagerCommissions,
+      ] = await Promise.all([
+        loadAdminCache<SellerProfile[]>(uid, 'sellers'),
+        loadAdminCache<ProductItem[]>(uid, 'products'),
+        loadAdminCache<StaffMember[]>(uid, 'staff'),
+        loadAdminCache<ShiftInfo[]>(uid, 'shifts'),
+        loadAdminCache<AdminSale[]>(uid, 'sales'),
+        loadAdminCache<StoreInventoryDetailResponse | null>(uid, 'storeInventory'),
+        loadAdminCache<ProductProcurementCost[]>(uid, 'procurementCosts'),
+        loadAdminCache<AcquiringProfile[]>(uid, 'acquiringProfiles'),
+        loadAdminCache<ManagerStoreCommissionRow[]>(uid, 'managerStoreCommissions'),
+      ]);
       if (cachedSellers) {
         setSellers(cachedSellers);
       }
@@ -3233,6 +3431,15 @@ function App() {
       }
       if (cachedInv !== null) {
         setStoreInventory(cachedInv);
+      }
+      if (cachedProcurement?.length) {
+        setProductProcurementCosts(cachedProcurement);
+      }
+      if (cachedAcquiring?.length) {
+        setAcquiringProfiles(cachedAcquiring);
+      }
+      if (cachedManagerCommissions?.length) {
+        setManagerStoreCommissions(cachedManagerCommissions);
       }
     }
   };
@@ -3293,6 +3500,7 @@ function App() {
           loadSellers(data.token),
           loadProducts(data.token),
           loadProductProcurementCosts(data.token),
+          loadAcquiringProfiles(data.token),
           loadSales(data.token),
           loadCommissionRequests(data.token),
           loadShifts(data.token),
@@ -3640,6 +3848,7 @@ function App() {
             loadSellers(session.token),
             loadProducts(session.token),
             loadProductProcurementCosts(session.token),
+            loadAcquiringProfiles(session.token),
             loadSales(session.token),
             loadCommissionRequests(session.token),
             loadShifts(session.token),
@@ -3673,6 +3882,7 @@ function App() {
     loadInventoryOverview,
     loadManagerStoreCommissions,
     loadProductProcurementCosts,
+    loadAcquiringProfiles,
     loadStoreInventory,
     restoredSession,
     session,
@@ -3789,6 +3999,9 @@ function App() {
         loadSellers(token),
         loadShifts(token),
         loadGlobalEmployees(token),
+        loadProductProcurementCosts(token),
+        loadAcquiringProfiles(token),
+        loadManagerStoreCommissions(token),
       ]);
     }
     if (role === 'ADMIN' && path === '/home') {
@@ -3990,7 +4203,22 @@ function App() {
                           {homeDashboard.sellerDataManagedByAdmin && homeDashboard.role === 'SELLER' && (
                             <p className="notice">Данные продавца заполняет администратор точки.</p>
                           )}
-                          <h3 className="homePanelTitle">{homeDashboard.title}</h3>
+                          <div className="homePanelTitleRow">
+                            <h3 className="homePanelTitle">{homeDashboard.title}</h3>
+                            {homeDashboard.role === 'ADMIN' && session ? (
+                              <button
+                                type="button"
+                                className="ghost homeDayReportBtn"
+                                disabled={dayReportBusy}
+                                onClick={() => void downloadAdminDayReport(session.token)}
+                              >
+                                {dayReportBusy ? 'Формируем…' : 'Скачать отчёт за день'}
+                              </button>
+                            ) : null}
+                          </div>
+                          {dayReportNotice ? (
+                            <p className="notice homeDayReportNotice">{dayReportNotice}</p>
+                          ) : null}
                           {homeDashboard.role === 'DIRECTOR' && session ? (
                             <DirectorHomeApprovalsCarousel
                               token={session.token}

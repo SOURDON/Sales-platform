@@ -2515,6 +2515,31 @@ button.salePayBtn:focus-visible {
   border-style: dashed;
 }
 
+.homePanelTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.homePanelTitleRow .homePanelTitle {
+  margin: 0;
+}
+
+.homeDayReportBtn {
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.homeDayReportNotice {
+  margin: 0 0 12px;
+}
+
 .offlineSaleDeleteBar {
   margin: 8px 0 4px;
   padding: 10px 12px;

@@ -207,8 +207,26 @@ export class AdminController {
 
   @Get('manager-store-commissions')
   getManagerStoreCommissions(@Headers('authorization') authorization?: string) {
-    this.requireDirectorAccess(authorization);
-    return { items: this.authService.getManagerStoreCommissions() };
+    const token = authorization?.replace('Bearer ', '').trim();
+    if (!token) {
+      throw new UnauthorizedException('Missing token');
+    }
+    const session = this.authService.parseToken(token);
+    if (!session) {
+      throw new UnauthorizedException('Invalid token');
+    }
+    const items = this.authService.getManagerStoreCommissions();
+    if (session.role === 'ADMIN') {
+      const storeName = this.authService.getStoreNameForNickname(session.nickname);
+      if (!storeName) {
+        return { items: [] };
+      }
+      return { items: items.filter((row) => row.storeName === storeName) };
+    }
+    if (session.role !== 'DIRECTOR') {
+      throw new UnauthorizedException('Only director or admin allowed');
+    }
+    return { items };
   }
 
   @Put('manager-store-commissions')
