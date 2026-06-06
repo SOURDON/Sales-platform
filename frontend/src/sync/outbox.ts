@@ -109,6 +109,19 @@ export async function removeOutboxEntry(id: string): Promise<void> {
   await deleteOutboxRow(id);
 }
 
+export async function removeAdminSaleFromOutbox(
+  userId: number,
+  saleId: string,
+): Promise<AdminSaleOutboxPayload | null> {
+  const rows = await listOutboxForUser(userId);
+  const row = rows.find((r) => r.id === saleId && r.type === 'ADMIN_SALE');
+  if (!row) {
+    return null;
+  }
+  await removeOutboxEntry(saleId);
+  return row.payload as AdminSaleOutboxPayload;
+}
+
 export async function updateAdminSalePaymentInOutbox(
   userId: number,
   saleId: string,

@@ -121,6 +121,21 @@ async function applySaleStock(userId: number, payload: AdminSaleOutboxPayload): 
   await saveAdminCache(userId, 'storeInventory', { ...inv, products });
 }
 
+export async function revertSaleStock(userId: number, payload: AdminSaleOutboxPayload): Promise<void> {
+  const inv = await loadAdminCache<StoreInventoryLike | null>(userId, 'storeInventory');
+  if (!inv?.products) {
+    return;
+  }
+  const products = inv.products.map((p) => {
+    const line = payload.items.find((i) => i.name === p.name);
+    if (!line) {
+      return p;
+    }
+    return { ...p, qtyInStore: p.qtyInStore + line.qty };
+  });
+  await saveAdminCache(userId, 'storeInventory', { ...inv, products });
+}
+
 async function applyShiftOpen(userId: number, payload: AdminShiftOpenOutboxPayload): Promise<void> {
   const shifts = (await loadAdminCache<ShiftLike[]>(userId, 'shifts')) ?? [];
   const existingOpen = shifts.find((s) => s.status === 'OPEN');

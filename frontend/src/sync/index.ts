@@ -27,11 +27,13 @@ export {
   enqueueAdminSale,
   enqueueOutbox,
   listAdminSalesQueue,
+  removeAdminSaleFromOutbox,
   updateAdminSalePaymentInOutbox,
   listOutboxForUser,
   migrateLegacyOfflineSalesQueue,
   outboxCountForUser,
 } from './outbox';
+export { revertSaleStock } from './admin/optimistic';
 export { startSyncEngine, type SyncEngineOptions } from './syncEngine';
 export {
   roleUsesSyncCache,

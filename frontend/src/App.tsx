@@ -48,12 +48,16 @@ import { fetchWithTimeout } from './sync/fetchTimeout';
 import {
   appendOfflineSale,
   readOfflineQueue,
+  removeOfflineSale,
   writeOfflineQueue,
   type OfflineQueuedSale,
 } from './offlineSalesQueue';
+import { verifyOfflineSaleDeletePin } from './offlineSaleDeletePin';
 import {
   isLikelyOfflineFetchError as isOfflineFetchError,
   listAdminSalesQueue,
+  removeAdminSaleFromOutbox,
+  revertSaleStock,
   updateAdminSalePaymentInOutbox,
   loadAdminCache,
   loadAdminResource,
@@ -1179,6 +1183,9 @@ function App() {
   const [adminError, setAdminError] = useState('');
   const [salesNotice, setSalesNotice] = useState('');
   const [paymentEditSaleId, setPaymentEditSaleId] = useState<string | null>(null);
+  const [offlineDeleteSaleId, setOfflineDeleteSaleId] = useState<string | null>(null);
+  const [offlineDeletePin, setOfflineDeletePin] = useState('');
+  const [offlineDeleteBusy, setOfflineDeleteBusy] = useState(false);
   const [paymentEditBusy, setPaymentEditBusy] = useState(false);
   const [teamDayKey, setTeamDayKey] = useState(todayKeyMoscow());
   const [acquiringProfiles, setAcquiringProfiles] = useState<AcquiringProfile[]>(() =>
@@ -2911,6 +2918,33 @@ function App() {
     setPaymentEditSaleId(null);
   };
 
+  const deleteOfflinePendingSale = async (saleId: string, pin: string) => {
+    setSalesNotice('');
+    if (!verifyOfflineSaleDeletePin(pin)) {
+      throw new Error('Неверный пароль');
+    }
+    const uid = session?.user?.id;
+    if (uid === undefined) {
+      throw new Error('Сессия не найдена');
+    }
+    let removed: OfflineQueuedSale | null = null;
+    if (isDesktopShell) {
+      removed = await removeAdminSaleFromOutbox(uid, saleId);
+    } else {
+      removed = removeOfflineSale(uid, saleId);
+    }
+    if (!removed) {
+      throw new Error('Продажа не найдена в очереди отправки');
+    }
+    if (isDesktopShell) {
+      await revertSaleStock(uid, removed);
+    }
+    setOfflineQueueTick((x) => x + 1);
+    setOfflineDeleteSaleId(null);
+    setOfflineDeletePin('');
+    setSalesNotice('Офлайн-продажа удалена. Когда появится сеть, на сервер она не попадёт.');
+  };
+
   const openShift = async (token: string, assignedSellerIds: number[]) => {
     const uid = session?.user?.id;
     const adminDesktop = roleUsesAdminDesktopOutbox(session?.user?.role, isDesktopShell) && uid !== undefined;
@@ -4475,7 +4509,32 @@ function App() {
                                           </span>
                                         )}
                                         <span className="saleHeaderTrailing">
-                                          {role === 'ADMIN' && !sale.pendingSync ? (
+                                          {role === 'ADMIN' && sale.pendingSync ? (
+                                            <button
+                                              type="button"
+                                              className="saleDeleteBtn saleDeleteBtn--offline"
+                                              title="Удалить офлайн-продажу (нужен пароль)"
+                                              aria-label="Удалить офлайн-продажу"
+                                              onClick={() => {
+                                                setSalesNotice('');
+                                                setOfflineDeletePin('');
+                                                setOfflineDeleteSaleId(sale.id);
+                                              }}
+                                            >
+                                              <svg
+                                                className="saleDeleteBtnIcon"
+                                                viewBox="0 0 24 24"
+                                                width="16"
+                                                height="16"
+                                                aria-hidden
+                                              >
+                                                <path
+                                                  fill="currentColor"
+                                                  d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 5h2v10h-2V8zm4 0h2v10h-2V8zM6 8h12v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8z"
+                                                />
+                                              </svg>
+                                            </button>
+                                          ) : role === 'ADMIN' && !sale.pendingSync ? (
                                             <button
                                               type="button"
                                               className="saleDeleteBtn"
@@ -4512,6 +4571,59 @@ function App() {
                                           </span>
                                         </span>
                                       </p>
+                                      {offlineDeleteSaleId === sale.id ? (
+                                        <form
+                                          className="offlineSaleDeleteBar"
+                                          onSubmit={(event) => {
+                                            event.preventDefault();
+                                            setOfflineDeleteBusy(true);
+                                            void deleteOfflinePendingSale(sale.id, offlineDeletePin)
+                                              .catch((err) => {
+                                                setSalesNotice(
+                                                  err instanceof Error
+                                                    ? err.message
+                                                    : 'Не удалось удалить продажу',
+                                                );
+                                              })
+                                              .finally(() => setOfflineDeleteBusy(false));
+                                          }}
+                                        >
+                                          <p className="offlineSaleDeleteBarHint">
+                                            Продажа ещё не на сервере. Введите пароль удаления.
+                                          </p>
+                                          <div className="offlineSaleDeleteBarRow">
+                                            <input
+                                              className="offlineSaleDeleteBarInput"
+                                              type="password"
+                                              inputMode="numeric"
+                                              autoComplete="off"
+                                              autoFocus
+                                              placeholder="Пароль"
+                                              value={offlineDeletePin}
+                                              disabled={offlineDeleteBusy}
+                                              onChange={(event) => setOfflineDeletePin(event.target.value)}
+                                            />
+                                            <button
+                                              type="submit"
+                                              className="primaryAction offlineSaleDeleteBarConfirm"
+                                              disabled={offlineDeleteBusy || !offlineDeletePin.trim()}
+                                            >
+                                              {offlineDeleteBusy ? '…' : 'Удалить'}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="ghost offlineSaleDeleteBarCancel"
+                                              disabled={offlineDeleteBusy}
+                                              onClick={() => {
+                                                setOfflineDeleteSaleId(null);
+                                                setOfflineDeletePin('');
+                                              }}
+                                            >
+                                              Отмена
+                                            </button>
+                                          </div>
+                                        </form>
+                                      ) : null}
                                       <ul>
                                         {sale.items.map((line) => (
                                           <li key={line.name}>

@@ -2515,6 +2515,41 @@ button.salePayBtn:focus-visible {
   border-style: dashed;
 }
 
+.offlineSaleDeleteBar {
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(180, 83, 9, 0.12);
+  border: 1px solid rgba(180, 83, 9, 0.35);
+}
+
+.offlineSaleDeleteBarHint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #b45309;
+}
+
+.offlineSaleDeleteBarRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.offlineSaleDeleteBarInput {
+  min-width: 120px;
+  flex: 1 1 120px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.offlineSaleDeleteBarConfirm,
+.offlineSaleDeleteBarCancel {
+  min-height: 36px;
+}
+
 .saleItem ul {
   margin: 0;
   padding-left: 16px;

@@ -66,3 +66,16 @@ export function appendOfflineSale(userId: number, entry: OfflineQueuedSale): voi
   q.push(entry);
   writeOfflineQueue(userId, q);
 }
+
+export function removeOfflineSale(userId: number, saleId: string): OfflineQueuedSale | null {
+  const q = readOfflineQueue(userId);
+  const entry = q.find((row) => row.saleId === saleId);
+  if (!entry) {
+    return null;
+  }
+  writeOfflineQueue(
+    userId,
+    q.filter((row) => row.saleId !== saleId),
+  );
+  return entry;
+}
