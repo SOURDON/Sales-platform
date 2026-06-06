@@ -294,9 +294,17 @@ function buildAdminHomeDashboard(
     : [];
 
   let storeRevenue = 0;
+  for (const sale of sales) {
+    if (!sellerIds.has(sale.sellerId)) {
+      continue;
+    }
+    if (calendarDayKeyMoscow(sale.createdAt) !== today) {
+      continue;
+    }
+    storeRevenue += sale.totalAmount;
+  }
   let storeSalaries = 0;
   for (const s of storeSellers) {
-    storeRevenue += s.salesAmount;
     storeSalaries += s.commissionAmount;
   }
   const retoucherStaff = staff.filter(
@@ -1380,10 +1388,11 @@ function App() {
     [offlinePendingSales, sellers],
   );
 
-  const salesMerged = useMemo(
-    () => sortSalesByCreatedAtDesc([...sales, ...pendingOfflineSales]),
-    [sales, pendingOfflineSales],
-  );
+  const salesMerged = useMemo(() => {
+    const pendingIds = new Set(pendingOfflineSales.map((sale) => sale.id));
+    const syncedOnly = sales.filter((sale) => !pendingIds.has(sale.id));
+    return sortSalesByCreatedAtDesc([...syncedOnly, ...pendingOfflineSales]);
+  }, [sales, pendingOfflineSales]);
 
   const homeDashboard = useMemo((): DashboardResponse | null => {
     if (!dashboard || !session) {
@@ -3748,7 +3757,10 @@ function App() {
         loadGlobalEmployees(token),
       ]);
     }
-  }, [isDesktopShell, location.pathname, session?.token, session?.user?.role]);
+    if (role === 'ADMIN' && path === '/home') {
+      void refreshOfflinePending();
+    }
+  }, [isDesktopShell, location.pathname, session?.token, session?.user?.role, refreshOfflinePending]);
 
   const refreshAdminWebLive = useCallback(() => {
     if (!session?.token || isDesktopShell || session.user.role !== 'ADMIN') {
