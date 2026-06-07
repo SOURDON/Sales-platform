@@ -80,41 +80,69 @@ type ShiftLike = {
 
 type ManagerCommissionRow = { storeName: string; percent: number };
 
+/** Спокойная палитра (беж · тёмный бирюз · бирюза · бордо · светло-серый). */
 const C = {
-  pageBg: 'FF0B1218',
-  heroDark: 'FF111827',
-  heroMid: 'FF1F2937',
-  heroText: 'FFF9FAFB',
-  heroMuted: 'FF9CA3AF',
-  blockRevenue: 'FF0E7490',
-  blockSalary: 'FFB45309',
-  blockManager: 'FF92400E',
-  blockRetoucher: 'FF1D4ED8',
-  blockCash: 'FF0369A1',
-  blockAcq: 'FF4F46E5',
-  blockAcqNet: 'FF047857',
-  blockTransfer: 'FFC2410C',
-  blockFee: 'FF374151',
-  blockSalesPay: 'FFA16207',
-  sectionBg: 'FF111827',
-  sectionText: 'FFF3F4F6',
-  headerBg: 'FF1F2937',
-  headerText: 'FFE5E7EB',
-  rowNormalA: 'FF1A2332',
-  rowNormalB: 'FF151D2B',
-  rowText: 'FFE5E7EB',
-  rowBest: 'FFB45309',
+  pageBg: 'FFF8F5F0',
+  heroDark: 'FF1E4A56',
+  heroMid: 'FF2A5C6A',
+  heroText: 'FFF8F5F0',
+  heroMuted: 'FFB8CDD6',
+  blockRevenue: 'FF5FA8B8',
+  blockSalary: 'FF7A4848',
+  blockManager: 'FF6B5550',
+  blockRetoucher: 'FF4A8A96',
+  blockCash: 'FF6DB5C5',
+  blockAcq: 'FF5A9AAA',
+  blockAcqNet: 'FF4E8E88',
+  blockTransfer: 'FF9A8578',
+  blockSalesPay: 'FF8B6B5E',
+  blockCashSoft: 'FFE8F4F7',
+  blockAcqSoft: 'FFE5F0F3',
+  blockTransferSoft: 'FFF5EDE8',
+  sectionBg: 'FFDCE8EC',
+  sectionText: 'FF1E4A56',
+  headerBg: 'FFE8EFF2',
+  headerText: 'FF1E4A56',
+  rowNormalA: 'FFFFFFFF',
+  rowNormalB: 'FFF5F0E8',
+  rowText: 'FF2C4550',
+  rowBest: 'FF7A4848',
+  rowBestAccent: 'FF5A3030',
   rowBestText: 'FFFFFFFF',
-  rowTop3: 'FF1D4ED8',
-  rowTop3Text: 'FFFFFFFF',
-  rowZero: 'FF374151',
-  rowZeroText: 'FF9CA3AF',
-  totalBg: 'FF111827',
-  totalText: 'FFFDE68A',
-  border: 'FF374151',
-  borderDark: 'FF1F2937',
-  muted: 'FF9CA3AF',
+  rowTop3: 'FFE8F2F5',
+  rowTop3Accent: 'FF5FA8B8',
+  rowTop3Text: 'FF1E4A56',
+  rowZero: 'FFF2EFEA',
+  rowZeroText: 'FF8A9599',
+  totalBg: 'FF1E4A56',
+  totalText: 'FFF8F5F0',
+  border: 'FFB8CDD6',
+  borderDark: 'FF2A5C6A',
+  muted: 'FF6B848D',
+  onColorLabel: 'FFE8F4F6',
+  onColorValue: 'FFFFFFFF',
 };
+
+/** A4 альбомная: 1 лист по ширине и высоте (компактный макет ≈ 90–100% без узкой полоски). */
+function applyDayReportPrintSetup(sheet: ExcelJS.Worksheet, lastRow: number) {
+  sheet.pageSetup.printArea = `A1:L${lastRow}`;
+  sheet.pageSetup.paperSize = 9;
+  sheet.pageSetup.orientation = 'landscape';
+  sheet.pageSetup.fitToPage = true;
+  sheet.pageSetup.fitToWidth = 1;
+  sheet.pageSetup.fitToHeight = 1;
+  sheet.pageSetup.horizontalCentered = true;
+  sheet.pageSetup.showGridLines = false;
+  sheet.pageSetup.showRowColHeaders = false;
+  sheet.pageSetup.margins = {
+    left: 0.2,
+    right: 0.2,
+    top: 0.2,
+    bottom: 0.2,
+    header: 0.08,
+    footer: 0.08,
+  };
+}
 
 function formatDayLabel(dayKey: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey);
@@ -515,7 +543,7 @@ function addHeroBlock(
   const row = Number(startCell.row);
   const col = Number(startCell.col);
   const endCol = Number(sheet.getCell(range.split(':')[1] ?? start).col);
-  const endRow = row + 2;
+  const endRow = row + 1;
   sheet.mergeCells(row, col, endRow, endCol);
   fillRange(sheet, range, blockColor);
   borderRange(sheet, range, C.border);
@@ -523,14 +551,13 @@ function addHeroBlock(
   const inner = sheet.getCell(row, col);
   inner.value = {
     richText: [
-      { text: `${label}\n`, font: { size: 10, color: { argb: 'FFE5E7EB' } } },
-      { text: rubPlain(value), font: { bold: true, size: 24, color: { argb: 'FFFFFFFF' } } },
+      { text: `${label}\n`, font: { size: 9, color: { argb: C.onColorLabel } } },
+      { text: rubPlain(value), font: { bold: true, size: 20, color: { argb: C.onColorValue } } },
     ],
   };
   inner.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-  sheet.getRow(row).height = 18;
-  sheet.getRow(row + 1).height = 26;
-  sheet.getRow(row + 2).height = 26;
+  sheet.getRow(row).height = 14;
+  sheet.getRow(row + 1).height = 24;
 }
 
 function addMiniStaffBlock(
@@ -545,33 +572,26 @@ function addMiniStaffBlock(
   const row = Number(startCell.row);
   const col = Number(startCell.col);
   const endCol = Number(sheet.getCell(range.split(':')[1] ?? start).col);
-  const addr = `${sheet.getCell(row, col).address}:${sheet.getCell(row + 2, endCol).address}`;
+  const addr = `${sheet.getCell(row, col).address}:${sheet.getCell(row + 1, endCol).address}`;
   sheet.mergeCells(row, col, row, endCol);
   sheet.mergeCells(row + 1, col, row + 1, endCol);
-  sheet.mergeCells(row + 2, col, row + 2, endCol);
   fillRange(sheet, addr, blockColor);
   borderRange(sheet, addr, C.border);
 
   const titleCell = sheet.getCell(row, col);
-  titleCell.value = title;
-  titleCell.font = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } };
-  titleCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+  titleCell.value = `${title} · ${block.name}`;
+  titleCell.font = { size: 8, color: { argb: C.onColorLabel } };
+  titleCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
 
-  const nameCell = sheet.getCell(row + 1, col);
-  nameCell.value = block.name;
-  nameCell.font = { size: 8, color: { argb: 'FFE5E7EB' } };
-  nameCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
-
-  const payCell = sheet.getCell(row + 2, col);
+  const payCell = sheet.getCell(row + 1, col);
   payCell.value = rubPlain(block.salaryRub);
-  payCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+  payCell.font = { bold: true, size: 14, color: { argb: C.onColorValue } };
   payCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
   if (block.hint) {
     payCell.note = block.hint;
   }
-  sheet.getRow(row).height = 16;
-  sheet.getRow(row + 1).height = 18;
-  sheet.getRow(row + 2).height = 24;
+  sheet.getRow(row).height = 15;
+  sheet.getRow(row + 1).height = 20;
 }
 
 function addPayKpi(
@@ -592,26 +612,34 @@ function addPayKpi(
 
   const labelCell = sheet.getCell(row, col);
   labelCell.value = label;
-  labelCell.font = { size: 8, color: { argb: 'FFE5E7EB' } };
+  labelCell.font = { size: 8, color: { argb: C.onColorLabel } };
   labelCell.alignment = { horizontal: 'center', vertical: 'bottom', wrapText: true };
 
   const valueCell = sheet.getCell(row + 1, col);
   valueCell.value = rubPlain(value);
-  valueCell.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
+  valueCell.font = { bold: true, size: 13, color: { argb: C.onColorValue } };
   valueCell.alignment = { horizontal: 'center', vertical: 'middle' };
-  sheet.getRow(row).height = 16;
-  sheet.getRow(row + 1).height = 24;
+  sheet.getRow(row).height = 13;
+  sheet.getRow(row + 1).height = 20;
 }
 
-function styleSellerRow(sheet: ExcelJS.Worksheet, rowNum: number, tier: StoreDayReportSellerRow['tier']) {
+function styleSellerRow(
+  sheet: ExcelJS.Worksheet,
+  rowNum: number,
+  tier: StoreDayReportSellerRow['tier'],
+  sellerName?: string,
+) {
   let bg = rowNum % 2 === 0 ? C.rowNormalA : C.rowNormalB;
   let textColor = C.rowText;
+  let accentColor = C.border;
   if (tier === 'best') {
     bg = C.rowBest;
     textColor = C.rowBestText;
+    accentColor = C.rowBestAccent;
   } else if (tier === 'top3') {
     bg = C.rowTop3;
     textColor = C.rowTop3Text;
+    accentColor = C.rowTop3Accent;
   } else if (tier === 'zero') {
     bg = C.rowZero;
     textColor = C.rowZeroText;
@@ -619,15 +647,33 @@ function styleSellerRow(sheet: ExcelJS.Worksheet, rowNum: number, tier: StoreDay
   for (let col = 1; col <= 3; col += 1) {
     const cell = sheet.getCell(rowNum, col);
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-    cell.font = { ...(cell.font ?? {}), color: { argb: textColor } };
+    const isBold = tier === 'best' || tier === 'top3' || (cell.font?.bold ?? false);
+    cell.font = {
+      ...(cell.font ?? {}),
+      bold: tier === 'best' ? true : isBold,
+      color: { argb: textColor },
+    };
+    cell.border = {
+      top: { style: tier === 'best' ? 'medium' : 'thin', color: { argb: tier === 'best' ? accentColor : C.border } },
+      bottom: { style: tier === 'best' ? 'medium' : 'thin', color: { argb: tier === 'best' ? accentColor : C.border } },
+      right: { style: 'thin', color: { argb: C.border } },
+      left:
+        col === 1
+          ? { style: tier === 'best' ? 'thick' : tier === 'top3' ? 'medium' : 'thin', color: { argb: accentColor } }
+          : { style: 'thin', color: { argb: C.border } },
+    };
     if (col === 1) {
-      cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true, indent: tier === 'best' ? 1 : 0 };
-      if (tier === 'best') {
-        cell.value = `★ ${String(cell.value ?? '')}`;
+      cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true, indent: 0 };
+      if (tier === 'best' && sellerName) {
+        cell.value = {
+          richText: [
+            { text: '★ Лидер · ', font: { bold: true, size: 9, color: { argb: 'FFFFE8B0' } } },
+            { text: sellerName, font: { bold: true, size: 10, color: { argb: textColor } } },
+          ],
+        };
       }
     }
   }
-  borderRange(sheet, `A${rowNum}:C${rowNum}`, C.border);
 }
 
 function addPaymentMixBlock(sheet: ExcelJS.Worksheet, startRow: number, data: StoreDayReportData) {
@@ -643,13 +689,26 @@ function addPaymentMixBlock(sheet: ExcelJS.Worksheet, startRow: number, data: St
   title.font = { bold: true, size: 9, color: { argb: C.sectionText } };
   title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.sectionBg } };
   title.alignment = { horizontal: 'center', vertical: 'middle' };
-  sheet.getRow(startRow).height = 18;
+  sheet.getRow(startRow).height = 15;
+
+  const softByLabel: Record<string, string> = {
+    Наличные: C.blockCashSoft,
+    Эквайринг: C.blockAcqSoft,
+    Переводы: C.blockTransferSoft,
+  };
+  const accentByLabel: Record<string, string> = {
+    Наличные: C.blockCash,
+    Эквайринг: C.blockAcq,
+    Переводы: C.blockTransfer,
+  };
 
   items.forEach((item, idx) => {
     const row = startRow + 1 + idx;
     sheet.mergeCells(row, 9, row, 10);
     sheet.mergeCells(row, 11, row, 12);
     const share = pct(item.value, data.revenue);
+    const softBg = softByLabel[item.label] ?? C.rowNormalB;
+    const accent = accentByLabel[item.label] ?? C.blockRevenue;
 
     const labelCell = sheet.getCell(row, 9);
     labelCell.value = item.label;
@@ -658,13 +717,16 @@ function addPaymentMixBlock(sheet: ExcelJS.Worksheet, startRow: number, data: St
 
     const valueCell = sheet.getCell(row, 11);
     valueCell.value = `${rubPlain(item.value)} · ${share}%`;
-    valueCell.font = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } };
+    valueCell.font = { bold: true, size: 9, color: { argb: accent } };
     valueCell.alignment = { horizontal: 'right', vertical: 'middle' };
 
-    fillRange(sheet, `I${row}:J${row}`, item.color);
-    fillRange(sheet, `K${row}:L${row}`, item.color);
+    fillRange(sheet, `I${row}:L${row}`, softBg);
     borderRange(sheet, `I${row}:L${row}`);
-    sheet.getRow(row).height = 18;
+    sheet.getCell(row, 9).border = {
+      ...sheet.getCell(row, 9).border,
+      left: { style: 'medium', color: { argb: accent } },
+    };
+    sheet.getRow(row).height = 14;
   });
 
   if (data.acquiringFee > 0) {
@@ -672,11 +734,11 @@ function addPaymentMixBlock(sheet: ExcelJS.Worksheet, startRow: number, data: St
     sheet.mergeCells(footRow, 9, footRow, 12);
     const foot = sheet.getCell(footRow, 9);
     foot.value = `комиссия ${data.acquiringRatePercent}%: ${rubPlain(data.acquiringFee)}`;
-    foot.font = { size: 8, color: { argb: C.muted } };
-    foot.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.heroMid } };
+    foot.font = { size: 7, color: { argb: C.muted } };
+    foot.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.rowNormalB } };
     foot.alignment = { horizontal: 'center', vertical: 'middle' };
-    borderRange(sheet, `I${footRow}:L${footRow}`, C.borderDark);
-    sheet.getRow(footRow).height = 14;
+    borderRange(sheet, `I${footRow}:L${footRow}`, C.border);
+    sheet.getRow(footRow).height = 12;
   }
 }
 
@@ -687,81 +749,85 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData) {
 
   const sheet = workbook.addWorksheet('Отчёт за день', {
     views: [{ showGridLines: false }],
-    pageSetup: {
-      paperSize: 9,
-      orientation: 'landscape',
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 1,
-      margins: {
-        left: 0.35,
-        right: 0.35,
-        top: 0.45,
-        bottom: 0.45,
-        header: 0.2,
-        footer: 0.2,
-      },
-    },
   });
 
   sheet.columns = [
-    { width: 16 },
-    { width: 11 },
-    { width: 11 },
-    { width: 3 },
-    { width: 20 },
-    { width: 9 },
-    { width: 3 },
-    { width: 3 },
-    { width: 11 },
-    { width: 11 },
-    { width: 11 },
-    { width: 11 },
+    { width: 28 },
+    { width: 10 },
+    { width: 10 },
+    { width: 1.5 },
+    { width: 22 },
+    { width: 8 },
+    { width: 1.5 },
+    { width: 1.5 },
+    { width: 10 },
+    { width: 10 },
+    { width: 10 },
+    { width: 10 },
   ];
 
-  fillRange(sheet, 'A1:L45', C.pageBg);
+  fillRange(sheet, 'A1:L40', C.pageBg);
 
   sheet.mergeCells('A1:F1');
   const title = sheet.getCell('A1');
   title.value = 'Отчёт за день';
-  title.font = { bold: true, size: 20, color: { argb: C.heroText } };
+  title.font = { bold: true, size: 18, color: { argb: C.heroText } };
   title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.heroDark } };
   title.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-  sheet.getRow(1).height = 36;
+  sheet.getRow(1).height = 28;
 
   sheet.mergeCells('G1:L1');
   const dateTitle = sheet.getCell('G1');
   dateTitle.value = data.dayLabel;
-  dateTitle.font = { bold: true, size: 28, color: { argb: 'FFFFFFFF' } };
+  dateTitle.font = { bold: true, size: 22, color: { argb: C.onColorValue } };
   dateTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.blockRevenue } };
   dateTitle.alignment = { vertical: 'middle', horizontal: 'center' };
 
   sheet.mergeCells('A2:L2');
   const subtitle = sheet.getCell('A2');
-  subtitle.value = `${data.storeName} · ${data.shiftLabel ?? ''} · сформирован ${data.generatedAt}`;
-  subtitle.font = { size: 9, color: { argb: C.heroMuted } };
+  subtitle.value = `${data.storeName} · ${data.shiftLabel ?? ''} · ${data.generatedAt}`;
+  subtitle.font = { size: 8, color: { argb: C.heroMuted } };
   subtitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.heroMid } };
   subtitle.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-  sheet.getRow(2).height = 18;
+  sheet.getRow(2).height = 15;
+  borderRange(sheet, 'A1:L2', C.borderDark);
 
-  addHeroBlock(sheet, 'A4:D6', 'Общая касса', data.revenue, C.blockRevenue);
-  addHeroBlock(sheet, 'I4:L6', 'ЗП за день', data.salariesTotal, C.blockSalary);
+  addHeroBlock(sheet, 'A3:D4', 'Общая касса', data.revenue, C.blockRevenue);
+  addHeroBlock(sheet, 'I3:L4', 'ЗП за день', data.salariesTotal, C.blockSalary);
 
-  addPayKpi(sheet, 1, 8, 'Наличные', data.cash, C.blockCash, 2);
-  addPayKpi(sheet, 3, 8, 'Эквайринг', data.acquiringGross, C.blockAcq, 2);
-  addPayKpi(sheet, 5, 8, 'Нетто', data.acquiringNet, C.blockAcqNet, 2);
-  addPayKpi(sheet, 7, 8, 'Переводы', data.transfer, C.blockTransfer, 4);
-  addPayKpi(sheet, 11, 8, 'ЗП продавцов', data.salesSalariesTotal, C.blockSalesPay, 2);
+  addPayKpi(sheet, 1, 5, 'Наличные', data.cash, C.blockCash, 2);
+  addPayKpi(sheet, 3, 5, 'Эквайринг', data.acquiringGross, C.blockAcq, 2);
+  addPayKpi(sheet, 5, 5, 'Нетто', data.acquiringNet, C.blockAcqNet, 2);
+  addPayKpi(sheet, 7, 5, 'Переводы', data.transfer, C.blockTransfer, 4);
+  addPayKpi(sheet, 11, 5, 'ЗП продавцов', data.salesSalariesTotal, C.blockSalesPay, 2);
 
+  // Строка 6 занята KPI (addPayKpi row+1) — персонал и структура оплат только с 7-й.
+  const staffRow = 7;
   if (data.manager) {
-    addMiniStaffBlock(sheet, 'A11:C13', 'Управляющий', data.manager, C.blockManager);
+    addMiniStaffBlock(
+      sheet,
+      `A${staffRow}:C${staffRow + 1}`,
+      'Управляющий',
+      data.manager,
+      C.blockManager,
+    );
   }
   if (data.retoucher) {
-    addMiniStaffBlock(sheet, 'E11:G13', 'Ретушёр', data.retoucher, C.blockRetoucher);
+    addMiniStaffBlock(
+      sheet,
+      `E${staffRow}:G${staffRow + 1}`,
+      'Ретушёр',
+      data.retoucher,
+      C.blockRetoucher,
+    );
   }
-  addPaymentMixBlock(sheet, 11, data);
+  addPaymentMixBlock(sheet, staffRow, data);
 
-  const tableHeaderRow = 15;
+  const paymentMixRows =
+    1 +
+    [data.cash, data.acquiringGross, data.transfer].filter((v) => v > 0).length +
+    (data.acquiringFee > 0 ? 1 : 0);
+  const tableHeaderRow = staffRow + Math.max(2, paymentMixRows) + 1;
   sheet.mergeCells(`A${tableHeaderRow}:C${tableHeaderRow}`);
   sheet.getCell(`A${tableHeaderRow}`).value = 'Продавцы';
   sheet.mergeCells(`E${tableHeaderRow}:F${tableHeaderRow}`);
@@ -772,7 +838,7 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData) {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.sectionBg } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
   }
-  sheet.getRow(tableHeaderRow).height = 22;
+  sheet.getRow(tableHeaderRow).height = 17;
 
   const colHeaderRow = tableHeaderRow + 1;
   const sellerHeaders = ['Сотрудник', 'Продажи', 'ЗП'];
@@ -791,7 +857,7 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData) {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.headerBg } };
     cell.alignment = { horizontal: idx === 0 ? 'left' : 'center', vertical: 'middle' };
   });
-  sheet.getRow(colHeaderRow).height = 20;
+  sheet.getRow(colHeaderRow).height = 16;
 
   const tableRows = Math.max(data.sellers.length, data.products.length, 1);
   let totalSales = 0;
@@ -805,17 +871,18 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData) {
 
     if (seller) {
       sheet.getCell(rowNum, 1).value = seller.name;
+      const moneyColor = seller.tier === 'best' ? C.rowBestText : C.rowText;
       rubCell(sheet.getCell(rowNum, 2), seller.salesRub, {
-        color: C.rowText,
+        color: moneyColor,
         bold: seller.tier !== 'zero',
-        size: 11,
+        size: seller.tier === 'best' ? 10 : 9,
       });
       rubCell(sheet.getCell(rowNum, 3), seller.salaryRub, {
-        color: C.rowText,
+        color: moneyColor,
         bold: seller.tier !== 'zero',
-        size: 11,
+        size: seller.tier === 'best' ? 10 : 9,
       });
-      styleSellerRow(sheet, rowNum, seller.tier);
+      styleSellerRow(sheet, rowNum, seller.tier, seller.name);
       totalSales += seller.salesRub;
       totalSellerSalary += seller.salaryRub;
     }
@@ -827,7 +894,7 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData) {
       for (let col = 5; col <= 6; col += 1) {
         const cell = sheet.getCell(rowNum, col);
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-        cell.font = { color: { argb: C.rowText }, size: 10 };
+        cell.font = { color: { argb: C.rowText }, size: 9 };
         if (col === 5) {
           cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
         } else {
@@ -837,11 +904,10 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData) {
       borderRange(sheet, `E${rowNum}:F${rowNum}`);
       totalQty += product.qty;
     }
-    sheet.getRow(rowNum).height = 18;
+    sheet.getRow(rowNum).height = seller?.tier === 'best' ? 20 : 15;
   }
 
   const totalRow = colHeaderRow + 1 + tableRows;
-  sheet.mergeCells(`A${totalRow}:A${totalRow}`);
   const totalLabel = sheet.getCell(totalRow, 1);
   totalLabel.value = 'ИТОГО';
   totalLabel.font = { bold: true, size: 10, color: { argb: C.totalText } };
@@ -862,16 +928,16 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData) {
   sheet.getCell(totalRow, 6).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.totalBg } };
   sheet.getCell(totalRow, 6).alignment = { horizontal: 'center', vertical: 'middle' };
   borderRange(sheet, `E${totalRow}:F${totalRow}`, C.borderDark);
-  sheet.getRow(totalRow).height = 22;
+  sheet.getRow(totalRow).height = 17;
 
-  const summaryRow = totalRow + 2;
+  const summaryRow = totalRow + 1;
   sheet.mergeCells(`A${summaryRow}:L${summaryRow}`);
   const summaryTitle = sheet.getCell(`A${summaryRow}`);
   summaryTitle.value = 'Сводка по видам оплаты';
   summaryTitle.font = { bold: true, size: 10, color: { argb: C.sectionText } };
   summaryTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.sectionBg } };
   summaryTitle.alignment = { horizontal: 'center', vertical: 'middle' };
-  sheet.getRow(summaryRow).height = 20;
+  sheet.getRow(summaryRow).height = 16;
 
   const payRow = summaryRow + 1;
   const payLines = [
@@ -896,10 +962,10 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData) {
     const bg = idx % 2 === 0 ? C.rowNormalA : C.rowNormalB;
     fillRange(sheet, `A${row}:L${row}`, bg);
     borderRange(sheet, `A${row}:L${row}`);
-    sheet.getRow(row).height = 17;
+    sheet.getRow(row).height = 14;
   });
 
-  const footerRow = payRow + 4;
+  const footerRow = payRow + 3;
   sheet.mergeCells(`A${footerRow}:L${footerRow}`);
   const footerParts = [
     `Чеков: ${data.checksCount}`,
@@ -912,11 +978,14 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData) {
   if (data.retoucher) {
     footerParts.push(`Ретушёр: ${rubPlain(data.retoucher.salaryRub)}`);
   }
-  sheet.getCell(`A${footerRow}`).value = footerParts.join(' · ');
-  sheet.getCell(`A${footerRow}`).font = { size: 8, color: { argb: C.muted } };
-  sheet.getCell(`A${footerRow}`).alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+  const footerCell = sheet.getCell(`A${footerRow}`);
+  footerCell.value = footerParts.join(' · ');
+  footerCell.font = { size: 8, color: { argb: C.muted } };
+  footerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.rowNormalB } };
+  footerCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+  borderRange(sheet, `A${footerRow}:L${footerRow}`, C.border);
 
-  sheet.pageSetup.printArea = `A1:L${footerRow}`;
+  applyDayReportPrintSetup(sheet, footerRow);
 
   const safeStore = data.storeName.replace(/[^\wа-яА-ЯёЁ.-]+/gi, '_').slice(0, 40);
   const buffer = await workbook.xlsx.writeBuffer();

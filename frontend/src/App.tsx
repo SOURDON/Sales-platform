@@ -4624,6 +4624,14 @@ function App() {
                         <section className="sectionCard sectionCard--salesLog">
                           <div className={`salesLog${isDesktopShell ? ' salesLog--desktop' : ''}`}>
                             {salesNotice ? <p className="notice saleRequestNotice">{salesNotice}</p> : null}
+                            {!isReadOnlyObserver ? (
+                              <SalesBySellerStrip
+                                sales={todayStoreSales}
+                                sellers={sellers}
+                                shiftSellers={sellersOnOpenShift(staff, sellers, shifts)}
+                                storeName={session.user.storeName}
+                              />
+                            ) : null}
                             {isDesktopShell ? (
                               <h4 className="dtSectionTitle">
                                 Продажи за сегодня · {session.user.storeName}
@@ -5299,6 +5307,154 @@ function AddSaleProductStepper({
         </button>
       </div>
     </div>
+  );
+}
+
+function formatSaleItemsLine(items: Array<{ name: string; qty: number }>): string {
+  if (items.length === 0) {
+    return 'Без позиций';
+  }
+  return items.map((item) => `${item.name} × ${item.qty}`).join(' · ');
+}
+
+function salePaymentToneClass(paymentType?: AddSalePaymentType): string {
+  if (paymentType === 'NON_CASH') {
+    return 'salesBySellerPay--card';
+  }
+  if (paymentType === 'TRANSFER') {
+    return 'salesBySellerPay--transfer';
+  }
+  return 'salesBySellerPay--cash';
+}
+
+function SalesBySellerStrip({
+  sales,
+  sellers,
+  shiftSellers,
+  storeName,
+}: {
+  sales: AdminSale[];
+  sellers: SellerProfile[];
+  shiftSellers: SellerProfile[];
+  storeName: string;
+}) {
+  const groups = useMemo(() => {
+    const sellerById = new Map(sellers.map((seller) => [seller.id, seller]));
+    const bySeller = new Map<number, AdminSale[]>();
+    for (const sale of sortSalesByCreatedAtDesc(sales)) {
+      const bucket = bySeller.get(sale.sellerId) ?? [];
+      bucket.push(sale);
+      bySeller.set(sale.sellerId, bucket);
+    }
+
+    const orderedSellerIds: number[] = [];
+    for (const seller of shiftSellers) {
+      if (!orderedSellerIds.includes(seller.id)) {
+        orderedSellerIds.push(seller.id);
+      }
+    }
+    const extraSellerIds = [...bySeller.keys()]
+      .filter((id) => !orderedSellerIds.includes(id))
+      .sort((a, b) => {
+        const totalA = (bySeller.get(a) ?? []).reduce((sum, sale) => sum + sale.totalAmount, 0);
+        const totalB = (bySeller.get(b) ?? []).reduce((sum, sale) => sum + sale.totalAmount, 0);
+        return totalB - totalA;
+      });
+    orderedSellerIds.push(...extraSellerIds);
+
+    return orderedSellerIds.map((sellerId) => {
+      const profile =
+        sellerById.get(sellerId) ?? shiftSellers.find((seller) => seller.id === sellerId);
+      const sellerSales = sortSalesByCreatedAtDesc(bySeller.get(sellerId) ?? []);
+      const total = Math.round(sellerSales.reduce((sum, sale) => sum + sale.totalAmount, 0));
+      return {
+        sellerId,
+        label: profile
+          ? sellerLabelFromProfiles(sellers, sellerId, profile.fullName)
+          : sellerSales[0]?.sellerName ?? 'Сотрудник',
+        sales: sellerSales,
+        total,
+        count: sellerSales.length,
+      };
+    });
+  }, [sales, sellers, shiftSellers]);
+
+  if (groups.length === 0) {
+    return (
+      <section className="salesBySellerStrip" aria-label="Продажи по сотрудникам за сегодня">
+        <div className="salesBySellerStripHead">
+          <h4 className="salesBySellerStripTitle">По сотрудникам · {storeName}</h4>
+          <p className="salesBySellerStripHint muted">Смена закрыта или продавцы не назначены</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="salesBySellerStrip" aria-label="Продажи по сотрудникам за сегодня">
+      <div className="salesBySellerStripHead">
+        <h4 className="salesBySellerStripTitle">По сотрудникам · сегодня</h4>
+        <p className="salesBySellerStripHint">
+          {shiftSellers.length > 0
+            ? 'Карточка на каждого продавца в смене: время, оплата, сумма и товары'
+            : 'Продавцы с продажами за сегодня'}
+        </p>
+      </div>
+      <div className="salesBySellerTrack" role="list">
+        {groups.map((group) => (
+          <article key={group.sellerId} className="salesBySellerCard" role="listitem">
+            <header className="salesBySellerCardHead">
+              <strong className="salesBySellerCardName" title={group.label}>
+                {group.label}
+              </strong>
+              <p className="salesBySellerCardSummary">
+                <span>{group.count > 0 ? `${group.count} продаж` : 'Без продаж'}</span>
+                <span className="salesBySellerCardSummarySep" aria-hidden>
+                  ·
+                </span>
+                <span className="salesBySellerCardTotal">{formatRub(group.total)}</span>
+              </p>
+            </header>
+            {group.sales.length === 0 ? (
+              <p className="salesBySellerCardEmpty muted">Пока ничего не продал</p>
+            ) : (
+              <ul className="salesBySellerSaleList">
+                {group.sales.map((sale) => (
+                  <li
+                    key={sale.id}
+                    className={`salesBySellerSaleRow${sale.pendingSync ? ' salesBySellerSaleRow--pending' : ''}`}
+                  >
+                    <div className="salesBySellerSaleTop">
+                      <time dateTime={sale.createdAt}>
+                        {new Date(sale.createdAt).toLocaleTimeString('ru-RU', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })}
+                      </time>
+                      <span
+                        className={`salesBySellerPay ${salePaymentToneClass(sale.paymentType)}`}
+                      >
+                        {salePaymentLabel(sale.paymentType)}
+                      </span>
+                      <strong className="salesBySellerSaleAmount">
+                        {formatRub(sale.totalAmount)}
+                      </strong>
+                    </div>
+                    <p className="salesBySellerSaleItems" title={formatSaleItemsLine(sale.items)}>
+                      {formatSaleItemsLine(sale.items)}
+                    </p>
+                    {sale.pendingSync ? (
+                      <span className="salesBySellerSalePending">Офлайн · отправится позже</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -6449,6 +6605,27 @@ function formatFinanceWorkDay(workDay: string) {
   return workDay;
 }
 
+function financeRecordTimeMs(iso: string): number {
+  const ms = new Date(iso).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function sortFinanceIncomesDesc<T extends { workDay: string; createdAt: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const byDay = b.workDay.localeCompare(a.workDay);
+    if (byDay !== 0) {
+      return byDay;
+    }
+    return financeRecordTimeMs(b.createdAt) - financeRecordTimeMs(a.createdAt);
+  });
+}
+
+function sortFinanceExpensesDesc<T extends { createdAt: string }>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) => financeRecordTimeMs(b.createdAt) - financeRecordTimeMs(a.createdAt),
+  );
+}
+
 function FinanceOpsHistoryStrip({
   title,
   emptyLabel,
@@ -6781,19 +6958,23 @@ function FinanceOpsPanel({
 
   const recentIncomeHistoryItems = useMemo(() => {
     const accountNames = new Map(snapshot.accounts.map((a) => [a.id, a.name?.trim() || 'Счёт']));
-    return [...(snapshot.incomes ?? [])]
-      .sort((a, b) => b.workDay.localeCompare(a.workDay) || b.id.localeCompare(a.id))
+    return sortFinanceIncomesDesc(snapshot.incomes ?? [])
       .slice(0, 24)
-      .map((item) => ({
-        key: item.id,
-        meta: `${accountNames.get(item.accountId) ?? 'Счёт'} · ${formatFinanceWorkDay(item.workDay)}`,
-        value: fmt(item.amount),
-      }));
+      .map((item) => {
+        const entryTime = new Date(item.createdAt).toLocaleString('ru-RU', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        return {
+          key: item.id,
+          meta: `${accountNames.get(item.accountId) ?? 'Счёт'} · ${formatFinanceWorkDay(item.workDay)}, ${entryTime}`,
+          value: fmt(item.amount),
+        };
+      });
   }, [snapshot.incomes, snapshot.accounts]);
 
   const recentExpenseHistoryItems = useMemo(() => {
-    return [...snapshot.expenses]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+    return sortFinanceExpensesDesc(snapshot.expenses)
       .slice(0, 24)
       .map((item) => {
         const when = new Date(item.createdAt).toLocaleString('ru-RU', {
@@ -7534,7 +7715,9 @@ function FinanceOpsPanel({
                     <p className="muted">Счетов нет — приходы не настроены.</p>
                   ) : (
                     accountsForIncomeHistory.map((acc) => {
-                      const list = (snapshot.incomes ?? []).filter((item) => item.accountId === acc.id);
+                      const list = sortFinanceIncomesDesc(
+                        (snapshot.incomes ?? []).filter((item) => item.accountId === acc.id),
+                      );
                       return (
                         <div className="incomeHistorySection" key={acc.id}>
                           <h5 className="incomeHistoryHeading">{acc.name}</h5>
@@ -7544,7 +7727,8 @@ function FinanceOpsPanel({
                             ) : (
                               list.slice(0, 20).map((item) => (
                                 <p key={item.id}>
-                                  День {item.workDay} | {fmt(item.amount)}
+                                  {new Date(item.createdAt).toLocaleString('ru-RU')} | День {item.workDay} |{' '}
+                                  {fmt(item.amount)}
                                   {item.comment ? ` | ${item.comment}` : ''}
                                 </p>
                               ))
@@ -7582,12 +7766,14 @@ function FinanceOpsPanel({
                     {snapshot.expenses.length === 0 ? (
                       <p className="muted">Расходов пока нет.</p>
                     ) : (
-                      snapshot.expenses.slice(0, 20).map((item) => (
-                        <p key={item.id}>
-                          {new Date(item.createdAt).toLocaleString('ru-RU')} | {item.title} | {fmt(item.amount)} |{' '}
-                          {item.accountName}
-                        </p>
-                      ))
+                      sortFinanceExpensesDesc(snapshot.expenses)
+                        .slice(0, 20)
+                        .map((item) => (
+                          <p key={item.id}>
+                            {new Date(item.createdAt).toLocaleString('ru-RU')} | {item.title} | {fmt(item.amount)} |{' '}
+                            {item.accountName}
+                          </p>
+                        ))
                     )}
                   </div>
                 </div>

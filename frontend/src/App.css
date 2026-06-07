@@ -2587,6 +2587,190 @@ button.salePayBtn:focus-visible {
   gap: 8px;
 }
 
+.salesLog .salesBySellerStrip {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e8eef4;
+}
+
+.salesBySellerStrip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.salesBySellerStripHead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.salesBySellerStripTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0b4f82;
+}
+
+.salesBySellerStripHint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.salesBySellerTrack {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 8px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.salesBySellerCard {
+  flex: 0 0 auto;
+  width: min(280px, 78vw);
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #dbe4ee;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(15, 76, 129, 0.04);
+}
+
+.salesBySellerCardHead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e8eef4;
+}
+
+.salesBySellerCardName {
+  font-size: 14px;
+  line-height: 1.25;
+  color: #0b4f82;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.salesBySellerCardSummary {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.salesBySellerCardSummarySep {
+  opacity: 0.55;
+}
+
+.salesBySellerCardTotal {
+  font-weight: 700;
+  color: #0f4c81;
+  font-variant-numeric: tabular-nums;
+}
+
+.salesBySellerCardEmpty {
+  margin: 0;
+  font-size: 12px;
+}
+
+.salesBySellerSaleList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.salesBySellerSaleRow {
+  display: grid;
+  gap: 4px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e8eef4;
+}
+
+.salesBySellerSaleRow--pending {
+  border-color: #f5d0a0;
+  background: #fffaf3;
+}
+
+.salesBySellerSaleTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.salesBySellerSaleTop time {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+}
+
+.salesBySellerPay {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.salesBySellerPay--cash {
+  color: #0f4c81;
+  background: #e8f2fa;
+}
+
+.salesBySellerPay--card {
+  color: #5b3f8f;
+  background: #efe9f8;
+}
+
+.salesBySellerPay--transfer {
+  color: #0f5c4a;
+  background: #e4f5ef;
+}
+
+.salesBySellerSaleAmount {
+  margin-left: auto;
+  font-size: 13px;
+  color: #0b4f82;
+  font-variant-numeric: tabular-nums;
+}
+
+.salesBySellerSaleItems {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #475569;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.salesBySellerSalePending {
+  font-size: 10px;
+  font-weight: 600;
+  color: #b45309;
+}
+
 .saleRequestNotice {
   margin-bottom: 8px;
 }
