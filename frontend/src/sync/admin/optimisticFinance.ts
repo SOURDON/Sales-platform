@@ -1,10 +1,16 @@
 import { loadSyncCache, saveSyncCache } from '../cache';
 import { patchRevenuePlansCache, type StoreRevenuePlanRow } from './revenuePlans';
 import type {
+  AcquiringProfilesOutboxPayload,
   DirectorCommissionDecisionPayload,
   DirectorControlDecisionPayload,
   DirectorSetPercentPayload,
+  FinanceExpenseCategoryOutboxPayload,
+  FinanceExpenseUpdateOutboxPayload,
+  FinanceIncomeUpdateOutboxPayload,
   ManagerRevenuePlansPayload,
+  ManagerStoreCommissionsOutboxPayload,
+  ProcurementCostsOutboxPayload,
   FinanceAccountBalanceOutboxPayload,
   FinanceExpenseOutboxPayload,
   FinanceIncomeOutboxPayload,
@@ -120,6 +126,24 @@ export async function applyFinanceOptimistic(
       break;
     case 'MANAGER_REVENUE_PLANS':
       await applyManagerPlans(userId, payload as ManagerRevenuePlansPayload);
+      break;
+    case 'FINANCE_INCOME_UPDATE':
+      await applyIncomeUpdate(userId, payload as FinanceIncomeUpdateOutboxPayload);
+      break;
+    case 'FINANCE_EXPENSE_UPDATE':
+      await applyExpenseUpdate(userId, payload as FinanceExpenseUpdateOutboxPayload);
+      break;
+    case 'FINANCE_EXPENSE_CATEGORY':
+      await applyExpenseCategory(userId, payload as FinanceExpenseCategoryOutboxPayload);
+      break;
+    case 'MANAGER_STORE_COMMISSIONS':
+      await applyManagerStoreCommissions(userId, payload as ManagerStoreCommissionsOutboxPayload);
+      break;
+    case 'ACQUIRING_PROFILES':
+      await applyAcquiringProfiles(userId, payload as AcquiringProfilesOutboxPayload);
+      break;
+    case 'PROCUREMENT_COSTS':
+      await applyProcurementCosts(userId, payload as ProcurementCostsOutboxPayload);
       break;
     default:
       break;
@@ -254,13 +278,138 @@ async function applyCommissionDecision(
   }
 }
 
+type ControlRequestRow = { id: string };
+
 async function applyControlDecision(
   userId: number,
-  _payload: DirectorControlDecisionPayload,
+  payload: DirectorControlDecisionPayload,
 ): Promise<void> {
-  void userId;
-  void _payload;
-  // control-requests carousel reloads from server; offline only queues flush
+  const requests =
+    (await loadSyncCache<ControlRequestRow[]>(userId, 'controlRequests')) ?? [];
+  await saveSyncCache(
+    userId,
+    'controlRequests',
+    requests.filter((row) => row.id !== payload.requestId),
+  );
+}
+
+async function applyIncomeUpdate(
+  userId: number,
+  payload: FinanceIncomeUpdateOutboxPayload,
+): Promise<void> {
+  const snap = await loadFinance(userId);
+  if (!snap) {
+    return;
+  }
+  const existing = snap.incomes.find((row) => row.id === payload.incomeId);
+  if (!existing) {
+    return;
+  }
+  let accounts = snap.accounts.map((account) =>
+    account.id === existing.accountId
+      ? { ...account, balance: Math.round((account.balance - existing.amount) * 100) / 100 }
+      : account,
+  );
+  accounts = accounts.map((account) =>
+    account.id === payload.accountId
+      ? { ...account, balance: Math.round((account.balance + payload.amount) * 100) / 100 }
+      : account,
+  );
+  const targetAccount = accounts.find((account) => account.id === payload.accountId);
+  const incomes = snap.incomes.map((row) =>
+    row.id === payload.incomeId
+      ? {
+          ...row,
+          accountId: payload.accountId,
+          accountName: targetAccount?.name ?? row.accountName,
+          amount: payload.amount,
+          workDay: payload.workDay,
+          comment: payload.comment,
+        }
+      : row,
+  );
+  await saveFinance(userId, { ...snap, accounts, incomes });
+}
+
+async function applyExpenseUpdate(
+  userId: number,
+  payload: FinanceExpenseUpdateOutboxPayload,
+): Promise<void> {
+  const snap = await loadFinance(userId);
+  if (!snap) {
+    return;
+  }
+  const existing = snap.expenses.find((row) => row.id === payload.expenseId);
+  if (!existing) {
+    return;
+  }
+  let accounts = snap.accounts.map((account) =>
+    account.id === existing.accountId
+      ? { ...account, balance: Math.round((account.balance + existing.amount) * 100) / 100 }
+      : account,
+  );
+  const targetAccount = accounts.find((account) => account.id === payload.accountId);
+  const targetBalanceCents = Math.round((targetAccount?.balance ?? 0) * 100);
+  const newAmountCents = Math.round(payload.amount * 100);
+  if (targetBalanceCents < newAmountCents) {
+    return;
+  }
+  accounts = accounts.map((account) =>
+    account.id === payload.accountId
+      ? { ...account, balance: Math.round((account.balance - payload.amount) * 100) / 100 }
+      : account,
+  );
+  let categoryAmounts = snap.categoryAmounts ?? defaultCategoryAmounts();
+  categoryAmounts = bumpCategoryAmount(categoryAmounts, existing.title, -existing.amount);
+  categoryAmounts = bumpCategoryAmount(categoryAmounts, payload.title, payload.amount);
+  const expenses = snap.expenses.map((row) =>
+    row.id === payload.expenseId
+      ? {
+          ...row,
+          accountId: payload.accountId,
+          accountName: targetAccount?.name ?? row.accountName,
+          title: payload.title,
+          amount: payload.amount,
+          comment: payload.comment,
+        }
+      : row,
+  );
+  await saveFinance(userId, { ...snap, accounts, expenses, categoryAmounts });
+}
+
+async function applyExpenseCategory(
+  userId: number,
+  payload: FinanceExpenseCategoryOutboxPayload,
+): Promise<void> {
+  const snap = await loadFinance(userId);
+  if (!snap) {
+    return;
+  }
+  const categoryAmounts = (snap.categoryAmounts ?? defaultCategoryAmounts()).map((row) =>
+    row.title === payload.title ? { ...row, amount: payload.amount } : row,
+  );
+  await saveFinance(userId, { ...snap, categoryAmounts });
+}
+
+async function applyManagerStoreCommissions(
+  userId: number,
+  payload: ManagerStoreCommissionsOutboxPayload,
+): Promise<void> {
+  await saveSyncCache(userId, 'managerStoreCommissions', payload.items);
+}
+
+async function applyAcquiringProfiles(
+  userId: number,
+  payload: AcquiringProfilesOutboxPayload,
+): Promise<void> {
+  await saveSyncCache(userId, 'acquiringProfiles', payload.profiles);
+}
+
+async function applyProcurementCosts(
+  userId: number,
+  payload: ProcurementCostsOutboxPayload,
+): Promise<void> {
+  await saveSyncCache(userId, 'procurementCosts', payload.items);
 }
 
 async function applyManagerPlans(

@@ -31,6 +31,32 @@ export function outcomeFromResponse(response: Response): FlushOutcome {
   return 'retry';
 }
 
+const ALREADY_HANDLED_RE =
+  /already decided|уже обработана|not found or already|заявка не найдена/i;
+
+export async function outcomeFromResponseAllowAlreadyHandled(
+  response: Response,
+): Promise<FlushOutcome> {
+  if (response.ok) {
+    return 'ok';
+  }
+  if (response.status === 401 || response.status === 403) {
+    return 'drop';
+  }
+  if (response.status === 400) {
+    try {
+      const body = (await response.clone().json()) as { message?: string | string[] };
+      const message = Array.isArray(body.message) ? body.message.join(' ') : body.message ?? '';
+      if (ALREADY_HANDLED_RE.test(message)) {
+        return 'ok';
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return 'retry';
+}
+
 export function isEntry<T extends OutboxMutationType>(
   entry: OutboxEntry,
   type: T,

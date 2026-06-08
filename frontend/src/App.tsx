@@ -61,6 +61,7 @@ import {
   updateAdminSalePaymentInOutbox,
   loadAdminCache,
   loadAdminResource,
+  saveAdminCache,
   loadSyncCache,
   loadSyncResource,
   newClientId,
@@ -78,7 +79,9 @@ import {
 } from './sync';
 import {
   loadStoreEquipmentCache,
+  readDirectorDemoAccountsCache,
   saveStoreEquipmentCache,
+  writeDirectorDemoAccountsCache,
   type StoreEquipmentCachePayload,
 } from './sync/equipmentCache';
 import {
@@ -957,22 +960,6 @@ function ShiftIcon() {
   );
 }
 
-function AutoFinanceIcon() {
-  return (
-    <DockIcon>
-      <svg viewBox="0 0 24 24" fill="none" className="dockSvg" aria-hidden>
-        <path
-          d="M12 4.5v4.2M12 15.3v4.2M7.2 12H3M21 12h-4.2M8.6 8.6 5.5 5.5M18.5 18.5l-3.1-3.1M15.4 8.6l3.1-3.1M5.5 18.5l3.1-3.1"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-        <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="1.8" />
-      </svg>
-    </DockIcon>
-  );
-}
-
 function SalesIcon() {
   return (
     <DockIcon>
@@ -1200,12 +1187,6 @@ function App() {
     incomes: [],
     totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0, categoryTotal: 0 },
   });
-  const [autoFinanceOps, setAutoFinanceOps] = useState<FinanceOpsSnapshot>({
-    accounts: [],
-    expenses: [],
-    incomes: [],
-    totals: { cash: 0, bank: 0, balance: 0, expenses: 0, incomes: 0, categoryTotal: 0 },
-  });
   const [inventoryOverview, setInventoryOverview] = useState<InventoryOverviewResponse | null>(null);
   const [managerStoreCommissions, setManagerStoreCommissions] = useState<ManagerStoreCommissionRow[]>(
     [],
@@ -1341,25 +1322,40 @@ function App() {
     if (role !== 'DIRECTOR' && role !== 'ACCOUNTANT') {
       return;
     }
-    const [cachedDashboard, cachedFinance, cachedInventory, cachedCommission, cachedSellers] =
-      await Promise.all([
-        loadSyncCache<DashboardResponse>(userId, 'dashboard'),
-        loadSyncCache<FinanceOpsSnapshot>(userId, 'financeOps'),
-        loadSyncCache<InventoryOverviewResponse>(userId, 'inventoryOverview'),
-        role === 'DIRECTOR'
-          ? loadSyncCache<CommissionRequest[]>(userId, 'commissionRequests')
-          : Promise.resolve(null),
-        loadSyncCache<SellerProfile[]>(userId, 'sellers'),
-      ]);
+    const [
+      cachedDashboard,
+      cachedFinance,
+      cachedInventory,
+      cachedCommission,
+      cachedSellers,
+      cachedProducts,
+      cachedProcurement,
+      cachedAcquiring,
+      cachedManagerCommissions,
+    ] = await Promise.all([
+      loadSyncCache<DashboardResponse>(userId, 'dashboard'),
+      loadSyncCache<FinanceOpsSnapshot>(userId, 'financeOps'),
+      loadSyncCache<InventoryOverviewResponse>(userId, 'inventoryOverview'),
+      role === 'DIRECTOR'
+        ? loadSyncCache<CommissionRequest[]>(userId, 'commissionRequests')
+        : Promise.resolve(null),
+      loadSyncCache<SellerProfile[]>(userId, 'sellers'),
+      role === 'DIRECTOR'
+        ? loadSyncCache<ProductItem[]>(userId, 'products')
+        : Promise.resolve(null),
+      role === 'DIRECTOR'
+        ? loadSyncCache<ProductProcurementCost[]>(userId, 'procurementCosts')
+        : Promise.resolve(null),
+      loadSyncCache<AcquiringProfile[]>(userId, 'acquiringProfiles'),
+      role === 'DIRECTOR'
+        ? loadSyncCache<ManagerStoreCommissionRow[]>(userId, 'managerStoreCommissions')
+        : Promise.resolve(null),
+    ]);
     if (cachedDashboard) {
       setDashboard(cachedDashboard);
     }
     if (cachedFinance) {
       setFinanceOps(cachedFinance);
-    }
-    const cachedAutoFinance = await loadSyncCache<FinanceOpsSnapshot>(userId, 'autoFinanceOps');
-    if (cachedAutoFinance) {
-      setAutoFinanceOps(normalizeFinanceOps(cachedAutoFinance));
     }
     if (cachedInventory) {
       setInventoryOverview(normalizeInventoryOverview(cachedInventory));
@@ -1369,6 +1365,18 @@ function App() {
     }
     if (cachedSellers) {
       setSellers(cachedSellers);
+    }
+    if (cachedProducts?.length) {
+      setProducts(cachedProducts);
+    }
+    if (cachedProcurement?.length) {
+      setProductProcurementCosts(cachedProcurement);
+    }
+    if (cachedAcquiring?.length) {
+      setAcquiringProfiles(cachedAcquiring);
+    }
+    if (cachedManagerCommissions?.length) {
+      setManagerStoreCommissions(cachedManagerCommissions);
     }
     if (role === 'DIRECTOR') {
       const [cachedStaff, cachedSales, cachedShifts] = await Promise.all([
@@ -1625,8 +1633,17 @@ function App() {
       }
       return (await response.json()) as ProductItem[];
     };
-    if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
-      const result = await loadAdminResource(API_BASE_URL, session.user.id, 'products', fetcher, []);
+    const uid = session?.user?.id;
+    const role = session?.user?.role;
+    if (uid != null && roleUsesSyncCache(role)) {
+      const result = await loadSyncResource(API_BASE_URL, uid, 'products', fetcher, [], {
+        onFresh: (data) => setProducts(data),
+      });
+      setProducts(result.data);
+      return;
+    }
+    if (isDesktopShell && role === 'ADMIN' && uid != null) {
+      const result = await loadAdminResource(API_BASE_URL, uid, 'products', fetcher, []);
       setProducts(result.data);
       return;
     }
@@ -1826,7 +1843,7 @@ function App() {
       };
       const uid = session?.user?.id;
       const role = session?.user?.role;
-      if (uid != null && isDesktopShell && role === 'ADMIN') {
+      if (uid != null && (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))) {
         const result = await loadSyncResource(
           API_BASE_URL,
           uid,
@@ -1847,23 +1864,43 @@ function App() {
     token: string,
     items: ManagerStoreCommissionRow[],
   ) => {
-    const response = await fetch(`${API_BASE_URL}/admin/manager-store-commissions`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ items }),
-    });
-    if (!response.ok) {
-      if (response.status === 404) {
-        setManagerCommissionsApiOnline(false);
+    const uid = session?.user?.id;
+    const directorOffline = session?.user?.role === 'DIRECTOR' && uid !== undefined;
+    const patchId = newClientId('mgrc');
+    const createdAt = new Date().toISOString();
+    const body = { patchId, items, createdAt };
+
+    const put = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/manager-store-commissions`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ items }),
+      });
+      if (!response.ok) {
+        if (response.status === 404) {
+          setManagerCommissionsApiOnline(false);
+        }
+        throw new Error(await readApiErrorMessage(response, 'Не удалось сохранить проценты'));
       }
-      throw new Error(await readApiErrorMessage(response, 'Не удалось сохранить проценты'));
+      setManagerCommissionsApiOnline(true);
+      const data = (await response.json()) as { items: ManagerStoreCommissionRow[] };
+      setManagerStoreCommissions(Array.isArray(data.items) ? data.items : []);
+    };
+
+    if (directorOffline) {
+      const mode = await runAdminMutation(uid, patchId, 'MANAGER_STORE_COMMISSIONS', body, put);
+      if (mode === 'queued') {
+        setManagerStoreCommissions(items);
+        setManagerCommissionsApiOnline(true);
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+      return;
     }
-    setManagerCommissionsApiOnline(true);
-    const data = (await response.json()) as { items: ManagerStoreCommissionRow[] };
-    setManagerStoreCommissions(Array.isArray(data.items) ? data.items : []);
+    await put();
   };
 
   const replenishWarehouse = async (
@@ -1942,7 +1979,7 @@ function App() {
       };
       const uid = session?.user?.id;
       const role = session?.user?.role;
-      if (uid != null && isDesktopShell && role === 'ADMIN') {
+      if (uid != null && (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))) {
         const result = await loadSyncResource(
           API_BASE_URL,
           uid,
@@ -1963,19 +2000,38 @@ function App() {
     token: string,
     items: Array<{ name: string; cost: number }>,
   ) => {
-    const response = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ items }),
-    });
-    if (!response.ok) {
-      throw new Error('save procurement costs error');
+    const uid = session?.user?.id;
+    const directorOffline = session?.user?.role === 'DIRECTOR' && uid !== undefined;
+    const patchId = newClientId('proc');
+    const createdAt = new Date().toISOString();
+    const body = { patchId, items, createdAt };
+
+    const put = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ items }),
+      });
+      if (!response.ok) {
+        throw new Error('save procurement costs error');
+      }
+      await loadProductProcurementCosts(token);
+      await loadSales(token);
+    };
+
+    if (directorOffline) {
+      const mode = await runAdminMutation(uid, patchId, 'PROCUREMENT_COSTS', body, put);
+      if (mode === 'queued') {
+        setProductProcurementCosts(items);
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+      return;
     }
-    await loadProductProcurementCosts(token);
-    await loadSales(token);
+    await put();
   };
 
   const loadRevenuePlans = async (token: string, dayKey: string) => {
@@ -2068,7 +2124,10 @@ function App() {
       };
       const uid = session?.user?.id;
       const role = session?.user?.role;
-      if (uid != null && isDesktopShell && role === 'ADMIN') {
+      const useAcquiringCache =
+        uid != null &&
+        (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'));
+      if (useAcquiringCache) {
         const result = await loadSyncResource(
           API_BASE_URL,
           uid,
@@ -2080,32 +2139,69 @@ function App() {
         setAcquiringProfiles(result.data);
         return;
       }
-      setAcquiringProfiles(await fetcher());
+      const fresh = await fetcher();
+      setAcquiringProfiles(fresh);
+      if (uid != null && (role === 'DIRECTOR' || role === 'ACCOUNTANT')) {
+        await saveAdminCache(uid, 'acquiringProfiles', fresh);
+      }
     },
     [isDesktopShell, session?.user?.id, session?.user?.role],
   );
 
   const saveAcquiringProfiles = async (token: string, profiles: AcquiringProfile[]) => {
-    const response = await fetch(`${API_BASE_URL}/admin/acquiring-profiles`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ profiles }),
-    });
-    if (!response.ok) {
-      throw new Error('save acquiring profiles error');
-    }
-    const data = (await response.json()) as { profiles?: unknown };
-    setAcquiringProfiles(
-      normalizeAcquiringProfiles(data.profiles, {
+    const uid = session?.user?.id;
+    const role = session?.user?.role;
+    const directorOffline = role === 'DIRECTOR' && uid !== undefined;
+    const patchId = newClientId('acq');
+    const createdAt = new Date().toISOString();
+    const body = {
+      patchId,
+      profiles: profiles.map((profile) => ({ id: profile.id, percent: profile.percent })),
+      createdAt,
+    };
+
+    const put = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/acquiring-profiles`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ profiles }),
+      });
+      if (!response.ok) {
+        throw new Error('save acquiring profiles error');
+      }
+      const data = (await response.json()) as { profiles?: unknown };
+      const normalized = normalizeAcquiringProfiles(data.profiles, {
         putintsevVtb: profiles.find((p) => p.id === 'putintsev-vtb')?.percent,
         detkovVtb: profiles.find((p) => p.id === 'detkov-vtb')?.percent,
         putintsevSber: profiles.find((p) => p.id === 'putintsev-sber')?.percent,
         lyokhaRs: profiles.find((p) => p.id === 'lyokha-rs')?.percent,
-      }),
-    );
+      });
+      setAcquiringProfiles(normalized);
+      if (uid != null && (role === 'DIRECTOR' || role === 'ACCOUNTANT' || role === 'ADMIN')) {
+        await saveAdminCache(uid, 'acquiringProfiles', normalized);
+      }
+    };
+
+    if (directorOffline) {
+      const normalized = normalizeAcquiringProfiles(profiles, {
+        putintsevVtb: profiles.find((p) => p.id === 'putintsev-vtb')?.percent,
+        detkovVtb: profiles.find((p) => p.id === 'detkov-vtb')?.percent,
+        putintsevSber: profiles.find((p) => p.id === 'putintsev-sber')?.percent,
+        lyokhaRs: profiles.find((p) => p.id === 'lyokha-rs')?.percent,
+      });
+      const mode = await runAdminMutation(uid, patchId, 'ACQUIRING_PROFILES', body, put);
+      if (mode === 'queued') {
+        setAcquiringProfiles(normalized);
+        await saveAdminCache(uid, 'acquiringProfiles', normalized);
+        setOfflineQueueTick((x) => x + 1);
+        return;
+      }
+      return;
+    }
+    await put();
   };
 
   const normalizeFinanceOps = (raw: Partial<FinanceOpsSnapshot>): FinanceOpsSnapshot => {
@@ -2164,28 +2260,6 @@ function App() {
     setFinanceOps(await fetcher());
   };
 
-  const loadAutoFinanceOps = async (token: string) => {
-    const fetcher = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/finance/auto-ops`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        throw new Error('auto finance ops error');
-      }
-      return normalizeFinanceOps((await response.json()) as Partial<FinanceOpsSnapshot>);
-    };
-    const role = session?.user?.role;
-    const empty = normalizeFinanceOps({});
-    if (roleUsesSyncCache(role) && session?.user?.id != null) {
-      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'autoFinanceOps', fetcher, empty, {
-        onFresh: (data) => setAutoFinanceOps(data),
-      });
-      setAutoFinanceOps(result.data);
-      return;
-    }
-    setAutoFinanceOps(await fetcher());
-  };
-
   const setFinanceExpenseCategoryAmount = async (
     token: string,
     title: string,
@@ -2195,16 +2269,37 @@ function App() {
     if (!Number.isFinite(num) || num < 0) {
       throw new Error('Укажите корректную сумму');
     }
-    const response = await fetch(`${API_BASE_URL}/admin/finance/expense-category-amount`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ title, amount: num }),
-    });
-    if (!response.ok) {
-      throw new Error(await readApiErrorMessage(response, 'Не удалось сохранить сумму по статье'));
+    const uid = session?.user?.id;
+    const financeOffline =
+      (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'ACCOUNTANT') &&
+      uid !== undefined;
+    const patchId = newClientId('fcat');
+    const createdAt = new Date().toISOString();
+    const body = { patchId, title, amount: num, createdAt };
+
+    const put = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/finance/expense-category-amount`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title, amount: num }),
+      });
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response, 'Не удалось сохранить сумму по статье'));
+      }
+    };
+
+    if (financeOffline) {
+      const mode = await runAdminMutation(uid, patchId, 'FINANCE_EXPENSE_CATEGORY', body, put);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        await applyCachedFinanceOps();
+        return;
+      }
+    } else {
+      await put();
     }
     await loadFinanceOps(token);
   };
@@ -2263,154 +2358,6 @@ function App() {
       await post();
     }
     await loadFinanceOps(token);
-  };
-
-  const syncAutoFinanceIncomes = async (token: string, workDay: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/finance/auto-incomes/sync`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ workDay }),
-    });
-    if (!response.ok) {
-      throw new Error(await readApiErrorMessage(response, 'Не удалось подтянуть приходы'));
-    }
-    const data = (await response.json()) as {
-      workDay: string;
-      applied: Array<{
-        accountId: string;
-        accountName: string;
-        amount: number;
-        created: boolean;
-        updated: boolean;
-        skipped: boolean;
-      }>;
-      snapshot?: Partial<FinanceOpsSnapshot>;
-    };
-    if (data.snapshot) {
-      setAutoFinanceOps(normalizeFinanceOps(data.snapshot));
-    } else {
-      await loadAutoFinanceOps(token);
-    }
-    return data;
-  };
-
-  const addAutoFinanceIncome = async (
-    token: string,
-    payload: { accountId: string; amount: string; workDay: string; comment?: string },
-  ) => {
-    const num = Number(String(payload.amount).replace(',', '.'));
-    if (!Number.isFinite(num) || num <= 0) {
-      return;
-    }
-    const response = await fetch(`${API_BASE_URL}/admin/finance/auto/incomes`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        accountId: payload.accountId,
-        amount: num,
-        workDay: payload.workDay,
-        comment: payload.comment,
-      }),
-    });
-    if (!response.ok) {
-      throw new Error('add auto finance income error');
-    }
-    await loadAutoFinanceOps(token);
-  };
-
-  const addAutoFinanceExpense = async (
-    token: string,
-    payload: { accountId: string; title: string; amount: string; comment?: string },
-  ) => {
-    const amount = parseFinanceMoneyInput(payload.amount);
-    if (amount === null) {
-      throw new Error('INVALID_EXPENSE_AMOUNT');
-    }
-    const account = autoFinanceOps.accounts.find((a) => a.id === payload.accountId);
-    const insufficient = financeExpenseInsufficientMessage(account, amount);
-    if (insufficient) {
-      throw new Error(insufficient);
-    }
-    const response = await fetch(`${API_BASE_URL}/admin/finance/auto/expenses`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        accountId: payload.accountId,
-        title: payload.title,
-        amount,
-        comment: payload.comment,
-      }),
-    });
-    if (!response.ok) {
-      let message = 'add auto finance expense error';
-      try {
-        const data = (await response.json()) as { message?: string | string[] };
-        const raw = data.message;
-        if (typeof raw === 'string' && raw.trim()) {
-          message = raw;
-        } else if (Array.isArray(raw) && typeof raw[0] === 'string') {
-          message = raw[0];
-        }
-      } catch {
-        /* ignore */
-      }
-      throw new Error(message);
-    }
-    await loadAutoFinanceOps(token);
-  };
-
-  const setAutoFinanceAccountBalance = async (token: string, accountId: string, balanceStr: string) => {
-    const num = Number(String(balanceStr).replace(',', '.'));
-    if (!Number.isFinite(num) || num < 0) {
-      return;
-    }
-    const response = await fetch(
-      `${API_BASE_URL}/admin/finance/auto/accounts/${encodeURIComponent(accountId)}/balance`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ balance: num }),
-      },
-    );
-    if (!response.ok) {
-      throw new Error('set auto finance account balance error');
-    }
-    await loadAutoFinanceOps(token);
-  };
-
-  const setAutoFinanceExpenseCategoryAmount = async (
-    token: string,
-    title: string,
-    amountStr: string,
-  ) => {
-    const num = Number(String(amountStr).replace(',', '.'));
-    if (!Number.isFinite(num) || num < 0) {
-      throw new Error('Укажите корректную сумму');
-    }
-    const response = await fetch(`${API_BASE_URL}/admin/finance/auto/expense-category-amount`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ title, amount: num }),
-    });
-    if (!response.ok) {
-      throw new Error(await readApiErrorMessage(response, 'Не удалось сохранить сумму по статье'));
-    }
-    await loadAutoFinanceOps(token);
   };
 
   const addFinanceExpense = async (
@@ -2486,6 +2433,120 @@ function App() {
     await loadFinanceOps(token);
   };
 
+  const updateFinanceIncome = async (
+    token: string,
+    id: string,
+    payload: { accountId: string; amount: string; workDay: string; comment?: string },
+  ) => {
+    const amount = parseFinanceMoneyInput(payload.amount);
+    if (amount === null) {
+      throw new Error('Укажите корректную сумму');
+    }
+    const uid = session?.user?.id;
+    const financeOffline =
+      (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'ACCOUNTANT') &&
+      uid !== undefined;
+    const updateId = newClientId('fincu');
+    const createdAt = new Date().toISOString();
+    const body = {
+      updateId,
+      incomeId: id,
+      accountId: payload.accountId,
+      amount,
+      workDay: payload.workDay,
+      comment: payload.comment,
+      createdAt,
+    };
+
+    const put = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/finance/incomes/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          accountId: payload.accountId,
+          amount,
+          workDay: payload.workDay,
+          comment: payload.comment,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response, 'Не удалось изменить приход'));
+      }
+    };
+
+    if (financeOffline) {
+      const mode = await runAdminMutation(uid, updateId, 'FINANCE_INCOME_UPDATE', body, put);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        await applyCachedFinanceOps();
+        return;
+      }
+    } else {
+      await put();
+    }
+    await loadFinanceOps(token);
+  };
+
+  const updateFinanceExpense = async (
+    token: string,
+    id: string,
+    payload: { accountId: string; title: string; amount: string; comment?: string },
+  ) => {
+    const amount = parseFinanceMoneyInput(payload.amount);
+    if (amount === null) {
+      throw new Error('Укажите корректную сумму');
+    }
+    const uid = session?.user?.id;
+    const financeOffline =
+      (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'ACCOUNTANT') &&
+      uid !== undefined;
+    const updateId = newClientId('fexpu');
+    const createdAt = new Date().toISOString();
+    const body = {
+      updateId,
+      expenseId: id,
+      accountId: payload.accountId,
+      title: payload.title,
+      amount,
+      comment: payload.comment,
+      createdAt,
+    };
+
+    const put = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/finance/expenses/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          accountId: payload.accountId,
+          title: payload.title,
+          amount,
+          comment: payload.comment,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response, 'Не удалось изменить расход'));
+      }
+    };
+
+    if (financeOffline) {
+      const mode = await runAdminMutation(uid, updateId, 'FINANCE_EXPENSE_UPDATE', body, put);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        await applyCachedFinanceOps();
+        return;
+      }
+    } else {
+      await put();
+    }
+    await loadFinanceOps(token);
+  };
+
   const setFinanceAccountBalance = async (token: string, accountId: string, balanceStr: string) => {
     const num = Number(String(balanceStr).replace(',', '.'));
     if (!Number.isFinite(num) || num < 0) {
@@ -2539,15 +2600,13 @@ function App() {
         }
         return (await response.json()) as AdminSale[];
       };
+      const uid = session?.user?.id;
+      const role = session?.user?.role;
       if (
-        isDesktopShell &&
-        session?.user?.id != null &&
-        (session.user.role === 'ADMIN' ||
-          session.user.role === 'DIRECTOR' ||
-          session.user.role === 'ACCOUNTANT' ||
-          session.user.role === 'MANAGER')
+        uid != null &&
+        (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))
       ) {
-        const result = await loadSyncResource(API_BASE_URL, session.user.id, 'sales', fetcher, [], {
+        const result = await loadSyncResource(API_BASE_URL, uid, 'sales', fetcher, [], {
           onFresh: (data) => setSales(data),
         });
         setSales(result.data);
@@ -2682,6 +2741,8 @@ function App() {
           loadShifts(token),
           loadProducts(token),
           loadProductProcurementCosts(token),
+          loadAcquiringProfiles(token),
+          loadManagerStoreCommissions(token),
         );
       } else if (role === 'ACCOUNTANT') {
         loads.push(
@@ -2691,6 +2752,7 @@ function App() {
           loadSellers(token),
           loadProducts(token),
           loadProductProcurementCosts(token),
+          loadAcquiringProfiles(token),
         );
       } else if (role === 'MANAGER') {
         loads.push(loadStaff(token), loadSellers(token), loadSales(token));
@@ -2731,6 +2793,7 @@ function App() {
     loadProducts,
     loadProductProcurementCosts,
     loadAcquiringProfiles,
+    loadManagerStoreCommissions,
     loadStoreInventory,
     loadGlobalEmployees,
     refreshOutboxPendingCount,
@@ -3333,20 +3396,35 @@ function App() {
     const uid = data.user.id;
     const role = data.user.role;
     if (role === 'DIRECTOR' || role === 'ACCOUNTANT') {
-      const [cachedFinance, cachedInventory, cachedCommission, cachedSellers] = await Promise.all([
+      const [
+        cachedFinance,
+        cachedInventory,
+        cachedCommission,
+        cachedSellers,
+        cachedAcquiring,
+        cachedProducts,
+        cachedProcurement,
+        cachedManagerCommissions,
+      ] = await Promise.all([
         loadSyncCache<FinanceOpsSnapshot>(uid, 'financeOps'),
         loadSyncCache<InventoryOverviewResponse>(uid, 'inventoryOverview'),
         role === 'DIRECTOR'
           ? loadSyncCache<CommissionRequest[]>(uid, 'commissionRequests')
           : Promise.resolve(null),
         loadSyncCache<SellerProfile[]>(uid, 'sellers'),
+        loadSyncCache<AcquiringProfile[]>(uid, 'acquiringProfiles'),
+        role === 'DIRECTOR'
+          ? loadSyncCache<ProductItem[]>(uid, 'products')
+          : Promise.resolve(null),
+        role === 'DIRECTOR'
+          ? loadSyncCache<ProductProcurementCost[]>(uid, 'procurementCosts')
+          : Promise.resolve(null),
+        role === 'DIRECTOR'
+          ? loadSyncCache<ManagerStoreCommissionRow[]>(uid, 'managerStoreCommissions')
+          : Promise.resolve(null),
       ]);
       if (cachedFinance) {
         setFinanceOps(normalizeFinanceOps(cachedFinance));
-      }
-      const cachedAutoFinance = await loadSyncCache<FinanceOpsSnapshot>(uid, 'autoFinanceOps');
-      if (cachedAutoFinance) {
-        setAutoFinanceOps(normalizeFinanceOps(cachedAutoFinance));
       }
       if (cachedInventory) {
         setInventoryOverview(normalizeInventoryOverview(cachedInventory));
@@ -3356,6 +3434,18 @@ function App() {
       }
       if (cachedSellers) {
         setSellers(cachedSellers);
+      }
+      if (cachedAcquiring?.length) {
+        setAcquiringProfiles(cachedAcquiring);
+      }
+      if (cachedProducts?.length) {
+        setProducts(cachedProducts);
+      }
+      if (cachedProcurement?.length) {
+        setProductProcurementCosts(cachedProcurement);
+      }
+      if (cachedManagerCommissions?.length) {
+        setManagerStoreCommissions(cachedManagerCommissions);
       }
       if (role === 'DIRECTOR') {
         const [cachedStaff, cachedSales, cachedShifts] = await Promise.all([
@@ -3455,6 +3545,8 @@ function App() {
       setProducts([]);
       setStoreInventory(null);
       await hydrateRoleCacheForUser(data);
+    } else if (roleUsesSyncCache(data.user.role)) {
+      await hydrateRoleCacheForUser(data);
     }
     const dashboardLoaded = await loadDashboardWithRetry(data.token);
     if (!dashboardLoaded) {
@@ -3486,9 +3578,18 @@ function App() {
           loadSellers(data.token),
           loadSales(data.token),
           loadShifts(data.token),
+          loadAcquiringProfiles(data.token),
+          loadProducts(data.token),
+          loadProductProcurementCosts(data.token),
+          loadManagerStoreCommissions(data.token),
+          loadInventoryOverview(data.token),
+          loadFinanceOps(data.token),
         ]);
       } else if (data.user.role === 'ACCOUNTANT') {
-        await Promise.allSettled([loadFinanceOps(data.token)]);
+        await Promise.allSettled([
+          loadFinanceOps(data.token),
+          loadAcquiringProfiles(data.token),
+        ]);
       } else if (data.user.role === 'MANAGER') {
         await Promise.allSettled([
           loadSellers(data.token),
@@ -3863,9 +3964,13 @@ function App() {
             loadSellers(session.token),
             loadSales(session.token),
             loadShifts(session.token),
+            loadAcquiringProfiles(session.token),
           ]);
         } else if (session.user.role === 'ACCOUNTANT') {
-          await Promise.allSettled([loadFinanceOps(session.token)]);
+          await Promise.allSettled([
+            loadFinanceOps(session.token),
+            loadAcquiringProfiles(session.token),
+          ]);
         } else if (session.user.role === 'MANAGER') {
           await Promise.allSettled([
             loadSellers(session.token),
@@ -3929,9 +4034,10 @@ function App() {
           loadSellers(token),
           loadSales(token),
           loadShifts(token),
+          loadAcquiringProfiles(token),
         );
       } else if (role === 'ACCOUNTANT') {
-        loads.push(loadFinanceOps(token));
+        loads.push(loadFinanceOps(token), loadAcquiringProfiles(token));
       } else if (role === 'ADMIN') {
         loads.push(
           loadSellers(token),
@@ -3962,17 +4068,17 @@ function App() {
       if (path === '/shift') {
         void loadFinanceOps(token);
       }
-      if (path === '/finance/auto') {
-        void loadAutoFinanceOps(token);
-      }
       if (path === '/sales' || path === '/accounting/procurement') {
         void loadInventoryOverview(token);
         void loadProductProcurementCosts(token);
         void loadProducts(token);
+        void loadAcquiringProfiles(token);
       }
       if (path === '/sales') {
         void loadSales(token);
         void loadSellers(token);
+      }
+      if (path === '/home') {
         void loadAcquiringProfiles(token);
       }
       if (role === 'DIRECTOR' && (path === '/team' || path === '/payroll')) {
@@ -4065,13 +4171,6 @@ function App() {
       { to: '/shift', label: shiftL, icon: <ShiftIcon /> },
       { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
     ];
-    if (financeViewer && (r === 'DIRECTOR' || r === 'ACCOUNTANT')) {
-      base.splice(2, 0, {
-        to: '/finance/auto',
-        label: 'Оперативка авто',
-        icon: <AutoFinanceIcon />,
-      });
-    }
     if (r === 'DIRECTOR') {
       base.push(
         { to: '/accounting/equipment', label: 'Спецтехника', icon: <EquipmentIcon /> },
@@ -4433,34 +4532,7 @@ function App() {
                 </div>
               }
             />
-            <Route
-              path="/finance/auto"
-              element={
-                role === 'DIRECTOR' || role === 'ACCOUNTANT' ? (
-                  <div className={`dashboard${isDesktopShell ? ' dashboard--financeDesktop' : ''}`}>
-                    <section className="sectionCard">
-                      <div className={isDesktopShell ? undefined : 'financeOpsWebBridge'}>
-                        <FinanceOpsPanel
-                          token={session.token}
-                          isDirector={role === 'DIRECTOR'}
-                          snapshot={autoFinanceOps}
-                          variant="auto"
-                          onAddIncome={addAutoFinanceIncome}
-                          onAddExpense={addAutoFinanceExpense}
-                          onSetAccountBalance={setAutoFinanceAccountBalance}
-                          onSetCategoryAmount={setAutoFinanceExpenseCategoryAmount}
-                          onSyncFromSales={syncAutoFinanceIncomes}
-                          onAfterSync={() => loadAutoFinanceOps(session.token)}
-                          preferDesktopLayout={isDesktopShell}
-                        />
-                      </div>
-                    </section>
-                  </div>
-                ) : (
-                  <Navigate to="/home" replace />
-                )
-              }
-            />
+            <Route path="/finance/auto" element={<Navigate to="/shift" replace />} />
             <Route
               path="/shift"
               element={
@@ -4490,6 +4562,8 @@ function App() {
                           snapshot={financeOps}
                           onAddIncome={addFinanceIncome}
                           onAddExpense={addFinanceExpense}
+                          onUpdateIncome={updateFinanceIncome}
+                          onUpdateExpense={updateFinanceExpense}
                           onSetAccountBalance={setFinanceAccountBalance}
                           onSetCategoryAmount={setFinanceExpenseCategoryAmount}
                           preferDesktopLayout={isDesktopShell}
@@ -4916,8 +4990,11 @@ function App() {
                         products={products}
                         procurementCosts={productProcurementCosts}
                         onReload={async () => {
-                          await loadInventoryOverview(session.token);
-                          await loadProducts(session.token);
+                          await Promise.all([
+                            loadInventoryOverview(session.token),
+                            loadProducts(session.token),
+                            loadAcquiringProfiles(session.token),
+                          ]);
                         }}
                         onReplenish={replenishWarehouse}
                         onResetWarehouse={resetWarehouseStock}
@@ -5808,15 +5885,33 @@ function DirectorHomeApprovalsCarousel({
   const touchStartX = useRef<number | null>(null);
 
   const load = useCallback(async () => {
-    const response = await fetch(`${API_BASE_URL}/director/control-requests`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
+    const fetcher = async () => {
+      const response = await fetch(`${API_BASE_URL}/director/control-requests`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error('control requests error');
+      }
+      return (await response.json()) as DirectorControlRequest[];
+    };
+    if (userId !== undefined) {
+      const result = await loadSyncResource(
+        API_BASE_URL,
+        userId,
+        'controlRequests',
+        fetcher,
+        [],
+        { onFresh: (data) => setItems(data) },
+      );
+      setItems(result.data);
       return;
     }
-    const data = (await response.json()) as DirectorControlRequest[];
-    setItems(data);
-  }, [token]);
+    try {
+      setItems(await fetcher());
+    } catch {
+      /* keep cached items */
+    }
+  }, [token, userId]);
 
   useEffect(() => {
     void load();
@@ -5861,7 +5956,7 @@ function DirectorHomeApprovalsCarousel({
           throw new Error(message);
         }
       };
-      if (isTauriRuntime() && userId !== undefined) {
+      if (userId !== undefined) {
         const mode = await runAdminMutation(
           userId,
           clientId,
@@ -6027,9 +6122,9 @@ function DirectorDemoAccountsPanel({ token, userId }: { token: string; userId?: 
   type Row = { nickname: string; fullName: string; role: string; storeName: string; password: string };
   const desktopDirectorHome = isTauriRuntime();
   const [open, setOpen] = useState(desktopDirectorHome);
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<Row[]>(() => readDirectorDemoAccountsCache() ?? []);
   const [idx, setIdx] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => readDirectorDemoAccountsCache() === null);
   const [err, setErr] = useState('');
   const [hint, setHint] = useState('');
   const [draftPwd, setDraftPwd] = useState('');
@@ -6046,9 +6141,16 @@ function DirectorDemoAccountsPanel({ token, userId }: { token: string; userId?: 
       }
       const data = (await res.json()) as Row[];
       setRows(data);
+      writeDirectorDemoAccountsCache(data);
       setIdx((i) => (data.length === 0 ? 0 : Math.min(i, data.length - 1)));
     } catch {
-      setErr('Не удалось загрузить учётные записи');
+      const cached = readDirectorDemoAccountsCache();
+      if (cached?.length) {
+        setRows(cached);
+        setIdx((i) => Math.min(i, cached.length - 1));
+      } else {
+        setErr('Не удалось загрузить учётные записи');
+      }
     } finally {
       setLoading(false);
     }
@@ -6119,7 +6221,7 @@ function DirectorDemoAccountsPanel({ token, userId }: { token: string; userId?: 
           throw new Error(msg);
         }
       };
-      if (isTauriRuntime() && userId !== undefined) {
+      if (userId !== undefined) {
         const mode = await runAdminMutation(userId, patchId, 'DIRECTOR_DEMO_PASSWORD', body, patch);
         if (mode === 'queued') {
           setDraftPwd('');
@@ -6576,14 +6678,67 @@ const FINANCE_OPS_PRIMARY_ACCOUNT_IDS = [
   'fa-cash-main',
 ] as const;
 
-const AUTO_FINANCE_OPS_PRIMARY_ACCOUNT_IDS = [
-  'auto-fa-bank-extra',
-  'auto-fa-bank-main',
-  'auto-fa-bank-putintsev-sber',
-  'auto-fa-bank-lyokha',
-  'auto-fa-transfer',
-  'auto-fa-cash-main',
-] as const;
+function financeAccountToneClass(accountId: string): string {
+  const key = accountId.replace(/^auto-/, '');
+  const known = FINANCE_OPS_PRIMARY_ACCOUNT_IDS as readonly string[];
+  return known.includes(key) ? `financeOpsAccountTone--${key}` : 'financeOpsAccountTone--default';
+}
+
+function FinanceSensitiveAmount({
+  visible,
+  value,
+  format,
+  className,
+}: {
+  visible: boolean;
+  value: number;
+  format: (amount: number) => string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`financeOpsSensitiveAmount${visible ? '' : ' financeOpsSensitiveAmount--hidden'}${className ? ` ${className}` : ''}`}
+      aria-label={visible ? format(value) : 'Сумма скрыта'}
+    >
+      {visible ? format(value) : '••••••'}
+    </span>
+  );
+}
+
+function FinanceSensitiveToggleButton({
+  visible,
+  onToggle,
+}: {
+  visible: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="financeOpsSensitiveToggle"
+      aria-pressed={visible}
+      aria-label={visible ? 'Скрыть суммы' : 'Показать суммы'}
+      title={visible ? 'Скрыть суммы' : 'Показать суммы'}
+      onClick={onToggle}
+    >
+      {visible ? (
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+          <path
+            fill="currentColor"
+            d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
+          />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+          <path
+            fill="currentColor"
+            d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"
+          />
+        </svg>
+      )}
+    </button>
+  );
+}
 
 const FINANCE_EXPENSE_CATEGORY_LABELS = [
   'Аренда',
@@ -6597,12 +6752,13 @@ const FINANCE_EXPENSE_CATEGORY_LABELS = [
   'Прочие траты',
 ] as const;
 
-function formatFinanceWorkDay(workDay: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(workDay.trim());
-  if (match) {
-    return `${match[3]}.${match[2]}`;
-  }
-  return workDay;
+const FINANCE_EXPENSE_DEFAULT_CATEGORY: (typeof FINANCE_EXPENSE_CATEGORY_LABELS)[number] = 'ЗП';
+
+function financeStoreNameFromComment(comment?: string): string {
+  const value = comment?.trim() ?? '';
+  return (ALL_DEMO_STORE_NAMES as readonly string[]).includes(value)
+    ? value
+    : ALL_DEMO_STORE_NAMES[0];
 }
 
 function financeRecordTimeMs(iso: string): number {
@@ -6626,27 +6782,335 @@ function sortFinanceExpensesDesc<T extends { createdAt: string }>(items: T[]): T
   );
 }
 
-function FinanceOpsHistoryStrip({
+const FINANCE_HISTORY_MONTH_LABELS = [
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
+] as const;
+
+function financeHistoryDayKeyFromIso(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(iso));
+}
+
+function formatFinanceHistoryDayLabel(dayKey: string): string {
+  const today = todayKeyMoscow();
+  const yesterday = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(Date.now() - 86_400_000));
+  if (dayKey === today) {
+    return 'Сегодня';
+  }
+  if (dayKey === yesterday) {
+    return 'Вчера';
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey.trim());
+  if (!match) {
+    return dayKey;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'long' }).format(date);
+  const monthLabel = FINANCE_HISTORY_MONTH_LABELS[month - 1] ?? match[2];
+  return `${day} ${monthLabel} ${year}, ${weekday}`;
+}
+
+type FinanceHistoryListRow = {
+  id: string;
+  dayKey: string;
+  accountId: string;
+  accountName: string;
+  amount: number;
+  comment?: string;
+  timeLabel: string;
+  title?: string;
+  workDay?: string;
+};
+
+function groupFinanceHistoryByDay(rows: FinanceHistoryListRow[]) {
+  const groups: Array<{ dayKey: string; rows: FinanceHistoryListRow[] }> = [];
+  for (const row of rows) {
+    const last = groups[groups.length - 1];
+    if (!last || last.dayKey !== row.dayKey) {
+      groups.push({ dayKey: row.dayKey, rows: [row] });
+    } else {
+      last.rows.push(row);
+    }
+  }
+  return groups;
+}
+
+function FinanceOpsHistoryList({
   title,
   emptyLabel,
-  items,
+  rows,
+  kind,
+  accounts,
+  expenseCategories,
+  canEdit,
+  busyId,
+  onEditExpense,
+  onEditIncome,
 }: {
   title: string;
   emptyLabel: string;
-  items: Array<{ key: string; meta: string; value: string }>;
+  rows: FinanceHistoryListRow[];
+  kind: 'expense' | 'income';
+  accounts: FinanceAccount[];
+  expenseCategories?: readonly string[];
+  canEdit: boolean;
+  busyId: string;
+  onEditExpense?: (
+    id: string,
+    payload: { accountId: string; title: string; amount: string; comment?: string },
+  ) => Promise<void>;
+  onEditIncome?: (
+    id: string,
+    payload: { accountId: string; amount: string; workDay: string; comment?: string },
+  ) => Promise<void>;
 }) {
+  const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
+  const groups = useMemo(() => groupFinanceHistoryByDay(rows), [rows]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAccountId, setEditAccountId] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editComment, setEditComment] = useState('');
+  const [editStore, setEditStore] = useState<string>(ALL_DEMO_STORE_NAMES[0]);
+  const [editTitle, setEditTitle] = useState('');
+  const [editWorkDay, setEditWorkDay] = useState('');
+  const [editError, setEditError] = useState('');
+
+  const startEdit = (row: FinanceHistoryListRow) => {
+    setEditingId(row.id);
+    setEditAccountId(row.accountId);
+    setEditAmount(String(row.amount));
+    const title = row.title ?? FINANCE_EXPENSE_DEFAULT_CATEGORY;
+    setEditTitle(title);
+    if (kind === 'income') {
+      setEditStore(financeStoreNameFromComment(row.comment));
+      setEditComment('');
+    } else if (title === 'ЗП') {
+      setEditStore(financeStoreNameFromComment(row.comment));
+      setEditComment('');
+    } else {
+      setEditComment(row.comment ?? '');
+      setEditStore(ALL_DEMO_STORE_NAMES[0]);
+    }
+    setEditWorkDay(row.workDay ?? row.dayKey);
+    setEditError('');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditError('');
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) {
+      return;
+    }
+    setEditError('');
+    try {
+      if (kind === 'expense' && onEditExpense) {
+        const expenseComment =
+          editTitle === 'ЗП' ? editStore.trim() : editComment.trim() || undefined;
+        if (editTitle === 'ЗП' && !expenseComment) {
+          throw new Error('Выберите магазин');
+        }
+        await onEditExpense(editingId, {
+          accountId: editAccountId,
+          title: editTitle,
+          amount: editAmount,
+          comment: expenseComment || undefined,
+        });
+      } else if (kind === 'income' && onEditIncome) {
+        const incomePoint = editStore.trim();
+        if (!incomePoint) {
+          throw new Error('Выберите точку прихода');
+        }
+        await onEditIncome(editingId, {
+          accountId: editAccountId,
+          amount: editAmount,
+          workDay: editWorkDay,
+          comment: incomePoint,
+        });
+      }
+      setEditingId(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      setEditError(message || 'Не удалось сохранить изменения');
+    }
+  };
+
   return (
-    <div className="financeOpsHistoryMini">
+    <div className={`financeOpsHistoryMini financeOpsHistoryMini--${kind}`}>
       <p className="financeOpsHistoryMiniTitle">{title}</p>
       <div className="financeOpsHistoryMiniTrack" role="list" aria-label={title}>
-        {items.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="financeOpsHistoryMiniEmpty">{emptyLabel}</p>
         ) : (
-          items.map((item) => (
-            <article key={item.key} className="financeOpsHistoryMiniChip" role="listitem">
-              <span className="financeOpsHistoryMiniChipMeta">{item.meta}</span>
-              <strong className="financeOpsHistoryMiniChipValue">{item.value}</strong>
-            </article>
+          groups.map((group) => (
+            <section key={group.dayKey} className="financeOpsHistoryDayGroup" role="presentation">
+              <div className="financeOpsHistoryDayDivider">
+                <span className="financeOpsHistoryDayDividerLabel">
+                  {formatFinanceHistoryDayLabel(group.dayKey)}
+                </span>
+              </div>
+              {group.rows.map((row) => {
+                const isEditing = editingId === row.id;
+                const isBusy = busyId === row.id;
+                const expenseCategoryLabel = kind === 'expense' ? row.title?.trim() || '' : '';
+                const commentLabel = row.comment?.trim() || '';
+                return (
+                  <article
+                    key={row.id}
+                    className={`financeOpsHistoryMiniChip ${financeAccountToneClass(row.accountId)}`}
+                    role="listitem"
+                  >
+                    {isEditing ? (
+                      <div className="financeOpsHistoryEditForm">
+                        <label className="financeOpsHistoryEditField">
+                          <span>Счёт</span>
+                          <select
+                            value={editAccountId}
+                            onChange={(event) => setEditAccountId(event.target.value)}
+                          >
+                            {accounts.map((acc) => (
+                              <option key={acc.id} value={acc.id}>
+                                {acc.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {kind === 'expense' && expenseCategories ? (
+                          <label className="financeOpsHistoryEditField">
+                            <span>Статья</span>
+                            <select
+                              value={editTitle}
+                              onChange={(event) => setEditTitle(event.target.value)}
+                            >
+                              {expenseCategories.map((label) => (
+                                <option key={label} value={label}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
+                        {kind === 'income' ? (
+                          <label className="financeOpsHistoryEditField">
+                            <span>День</span>
+                            <input
+                              type="date"
+                              value={editWorkDay}
+                              onChange={(event) => setEditWorkDay(event.target.value)}
+                            />
+                          </label>
+                        ) : null}
+                        <label className="financeOpsHistoryEditField">
+                          <span>Сумма, ₽</span>
+                          <input
+                            inputMode="decimal"
+                            value={editAmount}
+                            onChange={(event) => setEditAmount(event.target.value)}
+                          />
+                        </label>
+                        {kind === 'income' || (kind === 'expense' && editTitle === 'ЗП') ? (
+                          <label className="financeOpsHistoryEditField">
+                            <span>{kind === 'income' ? 'Точка прихода' : 'Магазин'}</span>
+                            <select
+                              value={editStore}
+                              onChange={(event) => setEditStore(event.target.value)}
+                            >
+                              {ALL_DEMO_STORE_NAMES.map((storeName) => (
+                                <option key={storeName} value={storeName}>
+                                  {storeName}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : (
+                          <label className="financeOpsHistoryEditField">
+                            <span>Комментарий</span>
+                            <input
+                              value={editComment}
+                              onChange={(event) => setEditComment(event.target.value)}
+                              placeholder="Необязательно"
+                            />
+                          </label>
+                        )}
+                        {editError ? <p className="error financeOpsHistoryEditError">{editError}</p> : null}
+                        <div className="financeOpsHistoryEditActions">
+                          <button
+                            type="button"
+                            className="primaryAction"
+                            disabled={isBusy}
+                            onClick={() => void saveEdit()}
+                          >
+                            {isBusy ? 'Сохраняем…' : 'Сохранить'}
+                          </button>
+                          <button type="button" className="ghost" disabled={isBusy} onClick={cancelEdit}>
+                            Отмена
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="financeOpsHistoryMiniChipLine">
+                        <span className="financeOpsHistoryMiniChipAccount" title={row.accountName}>
+                          {row.accountName}
+                        </span>
+                        <strong className="financeOpsHistoryMiniChipValue">{fmt(row.amount)}</strong>
+                        {expenseCategoryLabel ? (
+                          <span
+                            className="financeOpsHistoryMiniChipCategory"
+                            title={expenseCategoryLabel}
+                          >
+                            {expenseCategoryLabel}
+                          </span>
+                        ) : null}
+                        {commentLabel ? (
+                          <span className="financeOpsHistoryMiniChipNote" title={commentLabel}>
+                            {commentLabel}
+                          </span>
+                        ) : (
+                          <span className="financeOpsHistoryMiniChipNote financeOpsHistoryMiniChipNote--empty" />
+                        )}
+                        <span className="financeOpsHistoryMiniChipTail">
+                          <span className="financeOpsHistoryMiniChipTime">{row.timeLabel}</span>
+                          {canEdit ? (
+                            <button
+                              type="button"
+                              className="ghost financeOpsHistoryEditBtn"
+                              onClick={() => startEdit(row)}
+                            >
+                              Изменить
+                            </button>
+                          ) : null}
+                        </span>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </section>
           ))
         )}
       </div>
@@ -6673,143 +7137,16 @@ function useWideFinanceLayout(preferDesktop: boolean) {
   return wide;
 }
 
-type AutoFinancePreviewRow = {
-  bucket: string;
-  accountId: string;
-  accountName: string;
-  amount: number;
-  alreadySynced: boolean;
-  previousAmount: number;
-};
-
-function FinanceAutoSyncBar({
-  token,
-  onSync,
-  onSynced,
-  onStatus,
-  compactFinanceUi,
-}: {
-  token: string;
-  onSync: (token: string, workDay: string) => Promise<{
-    applied: Array<{ accountName: string; amount: number; created: boolean; updated: boolean }>;
-  }>;
-  onSynced: () => Promise<void>;
-  onStatus: (message: string, isError?: boolean) => void;
-  compactFinanceUi: boolean;
-}) {
-  const [workDay, setWorkDay] = useState(todayKeyMoscow);
-  const [previewTotal, setPreviewTotal] = useState(0);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [hasSales, setHasSales] = useState(false);
-
-  const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
-
-  const loadPreview = useCallback(async () => {
-    setPreviewLoading(true);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/admin/finance/auto-incomes/preview?workDay=${encodeURIComponent(workDay)}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!response.ok) {
-        throw new Error('preview error');
-      }
-      const data = (await response.json()) as {
-        rows: AutoFinancePreviewRow[];
-        totalToSync: number;
-      };
-      const rows = data.rows ?? [];
-      setPreviewTotal(data.totalToSync ?? 0);
-      setHasSales(rows.some((row) => row.amount > 0));
-    } catch {
-      onStatus('Не удалось загрузить сводку по продажам', true);
-      setPreviewTotal(0);
-      setHasSales(false);
-    } finally {
-      setPreviewLoading(false);
-    }
-  }, [token, workDay, onStatus]);
-
-  useEffect(() => {
-    void loadPreview();
-  }, [loadPreview]);
-
-  const handleSync = async () => {
-    setBusy(true);
-    try {
-      const result = await onSync(token, workDay);
-      const touched = result.applied.filter((row) => row.amount > 0 && (row.created || row.updated));
-      if (touched.length === 0) {
-        onStatus('Нет новых приходов за выбранный день — продажи не найдены или суммы уже записаны.');
-      } else {
-        const created = touched.filter((row) => row.created).length;
-        const updated = touched.filter((row) => row.updated).length;
-        const parts: string[] = [];
-        if (created > 0) {
-          parts.push(`записано ${created}`);
-        }
-        if (updated > 0) {
-          parts.push(`обновлено ${updated}`);
-        }
-        onStatus(`Приходы с продаж за ${formatFinanceWorkDay(workDay)}: ${parts.join(', ')}.`);
-      }
-      await Promise.all([loadPreview(), onSynced()]);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '';
-      onStatus(message || 'Не удалось подтянуть приходы', true);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div
-      className={`financeOpsAutoSyncBar${compactFinanceUi ? ' financeOpsAutoSyncBar--desktop' : ''}`}
-      role="region"
-      aria-label="Приходы с продаж всех точек"
-    >
-      <p className="financeOpsAutoSyncBarHint">
-        Тестовый журнал: приходы с продаж — кнопкой ниже, расходы и ручные правки — как в обычной
-        оперативке. Ручная «Оперативка» не связана.
-      </p>
-      <div className="financeAutoOpsDayRow">
-        <label className="financeAutoOpsDayLabel">
-          День продаж
-          <input
-            type="date"
-            className="financeAutoOpsDayInput"
-            value={workDay}
-            onChange={(event) => setWorkDay(event.target.value)}
-          />
-        </label>
-        <span className="financeOpsAutoSyncBarTotal">
-          К записи: {previewLoading ? '…' : fmt(previewTotal)}
-        </span>
-        <button
-          type="button"
-          className="primaryAction financeOpsAutoSyncBarBtn"
-          disabled={busy || previewLoading || !hasSales}
-          onClick={() => void handleSync()}
-        >
-          {busy ? 'Подтягиваем…' : 'Подтянуть приходы со всех точек'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function FinanceOpsPanel({
   token,
   isDirector,
   snapshot,
   onAddIncome,
   onAddExpense,
+  onUpdateIncome,
+  onUpdateExpense,
   onSetAccountBalance,
   onSetCategoryAmount,
-  variant = 'manual',
-  onSyncFromSales,
-  onAfterSync,
   preferDesktopLayout = false,
 }: {
   token: string;
@@ -6823,36 +7160,26 @@ function FinanceOpsPanel({
     token: string,
     payload: { accountId: string; title: string; amount: string; comment?: string },
   ) => Promise<void>;
+  onUpdateIncome?: (
+    token: string,
+    id: string,
+    payload: { accountId: string; amount: string; workDay: string; comment?: string },
+  ) => Promise<void>;
+  onUpdateExpense?: (
+    token: string,
+    id: string,
+    payload: { accountId: string; title: string; amount: string; comment?: string },
+  ) => Promise<void>;
   onSetAccountBalance: (token: string, accountId: string, balance: string) => Promise<void>;
   onSetCategoryAmount?: (token: string, title: string, amount: string) => Promise<void>;
-  variant?: 'manual' | 'auto';
-  onSyncFromSales?: (token: string, workDay: string) => Promise<{
-    applied: Array<{ accountName: string; amount: number; created: boolean; updated: boolean }>;
-  }>;
-  onAfterSync?: () => Promise<void>;
   preferDesktopLayout?: boolean;
 }) {
-  const isAutoVariant = variant === 'auto';
-  const primaryAccountIds =
-    variant === 'auto' ? AUTO_FINANCE_OPS_PRIMARY_ACCOUNT_IDS : FINANCE_OPS_PRIMARY_ACCOUNT_IDS;
-
-  const cashAccount = snapshot.accounts.find((a) => a.kind === 'CASH');
-  const bankAccounts = snapshot.accounts.filter((a) => a.kind === 'BANK');
-  const bankAccountsOrdered = useMemo(() => {
-    const primaryIds = primaryAccountIds as readonly string[];
-    const rank = (id: string) => {
-      const i = primaryIds.indexOf(id);
-      return i === -1 ? 50 : i;
-    };
-    return [...bankAccounts].sort(
-      (a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name, 'ru-RU'),
-    );
-  }, [bankAccounts, primaryAccountIds]);
-
   const primaryFinanceAccounts = useMemo(() => {
     const map = new Map(snapshot.accounts.map((a) => [a.id, a]));
-    return primaryAccountIds.map((id) => map.get(id)).filter((a): a is FinanceAccount => Boolean(a));
-  }, [snapshot.accounts, primaryAccountIds]);
+    return FINANCE_OPS_PRIMARY_ACCOUNT_IDS.map((id) => map.get(id)).filter(
+      (a): a is FinanceAccount => Boolean(a),
+    );
+  }, [snapshot.accounts]);
 
   const [incomeDraftsByAccount, setIncomeDraftsByAccount] = useState<Record<string, string>>({});
   const [selectedIncomeAccountId, setSelectedIncomeAccountId] = useState('');
@@ -6860,8 +7187,13 @@ function FinanceOpsPanel({
   const [expenseAccountId, setExpenseAccountId] = useState(snapshot.accounts[0]?.id ?? '');
   const [expenseTitle, setExpenseTitle] = useState<
     (typeof FINANCE_EXPENSE_CATEGORY_LABELS)[number]
-  >(FINANCE_EXPENSE_CATEGORY_LABELS[0]);
+  >(FINANCE_EXPENSE_DEFAULT_CATEGORY);
+  const [expenseStore, setExpenseStore] = useState<string>(ALL_DEMO_STORE_NAMES[0]);
   const [expenseAmount, setExpenseAmount] = useState('');
+  const [expenseComment, setExpenseComment] = useState('');
+  const [incomeStoreDraftsByAccount, setIncomeStoreDraftsByAccount] = useState<
+    Record<string, string>
+  >({});
   const [busyId, setBusyId] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -6877,6 +7209,12 @@ function FinanceOpsPanel({
   const [editingCategoryTitle, setEditingCategoryTitle] = useState<string | null>(null);
   const [editingCategoryAmount, setEditingCategoryAmount] = useState('');
   const [categoryAmountBusy, setCategoryAmountBusy] = useState('');
+  const location = useLocation();
+  const [financeSensitiveVisible, setFinanceSensitiveVisible] = useState(false);
+
+  useEffect(() => {
+    setFinanceSensitiveVisible(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!expenseAccountId && snapshot.accounts.length > 0) {
@@ -6885,7 +7223,9 @@ function FinanceOpsPanel({
   }, [expenseAccountId, snapshot.accounts]);
 
   useEffect(() => {
-    const ids = primaryAccountIds.filter((id) => snapshot.accounts.some((a) => a.id === id));
+    const ids = FINANCE_OPS_PRIMARY_ACCOUNT_IDS.filter((id) =>
+      snapshot.accounts.some((a) => a.id === id),
+    );
     setIncomeDraftsByAccount((prev) => {
       const next = { ...prev };
       let changed = false;
@@ -6897,7 +7237,18 @@ function FinanceOpsPanel({
       }
       return changed ? next : prev;
     });
-  }, [snapshot.accounts, primaryAccountIds]);
+    setIncomeStoreDraftsByAccount((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const id of ids) {
+        if (next[id] === undefined) {
+          next[id] = ALL_DEMO_STORE_NAMES[0];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [snapshot.accounts]);
 
   useEffect(() => {
     if (primaryFinanceAccounts.length === 0) {
@@ -6910,15 +7261,6 @@ function FinanceOpsPanel({
       primaryFinanceAccounts.some((a) => a.id === cur) ? cur : primaryFinanceAccounts[0]!.id,
     );
   }, [primaryFinanceAccounts]);
-
-  const accountsForIncomeHistory = useMemo(() => {
-    const list: FinanceAccount[] = [];
-    if (cashAccount) {
-      list.push(cashAccount);
-    }
-    list.push(...bankAccountsOrdered);
-    return list;
-  }, [cashAccount, bankAccountsOrdered]);
 
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
 
@@ -6956,40 +7298,88 @@ function FinanceOpsPanel({
     ) / 100;
   }, [snapshot.totals.categoryTotal, expenseTotalsByArticle]);
 
-  const recentIncomeHistoryItems = useMemo(() => {
+  const recentIncomeHistoryRows = useMemo((): FinanceHistoryListRow[] => {
     const accountNames = new Map(snapshot.accounts.map((a) => [a.id, a.name?.trim() || 'Счёт']));
     return sortFinanceIncomesDesc(snapshot.incomes ?? [])
-      .slice(0, 24)
+      .slice(0, 60)
       .map((item) => {
         const entryTime = new Date(item.createdAt).toLocaleString('ru-RU', {
           hour: '2-digit',
           minute: '2-digit',
         });
         return {
-          key: item.id,
-          meta: `${accountNames.get(item.accountId) ?? 'Счёт'} · ${formatFinanceWorkDay(item.workDay)}, ${entryTime}`,
-          value: fmt(item.amount),
+          id: item.id,
+          dayKey: item.workDay,
+          accountId: item.accountId,
+          accountName: accountNames.get(item.accountId) ?? item.accountName ?? 'Счёт',
+          amount: item.amount,
+          comment: item.comment?.trim() || undefined,
+          timeLabel: entryTime,
+          workDay: item.workDay,
         };
       });
   }, [snapshot.incomes, snapshot.accounts]);
 
-  const recentExpenseHistoryItems = useMemo(() => {
+  const recentExpenseHistoryRows = useMemo((): FinanceHistoryListRow[] => {
     return sortFinanceExpensesDesc(snapshot.expenses)
-      .slice(0, 24)
+      .slice(0, 60)
       .map((item) => {
         const when = new Date(item.createdAt).toLocaleString('ru-RU', {
-          day: '2-digit',
-          month: '2-digit',
           hour: '2-digit',
           minute: '2-digit',
         });
         return {
-          key: item.id,
-          meta: `${item.title} · ${when}`,
-          value: fmt(item.amount),
+          id: item.id,
+          dayKey: financeHistoryDayKeyFromIso(item.createdAt),
+          accountId: item.accountId,
+          accountName: item.accountName?.trim() || 'Счёт',
+          amount: item.amount,
+          comment: item.comment?.trim() || undefined,
+          timeLabel: when,
+          title: item.title,
         };
       });
   }, [snapshot.expenses]);
+
+  const handleHistoryIncomeEdit = async (
+    id: string,
+    payload: { accountId: string; amount: string; workDay: string; comment?: string },
+  ) => {
+    if (!onUpdateIncome) {
+      return;
+    }
+    setBusyId(id);
+    setError('');
+    try {
+      await onUpdateIncome(token, id, payload);
+      setStatus('Приход обновлён.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      throw new Error(message || 'Не удалось изменить приход');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const handleHistoryExpenseEdit = async (
+    id: string,
+    payload: { accountId: string; title: string; amount: string; comment?: string },
+  ) => {
+    if (!onUpdateExpense) {
+      return;
+    }
+    setBusyId(id);
+    setError('');
+    try {
+      await onUpdateExpense(token, id, payload);
+      setStatus('Расход обновлён.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      throw new Error(message || 'Не удалось изменить расход');
+    } finally {
+      setBusyId('');
+    }
+  };
 
   const startBalanceAdjust = (acc: FinanceAccount) => {
     setAdjustError('');
@@ -7052,10 +7442,17 @@ function FinanceOpsPanel({
     }
     setBusyId(`income-${activeFlowAccountId}`);
     try {
+      const incomePoint = (incomeStoreDraftsByAccount[activeFlowAccountId] ?? '').trim();
+      if (!incomePoint) {
+        setError('Выберите точку прихода');
+        setBusyId('');
+        return;
+      }
       await onAddIncome(token, {
         accountId: activeFlowAccountId,
         amount: amountStr,
         workDay: todayKeyMoscow(),
+        comment: incomePoint,
       });
       setIncomeDraftsByAccount((prev) => ({
         ...prev,
@@ -7174,7 +7571,12 @@ function FinanceOpsPanel({
           onClick={() => startCategoryEdit(row.title, row.total)}
         >
           <span className="financeOpsExpenseArticlesChipTitle">{row.title}</span>
-          <strong className="financeOpsExpenseArticlesChipAmount">{fmt(row.total)}</strong>
+          <FinanceSensitiveAmount
+            visible={financeSensitiveVisible}
+            value={row.total}
+            format={fmt}
+            className="financeOpsExpenseArticlesChipAmount"
+          />
         </button>
       );
     }
@@ -7182,7 +7584,12 @@ function FinanceOpsPanel({
     return (
       <article key={row.title} className="financeOpsExpenseArticlesChip" role="listitem">
         <span className="financeOpsExpenseArticlesChipTitle">{row.title}</span>
-        <strong className="financeOpsExpenseArticlesChipAmount">{fmt(row.total)}</strong>
+        <FinanceSensitiveAmount
+          visible={financeSensitiveVisible}
+          value={row.total}
+          format={fmt}
+          className="financeOpsExpenseArticlesChipAmount"
+        />
       </article>
     );
   };
@@ -7210,13 +7617,28 @@ function FinanceOpsPanel({
     setError('');
     setStatus('');
     try {
+      let comment: string | undefined;
+      if (expenseTitle === 'ЗП') {
+        const store = expenseStore.trim();
+        if (!store) {
+          setError('Выберите магазин');
+          setBusyId('');
+          return;
+        }
+        comment = store;
+      } else {
+        comment = expenseComment.trim() || undefined;
+      }
       await onAddExpense(token, {
         accountId,
         title: expenseTitle,
         amount: expenseAmount,
+        comment,
       });
-      setExpenseTitle(FINANCE_EXPENSE_CATEGORY_LABELS[0]);
+      setExpenseTitle(FINANCE_EXPENSE_DEFAULT_CATEGORY);
+      setExpenseStore(ALL_DEMO_STORE_NAMES[0]);
       setExpenseAmount('');
+      setExpenseComment('');
       const acc = snapshot.accounts.find((a) => a.id === accountId);
       setStatus(acc ? `Расход со счёта «${acc.name}» добавлен.` : 'Расход добавлен.');
     } catch (err) {
@@ -7231,29 +7653,30 @@ function FinanceOpsPanel({
     }
   };
 
-  const handleAutoSyncStatus = (message: string, isError?: boolean) => {
-    if (isError) {
-      setError(message);
-      setStatus('');
-    } else {
-      setStatus(message);
-      setError('');
-    }
-  };
-
   return (
     <div
       className={`opsCard financeOpsCard ${isDirector ? 'financeOpsCardDirector' : ''}${
-        isAutoVariant ? ' financeOpsCard--auto' : ''
-      }${compactFinanceUi ? ' financeOpsCard--desktop' : ''}`}
+        compactFinanceUi ? ' financeOpsCard--desktop' : ''
+      }`}
     >
       <div className={`financeOpsShell${compactFinanceUi ? ' financeOpsShell--desktop' : ''}`}>
       <header className="financeOpsHero">
-        <h4 className="financeOpsPageTitle">Оперативные финансы</h4>
+        <div className="financeOpsHeroTop">
+          <h4 className="financeOpsPageTitle">Оперативные финансы</h4>
+          <FinanceSensitiveToggleButton
+            visible={financeSensitiveVisible}
+            onToggle={() => setFinanceSensitiveVisible((open) => !open)}
+          />
+        </div>
         <div className="financeOpsHeroMain">
           <div className="financeOpsBankTotalCallout" role="note">
             <span className="financeOpsBankTotalCalloutLabel">Общий остаток</span>
-            <span className="financeOpsBankTotalCalloutValue">{fmt(snapshot.totals.balance)}</span>
+            <FinanceSensitiveAmount
+              visible={financeSensitiveVisible}
+              value={snapshot.totals.balance}
+              format={fmt}
+              className="financeOpsBankTotalCalloutValue"
+            />
           </div>
           <div className="financeOpsBalancesGrid">
             {primaryFinanceAccounts.map((acc) => {
@@ -7308,7 +7731,11 @@ function FinanceOpsPanel({
                             Точно скорректировать остаток?
                           </p>
                           <p className="financeOpsBalanceAdjustPreview">
-                            {fmt(Number(String(adjustNewBalance).replace(',', '.')) || 0)}
+                            <FinanceSensitiveAmount
+                              visible={financeSensitiveVisible}
+                              value={Number(String(adjustNewBalance).replace(',', '.')) || 0}
+                              format={fmt}
+                            />
                           </p>
                           <div className="financeOpsBalanceAdjustActions">
                             <button
@@ -7334,7 +7761,7 @@ function FinanceOpsPanel({
                     </div>
                   ) : (
                     <div className="financeOpsBalanceCardTail">
-                      <strong>{fmt(acc.balance)}</strong>
+                      <FinanceSensitiveAmount visible={financeSensitiveVisible} value={acc.balance} format={fmt} />
                       {isDirector ? (
                         <button
                           type="button"
@@ -7354,16 +7781,6 @@ function FinanceOpsPanel({
           </div>
         </div>
       </header>
-
-      {isAutoVariant && onSyncFromSales ? (
-        <FinanceAutoSyncBar
-          token={token}
-          onSync={onSyncFromSales}
-          onSynced={onAfterSync ?? (async () => undefined)}
-          onStatus={handleAutoSyncStatus}
-          compactFinanceUi={compactFinanceUi}
-        />
-      ) : null}
 
       {compactFinanceUi ? (
         <section className="financeOpsZone financeOpsZone--flows addSaleForm">
@@ -7390,6 +7807,36 @@ function FinanceOpsPanel({
                   ))}
                 </select>
               </label>
+              {expenseTitle === 'ЗП' ? (
+                <label className="financeOpsFlowSideField financeOpsFlowSideField--comment">
+                  <span className="financeOpsFlowSideFieldLabel">Магазин</span>
+                  <select
+                    className="financeOpsExpenseCategoryInline"
+                    value={expenseStore}
+                    onChange={(event) => setExpenseStore(event.target.value)}
+                    aria-label="Магазин для ЗП"
+                  >
+                    {ALL_DEMO_STORE_NAMES.map((storeName) => (
+                      <option key={storeName} value={storeName}>
+                        {storeName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label className="financeOpsFlowSideField financeOpsFlowSideField--comment">
+                  <span className="financeOpsFlowSideFieldLabel">Комментарий</span>
+                  <input
+                    className="financeOpsCommentInput"
+                    type="text"
+                    maxLength={200}
+                    aria-label="Комментарий к расходу"
+                    value={expenseComment}
+                    onChange={(event) => setExpenseComment(event.target.value)}
+                    placeholder="Необязательно"
+                  />
+                </label>
+              )}
               <label className="financeOpsFlowSideField financeOpsFlowSideField--amount">
                 <span className="financeOpsFlowSideFieldLabel">Сумма, ₽</span>
                 <input
@@ -7434,7 +7881,7 @@ function FinanceOpsPanel({
                   <button
                     key={acc.id}
                     type="button"
-                    className={`ghost financeOpsFlowAccountChip${
+                    className={`ghost financeOpsFlowAccountChip ${financeAccountToneClass(acc.id)}${
                       selectedFlowAccountId === acc.id ? ' financeOpsFlowAccountChip--active' : ''
                     }${chipInsufficient ? ' financeOpsFlowAccountChip--insufficient' : ''}`}
                     onClick={() => setSelectedFlowAccountId(acc.id)}
@@ -7471,6 +7918,26 @@ function FinanceOpsPanel({
                     }
                   }}
                 />
+              </label>
+              <label className="financeOpsFlowSideField financeOpsFlowSideField--comment">
+                <span className="financeOpsFlowSideFieldLabel">Точка прихода</span>
+                <select
+                  className="financeOpsExpenseCategoryInline"
+                  value={incomeStoreDraftsByAccount[selectedFlowAccountId] ?? ALL_DEMO_STORE_NAMES[0]}
+                  onChange={(event) =>
+                    setIncomeStoreDraftsByAccount((prev) => ({
+                      ...prev,
+                      [selectedFlowAccountId]: event.target.value,
+                    }))
+                  }
+                  aria-label="Точка прихода"
+                >
+                  {ALL_DEMO_STORE_NAMES.map((storeName) => (
+                    <option key={storeName} value={storeName}>
+                      {storeName}
+                    </option>
+                  ))}
+                </select>
               </label>
               <button
                 type="button"
@@ -7522,6 +7989,26 @@ function FinanceOpsPanel({
                   }
                   placeholder="Например, 15000"
                 />
+              </label>
+              <label className="financeOpsCommentField">
+                <span className="financeOpsFieldLabel">Точка прихода</span>
+                <select
+                  className="financeOpsExpenseUnifiedSelect"
+                  value={incomeStoreDraftsByAccount[selectedIncomeAccountId] ?? ALL_DEMO_STORE_NAMES[0]}
+                  onChange={(event) =>
+                    setIncomeStoreDraftsByAccount((prev) => ({
+                      ...prev,
+                      [selectedIncomeAccountId]: event.target.value,
+                    }))
+                  }
+                  aria-label="Точка прихода"
+                >
+                  {ALL_DEMO_STORE_NAMES.map((storeName) => (
+                    <option key={storeName} value={storeName}>
+                      {storeName}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
             <button
@@ -7576,6 +8063,23 @@ function FinanceOpsPanel({
                 </select>
               </label>
             </div>
+            {expenseTitle === 'ЗП' ? (
+              <label className="financeOpsExpenseUnifiedPick financeOpsExpenseStorePick">
+                <span className="financeOpsExpenseUnifiedPickCaption">Магазин</span>
+                <select
+                  className="financeOpsExpenseUnifiedSelect"
+                  value={expenseStore}
+                  onChange={(event) => setExpenseStore(event.target.value)}
+                  aria-label="Магазин для ЗП"
+                >
+                  {ALL_DEMO_STORE_NAMES.map((storeName) => (
+                    <option key={storeName} value={storeName}>
+                      {storeName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <div className="addSaleRow financeOpsExpenseAmountRow">
               <label className="financeOpsAmountField">
                 <span className="financeOpsFieldLabel">Сумма, ₽</span>
@@ -7586,6 +8090,20 @@ function FinanceOpsPanel({
                   placeholder="Например, 5000"
                 />
               </label>
+              {expenseTitle === 'ЗП' ? null : (
+                <label className="financeOpsCommentField">
+                  <span className="financeOpsFieldLabel">Комментарий</span>
+                  <input
+                    className="financeOpsCommentInput"
+                    type="text"
+                    maxLength={200}
+                    aria-label="Комментарий к расходу"
+                    value={expenseComment}
+                    onChange={(event) => setExpenseComment(event.target.value)}
+                    placeholder="Необязательно"
+                  />
+                </label>
+              )}
             </div>
             {expenseInsufficientMessage ? (
               <p className="error financeOpsExpenseHint" role="alert">
@@ -7622,7 +8140,12 @@ function FinanceOpsPanel({
           <>
             <div className="financeOpsArticlesHead">
               <h4 className="financeOpsZoneTitle">Расходы по статьям</h4>
-              <span className="financeOpsArticlesTotal">{fmt(expensesGrandTotal)}</span>
+              <FinanceSensitiveAmount
+                visible={financeSensitiveVisible}
+                value={expensesGrandTotal}
+                format={fmt}
+                className="financeOpsArticlesTotal"
+              />
             </div>
             <div
               className="financeOpsExpenseArticlesCarousel financeOpsExpenseArticlesCarousel--desktop"
@@ -7643,7 +8166,12 @@ function FinanceOpsPanel({
             >
               <span className="financeOpsExpenseArticlesSheetHandleLabel">Расходы по статьям</span>
               <span className="financeOpsExpenseArticlesSheetHandleRight">
-                <span className="financeOpsExpenseArticlesSheetHandleTotal">{fmt(expensesGrandTotal)}</span>
+                <FinanceSensitiveAmount
+                  visible={financeSensitiveVisible}
+                  value={expensesGrandTotal}
+                  format={fmt}
+                  className="financeOpsExpenseArticlesSheetHandleTotal"
+                />
                 <span className="financeOpsExpenseArticlesSheetHandleChevron" aria-hidden>
                   <svg viewBox="0 0 24 24" width="20" height="20">
                     <path fill="currentColor" d="M7 10l5 5 5-5z" />
@@ -7678,71 +8206,31 @@ function FinanceOpsPanel({
       {compactFinanceUi ? (
         <section className="financeOpsZone financeOpsZone--historyMini">
           <div className="financeOpsHistoryMiniRow">
-            <FinanceOpsHistoryStrip
-              title="Последние приходы по счетам"
-              emptyLabel="Приходов пока нет"
-              items={recentIncomeHistoryItems}
-            />
-            <FinanceOpsHistoryStrip
+            <FinanceOpsHistoryList
               title="Последние расходы"
               emptyLabel="Расходов пока нет"
-              items={recentExpenseHistoryItems}
+              rows={recentExpenseHistoryRows}
+              kind="expense"
+              accounts={snapshot.accounts}
+              expenseCategories={FINANCE_EXPENSE_CATEGORY_LABELS}
+              canEdit={Boolean(onUpdateExpense)}
+              busyId={busyId}
+              onEditExpense={onUpdateExpense ? handleHistoryExpenseEdit : undefined}
+            />
+            <FinanceOpsHistoryList
+              title="Последние приходы по счетам"
+              emptyLabel="Приходов пока нет"
+              rows={recentIncomeHistoryRows}
+              kind="income"
+              accounts={snapshot.accounts}
+              canEdit={Boolean(onUpdateIncome)}
+              busyId={busyId}
+              onEditIncome={onUpdateIncome ? handleHistoryIncomeEdit : undefined}
             />
           </div>
         </section>
       ) : (
         <section className="financeOpsZone financeOpsZone--history financeHistoryAccordions">
-          <section className={`procurementAccordion ${incomesHistoryOpen ? '' : 'procurementAccordion--collapsed'}`}>
-            <button
-              type="button"
-              className="procurementAccordionTrigger"
-              aria-expanded={incomesHistoryOpen}
-              onClick={() => setIncomesHistoryOpen((open) => !open)}
-            >
-              <span className="procurementAccordionTriggerTitle financeHistoryAccordionTitle">
-                Последние приходы по счетам
-              </span>
-              <span className="procurementAccordionChevron" aria-hidden>
-                <svg viewBox="0 0 24 24" width="18" height="18">
-                  <path fill="currentColor" d="M7 10l5 5 5-5z" />
-                </svg>
-              </span>
-            </button>
-            <div className="procurementAccordionPanel">
-              <div className="procurementAccordionPanelInner">
-                <div className="procurementAccordionBody financeHistoryAccordionBody">
-                  {accountsForIncomeHistory.length === 0 ? (
-                    <p className="muted">Счетов нет — приходы не настроены.</p>
-                  ) : (
-                    accountsForIncomeHistory.map((acc) => {
-                      const list = sortFinanceIncomesDesc(
-                        (snapshot.incomes ?? []).filter((item) => item.accountId === acc.id),
-                      );
-                      return (
-                        <div className="incomeHistorySection" key={acc.id}>
-                          <h5 className="incomeHistoryHeading">{acc.name}</h5>
-                          <div className="opsList">
-                            {list.length === 0 ? (
-                              <p className="muted">По этому счёту приходов пока нет.</p>
-                            ) : (
-                              list.slice(0, 20).map((item) => (
-                                <p key={item.id}>
-                                  {new Date(item.createdAt).toLocaleString('ru-RU')} | День {item.workDay} |{' '}
-                                  {fmt(item.amount)}
-                                  {item.comment ? ` | ${item.comment}` : ''}
-                                </p>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-
           <section className={`procurementAccordion ${expensesHistoryOpen ? '' : 'procurementAccordion--collapsed'}`}>
             <button
               type="button"
@@ -7761,22 +8249,49 @@ function FinanceOpsPanel({
             </button>
             <div className="procurementAccordionPanel">
               <div className="procurementAccordionPanelInner">
-                <div className="procurementAccordionBody financeHistoryAccordionBody">
-                  <div className="opsList">
-                    {snapshot.expenses.length === 0 ? (
-                      <p className="muted">Расходов пока нет.</p>
-                    ) : (
-                      sortFinanceExpensesDesc(snapshot.expenses)
-                        .slice(0, 20)
-                        .map((item) => (
-                          <p key={item.id}>
-                            {new Date(item.createdAt).toLocaleString('ru-RU')} | {item.title} | {fmt(item.amount)} |{' '}
-                            {item.accountName}
-                          </p>
-                        ))
-                    )}
-                  </div>
-                </div>
+                <FinanceOpsHistoryList
+                  title="Последние расходы"
+                  emptyLabel="Расходов пока нет"
+                  rows={recentExpenseHistoryRows}
+                  kind="expense"
+                  accounts={snapshot.accounts}
+                  expenseCategories={FINANCE_EXPENSE_CATEGORY_LABELS}
+                  canEdit={Boolean(onUpdateExpense)}
+                  busyId={busyId}
+                  onEditExpense={onUpdateExpense ? handleHistoryExpenseEdit : undefined}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className={`procurementAccordion ${incomesHistoryOpen ? '' : 'procurementAccordion--collapsed'}`}>
+            <button
+              type="button"
+              className="procurementAccordionTrigger"
+              aria-expanded={incomesHistoryOpen}
+              onClick={() => setIncomesHistoryOpen((open) => !open)}
+            >
+              <span className="procurementAccordionTriggerTitle financeHistoryAccordionTitle">
+                Последние приходы по счетам
+              </span>
+              <span className="procurementAccordionChevron" aria-hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18">
+                  <path fill="currentColor" d="M7 10l5 5 5-5z" />
+                </svg>
+              </span>
+            </button>
+            <div className="procurementAccordionPanel">
+              <div className="procurementAccordionPanelInner">
+                <FinanceOpsHistoryList
+                  title="Последние приходы по счетам"
+                  emptyLabel="Приходов пока нет"
+                  rows={recentIncomeHistoryRows}
+                  kind="income"
+                  accounts={snapshot.accounts}
+                  canEdit={Boolean(onUpdateIncome)}
+                  busyId={busyId}
+                  onEditIncome={onUpdateIncome ? handleHistoryIncomeEdit : undefined}
+                />
               </div>
             </div>
           </section>
@@ -10991,11 +11506,11 @@ function AccountantProcurementPanel({
       void (async () => {
         setError('');
         try {
-          await onSaveProfiles(token, next);
+          await onSaveProfiles(token, profilesRef.current);
           setSaved(true);
           window.setTimeout(() => setSaved(false), 1200);
         } catch {
-          setError('Не удалось сохранить');
+          setError('Не удалось сохранить настройки эквайринга');
         }
       })();
     }, 400);
@@ -11110,9 +11625,7 @@ function AccountantProcurementPanel({
                             if (!Number.isFinite(num)) {
                               return;
                             }
-                            onProfilesChange(
-                              setProfilePercent(profilesRef.current, profile.id, num),
-                            );
+                            queueSave(setProfilePercent(profilesRef.current, profile.id, num));
                           }}
                           onBlur={(event) => {
                             const num = Number(String(event.target.value).replace(',', '.'));

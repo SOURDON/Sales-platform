@@ -15,7 +15,13 @@ export type OutboxMutationType =
   | 'DIRECTOR_CONTROL_DECISION'
   | 'DIRECTOR_SET_PERCENT'
   | 'DIRECTOR_DEMO_PASSWORD'
-  | 'MANAGER_REVENUE_PLANS';
+  | 'MANAGER_REVENUE_PLANS'
+  | 'FINANCE_INCOME_UPDATE'
+  | 'FINANCE_EXPENSE_UPDATE'
+  | 'FINANCE_EXPENSE_CATEGORY'
+  | 'MANAGER_STORE_COMMISSIONS'
+  | 'ACQUIRING_PROFILES'
+  | 'PROCUREMENT_COSTS';
 
 export type AdminSaleOutboxPayload = {
   saleId: string;
@@ -127,6 +133,51 @@ export type ManagerRevenuePlansPayload = {
   createdAt: string;
 };
 
+export type FinanceIncomeUpdateOutboxPayload = {
+  updateId: string;
+  incomeId: string;
+  accountId: string;
+  amount: number;
+  workDay: string;
+  comment?: string;
+  createdAt: string;
+};
+
+export type FinanceExpenseUpdateOutboxPayload = {
+  updateId: string;
+  expenseId: string;
+  accountId: string;
+  title: string;
+  amount: number;
+  comment?: string;
+  createdAt: string;
+};
+
+export type FinanceExpenseCategoryOutboxPayload = {
+  patchId: string;
+  title: string;
+  amount: number;
+  createdAt: string;
+};
+
+export type ManagerStoreCommissionsOutboxPayload = {
+  patchId: string;
+  items: Array<{ storeName: string; percent: number }>;
+  createdAt: string;
+};
+
+export type AcquiringProfilesOutboxPayload = {
+  patchId: string;
+  profiles: Array<{ id: string; percent: number }>;
+  createdAt: string;
+};
+
+export type ProcurementCostsOutboxPayload = {
+  patchId: string;
+  items: Array<{ name: string; cost: number }>;
+  createdAt: string;
+};
+
 /** Payload по типу мутации (для сужения типов в flush handlers). */
 export type OutboxPayloadByType = {
   ADMIN_SALE: AdminSaleOutboxPayload;
@@ -145,6 +196,12 @@ export type OutboxPayloadByType = {
   DIRECTOR_SET_PERCENT: DirectorSetPercentPayload;
   DIRECTOR_DEMO_PASSWORD: DirectorDemoPasswordPayload;
   MANAGER_REVENUE_PLANS: ManagerRevenuePlansPayload;
+  FINANCE_INCOME_UPDATE: FinanceIncomeUpdateOutboxPayload;
+  FINANCE_EXPENSE_UPDATE: FinanceExpenseUpdateOutboxPayload;
+  FINANCE_EXPENSE_CATEGORY: FinanceExpenseCategoryOutboxPayload;
+  MANAGER_STORE_COMMISSIONS: ManagerStoreCommissionsOutboxPayload;
+  ACQUIRING_PROFILES: AcquiringProfilesOutboxPayload;
+  PROCUREMENT_COSTS: ProcurementCostsOutboxPayload;
 };
 
 export type OutboxPayload = OutboxPayloadByType[OutboxMutationType];
@@ -174,9 +231,9 @@ export type AdminCacheKey =
 export type FinanceCacheKey =
   | 'dashboard'
   | 'financeOps'
-  | 'autoFinanceOps'
   | 'inventoryOverview'
   | 'commissionRequests'
+  | 'controlRequests'
   | 'revenuePlansByDay'
   | 'storeEquipment';
 

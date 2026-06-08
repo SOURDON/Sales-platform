@@ -39,11 +39,17 @@ async function flushEntry(
     case 'FINANCE_INCOME':
     case 'FINANCE_EXPENSE':
     case 'FINANCE_ACCOUNT_BALANCE':
+    case 'FINANCE_INCOME_UPDATE':
+    case 'FINANCE_EXPENSE_UPDATE':
+    case 'FINANCE_EXPENSE_CATEGORY':
       return flushFinanceEntry(apiBaseUrl, token, entry);
     case 'DIRECTOR_COMMISSION_DECISION':
     case 'DIRECTOR_CONTROL_DECISION':
     case 'DIRECTOR_SET_PERCENT':
     case 'DIRECTOR_DEMO_PASSWORD':
+    case 'MANAGER_STORE_COMMISSIONS':
+    case 'ACQUIRING_PROFILES':
+    case 'PROCUREMENT_COSTS':
       return flushDirectorEntry(apiBaseUrl, token, entry);
     case 'MANAGER_REVENUE_PLANS':
       return flushManagerRevenuePlansEntry(apiBaseUrl, token, entry);

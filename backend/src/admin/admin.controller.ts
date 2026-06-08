@@ -605,6 +605,74 @@ export class AdminController {
     return account as unknown;
   }
 
+  @Put('finance/incomes/:id')
+  updateFinanceIncome(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: FinanceIncomeBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    const workDay =
+      body.workDay && /^\d{4}-\d{2}-\d{2}$/.test(body.workDay) ? body.workDay : undefined;
+    const income = this.authService.updateFinanceIncome(
+      id,
+      {
+        accountId: body.accountId,
+        amount: body.amount,
+        workDay,
+        comment: body.comment,
+      },
+      session.nickname,
+    );
+    if (!income) {
+      throw new BadRequestException('Invalid finance income update');
+    }
+    return income as unknown;
+  }
+
+  @Put('finance/expenses/:id')
+  updateFinanceExpense(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: FinanceExpenseBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    const amount =
+      body.amount !== undefined && Number.isFinite(body.amount)
+        ? Math.round(body.amount * 100) / 100
+        : undefined;
+    if (amount !== undefined && amount <= 0) {
+      throw new BadRequestException('amount must be greater than zero');
+    }
+    const expense = this.authService.updateFinanceExpense(
+      id,
+      {
+        accountId: body.accountId,
+        title: body.title,
+        amount,
+        comment: body.comment,
+      },
+      session.nickname,
+    );
+    if (!expense) {
+      const financeOps = this.authService.getFinanceOpsSnapshot() as {
+        accounts: Array<{ id: string; name: string; balance: number }>;
+      };
+      const accountId = body.accountId;
+      const account = accountId
+        ? financeOps.accounts.find((item) => item.id === accountId)
+        : undefined;
+      if (account && amount !== undefined && Math.round(account.balance * 100) < Math.round(amount * 100)) {
+        const available = account.balance.toLocaleString('ru-RU');
+        throw new BadRequestException(
+          `Недостаточно средств на счёте «${account.name}». Доступно: ${available} ₽`,
+        );
+      }
+      throw new BadRequestException('Invalid finance expense update');
+    }
+    return expense as unknown;
+  }
+
   @Post('finance/expenses')
   addFinanceExpense(
     @Headers('authorization') authorization: string | undefined,
@@ -735,6 +803,74 @@ export class AdminController {
       throw new BadRequestException('Invalid category title or amount');
     }
     return row as unknown;
+  }
+
+  @Put('finance/auto/incomes/:id')
+  updateAutoFinanceIncome(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: FinanceIncomeBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    const workDay =
+      body.workDay && /^\d{4}-\d{2}-\d{2}$/.test(body.workDay) ? body.workDay : undefined;
+    const income = this.authService.updateAutoFinanceIncome(
+      id,
+      {
+        accountId: body.accountId,
+        amount: body.amount,
+        workDay,
+        comment: body.comment,
+      },
+      session.nickname,
+    );
+    if (!income) {
+      throw new BadRequestException('Invalid auto finance income update');
+    }
+    return income as unknown;
+  }
+
+  @Put('finance/auto/expenses/:id')
+  updateAutoFinanceExpense(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: FinanceExpenseBody,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    const amount =
+      body.amount !== undefined && Number.isFinite(body.amount)
+        ? Math.round(body.amount * 100) / 100
+        : undefined;
+    if (amount !== undefined && amount <= 0) {
+      throw new BadRequestException('amount must be greater than zero');
+    }
+    const expense = this.authService.updateAutoFinanceExpense(
+      id,
+      {
+        accountId: body.accountId,
+        title: body.title,
+        amount,
+        comment: body.comment,
+      },
+      session.nickname,
+    );
+    if (!expense) {
+      const financeOps = this.authService.getAutoFinanceOpsSnapshot() as {
+        accounts: Array<{ id: string; name: string; balance: number }>;
+      };
+      const accountId = body.accountId;
+      const account = accountId
+        ? financeOps.accounts.find((item) => item.id === accountId)
+        : undefined;
+      if (account && amount !== undefined && Math.round(account.balance * 100) < Math.round(amount * 100)) {
+        const available = account.balance.toLocaleString('ru-RU');
+        throw new BadRequestException(
+          `Недостаточно средств на счёте «${account.name}». Доступно: ${available} ₽`,
+        );
+      }
+      throw new BadRequestException('Invalid auto finance expense update');
+    }
+    return expense as unknown;
   }
 
   @Post('finance/auto/expenses')

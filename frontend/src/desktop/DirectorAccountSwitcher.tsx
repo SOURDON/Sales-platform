@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { isTauriRuntime } from './tauri';
 import { newClientId, runAdminMutation } from '../sync';
 import {
   readDirectorDemoAccountsCache,
@@ -227,7 +226,7 @@ export function DirectorAccountSwitcher({
           throw new Error(msg);
         }
       };
-      if (isTauriRuntime() && userId !== undefined) {
+      if (userId !== undefined) {
         const mode = await runAdminMutation(userId, patchId, 'DIRECTOR_DEMO_PASSWORD', body, patch);
         if (mode === 'queued') {
           setDraftPwd('');

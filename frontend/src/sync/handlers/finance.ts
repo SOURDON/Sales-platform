@@ -53,6 +53,61 @@ export async function flushFinanceEntry(
       }
       return outcome;
     }
+    if (isEntry(entry, 'FINANCE_INCOME_UPDATE')) {
+      const { payload } = entry;
+      const response = await postJson(
+        apiBaseUrl,
+        token,
+        `/admin/finance/incomes/${encodeURIComponent(payload.incomeId)}`,
+        {
+          accountId: payload.accountId,
+          amount: payload.amount,
+          workDay: payload.workDay,
+          comment: payload.comment,
+        },
+        'PUT',
+      );
+      const outcome = outcomeFromResponse(response);
+      if (outcome === 'ok') {
+        await removeOutboxEntry(entry.id);
+      }
+      return outcome;
+    }
+    if (isEntry(entry, 'FINANCE_EXPENSE_UPDATE')) {
+      const { payload } = entry;
+      const response = await postJson(
+        apiBaseUrl,
+        token,
+        `/admin/finance/expenses/${encodeURIComponent(payload.expenseId)}`,
+        {
+          accountId: payload.accountId,
+          title: payload.title,
+          amount: payload.amount,
+          comment: payload.comment,
+        },
+        'PUT',
+      );
+      const outcome = outcomeFromResponse(response);
+      if (outcome === 'ok') {
+        await removeOutboxEntry(entry.id);
+      }
+      return outcome;
+    }
+    if (isEntry(entry, 'FINANCE_EXPENSE_CATEGORY')) {
+      const { payload } = entry;
+      const response = await postJson(
+        apiBaseUrl,
+        token,
+        '/admin/finance/expense-category-amount',
+        { title: payload.title, amount: payload.amount },
+        'PUT',
+      );
+      const outcome = outcomeFromResponse(response);
+      if (outcome === 'ok') {
+        await removeOutboxEntry(entry.id);
+      }
+      return outcome;
+    }
     return 'drop';
   } catch {
     return 'retry';

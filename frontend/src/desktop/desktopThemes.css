@@ -281,18 +281,28 @@ html[data-dt-theme='light'] .app.app--desktop .financeOpsBankTotalCallout {
 
 html[data-dt-theme='light'] .app.app--desktop .financeOpsFlowAccountChip--active,
 html[data-dt-theme='light'] .app.app--desktop .teamWarehouseStoreBtn--active {
-  background: rgba(67, 77, 86, 0.35) !important;
-  border-color: var(--cb-soft) !important;
+  background:
+    linear-gradient(145deg, rgba(67, 77, 86, 0.55) 0%, rgba(110, 125, 139, 0.42) 100%) !important;
+  border-color: var(--cb-accent) !important;
   color: var(--cb-light) !important;
-  box-shadow: inset 3px 0 0 var(--cb-accent) !important;
+  font-weight: 700 !important;
+  box-shadow:
+    0 0 0 1px rgba(67, 77, 86, 0.45),
+    0 4px 14px rgba(67, 77, 86, 0.2),
+    inset 4px 0 0 var(--cb-accent) !important;
 }
 
 html[data-dt-theme='light'] .app.app--desktop .paymentTypeBtnActive,
 html[data-dt-theme='light'] .app.app--desktop .financeOpsAccountPickBtn.paymentTypeBtnActive {
-  background: rgba(67, 77, 86, 0.3) !important;
-  border-color: var(--cb-soft) !important;
+  background:
+    linear-gradient(165deg, rgba(67, 77, 86, 0.5) 0%, rgba(110, 125, 139, 0.38) 100%) !important;
+  border-color: var(--cb-accent) !important;
   color: var(--cb-light) !important;
-  box-shadow: inset 3px 0 0 var(--cb-accent) !important;
+  font-weight: 700 !important;
+  box-shadow:
+    0 0 0 1px rgba(67, 77, 86, 0.4),
+    0 4px 12px rgba(67, 77, 86, 0.18),
+    inset 3px 0 0 var(--cb-accent) !important;
 }
 
 html[data-dt-theme='light'] .app.app--desktop .addSaleProductCard--hasQty {

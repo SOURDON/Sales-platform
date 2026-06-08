@@ -1650,6 +1650,245 @@ export class AuthService implements OnModuleInit {
     return expense;
   }
 
+  updateFinanceIncome(
+    id: string,
+    payload: {
+      accountId?: string;
+      amount?: number;
+      workDay?: string;
+      comment?: string;
+    },
+    actor = 'system',
+  ) {
+    const income = this.financeIncomes.find((item) => item.id === id);
+    if (!income) {
+      return null;
+    }
+    const workDay = payload.workDay ?? income.workDay;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDay)) {
+      return null;
+    }
+    const amount =
+      payload.amount !== undefined ? Math.round(payload.amount * 100) / 100 : income.amount;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return null;
+    }
+    const nextAccountId = payload.accountId ?? income.accountId;
+    const oldAccountId = income.accountId;
+    const oldAmount = income.amount;
+    const oldAccount = this.financeAccounts.find((item) => item.id === oldAccountId);
+    const newAccount = this.financeAccounts.find((item) => item.id === nextAccountId);
+    if (!oldAccount || !newAccount) {
+      return null;
+    }
+    const touchedAccountIds = new Set<string>([oldAccountId, nextAccountId]);
+    oldAccount.balance = Math.round((oldAccount.balance - oldAmount) * 100) / 100;
+    newAccount.balance = Math.round((newAccount.balance + amount) * 100) / 100;
+    income.accountId = newAccount.id;
+    income.accountName = newAccount.name;
+    income.amount = amount;
+    income.workDay = workDay;
+    if (payload.comment !== undefined) {
+      income.comment = payload.comment?.trim() || undefined;
+    }
+    this.pushAudit(
+      actor,
+      'FINANCE_INCOME_UPDATED',
+      `id=${id} ${newAccount.name} ${amount} day=${workDay}`,
+    );
+    this.invalidateDashboardCache();
+    this.queueIncremental(() =>
+      this.persistFinanceIncomeFullUpdate(income, [...touchedAccountIds]),
+    );
+    return income;
+  }
+
+  updateFinanceExpense(
+    id: string,
+    payload: {
+      accountId?: string;
+      title?: string;
+      amount?: number;
+      comment?: string;
+    },
+    actor = 'system',
+  ) {
+    const expense = this.financeExpenses.find((item) => item.id === id);
+    if (!expense) {
+      return null;
+    }
+    const title = (payload.title ?? expense.title).trim();
+    if (!title) {
+      return null;
+    }
+    const amount =
+      payload.amount !== undefined ? Math.round(payload.amount * 100) / 100 : expense.amount;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return null;
+    }
+    const nextAccountId = payload.accountId ?? expense.accountId;
+    const oldAccountId = expense.accountId;
+    const oldAmount = expense.amount;
+    const oldTitle = expense.title;
+    const oldAccount = this.financeAccounts.find((item) => item.id === oldAccountId);
+    const newAccount = this.financeAccounts.find((item) => item.id === nextAccountId);
+    if (!oldAccount || !newAccount) {
+      return null;
+    }
+    const balancesBefore = new Map(this.financeAccounts.map((item) => [item.id, item.balance]));
+    const categoriesBefore = { ...this.financeExpenseCategoryAmounts };
+    const oldCategoryKey = isFinanceExpenseCategoryLabel(oldTitle) ? oldTitle : 'Прочие траты';
+    const newCategoryKey = isFinanceExpenseCategoryLabel(title) ? title : 'Прочие траты';
+    const touchedAccountIds = new Set<string>([oldAccountId, nextAccountId]);
+    oldAccount.balance = Math.round((oldAccount.balance + oldAmount) * 100) / 100;
+    this.financeExpenseCategoryAmounts[oldCategoryKey] = Math.round(
+      ((this.financeExpenseCategoryAmounts[oldCategoryKey] ?? 0) - oldAmount) * 100,
+    ) / 100;
+    const balanceCents = Math.round(newAccount.balance * 100);
+    const amountCents = Math.round(amount * 100);
+    if (balanceCents < amountCents) {
+      for (const account of this.financeAccounts) {
+        account.balance = balancesBefore.get(account.id) ?? account.balance;
+      }
+      this.financeExpenseCategoryAmounts = categoriesBefore;
+      return null;
+    }
+    newAccount.balance = Math.round((newAccount.balance - amount) * 100) / 100;
+    this.financeExpenseCategoryAmounts[newCategoryKey] = Math.round(
+      ((this.financeExpenseCategoryAmounts[newCategoryKey] ?? 0) + amount) * 100,
+    ) / 100;
+    expense.accountId = newAccount.id;
+    expense.accountName = newAccount.name;
+    expense.title = title;
+    expense.amount = amount;
+    if (payload.comment !== undefined) {
+      expense.comment = payload.comment?.trim() || undefined;
+    }
+    this.pushAudit(
+      actor,
+      'FINANCE_EXPENSE_UPDATED',
+      `id=${id} ${title}: ${amount} from ${newAccount.name}`,
+    );
+    this.invalidateDashboardCache();
+    this.queueIncremental(() =>
+      this.persistFinanceExpenseFullUpdate(expense, [...touchedAccountIds]),
+    );
+    return expense;
+  }
+
+  updateAutoFinanceIncome(
+    id: string,
+    payload: {
+      accountId?: string;
+      amount?: number;
+      workDay?: string;
+      comment?: string;
+    },
+    actor = 'system',
+  ) {
+    const income = this.autoFinanceIncomes.find((item) => item.id === id);
+    if (!income) {
+      return null;
+    }
+    const workDay = payload.workDay ?? income.workDay;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDay)) {
+      return null;
+    }
+    const amount =
+      payload.amount !== undefined ? Math.round(payload.amount * 100) / 100 : income.amount;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return null;
+    }
+    const accountId = payload.accountId ?? income.accountId;
+    const oldAccount = this.autoFinanceAccounts.find((item) => item.id === income.accountId);
+    const newAccount = this.autoFinanceAccounts.find((item) => item.id === accountId);
+    if (!oldAccount || !newAccount) {
+      return null;
+    }
+    oldAccount.balance = Math.round((oldAccount.balance - income.amount) * 100) / 100;
+    newAccount.balance = Math.round((newAccount.balance + amount) * 100) / 100;
+    income.accountId = newAccount.id;
+    income.accountName = newAccount.name;
+    income.amount = amount;
+    income.workDay = workDay;
+    if (payload.comment !== undefined) {
+      income.comment = payload.comment?.trim() || undefined;
+    }
+    this.pushAudit(
+      actor,
+      'AUTO_FINANCE_INCOME_UPDATED',
+      `id=${id} ${newAccount.name} ${amount} day=${workDay}`,
+    );
+    this.queuePersistAutoFinanceState();
+    return income;
+  }
+
+  updateAutoFinanceExpense(
+    id: string,
+    payload: {
+      accountId?: string;
+      title?: string;
+      amount?: number;
+      comment?: string;
+    },
+    actor = 'system',
+  ) {
+    const expense = this.autoFinanceExpenses.find((item) => item.id === id);
+    if (!expense) {
+      return null;
+    }
+    const title = (payload.title ?? expense.title).trim();
+    if (!title) {
+      return null;
+    }
+    const amount =
+      payload.amount !== undefined ? Math.round(payload.amount * 100) / 100 : expense.amount;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return null;
+    }
+    const accountId = payload.accountId ?? expense.accountId;
+    const oldAccount = this.autoFinanceAccounts.find((item) => item.id === expense.accountId);
+    const newAccount = this.autoFinanceAccounts.find((item) => item.id === accountId);
+    if (!oldAccount || !newAccount) {
+      return null;
+    }
+    const balancesBefore = new Map(this.autoFinanceAccounts.map((item) => [item.id, item.balance]));
+    const categoriesBefore = { ...this.autoFinanceExpenseCategoryAmounts };
+    const oldCategoryKey = isFinanceExpenseCategoryLabel(expense.title) ? expense.title : 'Прочие траты';
+    const newCategoryKey = isFinanceExpenseCategoryLabel(title) ? title : 'Прочие траты';
+    oldAccount.balance = Math.round((oldAccount.balance + expense.amount) * 100) / 100;
+    this.autoFinanceExpenseCategoryAmounts[oldCategoryKey] = Math.round(
+      ((this.autoFinanceExpenseCategoryAmounts[oldCategoryKey] ?? 0) - expense.amount) * 100,
+    ) / 100;
+    const balanceCents = Math.round(newAccount.balance * 100);
+    const amountCents = Math.round(amount * 100);
+    if (balanceCents < amountCents) {
+      for (const account of this.autoFinanceAccounts) {
+        account.balance = balancesBefore.get(account.id) ?? account.balance;
+      }
+      this.autoFinanceExpenseCategoryAmounts = categoriesBefore;
+      return null;
+    }
+    newAccount.balance = Math.round((newAccount.balance - amount) * 100) / 100;
+    this.autoFinanceExpenseCategoryAmounts[newCategoryKey] = Math.round(
+      ((this.autoFinanceExpenseCategoryAmounts[newCategoryKey] ?? 0) + amount) * 100,
+    ) / 100;
+    expense.accountId = newAccount.id;
+    expense.accountName = newAccount.name;
+    expense.title = title;
+    expense.amount = amount;
+    if (payload.comment !== undefined) {
+      expense.comment = payload.comment?.trim() || undefined;
+    }
+    this.pushAudit(
+      actor,
+      'AUTO_FINANCE_EXPENSE_UPDATED',
+      `id=${id} ${title}: ${amount} from ${newAccount.name}`,
+    );
+    this.queuePersistAutoFinanceState();
+    return expense;
+  }
+
   /** Очистка оперативки: все приходы/расходы, статьи расходов → 0, остатки счетов обнуляются. */
   resetFinanceOps(actor = 'system') {
     const expenseCount = this.financeExpenses.length;
@@ -4039,26 +4278,72 @@ export class AuthService implements OnModuleInit {
   }
 
   private async persistFinanceIncomeAmountUpdate(income: FinanceIncome) {
+    await this.persistFinanceIncomeFullUpdate(income, [income.accountId]);
+  }
+
+  private async persistFinanceIncomeFullUpdate(income: FinanceIncome, accountIds: string[]) {
     await this.prisma.$transaction(async (tx) => {
       await tx.financeIncome.update({
         where: { id: income.id },
         data: {
           amount: income.amount,
           comment: income.comment ?? null,
+          accountId: income.accountId,
           accountName: income.accountName,
+          workDay: income.workDay,
         },
       });
-      const account = this.financeAccounts.find((a) => a.id === income.accountId)!;
-      await tx.financeAccount.upsert({
-        where: { id: account.id },
-        create: {
-          id: account.id,
-          name: account.name,
-          kind: account.kind === 'CASH' ? PrismaFinanceAccountKind.CASH : PrismaFinanceAccountKind.BANK,
-          balance: account.balance,
+      for (const accountId of accountIds) {
+        const account = this.financeAccounts.find((a) => a.id === accountId);
+        if (!account) {
+          continue;
+        }
+        await tx.financeAccount.upsert({
+          where: { id: account.id },
+          create: {
+            id: account.id,
+            name: account.name,
+            kind:
+              account.kind === 'CASH' ? PrismaFinanceAccountKind.CASH : PrismaFinanceAccountKind.BANK,
+            balance: account.balance,
+          },
+          update: { balance: account.balance },
+        });
+      }
+      await this.persistFinanceAppStateSlice(tx);
+    });
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistFinanceExpenseFullUpdate(expense: FinanceExpense, accountIds: string[]) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financeExpense.update({
+        where: { id: expense.id },
+        data: {
+          title: expense.title,
+          amount: expense.amount,
+          comment: expense.comment ?? null,
+          accountId: expense.accountId,
+          accountName: expense.accountName,
         },
-        update: { balance: account.balance },
       });
+      for (const accountId of accountIds) {
+        const account = this.financeAccounts.find((a) => a.id === accountId);
+        if (!account) {
+          continue;
+        }
+        await tx.financeAccount.upsert({
+          where: { id: account.id },
+          create: {
+            id: account.id,
+            name: account.name,
+            kind:
+              account.kind === 'CASH' ? PrismaFinanceAccountKind.CASH : PrismaFinanceAccountKind.BANK,
+            balance: account.balance,
+          },
+          update: { balance: account.balance },
+        });
+      }
       await this.persistFinanceAppStateSlice(tx);
     });
     await this.persistLatestAuditEntry();
