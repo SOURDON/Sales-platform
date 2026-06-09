@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2.4.0",
+    "@tauri-apps/plugin-fs": "^2.4.0",
     "exceljs": "^4.4.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

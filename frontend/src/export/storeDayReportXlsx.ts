@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { percentForStore, type AcquiringProfile } from '../acquiring/acquiringConfig';
 import { DEFAULT_MANAGER_STORE_COMMISSIONS } from '../inventory/normalizeInventoryOverview';
+import { saveXlsxFile, type SaveXlsxResult } from './saveXlsxFile';
 
 export type StoreDayReportSellerRow = {
   name: string;
@@ -254,18 +255,6 @@ function sellerTier(salesRub: number, rank: number): StoreDayReportSellerRow['ti
     return 'top3';
   }
   return 'normal';
-}
-
-function downloadBuffer(buffer: ArrayBuffer, filename: string) {
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
 }
 
 export function buildStoreDayReportData(options: {
@@ -742,7 +731,7 @@ function addPaymentMixBlock(sheet: ExcelJS.Worksheet, startRow: number, data: St
   }
 }
 
-export async function downloadStoreDayReportXlsx(data: StoreDayReportData) {
+export async function downloadStoreDayReportXlsx(data: StoreDayReportData): Promise<SaveXlsxResult> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Фотографы';
   workbook.created = new Date();
@@ -989,5 +978,5 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData) {
 
   const safeStore = data.storeName.replace(/[^\wа-яА-ЯёЁ.-]+/gi, '_').slice(0, 40);
   const buffer = await workbook.xlsx.writeBuffer();
-  downloadBuffer(buffer, `otchet-den-${safeStore}-${data.dayKey}.xlsx`);
+  return saveXlsxFile(buffer, `otchet-den-${safeStore}-${data.dayKey}.xlsx`);
 }

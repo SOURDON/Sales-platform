@@ -3154,11 +3154,15 @@ function App() {
         acquiringProfiles: profiles,
         managerStoreCommissions: managerCommissions,
       });
-      await downloadStoreDayReportXlsx(reportData);
+      const saveResult = await downloadStoreDayReportXlsx(reportData);
+      if (saveResult === 'cancelled') {
+        setDayReportNotice('Сохранение отменено.');
+        return;
+      }
       setDayReportNotice(
         usedOfflineCache && !apiReachable
-          ? 'Отчёт за день скачан (офлайн, из локального кэша).'
-          : 'Отчёт за день скачан.',
+          ? 'Отчёт за день сохранён (офлайн, из локального кэша).'
+          : 'Отчёт за день сохранён.',
       );
     } catch {
       setDayReportNotice('Не удалось сформировать отчёт за день.');
