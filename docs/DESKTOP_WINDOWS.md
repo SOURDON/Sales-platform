@@ -119,7 +119,8 @@ npm run dev
 | Симптом | Решение |
 |---------|---------|
 | `cargo` / linker not found | Установите Visual Studio Build Tools с C++ |
-| WebView2 error | Установите Evergreen WebView2 Runtime |
+| Установщик зависает на WebView2 | С v1.0.43 Fotografy ставится без блокировки; WebView2 — по желанию в конце или [вручную](https://developer.microsoft.com/microsoft-edge/webview2/) |
+| WebView2 error при запуске | Установите Evergreen WebView2 Runtime |
 | «Load failed» при входе | Добавьте `tauri://localhost` в CORS на backend |
 | Антивирус блокирует `.exe` | Подпись кода пока нет — добавьте исключение или соберите на доверенном ПК |
 
