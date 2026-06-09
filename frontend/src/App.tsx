@@ -790,8 +790,11 @@ const API_CONFIG_ERROR =
     ? 'Сборка без адреса API: задайте VITE_API_URL при сборке frontend.'
     : '';
 
+const API_DEPLOY_HINT =
+  'На сервере старая версия API. Обновите Timeweb (git pull + docker compose up -d --build api) и нажмите ↻.';
+
 const MANAGER_COMMISSIONS_DEPLOY_HINT =
-  'На сервере ещё нет API для процентов управляющего. Обновите API на Timeweb (git pull + docker compose up -d --build api) и нажмите ↻.';
+  `На сервере ещё нет API для процентов управляющего. ${API_DEPLOY_HINT}`;
 
 function apiServerLabel(baseUrl: string): string {
   try {
@@ -811,11 +814,15 @@ function apiServerLabel(baseUrl: string): string {
   }
 }
 
-async function readApiErrorMessage(response: Response, fallback: string): Promise<string> {
+async function readApiErrorMessage(
+  response: Response,
+  fallback: string,
+  options?: { notFoundHint?: string },
+): Promise<string> {
   const body = (await response.json().catch(() => null)) as { message?: string | string[] } | null;
   const raw = Array.isArray(body?.message) ? body.message[0] : body?.message;
   if (response.status === 404) {
-    return MANAGER_COMMISSIONS_DEPLOY_HINT;
+    return options?.notFoundHint ?? (typeof raw === 'string' && raw.trim() ? raw : fallback);
   }
   return typeof raw === 'string' && raw.trim() ? raw : fallback;
 }
@@ -1834,7 +1841,9 @@ function App() {
         if (!response.ok) {
           setManagerCommissionsApiOnline(false);
           throw new Error(
-            await readApiErrorMessage(response, 'Не удалось загрузить проценты управляющего'),
+            await readApiErrorMessage(response, 'Не удалось загрузить проценты управляющего', {
+              notFoundHint: MANAGER_COMMISSIONS_DEPLOY_HINT,
+            }),
           );
         }
         setManagerCommissionsApiOnline(true);
@@ -1883,7 +1892,11 @@ function App() {
         if (response.status === 404) {
           setManagerCommissionsApiOnline(false);
         }
-        throw new Error(await readApiErrorMessage(response, 'Не удалось сохранить проценты'));
+        throw new Error(
+          await readApiErrorMessage(response, 'Не удалось сохранить проценты', {
+            notFoundHint: MANAGER_COMMISSIONS_DEPLOY_HINT,
+          }),
+        );
       }
       setManagerCommissionsApiOnline(true);
       const data = (await response.json()) as { items: ManagerStoreCommissionRow[] };
@@ -2473,7 +2486,11 @@ function App() {
         }),
       });
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, 'Не удалось изменить приход'));
+        throw new Error(
+          await readApiErrorMessage(response, 'Не удалось изменить приход', {
+            notFoundHint: `На сервере ещё нет API для редактирования приходов. ${API_DEPLOY_HINT}`,
+          }),
+        );
       }
     };
 
@@ -2530,7 +2547,11 @@ function App() {
         }),
       });
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, 'Не удалось изменить расход'));
+        throw new Error(
+          await readApiErrorMessage(response, 'Не удалось изменить расход', {
+            notFoundHint: `На сервере ещё нет API для редактирования расходов. ${API_DEPLOY_HINT}`,
+          }),
+        );
       }
     };
 
