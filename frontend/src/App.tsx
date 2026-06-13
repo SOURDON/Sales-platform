@@ -1154,6 +1154,7 @@ function App() {
       return;
     }
     void import('./web/webDesktopTheme.css');
+    void import('./web/webMobileIos.css');
   }, [isDesktopShell]);
 
   const usesSyncEngine = roleUsesSyncEngine(session?.user?.role);
@@ -5233,54 +5234,72 @@ function App() {
     );
   }
 
+  const webNavLinks = (
+    <>
+      <NavLink to="/home" className={navTabClass} end>
+        Главная
+      </NavLink>
+      {!isRetoucher && (
+        <NavLink to="/shift" className={navTabClass}>
+          {shiftLabel}
+        </NavLink>
+      )}
+      {!isRetoucher && !isSellerOnly && (
+        <>
+          {!directorWebTrimmed ? (
+            <NavLink to="/sales" className={navTabClass}>
+              Продажи
+            </NavLink>
+          ) : null}
+          {role === 'DIRECTOR' ? (
+            <>
+              <NavLink to="/accounting/equipment" className={navTabClass}>
+                Спецтехника
+              </NavLink>
+              <NavLink to="/accounting/procurement" className={navTabClass}>
+                Закупки и склад
+              </NavLink>
+            </>
+          ) : null}
+          {!directorWebTrimmed ? (
+            <NavLink to="/team" className={navTabClass}>
+              {role === 'ADMIN' ? 'Склад' : 'Сотрудники'}
+            </NavLink>
+          ) : null}
+          {role === 'ACCOUNTANT' ? (
+            <NavLink to="/control" className={navTabClass}>
+              Отчёт
+            </NavLink>
+          ) : null}
+        </>
+      )}
+    </>
+  );
+
   return (
     <main className={`app appWorkspace app--desktop${isDesktopShell ? '' : ' app--web'}`}>
+      {!isDesktopShell ? (
+        <>
+          <header className="webIosTopBar">
+            <h1 className="webIosTopBarBrand">Фотографы</h1>
+            <button type="button" className="webIosTopBarLogout" onClick={handleLogout}>
+              Выйти
+            </button>
+          </header>
+          <header className="webAppHeader">
+            <div className="webAppHeaderRow">
+              <h1 className="webIosTopBarBrand">Фотографы</h1>
+              <button type="button" className="webIosTopBarLogout" onClick={handleLogout}>
+                Выйти
+              </button>
+            </div>
+            <div className="quickNav desktopNav webAppHeaderTabs" role="tablist" aria-label="Разделы">
+              {webNavLinks}
+            </div>
+          </header>
+        </>
+      ) : null}
       <section className="card cardWorkspace">
-        <header className="desktopAppHeader">
-          <div className="brandHeader">
-            <h1>Фотографы</h1>
-          </div>
-          <div className="quickNav desktopNav" role="tablist" aria-label="Разделы">
-            <NavLink to="/home" className={navTabClass} end>
-              Главная
-            </NavLink>
-            {!isRetoucher && (
-              <NavLink to="/shift" className={navTabClass}>
-                {shiftLabel}
-              </NavLink>
-            )}
-            {!isRetoucher && !isSellerOnly && (
-              <>
-                {!directorWebTrimmed ? (
-                  <NavLink to="/sales" className={navTabClass}>
-                    Продажи
-                  </NavLink>
-                ) : null}
-                {role === 'DIRECTOR' ? (
-                  <>
-                    <NavLink to="/accounting/equipment" className={navTabClass}>
-                      Спецтехника
-                    </NavLink>
-                    <NavLink to="/accounting/procurement" className={navTabClass}>
-                      Закупки и склад
-                    </NavLink>
-                  </>
-                ) : null}
-                {!directorWebTrimmed ? (
-                  <NavLink to="/team" className={navTabClass}>
-                    {role === 'ADMIN' ? 'Склад' : 'Сотрудники'}
-                  </NavLink>
-                ) : null}
-                {role === 'ACCOUNTANT' ? (
-                  <NavLink to="/control" className={navTabClass}>
-                    Отчёт
-                  </NavLink>
-                ) : null}
-              </>
-            )}
-          </div>
-        </header>
-
         {adminError ? <p className="error">{adminError}</p> : null}
 
         {routesOutlet}
@@ -11130,31 +11149,9 @@ function AccountantStoreEquipmentStoresPanel({
           <p className="storeEquipEditorMeta">
             {isDesktop
               ? `Всего единиц на точке: ${activeTotal}`
-              : `${storeIndex + 1} из ${totalStores} · всего ${activeTotal}`}
+              : `Всего единиц: ${activeTotal}`}
           </p>
         </div>
-        {!isDesktop && canNav ? (
-          <div className="storeEquipCarouselNav storeEquipCarouselNav--compact" role="group" aria-label="Выбор точки">
-            <button
-              type="button"
-              className="storeEquipCarouselNavBtn"
-              onClick={goPrev}
-              disabled={storeIndex <= 0}
-              aria-label="Предыдущая точка"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              className="storeEquipCarouselNavBtn"
-              onClick={goNext}
-              disabled={storeIndex >= totalStores - 1}
-              aria-label="Следующая точка"
-            >
-              ›
-            </button>
-          </div>
-        ) : null}
       </div>
       <div
         className={`storeEquipGrid storeEquipGrid--accountant${isDesktop ? ' storeEquipGrid--desktop' : ''}`}

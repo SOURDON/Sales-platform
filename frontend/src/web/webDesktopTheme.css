@@ -47,14 +47,7 @@ body:has(.app--web) {
   display: grid !important;
 }
 
-.app.app--desktop.app--web .desktopAppHeader,
-.app.app--desktop.app--web .quickNav.desktopNav {
-  display: flex !important;
-}
-
-.app.app--desktop.app--web .cardWorkspace {
-  padding-bottom: calc(102px + env(safe-area-inset-bottom)) !important;
-}
+/* Верхняя навигация — в webMobileIos.css (iOS-панель на телефоне, табы на широком экране) */
 
 .app.app--desktop.app--web.loginScreen {
   align-items: center !important;
@@ -271,37 +264,4 @@ body:has(.app--web) {
   transition: none !important;
 }
 
-.app.app--web .pageOutlet {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 500px;
-}
-
-.app.app--web .financeOpsHistoryMiniTrack,
-.app.app--web .salesLogList,
-.app.app--web .tableWrap {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 320px;
-}
-
-@media (max-width: 560px) {
-  .app.app--desktop.app--web {
-    padding: 0 !important;
-    background:
-      radial-gradient(ellipse 75% 55% at 92% -5%, rgba(154, 163, 173, 0.1), transparent 58%),
-      linear-gradient(165deg, #090c11 0%, #121820 100%) !important;
-  }
-
-  .app.app--desktop.app--web.loginScreen {
-    align-items: stretch !important;
-    justify-content: flex-end !important;
-    padding: calc(10px + env(safe-area-inset-top, 0px)) 0 0 !important;
-    background:
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(154, 163, 173, 0.12), transparent 58%),
-      linear-gradient(165deg, #090c11 0%, #121820 55%, #262b32 100%) !important;
-  }
-
-  .app.app--desktop.app--web.loginScreen .loginScreenPanel {
-    max-width: none;
-    border-radius: 20px 20px 0 0 !important;
-  }
-}
+/* content-visibility и мобильный логин — webMobileIos.css */
