@@ -1,6 +1,6 @@
-# Деплой API на Timeweb по SSH (после push в main или вручную).
-# Один раз в GitHub → Settings → Secrets → Actions:
-#   TIMEWEB_SSH_KEY — приватный SSH-ключ с доступом к root@77.233.223.48
+# Деплой на Timeweb по SSH после push в main (или вручную).
+# Настройка один раз: docs/GITHUB_ACTIONS_DEPLOY.md
+# Секрет: TIMEWEB_SSH_KEY — приватный ключ scripts/timeweb/.deploy-keys/github_actions_ed25519
 name: Deploy Timeweb
 
 on:
@@ -12,19 +12,45 @@ on:
       - 'frontend/**'
       - 'deploy/timeweb/**'
       - 'scripts/timeweb/**'
+      - '.github/workflows/deploy-timeweb.yml'
+
+concurrency:
+  group: deploy-timeweb-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
+      - name: Require deploy SSH key
+        run: |
+          if [ -z "${{ secrets.TIMEWEB_SSH_KEY }}" ]; then
+            echo "::error::Секрет TIMEWEB_SSH_KEY не задан."
+            echo "Настройка: docs/GITHUB_ACTIONS_DEPLOY.md"
+            echo "Команда: bash scripts/timeweb/setup-github-actions-deploy.sh"
+            exit 1
+          fi
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: 77.233.223.48
           username: root
           key: ${{ secrets.TIMEWEB_SSH_KEY }}
+          fingerprint: SHA256:W+UdL84YdgbO8Vj/rNr5DoSkanxPF52XRnARqpHQrc8
+          command_timeout: 25m
           script_stop: true
           script: |
+            set -euo pipefail
             bash /opt/sales-platform/scripts/timeweb/deploy-update.sh
             bash /opt/sales-platform/scripts/timeweb/ensure-demo-admins.sh
-            curl -sf http://127.0.0.1/health && echo " health OK"
+            curl -sf http://127.0.0.1/health
+            echo " health OK"
+            echo "deploy-stamp: $(curl -sf http://127.0.0.1/deploy-stamp.txt || echo unknown)"
+
+      - name: Verify public health
+        run: |
+          curl -sf --connect-timeout 15 http://77.233.223.48/health
+          echo " public health OK"
+          curl -sf --connect-timeout 15 http://77.233.223.48/deploy-stamp.txt
