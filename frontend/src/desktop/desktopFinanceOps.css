@@ -827,13 +827,83 @@
     inset 0 1px 0 rgba(154, 163, 173, 0.16);
 }
 
+.app.app--desktop .financeOpsHistoryMiniHead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
 .app.app--desktop .financeOpsHistoryMiniTitle {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--dt-text-dim);
+}
+
+.app.app--desktop .financeOpsHistoryFilters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.app.app--desktop .financeOpsHistoryStoreFilter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.app.app--desktop .financeOpsHistoryStoreFilterLabel {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--dt-text-dim);
+  white-space: nowrap;
+}
+
+.app.app--desktop .financeOpsHistoryStoreFilter select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: var(--dt-radius-sm);
+  border: 1px solid var(--dt-border-hairline);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--dt-text);
+  font-size: 11px;
+}
+
+.app.app--desktop .financeOpsHistoryDayTotal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 2px;
+  padding: 8px 10px;
+  border-radius: var(--dt-radius-sm);
+  background: rgba(0, 0, 0, 0.24);
+  box-shadow: inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .financeOpsHistoryDayTotalLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .financeOpsHistoryDayTotalValue {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--dt-gold);
+}
+
+.app.app--desktop .financeOpsHistoryMini--expense .financeOpsHistoryDayTotalValue {
+  color: #9cc9b4;
 }
 
 .app.app--desktop .financeOpsHistoryMini--expense .financeOpsHistoryMiniTitle {

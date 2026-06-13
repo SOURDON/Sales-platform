@@ -77,6 +77,7 @@ import {
   roleUsesAdminDesktopOutbox,
   useLiveSessionRefresh,
 } from './sync';
+import { fetchRouteDataIfStale } from './web/routeFetchGuard';
 import {
   loadStoreEquipmentCache,
   readDirectorDemoAccountsCache,
@@ -1112,10 +1113,7 @@ function App() {
   );
 
   useEffect(() => {
-    if (!isDesktopShell) {
-      return;
-    }
-    applyDesktopTheme(desktopTheme);
+    applyDesktopTheme(isDesktopShell ? desktopTheme : 'dark');
   }, [isDesktopShell, desktopTheme]);
 
   useEffect(() => {
@@ -1134,27 +1132,28 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!isDesktopShell) {
-      return;
-    }
     void import('./desktop/desktopTypography.css');
     void import('./desktop/desktopShell.css');
     void import('./desktop/desktopPages.css');
-    void import('./desktop/desktopNative.css');
     void import('./desktop/desktopLuxury.css');
     void import('./desktop/desktopDirectorHome.css');
     void import('./desktop/desktopFinanceOps.css');
     void import('./desktop/desktopFinanceReport.css');
     void import('./desktop/desktopTeamWarehouse.css');
-    void import('./desktop/desktopDirectorAccountSwitcher.css');
     void import('./desktop/desktopThemes.css');
-    void import('./desktop/desktopHermesLight.css');
-    void import('./desktop/desktopStoneLight.css');
-    void import('./desktop/desktopFlat.css');
-    void import('./desktop/desktopLightContrast.css');
-    void import('./desktop/desktopThemeToggle.css');
     void import('./desktop/desktopStoreEquipment.css');
     void import('./desktop/desktopAcquiring.css');
+    if (isDesktopShell) {
+      void import('./desktop/desktopNative.css');
+      void import('./desktop/desktopDirectorAccountSwitcher.css');
+      void import('./desktop/desktopHermesLight.css');
+      void import('./desktop/desktopStoneLight.css');
+      void import('./desktop/desktopFlat.css');
+      void import('./desktop/desktopLightContrast.css');
+      void import('./desktop/desktopThemeToggle.css');
+      return;
+    }
+    void import('./web/webDesktopTheme.css');
   }, [isDesktopShell]);
 
   const usesSyncEngine = roleUsesSyncEngine(session?.user?.role);
@@ -2251,7 +2250,7 @@ function App() {
     }
   };
 
-  const loadFinanceOps = async (token: string) => {
+  const loadFinanceOps = async (token: string, options?: { preferNetwork?: boolean }) => {
     const fetcher = async () => {
       const response = await fetch(`${API_BASE_URL}/admin/finance/ops`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -2266,6 +2265,7 @@ function App() {
     if (roleUsesSyncCache(role) && session?.user?.id != null) {
       const result = await loadSyncResource(API_BASE_URL, session.user.id, 'financeOps', fetcher, empty, {
         onFresh: (data) => setFinanceOps(data),
+        preferNetwork: options?.preferNetwork,
       });
       setFinanceOps(result.data);
       return;
@@ -2314,7 +2314,7 @@ function App() {
     } else {
       await put();
     }
-    await loadFinanceOps(token);
+    await loadFinanceOps(token, { preferNetwork: true });
   };
 
   const addFinanceIncome = async (
@@ -2370,7 +2370,7 @@ function App() {
     } else {
       await post();
     }
-    await loadFinanceOps(token);
+    await loadFinanceOps(token, { preferNetwork: true });
   };
 
   const addFinanceExpense = async (
@@ -2443,7 +2443,7 @@ function App() {
     } else {
       await post();
     }
-    await loadFinanceOps(token);
+    await loadFinanceOps(token, { preferNetwork: true });
   };
 
   const updateFinanceIncome = async (
@@ -2504,7 +2504,7 @@ function App() {
     } else {
       await put();
     }
-    await loadFinanceOps(token);
+    await loadFinanceOps(token, { preferNetwork: true });
   };
 
   const updateFinanceExpense = async (
@@ -2565,7 +2565,7 @@ function App() {
     } else {
       await put();
     }
-    await loadFinanceOps(token);
+    await loadFinanceOps(token, { preferNetwork: true });
   };
 
   const setFinanceAccountBalance = async (token: string, accountId: string, balanceStr: string) => {
@@ -2606,7 +2606,7 @@ function App() {
     } else {
       await put();
     }
-    await loadFinanceOps(token);
+    await loadFinanceOps(token, { preferNetwork: true });
   };
 
   const loadSales = useCallback(
@@ -3823,6 +3823,7 @@ function App() {
     window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
   }, [rememberMe, session]);
 
+  const webSessionBootstrappedRef = useRef<string | null>(null);
   const postFlushRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -3849,6 +3850,7 @@ function App() {
       apiBaseUrl: API_BASE_URL,
       token,
       userId,
+      enablePeriodicFlush: isDesktopShell,
       onSyncingChange: setOutboxSyncing,
       onReachableChange: setApiReachable,
       onFlushed: () => {
@@ -3877,13 +3879,15 @@ function App() {
           return;
         }
         if (role === 'MANAGER' || role === 'DIRECTOR' || role === 'ACCOUNTANT') {
-          if (postFlushRefreshRef.current) {
-            window.clearTimeout(postFlushRefreshRef.current);
+          if (isDesktopShell) {
+            if (postFlushRefreshRef.current) {
+              window.clearTimeout(postFlushRefreshRef.current);
+            }
+            postFlushRefreshRef.current = window.setTimeout(() => {
+              postFlushRefreshRef.current = null;
+              void loadDashboard(token, { background: true }).catch(() => undefined);
+            }, 2500);
           }
-          postFlushRefreshRef.current = window.setTimeout(() => {
-            postFlushRefreshRef.current = null;
-            void loadDashboard(token, { background: true }).catch(() => undefined);
-          }, 2500);
           return;
         }
         void loadSales(token).catch(() => undefined);
@@ -3958,9 +3962,14 @@ function App() {
   }, [isDesktopShell, session?.token, session?.user?.id, loadSales, loadSellers]);
 
   useEffect(() => {
-    if (isDesktopShell || !restoredSession || !session || restoredSession.token !== session.token) {
+    if (isDesktopShell || !session?.token) {
       return;
     }
+    const bootKey = `${session.token}:${session.user.role}`;
+    if (webSessionBootstrappedRef.current === bootKey) {
+      return;
+    }
+    webSessionBootstrappedRef.current = bootKey;
     void (async () => {
       try {
         try {
@@ -3969,8 +3978,10 @@ function App() {
           await new Promise((resolve) => window.setTimeout(resolve, 350));
           await loadDashboard(session.token);
         }
-        if (session.user.role === 'ADMIN') {
-          await Promise.allSettled([
+        const role = session.user.role;
+        const loads: Promise<unknown>[] = [];
+        if (role === 'ADMIN') {
+          loads.push(
             loadSellers(session.token),
             loadProducts(session.token),
             loadProductProcurementCosts(session.token),
@@ -3981,107 +3992,30 @@ function App() {
             loadStaff(session.token),
             loadGlobalEmployees(session.token),
             loadStoreInventory(session.token),
-          ]);
-        } else if (session.user.role === 'DIRECTOR') {
-          await Promise.allSettled([
+          );
+        } else if (role === 'DIRECTOR') {
+          loads.push(
             loadCommissionRequests(session.token),
             loadStaff(session.token),
             loadSellers(session.token),
             loadSales(session.token),
             loadShifts(session.token),
             loadAcquiringProfiles(session.token),
-          ]);
-        } else if (session.user.role === 'ACCOUNTANT') {
-          await Promise.allSettled([
-            loadFinanceOps(session.token),
-            loadAcquiringProfiles(session.token),
-          ]);
-        } else if (session.user.role === 'MANAGER') {
-          await Promise.allSettled([
-            loadSellers(session.token),
-            loadSales(session.token),
-            loadStaff(session.token),
-          ]);
+          );
+        } else if (role === 'ACCOUNTANT') {
+          loads.push(loadFinanceOps(session.token), loadAcquiringProfiles(session.token));
+        } else if (role === 'MANAGER') {
+          loads.push(loadSellers(session.token), loadSales(session.token), loadStaff(session.token));
         }
+        await Promise.allSettled(loads);
       } catch {
         setAdminError('Сессия восстановлена, но часть данных загрузится с задержкой.');
       }
     })();
-  }, [
-    loadFinanceOps,
-    loadInventoryOverview,
-    loadManagerStoreCommissions,
-    loadProductProcurementCosts,
-    loadAcquiringProfiles,
-    loadStoreInventory,
-    restoredSession,
-    session,
-  ]);
-
-  useEffect(() => {
-    if (!session?.token) {
-      return;
-    }
-    const r = session.user.role;
-    if (
-      (r === 'DIRECTOR' || r === 'ACCOUNTANT') &&
-      (location.pathname === '/sales' || location.pathname === '/accounting/procurement')
-    ) {
-      void loadInventoryOverview(session.token);
-    }
-  }, [loadInventoryOverview, location.pathname, session]);
-
-  useEffect(() => {
-    if (
-      (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'MANAGER') &&
-      session.token &&
-      (location.pathname === '/team' || location.pathname === '/payroll')
-    ) {
-      if (session.user.role === 'DIRECTOR') {
-        void loadManagerStoreCommissions(session.token);
-      }
-    }
-  }, [loadManagerStoreCommissions, location.pathname, session]);
-
-  useEffect(() => {
-    if (isDesktopShell || !session?.token) {
-      return;
-    }
-    const token = session.token;
-    const role = session.user.role;
-    void (async () => {
-      await loadDashboard(token);
-      const loads: Promise<unknown>[] = [];
-      if (role === 'DIRECTOR') {
-        loads.push(
-          loadCommissionRequests(token),
-          loadStaff(token),
-          loadSellers(token),
-          loadSales(token),
-          loadShifts(token),
-          loadAcquiringProfiles(token),
-        );
-      } else if (role === 'ACCOUNTANT') {
-        loads.push(loadFinanceOps(token), loadAcquiringProfiles(token));
-      } else if (role === 'ADMIN') {
-        loads.push(
-          loadSellers(token),
-          loadProducts(token),
-          loadSales(token),
-          loadShifts(token),
-          loadStaff(token),
-          loadStoreInventory(token),
-          loadGlobalEmployees(token),
-        );
-      } else if (role === 'MANAGER') {
-        loads.push(loadSellers(token), loadSales(token), loadStaff(token));
-      }
-      await Promise.allSettled(loads);
-    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- один прогон при входе / смене роли
   }, [isDesktopShell, session?.token, session?.user?.role]);
 
-  /** Тяжёлые разделы директора/бухгалтера — грузим по переходу, не всё сразу при входе. */
+  /** Тяжёлые разделы — грузим по переходу с TTL, без дублирования параллельных запросов. */
   useEffect(() => {
     if (!session?.token) {
       return;
@@ -4089,40 +4023,51 @@ function App() {
     const token = session.token;
     const role = session.user.role;
     const path = location.pathname;
+
     if (role === 'DIRECTOR' || role === 'ACCOUNTANT') {
       if (path === '/shift') {
-        void loadFinanceOps(token);
+        void fetchRouteDataIfStale(`${role}:financeOps`, () => loadFinanceOps(token));
       }
       if (path === '/sales' || path === '/accounting/procurement') {
-        void loadInventoryOverview(token);
-        void loadProductProcurementCosts(token);
-        void loadProducts(token);
-        void loadAcquiringProfiles(token);
+        void fetchRouteDataIfStale(`${role}:inventory`, async () => {
+          await Promise.allSettled([
+            loadInventoryOverview(token),
+            loadProductProcurementCosts(token),
+            loadProducts(token),
+            loadAcquiringProfiles(token),
+          ]);
+        });
       }
       if (path === '/sales') {
-        void loadSales(token);
-        void loadSellers(token);
+        void fetchRouteDataIfStale(`${role}:sales`, async () => {
+          await Promise.allSettled([loadSales(token), loadSellers(token)]);
+        });
       }
       if (path === '/home') {
-        void loadAcquiringProfiles(token);
+        void fetchRouteDataIfStale(`${role}:acquiring`, () => loadAcquiringProfiles(token));
       }
       if (role === 'DIRECTOR' && (path === '/team' || path === '/payroll')) {
-        void Promise.allSettled([
-          loadManagerStoreCommissions(token),
-          loadStaff(token),
-          loadSellers(token),
-          loadSales(token),
-          ...(path === '/team' ? [loadShifts(token)] : []),
-        ]);
+        void fetchRouteDataIfStale(`director:${path}:team`, async () => {
+          await Promise.allSettled([
+            loadManagerStoreCommissions(token),
+            loadStaff(token),
+            loadSellers(token),
+            loadSales(token),
+            ...(path === '/team' ? [loadShifts(token)] : []),
+          ]);
+        });
       }
       return;
     }
     if (role === 'MANAGER' && path === '/team') {
-      void Promise.allSettled([loadStaff(token), loadSellers(token), loadSales(token)]);
+      void fetchRouteDataIfStale('manager:team', async () => {
+        await Promise.allSettled([loadStaff(token), loadSellers(token), loadSales(token)]);
+      });
     }
     if (role === 'MANAGER' && path === '/sales') {
-      void loadSales(token);
-      void loadSellers(token);
+      void fetchRouteDataIfStale('manager:sales', async () => {
+        await Promise.allSettled([loadSales(token), loadSellers(token)]);
+      });
     }
     if (isDesktopShell && role === 'ADMIN' && (path === '/shift' || path === '/home')) {
       void Promise.allSettled([
@@ -4144,29 +4089,23 @@ function App() {
     if (!session?.token || isDesktopShell || session.user.role !== 'ADMIN') {
       return;
     }
+    if (document.visibilityState !== 'visible') {
+      return;
+    }
     const token = session.token;
-    void Promise.allSettled([
-      loadDashboard(token),
-      loadSales(token),
-      loadSellers(token),
-      loadProducts(token),
-      loadShifts(token),
-      loadStaff(token),
-      loadStoreInventory(token),
-      loadGlobalEmployees(token),
-    ]);
-  }, [
-    isDesktopShell,
-    session,
-    loadDashboard,
-    loadSales,
-    loadSellers,
-    loadProducts,
-    loadShifts,
-    loadStaff,
-    loadStoreInventory,
-    loadGlobalEmployees,
-  ]);
+    const path = location.pathname;
+    const loads: Promise<unknown>[] = [loadDashboard(token)];
+    if (path === '/home' || path === '/shift') {
+      loads.push(loadShifts(token), loadStaff(token), loadSellers(token));
+    }
+    if (path === '/sales' || path === '/shift') {
+      loads.push(loadSales(token), loadSellers(token), loadProducts(token));
+    }
+    if (path === '/team') {
+      loads.push(loadStoreInventory(token), loadGlobalEmployees(token));
+    }
+    void Promise.allSettled(loads);
+  }, [isDesktopShell, location.pathname, session?.token, session?.user?.role]);
 
   useLiveSessionRefresh(
     Boolean(session?.token) && !isDesktopShell && session?.user.role === 'ADMIN',
@@ -4178,6 +4117,7 @@ function App() {
       return [];
     }
     const r = session.user.role;
+    const directorWebTrimmed = !isDesktopShell && r === 'DIRECTOR';
     const retoucher = r === 'RETOUCHER';
     const sellerOnly = r === 'SELLER';
     const financeViewer = r === 'ACCOUNTANT' || r === 'DIRECTOR' || r === 'MANAGER';
@@ -4194,29 +4134,37 @@ function App() {
     const base: MobileNavItem[] = [
       { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
       { to: '/shift', label: shiftL, icon: <ShiftIcon /> },
-      { to: '/sales', label: 'Продажи', icon: <SalesIcon /> },
     ];
+    if (!directorWebTrimmed) {
+      base.push({ to: '/sales', label: 'Продажи', icon: <SalesIcon /> });
+    }
     if (r === 'DIRECTOR') {
       base.push(
         { to: '/accounting/equipment', label: 'Спецтехника', icon: <EquipmentIcon /> },
         { to: '/accounting/procurement', label: 'Закупки и склад', icon: <ProcurementIcon /> },
-        { to: '/payroll', label: 'Выплата зарплат', icon: <PayrollIcon /> },
       );
+      if (!directorWebTrimmed) {
+        base.push({ to: '/payroll', label: 'Выплата зарплат', icon: <PayrollIcon /> });
+      }
     }
-    const teamNavLabel = r === 'ADMIN' ? 'Склад' : 'Сотрудники';
-    base.push({ to: '/team', label: teamNavLabel, icon: <WarehouseIcon /> });
+    if (!directorWebTrimmed) {
+      const teamNavLabel = r === 'ADMIN' ? 'Склад' : 'Сотрудники';
+      base.push({ to: '/team', label: teamNavLabel, icon: <WarehouseIcon /> });
+    }
     if (r === 'ACCOUNTANT') {
       base.push({ to: '/control', label: 'Отчёт', icon: <ControlIcon /> });
     }
     return base;
-  }, [session]);
+  }, [session, isDesktopShell]);
 
   const desktopNavItems = mobileNavItems;
 
   if (!session) {
     const loginVersionLabel = isDesktopShell ? appVersionLabel() : null;
     return (
-      <main className={`app loginScreen${isDesktopShell ? ' app--desktop' : ''}`}>
+      <main
+        className={`app loginScreen app--desktop${isDesktopShell ? '' : ' app--web'}`}
+      >
         {isDesktopShell ? (
           <div className="desktopLoginStatus">
             <ConnectionBanner {...desktopConnection} variant="pill" />
@@ -4298,6 +4246,7 @@ function App() {
   const isManager = role === 'MANAGER';
   const isReadOnlyObserver = role === 'ACCOUNTANT' || role === 'MANAGER';
   const isFinanceViewer = role === 'ACCOUNTANT' || role === 'DIRECTOR';
+  const directorWebTrimmed = !isDesktopShell && role === 'DIRECTOR';
   const shiftLabel = isFinanceViewer || isManager ? 'Оперативка' : 'Смена';
   const routesOutlet = (
     <div className="pageOutlet">
@@ -4649,6 +4598,8 @@ function App() {
               path="/sales"
               element={
                 isSellerOnly ? (
+                  <Navigate to="/home" replace />
+                ) : directorWebTrimmed ? (
                   <Navigate to="/home" replace />
                 ) : (
                   <div
@@ -5045,7 +4996,7 @@ function App() {
             <Route
               path="/payroll"
               element={
-                role === 'DIRECTOR' ? (
+                role === 'DIRECTOR' && isDesktopShell ? (
                   <div
                     className={`dashboard teamPage${
                       isDesktopShell ? ' dashboard--warehouseDesktop' : ''
@@ -5092,6 +5043,8 @@ function App() {
               path="/team"
               element={
                 isSellerOnly ? (
+                  <Navigate to="/home" replace />
+                ) : directorWebTrimmed ? (
                   <Navigate to="/home" replace />
                 ) : (
                   <div
@@ -5281,7 +5234,7 @@ function App() {
   }
 
   return (
-    <main className={`app appWorkspace${isFinanceViewer ? ' app--desktop' : ''}`}>
+    <main className={`app appWorkspace app--desktop${isDesktopShell ? '' : ' app--web'}`}>
       <section className="card cardWorkspace">
         <header className="desktopAppHeader">
           <div className="brandHeader">
@@ -5298,9 +5251,11 @@ function App() {
             )}
             {!isRetoucher && !isSellerOnly && (
               <>
-                <NavLink to="/sales" className={navTabClass}>
-                  Продажи
-                </NavLink>
+                {!directorWebTrimmed ? (
+                  <NavLink to="/sales" className={navTabClass}>
+                    Продажи
+                  </NavLink>
+                ) : null}
                 {role === 'DIRECTOR' ? (
                   <>
                     <NavLink to="/accounting/equipment" className={navTabClass}>
@@ -5311,9 +5266,11 @@ function App() {
                     </NavLink>
                   </>
                 ) : null}
-                <NavLink to="/team" className={navTabClass}>
-                  {role === 'ADMIN' ? 'Склад' : 'Сотрудники'}
-                </NavLink>
+                {!directorWebTrimmed ? (
+                  <NavLink to="/team" className={navTabClass}>
+                    {role === 'ADMIN' ? 'Склад' : 'Сотрудники'}
+                  </NavLink>
+                ) : null}
                 {role === 'ACCOUNTANT' ? (
                   <NavLink to="/control" className={navTabClass}>
                     Отчёт
@@ -5940,8 +5897,23 @@ function DirectorHomeApprovalsCarousel({
 
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(), 15000);
-    return () => window.clearInterval(timer);
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      void load();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    const timer = window.setInterval(refresh, 60_000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.clearInterval(timer);
+    };
   }, [load]);
 
   useEffect(() => {
@@ -6870,6 +6842,46 @@ type FinanceHistoryListRow = {
   workDay?: string;
 };
 
+function financeHistoryStoreLabel(row: FinanceHistoryListRow, kind: 'expense' | 'income'): string | null {
+  const comment = row.comment?.trim() ?? '';
+  if (!comment) {
+    return null;
+  }
+  if (kind === 'income') {
+    return comment;
+  }
+  if (row.title?.trim() === 'ЗП') {
+    return comment;
+  }
+  return null;
+}
+
+function filterFinanceHistoryRows(
+  rows: FinanceHistoryListRow[],
+  kind: 'expense' | 'income',
+  storeFilter: string,
+  accountFilter: string,
+): FinanceHistoryListRow[] {
+  let result = rows;
+  if (storeFilter) {
+    result = result.filter((row) => financeHistoryStoreLabel(row, kind) === storeFilter);
+  }
+  if (accountFilter) {
+    result = result.filter((row) => row.accountId === accountFilter);
+  }
+  return result;
+}
+
+function financeHistoryAccountFilterOptions(accounts: FinanceAccount[]): FinanceAccount[] {
+  const primaryIds = FINANCE_OPS_PRIMARY_ACCOUNT_IDS as readonly string[];
+  const primaryIdSet = new Set<string>(primaryIds);
+  const primary = primaryIds
+    .map((id) => accounts.find((account) => account.id === id))
+    .filter((account): account is FinanceAccount => Boolean(account));
+  const rest = accounts.filter((account) => !primaryIdSet.has(account.id));
+  return [...primary, ...rest];
+}
+
 function groupFinanceHistoryByDay(rows: FinanceHistoryListRow[]) {
   const groups: Array<{ dayKey: string; rows: FinanceHistoryListRow[] }> = [];
   for (const row of rows) {
@@ -6913,7 +6925,18 @@ function FinanceOpsHistoryList({
   ) => Promise<void>;
 }) {
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
-  const groups = useMemo(() => groupFinanceHistoryByDay(rows), [rows]);
+  const [storeFilter, setStoreFilter] = useState('');
+  const [accountFilter, setAccountFilter] = useState('');
+  const accountFilterOptions = useMemo(
+    () => financeHistoryAccountFilterOptions(accounts),
+    [accounts],
+  );
+  const filteredRows = useMemo(
+    () => filterFinanceHistoryRows(rows, kind, storeFilter, accountFilter),
+    [rows, kind, storeFilter, accountFilter],
+  );
+  const groups = useMemo(() => groupFinanceHistoryByDay(filteredRows), [filteredRows]);
+  const hasActiveFilters = Boolean(storeFilter || accountFilter);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAccountId, setEditAccountId] = useState('');
   const [editAmount, setEditAmount] = useState('');
@@ -6987,10 +7010,50 @@ function FinanceOpsHistoryList({
 
   return (
     <div className={`financeOpsHistoryMini financeOpsHistoryMini--${kind}`}>
-      <p className="financeOpsHistoryMiniTitle">{title}</p>
+      <div className="financeOpsHistoryMiniHead">
+        <p className="financeOpsHistoryMiniTitle">{title}</p>
+        <div className="financeOpsHistoryFilters">
+          <label className="financeOpsHistoryStoreFilter">
+            <span className="financeOpsHistoryStoreFilterLabel">Магазин</span>
+            <select
+              value={storeFilter}
+              onChange={(event) => setStoreFilter(event.target.value)}
+              aria-label={`Фильтр по магазину: ${title}`}
+            >
+              <option value="">Все магазины</option>
+              {ALL_DEMO_STORE_NAMES.map((storeName) => (
+                <option key={storeName} value={storeName}>
+                  {storeName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="financeOpsHistoryStoreFilter financeOpsHistoryAccountFilter">
+            <span className="financeOpsHistoryStoreFilterLabel">Вид расчёта</span>
+            <select
+              value={accountFilter}
+              onChange={(event) => setAccountFilter(event.target.value)}
+              aria-label={`Фильтр по виду расчёта: ${title}`}
+            >
+              <option value="">Все виды</option>
+              {accountFilterOptions.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
       <div className="financeOpsHistoryMiniTrack" role="list" aria-label={title}>
-        {rows.length === 0 ? (
-          <p className="financeOpsHistoryMiniEmpty">{emptyLabel}</p>
+        {filteredRows.length === 0 ? (
+          <p className="financeOpsHistoryMiniEmpty">
+            {rows.length === 0
+              ? emptyLabel
+              : hasActiveFilters
+                ? 'Нет операций по выбранным фильтрам'
+                : emptyLabel}
+          </p>
         ) : (
           groups.map((group) => (
             <section key={group.dayKey} className="financeOpsHistoryDayGroup" role="presentation">
@@ -7135,6 +7198,12 @@ function FinanceOpsHistoryList({
                   </article>
                 );
               })}
+              <div className="financeOpsHistoryDayTotal" aria-label={`Итого за ${formatFinanceHistoryDayLabel(group.dayKey)}`}>
+                <span className="financeOpsHistoryDayTotalLabel">Итого за день</span>
+                <strong className="financeOpsHistoryDayTotalValue">
+                  {fmt(group.rows.reduce((sum, item) => sum + item.amount, 0))}
+                </strong>
+              </div>
             </section>
           ))
         )}
@@ -7206,7 +7275,7 @@ function FinanceOpsPanel({
     );
   }, [snapshot.accounts]);
 
-  const [incomeDraftsByAccount, setIncomeDraftsByAccount] = useState<Record<string, string>>({});
+  const [incomeAmountDraft, setIncomeAmountDraft] = useState('');
   const [selectedIncomeAccountId, setSelectedIncomeAccountId] = useState('');
   const [selectedFlowAccountId, setSelectedFlowAccountId] = useState('');
   const [expenseAccountId, setExpenseAccountId] = useState(snapshot.accounts[0]?.id ?? '');
@@ -7216,9 +7285,7 @@ function FinanceOpsPanel({
   const [expenseStore, setExpenseStore] = useState<string>(ALL_DEMO_STORE_NAMES[0]);
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseComment, setExpenseComment] = useState('');
-  const [incomeStoreDraftsByAccount, setIncomeStoreDraftsByAccount] = useState<
-    Record<string, string>
-  >({});
+  const [incomeStoreDraft, setIncomeStoreDraft] = useState<string>(ALL_DEMO_STORE_NAMES[0]);
   const [busyId, setBusyId] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -7248,34 +7315,6 @@ function FinanceOpsPanel({
   }, [expenseAccountId, snapshot.accounts]);
 
   useEffect(() => {
-    const ids = FINANCE_OPS_PRIMARY_ACCOUNT_IDS.filter((id) =>
-      snapshot.accounts.some((a) => a.id === id),
-    );
-    setIncomeDraftsByAccount((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const id of ids) {
-        if (next[id] === undefined) {
-          next[id] = '';
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-    setIncomeStoreDraftsByAccount((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const id of ids) {
-        if (next[id] === undefined) {
-          next[id] = ALL_DEMO_STORE_NAMES[0];
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [snapshot.accounts]);
-
-  useEffect(() => {
     if (primaryFinanceAccounts.length === 0) {
       return;
     }
@@ -7286,6 +7325,11 @@ function FinanceOpsPanel({
       primaryFinanceAccounts.some((a) => a.id === cur) ? cur : primaryFinanceAccounts[0]!.id,
     );
   }, [primaryFinanceAccounts]);
+
+  const resolvedFlowAccountId =
+    selectedFlowAccountId || primaryFinanceAccounts[0]?.id || '';
+  const resolvedIncomeAccountId =
+    selectedIncomeAccountId || primaryFinanceAccounts[0]?.id || '';
 
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
 
@@ -7450,7 +7494,9 @@ function FinanceOpsPanel({
     }
   };
 
-  const activeFlowAccountId = compactFinanceUi ? selectedFlowAccountId : selectedIncomeAccountId;
+  const activeFlowAccountId = compactFinanceUi
+    ? resolvedFlowAccountId
+    : resolvedIncomeAccountId;
 
   const submitIncomeForSelectedAccount = async () => {
     setError('');
@@ -7459,7 +7505,7 @@ function FinanceOpsPanel({
       setError('Выберите счёт');
       return;
     }
-    const amountStr = incomeDraftsByAccount[activeFlowAccountId] ?? '';
+    const amountStr = incomeAmountDraft;
     const n = Number(String(amountStr).replace(',', '.'));
     if (!Number.isFinite(n) || n <= 0) {
       setError('Укажите сумму прихода');
@@ -7467,7 +7513,7 @@ function FinanceOpsPanel({
     }
     setBusyId(`income-${activeFlowAccountId}`);
     try {
-      const incomePoint = (incomeStoreDraftsByAccount[activeFlowAccountId] ?? '').trim();
+      const incomePoint = incomeStoreDraft.trim();
       if (!incomePoint) {
         setError('Выберите точку прихода');
         setBusyId('');
@@ -7479,10 +7525,7 @@ function FinanceOpsPanel({
         workDay: todayKeyMoscow(),
         comment: incomePoint,
       });
-      setIncomeDraftsByAccount((prev) => ({
-        ...prev,
-        [activeFlowAccountId]: '',
-      }));
+      setIncomeAmountDraft('');
       const acc = snapshot.accounts.find((a) => a.id === activeFlowAccountId);
       setStatus(acc ? `Приход на «${acc.name}» записан, баланс обновлён.` : 'Приход записан.');
     } catch {
@@ -7928,13 +7971,8 @@ function FinanceOpsPanel({
                   className="financeOpsIncomeEntryInput"
                   inputMode="decimal"
                   aria-label="Сумма прихода за день"
-                  value={incomeDraftsByAccount[selectedFlowAccountId] ?? ''}
-                  onChange={(event) =>
-                    setIncomeDraftsByAccount((prev) => ({
-                      ...prev,
-                      [selectedFlowAccountId]: event.target.value,
-                    }))
-                  }
+                  value={incomeAmountDraft}
+                  onChange={(event) => setIncomeAmountDraft(event.target.value)}
                   placeholder="0"
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
@@ -7948,13 +7986,8 @@ function FinanceOpsPanel({
                 <span className="financeOpsFlowSideFieldLabel">Точка прихода</span>
                 <select
                   className="financeOpsExpenseCategoryInline"
-                  value={incomeStoreDraftsByAccount[selectedFlowAccountId] ?? ALL_DEMO_STORE_NAMES[0]}
-                  onChange={(event) =>
-                    setIncomeStoreDraftsByAccount((prev) => ({
-                      ...prev,
-                      [selectedFlowAccountId]: event.target.value,
-                    }))
-                  }
+                  value={incomeStoreDraft}
+                  onChange={(event) => setIncomeStoreDraft(event.target.value)}
                   aria-label="Точка прихода"
                 >
                   {ALL_DEMO_STORE_NAMES.map((storeName) => (
@@ -8005,13 +8038,8 @@ function FinanceOpsPanel({
                 <span className="financeOpsFieldLabel">Сумма, ₽</span>
                 <input
                   inputMode="decimal"
-                  value={incomeDraftsByAccount[selectedIncomeAccountId] ?? ''}
-                  onChange={(event) =>
-                    setIncomeDraftsByAccount((prev) => ({
-                      ...prev,
-                      [selectedIncomeAccountId]: event.target.value,
-                    }))
-                  }
+                  value={incomeAmountDraft}
+                  onChange={(event) => setIncomeAmountDraft(event.target.value)}
                   placeholder="Например, 15000"
                 />
               </label>
@@ -8019,13 +8047,8 @@ function FinanceOpsPanel({
                 <span className="financeOpsFieldLabel">Точка прихода</span>
                 <select
                   className="financeOpsExpenseUnifiedSelect"
-                  value={incomeStoreDraftsByAccount[selectedIncomeAccountId] ?? ALL_DEMO_STORE_NAMES[0]}
-                  onChange={(event) =>
-                    setIncomeStoreDraftsByAccount((prev) => ({
-                      ...prev,
-                      [selectedIncomeAccountId]: event.target.value,
-                    }))
-                  }
+                  value={incomeStoreDraft}
+                  onChange={(event) => setIncomeStoreDraft(event.target.value)}
                   aria-label="Точка прихода"
                 >
                   {ALL_DEMO_STORE_NAMES.map((storeName) => (
@@ -11808,14 +11831,22 @@ function FinanceReportPanel({
   const [plansBusy, setPlansBusy] = useState(false);
   const [plansStatus, setPlansStatus] = useState('');
   const [plansError, setPlansError] = useState('');
-  const procurementByNormKey = new Map(
-    procurementCosts.map((item) => [normProcurementKey(item.name), item.cost]),
+  const procurementByNormKey = useMemo(
+    () => new Map(procurementCosts.map((item) => [normProcurementKey(item.name), item.cost])),
+    [procurementCosts],
   );
-  const salesForDay = sales.filter((sale) => {
-    const day = calendarDayKeyMoscow(sale.createdAt);
-    return day >= fromDay && day <= toDay;
-  });
-  const planByStore = new Map(plans.map((item) => [item.storeName, item.planRevenue]));
+  const salesForDay = useMemo(
+    () =>
+      sales.filter((sale) => {
+        const day = calendarDayKeyMoscow(sale.createdAt);
+        return day >= fromDay && day <= toDay;
+      }),
+    [sales, fromDay, toDay],
+  );
+  const planByStore = useMemo(
+    () => new Map(plans.map((item) => [item.storeName, item.planRevenue])),
+    [plans],
+  );
 
   useEffect(() => {
     let disposed = false;
@@ -11837,94 +11868,113 @@ function FinanceReportPanel({
     };
   }, [token, toDay]);
 
-  const storeNames = Array.from(
-    new Set([
-      ...sellers.map((seller) => seller.storeName),
-      ...sales
-        .map((sale) => sellers.find((s) => s.id === sale.sellerId)?.storeName)
-        .filter((name): name is string => Boolean(name)),
-    ]),
-  ).sort((a, b) => a.localeCompare(b, 'ru-RU'));
+  const storeNames = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...sellers.map((seller) => seller.storeName),
+          ...sales
+            .map((sale) => sellers.find((s) => s.id === sale.sellerId)?.storeName)
+            .filter((name): name is string => Boolean(name)),
+        ]),
+      ).sort((a, b) => a.localeCompare(b, 'ru-RU')),
+    [sellers, sales],
+  );
 
-  const rows = storeNames.map((storeName) => {
-    const sellerIds = new Set(
-      sellers.filter((seller) => seller.storeName === storeName).map((seller) => seller.id),
-    );
-    const storeSales = salesForDay.filter((sale) => sellerIds.has(sale.sellerId));
-    const revenue = storeSales.reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const nonCashRevenue = storeSales
-      .filter((sale) => sale.paymentType === 'NON_CASH')
-      .reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const transferRevenue = storeSales
-      .filter((sale) => sale.paymentType === 'TRANSFER')
-      .reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const cashRevenue = storeSales
-      .filter((sale) => sale.paymentType !== 'NON_CASH' && sale.paymentType !== 'TRANSFER')
-      .reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const acquiringRateForStore = percentForStore(storeName, acquiringProfiles);
-    const acquiringFee = (nonCashRevenue * acquiringRateForStore) / 100;
-    const goodsSpent = storeSales.reduce((sum, sale) => {
-      const fromApi = parseGoodsCost(sale.goodsCost);
-      if (Number.isFinite(fromApi)) {
-        return sum + fromApi;
-      }
-      return (
-        sum +
-        (sale.items ?? []).reduce(
-          (lineSum, line) =>
-            lineSum + (procurementByNormKey.get(normProcurementKey(String(line.name))) ?? 0) * line.qty,
-          0,
-        )
-      );
-    }, 0);
+  const rows = useMemo(() => {
     const rateBySellerId = new Map(sellers.map((seller) => [seller.id, seller.ratePercent]));
-    const salaries = storeSales.reduce(
-      (sum, sale) => sum + (sale.totalAmount * (rateBySellerId.get(sale.sellerId) ?? 0)) / 100,
-      0,
-    );
-    const profitWithoutGoods = revenue - salaries - acquiringFee;
-    const profitWithGoods = revenue - salaries - acquiringFee - goodsSpent;
+    return storeNames.map((storeName) => {
+      const sellerIds = new Set(
+        sellers.filter((seller) => seller.storeName === storeName).map((seller) => seller.id),
+      );
+      const storeSales = salesForDay.filter((sale) => sellerIds.has(sale.sellerId));
+      const revenue = storeSales.reduce((sum, sale) => sum + sale.totalAmount, 0);
+      const nonCashRevenue = storeSales
+        .filter((sale) => sale.paymentType === 'NON_CASH')
+        .reduce((sum, sale) => sum + sale.totalAmount, 0);
+      const transferRevenue = storeSales
+        .filter((sale) => sale.paymentType === 'TRANSFER')
+        .reduce((sum, sale) => sum + sale.totalAmount, 0);
+      const cashRevenue = storeSales
+        .filter((sale) => sale.paymentType !== 'NON_CASH' && sale.paymentType !== 'TRANSFER')
+        .reduce((sum, sale) => sum + sale.totalAmount, 0);
+      const acquiringRateForStore = percentForStore(storeName, acquiringProfiles);
+      const acquiringFee = (nonCashRevenue * acquiringRateForStore) / 100;
+      const goodsSpent = storeSales.reduce((sum, sale) => {
+        const fromApi = parseGoodsCost(sale.goodsCost);
+        if (Number.isFinite(fromApi)) {
+          return sum + fromApi;
+        }
+        return (
+          sum +
+          (sale.items ?? []).reduce(
+            (lineSum, line) =>
+              lineSum +
+              (procurementByNormKey.get(normProcurementKey(String(line.name))) ?? 0) * line.qty,
+            0,
+          )
+        );
+      }, 0);
+      const salaries = storeSales.reduce(
+        (sum, sale) => sum + (sale.totalAmount * (rateBySellerId.get(sale.sellerId) ?? 0)) / 100,
+        0,
+      );
+      const profitWithoutGoods = revenue - salaries - acquiringFee;
+      const profitWithGoods = revenue - salaries - acquiringFee - goodsSpent;
 
-    return {
-      storeName,
-      revenue,
-      cashRevenue,
-      nonCashRevenue,
-      transferRevenue,
-      planRevenue: Math.max(0, Number(planDraft[storeName] ?? planByStore.get(storeName) ?? 0) || 0),
-      goodsSpent,
-      salaries,
-      profitWithoutGoods,
-      profitWithGoods,
-      acquiringFee,
-    };
-  });
+      return {
+        storeName,
+        revenue,
+        cashRevenue,
+        nonCashRevenue,
+        transferRevenue,
+        planRevenue: Math.max(0, Number(planDraft[storeName] ?? planByStore.get(storeName) ?? 0) || 0),
+        goodsSpent,
+        salaries,
+        profitWithoutGoods,
+        profitWithGoods,
+        acquiringFee,
+      };
+    });
+  }, [
+    storeNames,
+    sellers,
+    salesForDay,
+    acquiringProfiles,
+    procurementByNormKey,
+    planDraft,
+    planByStore,
+  ]);
 
-  const totals = rows.reduce(
-    (acc, row) => ({
-      revenue: acc.revenue + row.revenue,
-      cashRevenue: acc.cashRevenue + row.cashRevenue,
-      nonCashRevenue: acc.nonCashRevenue + row.nonCashRevenue,
-      transferRevenue: acc.transferRevenue + row.transferRevenue,
-      planRevenue: acc.planRevenue + row.planRevenue,
-      goodsSpent: acc.goodsSpent + row.goodsSpent,
-      salaries: acc.salaries + row.salaries,
-      profitWithoutGoods: acc.profitWithoutGoods + row.profitWithoutGoods,
-      profitWithGoods: acc.profitWithGoods + row.profitWithGoods,
-      acquiringFee: acc.acquiringFee + row.acquiringFee,
-    }),
-    {
-      revenue: 0,
-      cashRevenue: 0,
-      nonCashRevenue: 0,
-      transferRevenue: 0,
-      planRevenue: 0,
-      goodsSpent: 0,
-      salaries: 0,
-      profitWithoutGoods: 0,
-      profitWithGoods: 0,
-      acquiringFee: 0,
-    },
+  const totals = useMemo(
+    () =>
+      rows.reduce(
+        (acc, row) => ({
+          revenue: acc.revenue + row.revenue,
+          cashRevenue: acc.cashRevenue + row.cashRevenue,
+          nonCashRevenue: acc.nonCashRevenue + row.nonCashRevenue,
+          transferRevenue: acc.transferRevenue + row.transferRevenue,
+          planRevenue: acc.planRevenue + row.planRevenue,
+          goodsSpent: acc.goodsSpent + row.goodsSpent,
+          salaries: acc.salaries + row.salaries,
+          profitWithoutGoods: acc.profitWithoutGoods + row.profitWithoutGoods,
+          profitWithGoods: acc.profitWithGoods + row.profitWithGoods,
+          acquiringFee: acc.acquiringFee + row.acquiringFee,
+        }),
+        {
+          revenue: 0,
+          cashRevenue: 0,
+          nonCashRevenue: 0,
+          transferRevenue: 0,
+          planRevenue: 0,
+          goodsSpent: 0,
+          salaries: 0,
+          profitWithoutGoods: 0,
+          profitWithGoods: 0,
+          acquiringFee: 0,
+        },
+      ),
+    [rows],
   );
 
   const [exportBusy, setExportBusy] = useState(false);

@@ -1,0 +1,307 @@
+/**
+ * Веб-версия: палитра и типографика как в Tauri, без ломания мобильной вёрстки.
+ */
+
+html:has(.app--web),
+body:has(.app--web) {
+  overflow: auto !important;
+  height: auto !important;
+  min-height: 100%;
+  background: #090c11;
+  color: #ffffff;
+}
+
+#root:has(.app--web) {
+  height: auto !important;
+  min-height: 100%;
+}
+
+body:has(.app--web) {
+  background:
+    radial-gradient(ellipse 75% 55% at 92% -5%, rgba(154, 163, 173, 0.1), transparent 58%),
+    radial-gradient(ellipse 60% 45% at 0% 100%, rgba(117, 123, 129, 0.12), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 50% 50%, rgba(38, 43, 50, 0.5), transparent 70%),
+    linear-gradient(165deg, #090c11 0%, #121820 42%, #1a1f26 100%) !important;
+  color: #ffffff !important;
+}
+
+.app.app--desktop.app--web,
+.app.app--desktop.app--web.appWorkspace {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  background:
+    radial-gradient(ellipse 75% 55% at 92% -5%, rgba(154, 163, 173, 0.1), transparent 58%),
+    radial-gradient(ellipse 60% 45% at 0% 100%, rgba(117, 123, 129, 0.12), transparent 55%),
+    linear-gradient(165deg, #090c11 0%, #121820 42%, #1a1f26 100%) !important;
+}
+
+.app.app--desktop.app--web .mobileDock {
+  display: grid !important;
+}
+
+.app.app--desktop.app--web .desktopAppHeader,
+.app.app--desktop.app--web .quickNav.desktopNav {
+  display: flex !important;
+}
+
+.app.app--desktop.app--web .cardWorkspace {
+  padding-bottom: calc(102px + env(safe-area-inset-bottom)) !important;
+}
+
+.app.app--desktop.app--web.loginScreen {
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100vh !important;
+  padding: max(16px, env(safe-area-inset-top)) 16px 16px !important;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(154, 163, 173, 0.12), transparent 58%),
+    radial-gradient(ellipse 55% 40% at 100% 90%, rgba(117, 123, 129, 0.15), transparent 55%),
+    linear-gradient(165deg, #090c11 0%, #121820 55%, #262b32 100%) !important;
+}
+
+.app.app--desktop.app--web.loginScreen .loginScreenPanel {
+  max-width: 380px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 28px 28px 24px;
+  border-radius: 12px;
+  background: #262b32 !important;
+  border: none !important;
+  box-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
+.app.app--desktop.app--web.loginScreen .brandHeader h1 {
+  color: #9aa3ad !important;
+}
+
+.app.app--desktop.app--web.loginScreen .subtitle {
+  color: #757b81 !important;
+}
+
+/* Переменные веб-палитры → десктоп */
+.app.app--web {
+  --ui-bg-soft: #121820;
+  --ui-bg-muted: #1a1f26;
+  --ui-text-main: #ffffff;
+  --ui-text-secondary: #b8bcc0;
+  --ui-border: rgba(117, 123, 129, 0.35);
+  --ui-border-strong: rgba(117, 123, 129, 0.2);
+  --ui-accent: #9aa3ad;
+  --ui-accent-soft: rgba(154, 163, 173, 0.14);
+  --ui-accent-border: rgba(117, 123, 129, 0.35);
+}
+
+.app.app--web.appWorkspace {
+  --ui-glass: #262b32;
+  --ui-glass-deep: #1a1f26;
+  --ui-glass-raised: #2e343c;
+  --ui-edge-soft: rgba(255, 255, 255, 0.08);
+  --ui-edge-gold: rgba(154, 163, 173, 0.2);
+  --ui-text: #ffffff;
+  --ui-muted: #b8bcc0;
+  --ui-dim: #757b81;
+  --ui-gold: #9aa3ad;
+  --ui-gold-soft: #b4bcc4;
+  --ui-field: rgba(4, 12, 9, 0.65);
+  --ui-chip: rgba(255, 255, 255, 0.04);
+  --ui-glow: 0 0 0 1px rgba(117, 123, 129, 0.2);
+  --ui-gold-bar-text: #e3dfd8;
+  --ui-gold-bar-bg: linear-gradient(180deg, #5a6772 0%, #434d56 100%);
+  --ui-gold-bar-bg-press: linear-gradient(180deg, #6a7782 0%, #4f5b66 100%);
+  --ui-gold-bar-edge: rgba(0, 0, 0, 0.35);
+}
+
+.app.app--web .homeDashboardDirectorSkin {
+  --dh-glass: #262b32;
+  --dh-glass-raised: #2e343c;
+  --dh-edge: rgba(154, 163, 173, 0.2);
+  --dh-edge-soft: rgba(255, 255, 255, 0.08);
+  --dh-text: #ffffff;
+  --dh-muted: #b8bcc0;
+  --dh-dim: #757b81;
+  --dh-gold: #9aa3ad;
+  --dh-gold-soft: #b4bcc4;
+  --dh-field: rgba(4, 12, 9, 0.65);
+  --dh-glow: 0 0 0 1px rgba(117, 123, 129, 0.2);
+}
+
+.app.app--web .financeOpsCard {
+  --fo-glass: #262b32;
+  --fo-glass-raised: #2e343c;
+  --fo-edge: rgba(154, 163, 173, 0.22);
+  --fo-edge-soft: rgba(255, 255, 255, 0.08);
+  --fo-text: #ffffff;
+  --fo-muted: #b8bcc0;
+  --fo-dim: #757b81;
+  --fo-gold: #9aa3ad;
+  --fo-gold-soft: #b4bcc4;
+  --fo-field: rgba(4, 12, 9, 0.65);
+  --fo-chip: rgba(255, 255, 255, 0.04);
+  --fo-chip-active: rgba(154, 163, 173, 0.14);
+  --fo-glow: 0 0 0 1px rgba(117, 123, 129, 0.2);
+}
+
+.app.app--web .financeOpsShell {
+  background:
+    linear-gradient(165deg, rgba(154, 163, 173, 0.08) 0%, transparent 38%),
+    #262b32 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow:
+    0 0 0 1px rgba(117, 123, 129, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
+.app.app--web h1,
+.app.app--web .brandHeader h1 {
+  color: #9aa3ad !important;
+}
+
+.app.app--web .subtitle,
+.app.app--web .homePanelTitle {
+  color: #b8bcc0 !important;
+}
+
+.app.app--web .quickNav {
+  background: rgba(38, 43, 50, 0.92) !important;
+  border-color: rgba(117, 123, 129, 0.35) !important;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35) !important;
+}
+
+.app.app--web .quickNav a.ghost,
+.app.app--web .quickNav button.ghost {
+  color: #b8bcc0 !important;
+}
+
+.app.app--web .quickNav a.ghost.navActive,
+.app.app--web .quickNav button.ghost.navActive,
+.app.app--web a.ghost.navActive,
+.app.app--web button.ghost.navActive {
+  background: linear-gradient(180deg, #5a6772 0%, #434d56 100%) !important;
+  color: #e3dfd8 !important;
+  border-color: rgba(0, 0, 0, 0.35) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28) !important;
+}
+
+.app.app--web .mobileDock {
+  background: rgba(18, 24, 32, 0.96) !important;
+  border-top-color: rgba(117, 123, 129, 0.35) !important;
+  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.35) !important;
+}
+
+.app.app--web .mobileDock a.ghost {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(117, 123, 129, 0.2) !important;
+  color: #b8bcc0 !important;
+  box-shadow: none !important;
+}
+
+.app.app--web .mobileDock a.ghost.navActive {
+  background: linear-gradient(180deg, #5a6772 0%, #434d56 100%) !important;
+  border-color: rgba(0, 0, 0, 0.35) !important;
+  color: #e3dfd8 !important;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.28) !important;
+}
+
+.app.app--web .homeProfileKey,
+.app.app--web .homeStoresMiniName,
+.app.app--web .metricCard p {
+  color: #b8bcc0 !important;
+}
+
+.app.app--web .homeProfileVal,
+.app.app--web .homeStoresMiniValue,
+.app.app--web .metricCard strong,
+.app.app--web .homeStoreCard dd {
+  color: #ffffff !important;
+}
+
+.app.app--web .homeStoreCardTitle,
+.app.app--web .homeStoresAggregateTitle,
+.app.app--web .opsCard:not(.financeOpsCard) h4,
+.app.app--web .addSaleForm:not(.financeOpsIncomeBlock) h4 {
+  color: #b4bcc4 !important;
+}
+
+.app.app--web .muted,
+.app.app--web .notice,
+.app.app--web .hint {
+  color: #b8bcc0 !important;
+}
+
+.app.app--web label {
+  color: #b8bcc0 !important;
+}
+
+/* ——— Производительность: без blur и тяжёлых анимаций на вебе ——— */
+.app.app--web .appWorkspace .homeProfileCard,
+.app.app--web .appWorkspace .opsCard:not(.financeOpsCard),
+.app.app--web .appWorkspace .homeStoreCard,
+.app.app--web .appWorkspace .homeStoresAggregateCard,
+.app.app--web .appWorkspace .adminSellerRegister,
+.app.app--web .appWorkspace .teamMemberCard,
+.app.app--web .appWorkspace .addSaleForm:not(.financeOpsIncomeBlock),
+.app.app--web .appWorkspace .writeOffForm,
+.app.app--web .appWorkspace .writeOffManager,
+.app.app--web .financeOpsShell,
+.app.app--web .homeDashboardDirectorSkin .homeMetricsTight .metricCard,
+.app.app--web .homeDashboardDirectorSkin .homeMetricsTopLine .metricCard {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.app.app--web .quickNav {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.app.app--web .salesAccordion,
+.app.app--web .staffManagementAccordionPanel,
+.app.app--web .staffCardsBlockAccordionPanel,
+.app.app--web .procurementAccordionPanel {
+  transition: none !important;
+}
+
+.app.app--web .pageOutlet {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
+
+.app.app--web .financeOpsHistoryMiniTrack,
+.app.app--web .salesLogList,
+.app.app--web .tableWrap {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+@media (max-width: 560px) {
+  .app.app--desktop.app--web {
+    padding: 0 !important;
+    background:
+      radial-gradient(ellipse 75% 55% at 92% -5%, rgba(154, 163, 173, 0.1), transparent 58%),
+      linear-gradient(165deg, #090c11 0%, #121820 100%) !important;
+  }
+
+  .app.app--desktop.app--web.loginScreen {
+    align-items: stretch !important;
+    justify-content: flex-end !important;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 0 0 !important;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(154, 163, 173, 0.12), transparent 58%),
+      linear-gradient(165deg, #090c11 0%, #121820 55%, #262b32 100%) !important;
+  }
+
+  .app.app--desktop.app--web.loginScreen .loginScreenPanel {
+    max-width: none;
+    border-radius: 20px 20px 0 0 !important;
+  }
+}

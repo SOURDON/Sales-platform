@@ -1,4 +1,4 @@
-import { loadSyncCache, saveSyncCache } from '../cache';
+import { loadSyncCache, saveSyncCache, syncCacheAgeMs } from '../cache';
 import { markApiReachableSuccess } from '../network';
 import type { SyncCacheKey } from '../types';
 
@@ -14,6 +14,10 @@ export type LoadSyncResourceOptions<T> = {
   onFresh?: (data: T) => void;
   /** Не ходить в сеть — только IndexedDB (ручное «только кэш»). */
   cacheOnly?: boolean;
+  /** Если кэш моложе этого интервала — фоновый fetch не выполняется. */
+  staleTimeMs?: number;
+  /** Всегда ждать ответ сети (после мутаций). */
+  preferNetwork?: boolean;
 };
 
 export async function loadSyncResource<T>(
@@ -53,7 +57,18 @@ export async function loadSyncResource<T>(
     return { data: fallback, fromCache: true };
   }
 
+  if (options?.preferNetwork) {
+    return fetchFresh();
+  }
+
   if (cached !== null) {
+    const staleTimeMs = options?.staleTimeMs ?? 45_000;
+    if (staleTimeMs > 0) {
+      const ageMs = await syncCacheAgeMs(userId, cacheKey);
+      if (ageMs !== null && ageMs < staleTimeMs) {
+        return { data: cached, fromCache: true };
+      }
+    }
     void fetchFresh();
     return { data: cached, fromCache: true };
   }

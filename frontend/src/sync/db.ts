@@ -79,6 +79,14 @@ export async function putCacheRow(row: SyncCacheRow): Promise<void> {
 }
 
 export async function getCacheRow<T>(userId: number, cacheKey: string): Promise<T | null> {
+  const row = await getCacheRowRecord<T>(userId, cacheKey);
+  return row?.data ?? null;
+}
+
+export async function getCacheRowRecord<T>(
+  userId: number,
+  cacheKey: string,
+): Promise<(SyncCacheRow & { data: T }) | null> {
   const db = await openDatabase();
   const tx = db.transaction(CACHE_STORE, 'readonly');
   const row = await idbRequest<SyncCacheRow | undefined>(
@@ -87,5 +95,5 @@ export async function getCacheRow<T>(userId: number, cacheKey: string): Promise<
   if (!row) {
     return null;
   }
-  return row.data as T;
+  return row as SyncCacheRow & { data: T };
 }

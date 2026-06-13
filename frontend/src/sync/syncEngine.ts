@@ -9,10 +9,20 @@ export type SyncEngineOptions = {
   onSyncingChange?: (syncing: boolean) => void;
   onFlushed?: () => void;
   onReachableChange?: (reachable: boolean) => void;
+  /** Периодический flush outbox (в вебе отключён — только online / ручной). */
+  enablePeriodicFlush?: boolean;
 };
 
 export function startSyncEngine(options: SyncEngineOptions): () => void {
-  const { apiBaseUrl, token, userId, onSyncingChange, onFlushed, onReachableChange } = options;
+  const {
+    apiBaseUrl,
+    token,
+    userId,
+    onSyncingChange,
+    onFlushed,
+    onReachableChange,
+    enablePeriodicFlush = true,
+  } = options;
   let flushing = false;
 
   const runFlush = async (): Promise<boolean> => {
@@ -51,20 +61,28 @@ export function startSyncEngine(options: SyncEngineOptions): () => void {
 
   void migrateLegacyOfflineSalesQueue(userId).then(() => void flushAndRefresh());
 
-  const network = subscribeNetwork(apiBaseUrl, (reachable) => {
-    onReachableChange?.(reachable);
-    if (reachable) {
-      void flushAndRefresh();
-    }
-  }, { ignoreNavigatorOffline: true });
+  const network = subscribeNetwork(
+    apiBaseUrl,
+    (reachable) => {
+      onReachableChange?.(reachable);
+      if (reachable) {
+        void flushAndRefresh();
+      }
+    },
+    { ignoreNavigatorOffline: true, pollMs: enablePeriodicFlush ? undefined : 600_000 },
+  );
 
   const onOnline = () => void flushAndRefresh();
   window.addEventListener('online', onOnline);
-  const interval = window.setInterval(() => void runFlush(), 120_000);
+  const interval = enablePeriodicFlush
+    ? window.setInterval(() => void runFlush(), 120_000)
+    : null;
 
   return () => {
     network.dispose();
     window.removeEventListener('online', onOnline);
-    window.clearInterval(interval);
+    if (interval !== null) {
+      window.clearInterval(interval);
+    }
   };
 }
