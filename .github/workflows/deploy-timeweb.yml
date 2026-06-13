@@ -1,6 +1,5 @@
 # Деплой на Timeweb по SSH после push в main (или вручную).
-# Секрет: TIMEWEB_SSH_KEY — приватный ключ (Repository secrets, не Environment).
-# Настройка: docs/GITHUB_ACTIONS_DEPLOY.md
+# Секрет TIMEWEB_SSH_KEY: приватный ключ ИЛИ base64 от него (см. setup-github-actions-deploy.sh).
 name: Deploy Timeweb
 
 on:
@@ -28,18 +27,26 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          install -m 600 /dev/null ~/.ssh/id_deploy
-          printf '%s\n' "${{ secrets.TIMEWEB_SSH_KEY }}" > ~/.ssh/id_deploy
-          if grep -q '^ssh-ed25519 ' ~/.ssh/id_deploy || grep -q '^ssh-rsa ' ~/.ssh/id_deploy; then
-            echo "::error::В TIMEWEB_SSH_KEY попал публичный ключ (.pub). Нужен приватный: BEGIN OPENSSH PRIVATE KEY"
+          KEY_RAW="$RUNNER_TEMP/key_raw"
+          printf '%s' "${{ secrets.TIMEWEB_SSH_KEY }}" > "$KEY_RAW"
+          if [ ! -s "$KEY_RAW" ]; then
+            echo "::error::TIMEWEB_SSH_KEY пустой. Добавьте Repository secret."
             exit 1
           fi
-          if ! grep -q 'BEGIN OPENSSH PRIVATE KEY' ~/.ssh/id_deploy; then
-            echo "::error::TIMEWEB_SSH_KEY должен содержать приватный OpenSSH ключ целиком"
+          if grep -q 'BEGIN OPENSSH PRIVATE KEY' "$KEY_RAW"; then
+            cp "$KEY_RAW" ~/.ssh/id_deploy
+            echo "Ключ загружен как OpenSSH PEM"
+          elif base64 -d "$KEY_RAW" > ~/.ssh/id_deploy 2>/dev/null && grep -q 'BEGIN OPENSSH PRIVATE KEY' ~/.ssh/id_deploy; then
+            echo "Ключ загружен из base64"
+          else
+            echo "::error::Неверный TIMEWEB_SSH_KEY. На Mac выполните:"
+            echo "  base64 < scripts/timeweb/.deploy-keys/github_actions_ed25519 | tr -d '\\n' | pbcopy"
+            echo "и вставьте одну строку в Repository secret."
             exit 1
           fi
+          chmod 600 ~/.ssh/id_deploy
           ssh-keygen -y -f ~/.ssh/id_deploy > ~/.ssh/id_deploy.pub
-          echo "Deploy key fingerprint (должен совпасть с Mac):"
+          echo "Deploy key fingerprint (ожидается SHA256:TVJgREAaFEUMoafUdMlu5FMmSlPfI2R4R6wnqLAXN08):"
           ssh-keygen -lf ~/.ssh/id_deploy.pub
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_deploy

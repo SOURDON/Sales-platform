@@ -39,13 +39,13 @@ chmod 600 ~/.ssh/authorized_keys
 1. **Repository secrets** (не Environments): [Settings → Secrets and variables → Actions](https://github.com/SOURDON/Sales-platform/settings/secrets/actions)
 2. **New repository secret**
 3. Name: `TIMEWEB_SSH_KEY`
-4. Value: **приватный** ключ (не `.pub`):
+4. Value — **рекомендуется base64** (одна строка):
 
 ```bash
-pbcopy < scripts/timeweb/.deploy-keys/github_actions_ed25519
+base64 < scripts/timeweb/.deploy-keys/github_actions_ed25519 | tr -d '\n' | pbcopy
 ```
 
-Вставьте целиком, со строками `-----BEGIN OPENSSH PRIVATE KEY-----` / `-----END...`, без лишних пробелов.
+Альтернатива — сырой приватный ключ: `pbcopy < scripts/timeweb/.deploy-keys/github_actions_ed25519`
 
 ### 4. Запустить деплой
 

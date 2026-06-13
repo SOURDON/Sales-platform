@@ -64,15 +64,16 @@ if [[ "$INSTALL_ON_SERVER" -eq 1 ]]; then
   echo ""
 fi
 
-echo "=== Шаг 2/3: Секрет в GitHub ==="
+echo "=== Шаг 2/3: Секрет в GitHub (Repository secrets) ==="
 echo "1. Откройте:"
 echo "   https://github.com/SOURDON/Sales-platform/settings/secrets/actions"
-echo "2. New repository secret"
+echo "2. New repository secret (НЕ Environment)"
 echo "   Name:  TIMEWEB_SSH_KEY"
-echo "   Value: полное содержимое файла:"
-echo "   $KEY_FILE"
 echo ""
-echo "Скопировать в буфер (macOS):"
+echo "3. Value — рекомендуется base64 (одна строка, без поломки переносов):"
+echo "   base64 < \"$KEY_FILE\" | tr -d '\\n' | pbcopy"
+echo ""
+echo "   Альтернатива — сырой приватный ключ:"
 echo "   pbcopy < \"$KEY_FILE\""
 echo ""
 
