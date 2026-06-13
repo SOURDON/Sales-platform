@@ -369,3 +369,24 @@
     padding-bottom: calc(var(--app-mobile-dock-clearance, 76px) + 16px) !important;
   }
 }
+
+/* iOS Safari: не приближать экран при фокусе на полях (нужен font-size ≥ 16px) */
+@media (max-width: 880px) {
+  .app.app--web input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']),
+  .app.app--web select,
+  .app.app--web textarea {
+    font-size: 16px !important;
+    line-height: 1.25 !important;
+  }
+
+  .app.app--web .invQtyInputTight,
+  .app.app--web .invQtyInput,
+  .app.app--web .storeEquipQtyInput,
+  .app.app--web .financeOpsBalanceAdjustInput,
+  .app.app--web .financeOpsCommentInput,
+  .app.app--web .financeOpsExpenseEntryInput,
+  .app.app--web .addSaleQtyInput {
+    font-size: 16px !important;
+    min-height: 40px !important;
+  }
+}
