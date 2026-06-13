@@ -4706,6 +4706,7 @@ function App() {
                               onAddProduct={addCatalogProduct}
                               onRenameProduct={renameCatalogProduct}
                               onDeleteProduct={deleteCatalogProduct}
+                              webMobileLayout={!isDesktopShell}
                             />
                           </section>
                           <section className="sectionCard sectionCard--acquiring">
@@ -4714,6 +4715,7 @@ function App() {
                               profiles={acquiringProfiles}
                               onProfilesChange={setAcquiringProfiles}
                               onSaveProfiles={saveAcquiringProfiles}
+                              webMobileLayout={!isDesktopShell}
                             />
                           </section>
                         </>
@@ -5027,6 +5029,7 @@ function App() {
                         onAddProduct={addCatalogProduct}
                         onRenameProduct={renameCatalogProduct}
                         onDeleteProduct={deleteCatalogProduct}
+                        webMobileLayout={!isDesktopShell}
                         bottomAside={
                           <AccountantProcurementPanel
                             layout="vertical"
@@ -6875,14 +6878,66 @@ function financeHistoryDayKeyFromIso(iso: string): string {
   }).format(new Date(iso));
 }
 
-function formatFinanceHistoryDayLabel(dayKey: string): string {
-  const today = todayKeyMoscow();
-  const yesterday = new Intl.DateTimeFormat('en-CA', {
+function financeHistoryYesterdayKey(): string {
+  return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Moscow',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(new Date(Date.now() - 86_400_000));
+}
+
+function financeHistoryWeekStartKey(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(Date.now() - 6 * 86_400_000));
+}
+
+function isFinanceHistoryDayKey(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
+}
+
+function FinanceHistoryStoreFilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="financeOpsHistoryFilterIconSvg" aria-hidden>
+      <path
+        d="M5 9.5h14v9H5z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M9 13h6M9 16h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8 9.5V7.8c0-1 .8-1.8 1.8-1.8h4.4c1 0 1.8.8 1.8 1.8V9.5" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function FinanceHistoryAccountFilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="financeOpsHistoryFilterIconSvg" aria-hidden>
+      <rect x="4.5" y="7" width="15" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M4.5 10.5h15" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 14.2h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FinanceHistoryDateFilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="financeOpsHistoryFilterIconSvg" aria-hidden>
+      <rect x="4.5" y="6" width="15" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 4.8v3.2M16 4.8v3.2M4.5 10h15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8.2 13.8h2.4M13.4 13.8h2.4M8.2 16.8h2.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function formatFinanceHistoryDayLabel(dayKey: string): string {
+  const today = todayKeyMoscow();
+  const yesterday = financeHistoryYesterdayKey();
   if (dayKey === today) {
     return 'Сегодня';
   }
@@ -6933,6 +6988,7 @@ function filterFinanceHistoryRows(
   kind: 'expense' | 'income',
   storeFilter: string,
   accountFilter: string,
+  dateFilter: string,
 ): FinanceHistoryListRow[] {
   let result = rows;
   if (storeFilter) {
@@ -6940,6 +6996,20 @@ function filterFinanceHistoryRows(
   }
   if (accountFilter) {
     result = result.filter((row) => row.accountId === accountFilter);
+  }
+  if (dateFilter) {
+    const today = todayKeyMoscow();
+    const yesterday = financeHistoryYesterdayKey();
+    const weekStart = financeHistoryWeekStartKey();
+    if (dateFilter === 'today') {
+      result = result.filter((row) => row.dayKey === today);
+    } else if (dateFilter === 'yesterday') {
+      result = result.filter((row) => row.dayKey === yesterday);
+    } else if (dateFilter === 'week') {
+      result = result.filter((row) => row.dayKey >= weekStart && row.dayKey <= today);
+    } else if (isFinanceHistoryDayKey(dateFilter)) {
+      result = result.filter((row) => row.dayKey === dateFilter);
+    }
   }
   return result;
 }
@@ -7001,16 +7071,29 @@ function FinanceOpsHistoryList({
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
   const [storeFilter, setStoreFilter] = useState('');
   const [accountFilter, setAccountFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [openFilter, setOpenFilter] = useState<'store' | 'account' | 'date' | null>(null);
   const accountFilterOptions = useMemo(
     () => financeHistoryAccountFilterOptions(accounts),
     [accounts],
   );
   const filteredRows = useMemo(
-    () => filterFinanceHistoryRows(rows, kind, storeFilter, accountFilter),
-    [rows, kind, storeFilter, accountFilter],
+    () => filterFinanceHistoryRows(rows, kind, storeFilter, accountFilter, dateFilter),
+    [rows, kind, storeFilter, accountFilter, dateFilter],
   );
   const groups = useMemo(() => groupFinanceHistoryByDay(filteredRows), [filteredRows]);
-  const hasActiveFilters = Boolean(storeFilter || accountFilter);
+  const hasActiveFilters = Boolean(storeFilter || accountFilter || dateFilter);
+  const datePresetValue =
+    dateFilter === '' || dateFilter === 'today' || dateFilter === 'yesterday' || dateFilter === 'week'
+      ? dateFilter
+      : isFinanceHistoryDayKey(dateFilter)
+        ? 'custom'
+        : '';
+  const customDateValue = isFinanceHistoryDayKey(dateFilter) ? dateFilter : '';
+
+  const toggleFilterPanel = (panel: 'store' | 'account' | 'date') => {
+    setOpenFilter((current) => (current === panel ? null : panel));
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAccountId, setEditAccountId] = useState('');
   const [editAmount, setEditAmount] = useState('');
@@ -7091,36 +7174,143 @@ function FinanceOpsHistoryList({
       <div className="financeOpsHistoryMiniHead">
         <p className="financeOpsHistoryMiniTitle">{title}</p>
         <div className="financeOpsHistoryFilters">
-          <label className="financeOpsHistoryStoreFilter">
-            <span className="financeOpsHistoryStoreFilterLabel">Магазин</span>
-            <select
-              value={storeFilter}
-              onChange={(event) => setStoreFilter(event.target.value)}
-              aria-label={`Фильтр по магазину: ${title}`}
-            >
-              <option value="">Все магазины</option>
-              {ALL_DEMO_STORE_NAMES.map((storeName) => (
-                <option key={storeName} value={storeName}>
-                  {storeName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="financeOpsHistoryStoreFilter financeOpsHistoryAccountFilter">
-            <span className="financeOpsHistoryStoreFilterLabel">Вид расчёта</span>
-            <select
-              value={accountFilter}
-              onChange={(event) => setAccountFilter(event.target.value)}
-              aria-label={`Фильтр по виду расчёта: ${title}`}
-            >
-              <option value="">Все виды</option>
-              {accountFilterOptions.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {pageLayout ? (
+            <>
+              <div className="financeOpsHistoryFilterIconRow" role="toolbar" aria-label="Фильтры истории">
+                <button
+                  type="button"
+                  className={`financeOpsHistoryFilterIconBtn${
+                    openFilter === 'store' || storeFilter ? ' financeOpsHistoryFilterIconBtn--active' : ''
+                  }`}
+                  aria-label="Фильтр по магазину"
+                  aria-pressed={openFilter === 'store' || Boolean(storeFilter)}
+                  onClick={() => toggleFilterPanel('store')}
+                >
+                  <FinanceHistoryStoreFilterIcon />
+                </button>
+                <button
+                  type="button"
+                  className={`financeOpsHistoryFilterIconBtn${
+                    openFilter === 'account' || accountFilter ? ' financeOpsHistoryFilterIconBtn--active' : ''
+                  }`}
+                  aria-label="Фильтр по виду расчёта"
+                  aria-pressed={openFilter === 'account' || Boolean(accountFilter)}
+                  onClick={() => toggleFilterPanel('account')}
+                >
+                  <FinanceHistoryAccountFilterIcon />
+                </button>
+                <button
+                  type="button"
+                  className={`financeOpsHistoryFilterIconBtn${
+                    openFilter === 'date' || dateFilter ? ' financeOpsHistoryFilterIconBtn--active' : ''
+                  }`}
+                  aria-label="Фильтр по дате"
+                  aria-pressed={openFilter === 'date' || Boolean(dateFilter)}
+                  onClick={() => toggleFilterPanel('date')}
+                >
+                  <FinanceHistoryDateFilterIcon />
+                </button>
+              </div>
+              {openFilter === 'store' ? (
+                <div className="financeOpsHistoryFilterPanel">
+                  <select
+                    className="financeOpsHistoryFilterPanelSelect"
+                    value={storeFilter}
+                    onChange={(event) => setStoreFilter(event.target.value)}
+                    aria-label={`Фильтр по магазину: ${title}`}
+                  >
+                    <option value="">Все магазины</option>
+                    {ALL_DEMO_STORE_NAMES.map((storeName) => (
+                      <option key={storeName} value={storeName}>
+                        {storeName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+              {openFilter === 'account' ? (
+                <div className="financeOpsHistoryFilterPanel">
+                  <select
+                    className="financeOpsHistoryFilterPanelSelect"
+                    value={accountFilter}
+                    onChange={(event) => setAccountFilter(event.target.value)}
+                    aria-label={`Фильтр по виду расчёта: ${title}`}
+                  >
+                    <option value="">Все виды</option>
+                    {accountFilterOptions.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+              {openFilter === 'date' ? (
+                <div className="financeOpsHistoryFilterPanel financeOpsHistoryFilterPanel--date">
+                  <select
+                    className="financeOpsHistoryFilterPanelSelect"
+                    value={datePresetValue}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      if (next === 'custom') {
+                        setDateFilter(customDateValue || todayKeyMoscow());
+                        return;
+                      }
+                      setDateFilter(next);
+                    }}
+                    aria-label={`Фильтр по дате: ${title}`}
+                  >
+                    <option value="">Все даты</option>
+                    <option value="today">Сегодня</option>
+                    <option value="yesterday">Вчера</option>
+                    <option value="week">7 дней</option>
+                    <option value="custom">Конкретная дата</option>
+                  </select>
+                  <input
+                    className="financeOpsHistoryFilterPanelDate"
+                    type="date"
+                    value={customDateValue}
+                    max={todayKeyMoscow()}
+                    onChange={(event) => setDateFilter(event.target.value)}
+                    aria-label={`Конкретная дата: ${title}`}
+                  />
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <label className="financeOpsHistoryStoreFilter">
+                <span className="financeOpsHistoryStoreFilterLabel">Магазин</span>
+                <select
+                  value={storeFilter}
+                  onChange={(event) => setStoreFilter(event.target.value)}
+                  aria-label={`Фильтр по магазину: ${title}`}
+                >
+                  <option value="">Все магазины</option>
+                  {ALL_DEMO_STORE_NAMES.map((storeName) => (
+                    <option key={storeName} value={storeName}>
+                      {storeName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="financeOpsHistoryStoreFilter financeOpsHistoryAccountFilter">
+                <span className="financeOpsHistoryStoreFilterLabel">Вид расчёта</span>
+                <select
+                  value={accountFilter}
+                  onChange={(event) => setAccountFilter(event.target.value)}
+                  aria-label={`Фильтр по виду расчёта: ${title}`}
+                >
+                  <option value="">Все виды</option>
+                  {accountFilterOptions.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
         </div>
       </div>
       <div className="financeOpsHistoryMiniTrack" role="list" aria-label={title}>
@@ -8177,7 +8367,9 @@ function FinanceOpsPanel({
           <section className="financeOpsZone financeOpsZone--expense addSaleForm">
             <h4 className="financeOpsZoneTitle">Расход</h4>
             <div className="financeOpsExpensePickRow">
-              <label className="financeOpsExpenseUnifiedPick">
+              <label
+                className={`financeOpsExpenseUnifiedPick financeOpsExpenseAccountPick ${financeAccountToneClass(expenseAccountId)}`}
+              >
                 <span className="financeOpsExpenseUnifiedPickCaption">Счёт списания</span>
                 <select
                   className="financeOpsExpenseUnifiedSelect"
@@ -10101,6 +10293,77 @@ function StaffPanel({
   );
 }
 
+function WebWarehouseSheet({
+  id,
+  title,
+  badge,
+  meta,
+  open,
+  onToggle,
+  actions,
+  className,
+  children,
+}: {
+  id: string;
+  title: string;
+  badge?: string;
+  meta?: ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  actions?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className={`webWarehouseSheet procurementAccordion${open ? ' webWarehouseSheet--open' : ' procurementAccordion--collapsed'}${className ? ` ${className}` : ''}`}
+    >
+      <button
+        type="button"
+        className="webWarehouseSheetHandle procurementAccordionTrigger"
+        aria-expanded={open}
+        aria-controls={`web-warehouse-sheet-${id}`}
+        onClick={onToggle}
+      >
+        <span className="webWarehouseSheetHandleMain">
+          {badge ? (
+            <span className="webWarehouseSheetBadge" aria-hidden>
+              {badge}
+            </span>
+          ) : null}
+          <span className="webWarehouseSheetHandleTitle">{title}</span>
+        </span>
+        {actions ? (
+          <span
+            className="webWarehouseSheetHandleActions"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            {actions}
+          </span>
+        ) : null}
+        <span className="procurementAccordionChevron webWarehouseSheetChevron" aria-hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M7 10l5 5 5-5z" />
+          </svg>
+        </span>
+      </button>
+      <div
+        className="procurementAccordionPanel webWarehouseSheetPanel"
+        id={`web-warehouse-sheet-${id}`}
+        aria-hidden={!open}
+      >
+        <div className="procurementAccordionPanelInner">
+          <div className="procurementAccordionBody webWarehouseSheetBody">
+            {meta}
+            {children}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function DirectorWarehousePanel({
   token,
   overview,
@@ -10114,6 +10377,7 @@ function DirectorWarehousePanel({
   onRenameProduct,
   onDeleteProduct,
   bottomAside,
+  webMobileLayout = false,
 }: {
   token: string;
   overview: InventoryOverviewResponse | null;
@@ -10130,6 +10394,7 @@ function DirectorWarehousePanel({
   onRenameProduct?: (token: string, oldName: string, newName: string) => Promise<void>;
   onDeleteProduct?: (token: string, name: string) => Promise<void>;
   bottomAside?: ReactNode;
+  webMobileLayout?: boolean;
 }) {
   const [replenishDraft, setReplenishDraft] = useState<Record<string, string>>({});
   const [nameDraft, setNameDraft] = useState<Record<string, string>>({});
@@ -10179,6 +10444,13 @@ function DirectorWarehousePanel({
     | null
   >(null);
   const [resetConfirmText, setResetConfirmText] = useState('');
+  const [warehouseSheetOpen, setWarehouseSheetOpen] = useState<Record<string, boolean>>({});
+  const [catalogSheetOpen, setCatalogSheetOpen] = useState(false);
+  const [acquiringSheetOpen, setAcquiringSheetOpen] = useState(false);
+
+  const toggleWarehouseSheet = (warehouseKey: string) => {
+    setWarehouseSheetOpen((current) => ({ ...current, [warehouseKey]: !current[warehouseKey] }));
+  };
 
   const warehouseCardTone = (warehouseKey: string) => {
     if (warehouseKey === WAREHOUSE_SADY_KEY) {
@@ -10457,7 +10729,7 @@ function DirectorWarehousePanel({
 
   return (
     <div
-      className={`invGlassRoot directorWarehouseRoot${showProcurement ? ' directorWarehouseRoot--withCosts' : ''}`}
+      className={`invGlassRoot directorWarehouseRoot${showProcurement ? ' directorWarehouseRoot--withCosts' : ''}${webMobileLayout ? ' directorWarehouseRoot--webMobile' : ''}`}
     >
       <div className="invGlassShell directorWarehouseShell">
         <header className="invGlassHeader directorWarehouseHeader">
@@ -10554,6 +10826,137 @@ function DirectorWarehousePanel({
             {warehouseSections.map((section) => {
                 const rows = rowsForWarehouse(section.key);
                 const tone = warehouseCardTone(section.key);
+                const badge = tone === 'sady' ? 'SM' : tone === 'center' ? 'Ц' : '·';
+                const resetAction = onResetWarehouse
+                  ? renderResetAction(
+                      resetConfirm?.kind === 'warehouse' &&
+                        resetConfirm.warehouseKey === section.key,
+                      () =>
+                        beginResetConfirm({
+                          kind: 'warehouse',
+                          warehouseKey: section.key,
+                          label: section.label,
+                        }),
+                      () => void handleResetWarehouse(section.key, section.label),
+                      resettingWarehouseKey === section.key,
+                      'Обнулить',
+                    )
+                  : null;
+                const storeChips = (
+                  <div className="directorWarehouseStoreChips">
+                    {section.storeNames.map((store) => (
+                      <span key={store} className="directorWarehouseStoreChip" title={store}>
+                        {store}
+                      </span>
+                    ))}
+                  </div>
+                );
+                const warehouseTable = (
+                  <div className="invTableScroll invTableScrollFit directorWarehouseTableWrap">
+                    <table className="invTable invTableWarehouse">
+                      <thead>
+                        <tr>
+                          <th scope="col">Товар</th>
+                          <th className="invThNum dwThNum" scope="col" title={`Склад «${section.label}»`}>
+                            Склад
+                          </th>
+                          <th className="invThNum dwThNum" scope="col" title="Сумма по точкам этого склада">
+                            Точки
+                          </th>
+                          <th className="invThNum dwThNum" scope="col">
+                            Всего
+                          </th>
+                          <th
+                            className="invThAction dwThAction"
+                            scope="col"
+                            title="Количество и подтверждение пополнения"
+                          >
+                            Пополнить
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.length === 0 ? (
+                          <tr>
+                            <td colSpan={stockColCount} className="invTableEmpty">
+                              Нет позиций в каталоге
+                            </td>
+                          </tr>
+                        ) : (
+                          rows.map((row) => {
+                            const busyKey = replenishDraftKey(section.key, row.name);
+                            return (
+                              <tr key={`${section.key}-${row.name}`}>
+                                <td className="invTdName">{row.name}</td>
+                                <td className="invTdNum dwTdNum">
+                                  <span className="dwQty">{row.qtyWarehouse}</span>
+                                </td>
+                                <td className="invTdNum dwTdNum">
+                                  <span className="dwQty dwQtyMuted">{row.qtyInStores}</span>
+                                </td>
+                                <td className="invTdNum dwTdNum">
+                                  <span className="dwQty dwQtyTotal">{row.qtyGrandTotal}</span>
+                                </td>
+                                <td className="invTdAction dwTdAction">
+                                  <div
+                                    className="dwReplenish"
+                                    role="group"
+                                    aria-label={`Пополнить склад «${section.label}»: ${row.name}`}
+                                  >
+                                    <input
+                                      className="dwReplenishInput"
+                                      inputMode="numeric"
+                                      placeholder="0"
+                                      value={replenishDraft[busyKey] ?? ''}
+                                      onChange={(event) =>
+                                        setReplenishDraft((current) => ({
+                                          ...current,
+                                          [busyKey]: event.target.value,
+                                        }))
+                                      }
+                                      aria-label={`Штук для пополнения: ${row.name}`}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="dwReplenishBtn"
+                                      disabled={busyName === busyKey}
+                                      title={`Пополнить склад «${section.label}»`}
+                                      aria-label="Подтвердить пополнение"
+                                      onClick={() =>
+                                        void handleReplenish(section.key, section.label, row.name)
+                                      }
+                                    >
+                                      {busyName === busyKey ? '…' : '✓'}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+
+                if (webMobileLayout) {
+                  return (
+                    <WebWarehouseSheet
+                      key={section.key}
+                      id={`warehouse-${section.key}`}
+                      title={`Склад «${section.label}»`}
+                      badge={badge}
+                      open={Boolean(warehouseSheetOpen[section.key])}
+                      onToggle={() => toggleWarehouseSheet(section.key)}
+                      actions={resetAction}
+                      className={`webWarehouseSheet--stock webWarehouseSheet--${tone}`}
+                      meta={storeChips}
+                    >
+                      {warehouseTable}
+                    </WebWarehouseSheet>
+                  );
+                }
+
                 return (
                   <article
                     key={section.key}
@@ -10563,119 +10966,15 @@ function DirectorWarehousePanel({
                       <div className="directorWarehouseCardTitleRow">
                         <div className="directorWarehouseCardTitleMain">
                           <span className="directorWarehouseCardBadge" aria-hidden>
-                            {tone === 'sady' ? 'SM' : tone === 'center' ? 'Ц' : '·'}
+                            {badge}
                           </span>
                           <h4 className="directorWarehouseCardTitle">Склад «{section.label}»</h4>
                         </div>
-                        {onResetWarehouse
-                          ? renderResetAction(
-                              resetConfirm?.kind === 'warehouse' &&
-                                resetConfirm.warehouseKey === section.key,
-                              () =>
-                                beginResetConfirm({
-                                  kind: 'warehouse',
-                                  warehouseKey: section.key,
-                                  label: section.label,
-                                }),
-                              () => void handleResetWarehouse(section.key, section.label),
-                              resettingWarehouseKey === section.key,
-                              'Обнулить',
-                            )
-                          : null}
+                        {resetAction}
                       </div>
-                      <div className="directorWarehouseStoreChips">
-                        {section.storeNames.map((store) => (
-                          <span key={store} className="directorWarehouseStoreChip" title={store}>
-                            {store}
-                          </span>
-                        ))}
-                      </div>
+                      {storeChips}
                     </header>
-                    <div className="invTableScroll invTableScrollFit directorWarehouseTableWrap">
-                      <table className="invTable invTableWarehouse">
-                        <thead>
-                          <tr>
-                            <th scope="col">Товар</th>
-                            <th className="invThNum dwThNum" scope="col" title={`Склад «${section.label}»`}>
-                              Склад
-                            </th>
-                            <th className="invThNum dwThNum" scope="col" title="Сумма по точкам этого склада">
-                              Точки
-                            </th>
-                            <th className="invThNum dwThNum" scope="col">
-                              Всего
-                            </th>
-                            <th
-                              className="invThAction dwThAction"
-                              scope="col"
-                              title="Количество и подтверждение пополнения"
-                            >
-                              Пополнить
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.length === 0 ? (
-                            <tr>
-                              <td colSpan={stockColCount} className="invTableEmpty">
-                                Нет позиций в каталоге
-                              </td>
-                            </tr>
-                          ) : (
-                            rows.map((row) => {
-                              const busyKey = replenishDraftKey(section.key, row.name);
-                              return (
-                                <tr key={`${section.key}-${row.name}`}>
-                                  <td className="invTdName">{row.name}</td>
-                                  <td className="invTdNum dwTdNum">
-                                    <span className="dwQty">{row.qtyWarehouse}</span>
-                                  </td>
-                                  <td className="invTdNum dwTdNum">
-                                    <span className="dwQty dwQtyMuted">{row.qtyInStores}</span>
-                                  </td>
-                                  <td className="invTdNum dwTdNum">
-                                    <span className="dwQty dwQtyTotal">{row.qtyGrandTotal}</span>
-                                  </td>
-                                  <td className="invTdAction dwTdAction">
-                                    <div
-                                      className="dwReplenish"
-                                      role="group"
-                                      aria-label={`Пополнить склад «${section.label}»: ${row.name}`}
-                                    >
-                                      <input
-                                        className="dwReplenishInput"
-                                        inputMode="numeric"
-                                        placeholder="0"
-                                        value={replenishDraft[busyKey] ?? ''}
-                                        onChange={(event) =>
-                                          setReplenishDraft((current) => ({
-                                            ...current,
-                                            [busyKey]: event.target.value,
-                                          }))
-                                        }
-                                        aria-label={`Штук для пополнения: ${row.name}`}
-                                      />
-                                      <button
-                                        type="button"
-                                        className="dwReplenishBtn"
-                                        disabled={busyName === busyKey}
-                                        title={`Пополнить склад «${section.label}»`}
-                                        aria-label="Подтвердить пополнение"
-                                        onClick={() =>
-                                          void handleReplenish(section.key, section.label, row.name)
-                                        }
-                                      >
-                                        {busyName === busyKey ? '…' : '✓'}
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                    {warehouseTable}
                   </article>
                 );
               })}
@@ -10683,11 +10982,14 @@ function DirectorWarehousePanel({
 
           {showProcurement || canDeleteProduct ? (
             <div className={`directorWarehouseFooterRow${bottomAside ? ' directorWarehouseFooterRow--withAside' : ''}`}>
-            <section className="directorWarehouseCatalogCard">
-              <header className="directorWarehouseCatalogHeader">
-                <div className="directorWarehouseCatalogTitleRow">
-                  <h4 className="directorWarehouseCatalogTitle">Каталог товаров</h4>
-                  {showProcurement
+            {webMobileLayout ? (
+              <WebWarehouseSheet
+                id="catalog"
+                title="Каталог товаров"
+                open={catalogSheetOpen}
+                onToggle={() => setCatalogSheetOpen((open) => !open)}
+                actions={
+                  showProcurement
                     ? renderResetAction(
                         resetConfirm?.kind === 'costs',
                         () => beginResetConfirm({ kind: 'costs' }),
@@ -10695,15 +10997,16 @@ function DirectorWarehousePanel({
                         resettingCosts,
                         'Обнулить цены',
                       )
-                    : null}
-                </div>
+                    : null
+                }
+                className="webWarehouseSheet--catalog"
+              >
                 <p className="directorWarehouseCatalogHint">
                   Название можно изменить в таблице (✓). Закупочные цены общие для обоих складов. Удаление —
                   только при нулевых остатках везде.
                 </p>
-              </header>
-              <div className="invTableScroll invTableScrollFit directorWarehouseCatalogTableWrap">
-                <table className="invTable invTableCatalog">
+                <div className="invTableScroll invTableScrollFit directorWarehouseCatalogTableWrap">
+                  <table className="invTable invTableCatalog">
                   <thead>
                     <tr>
                       <th scope="col">Товар</th>
@@ -10823,8 +11126,165 @@ function DirectorWarehousePanel({
                   </button>
                 </div>
               ) : null}
+              </WebWarehouseSheet>
+            ) : (
+            <section className="directorWarehouseCatalogCard">
+              <header className="directorWarehouseCatalogHeader">
+                <div className="directorWarehouseCatalogTitleRow">
+                  <h4 className="directorWarehouseCatalogTitle">Каталог товаров</h4>
+                  {showProcurement
+                    ? renderResetAction(
+                        resetConfirm?.kind === 'costs',
+                        () => beginResetConfirm({ kind: 'costs' }),
+                        () => void handleResetProcurementCosts(),
+                        resettingCosts,
+                        'Обнулить цены',
+                      )
+                    : null}
+                </div>
+                <p className="directorWarehouseCatalogHint">
+                  Название можно изменить в таблице (✓). Закупочные цены общие для обоих складов. Удаление —
+                  только при нулевых остатках везде.
+                </p>
+              </header>
+              <div className="invTableScroll invTableScrollFit directorWarehouseCatalogTableWrap">
+                <table className="invTable invTableCatalog">
+                  <thead>
+                    <tr>
+                      <th scope="col">Товар</th>
+                      {showProcurement ? (
+                        <th className="invThNum dwThCost" scope="col" title="Закупочная цена, ₽">
+                          Закуп. цена
+                        </th>
+                      ) : null}
+                      {canDeleteProduct ? (
+                        <th className="invThAction dwThDelete" scope="col">
+                          Удалить
+                        </th>
+                      ) : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allRowsForCosts.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={(showProcurement ? 1 : 0) + (canDeleteProduct ? 1 : 0) + 1}
+                          className="invTableEmpty"
+                        >
+                          Нет товаров в каталоге
+                        </td>
+                      </tr>
+                    ) : (
+                      allRowsForCosts.map((row) => (
+                        <tr key={`catalog-desktop-${row.name}`}>
+                          <td className="invTdName">
+                            {canRenameProduct ? (
+                              <div
+                                className="dwCatalogNameEdit"
+                                role="group"
+                                aria-label={`Название товара: ${row.name}`}
+                              >
+                                <input
+                                  type="text"
+                                  className="dwCatalogNameInput"
+                                  value={catalogNameValue(row.name)}
+                                  maxLength={120}
+                                  disabled={renamingName === row.name}
+                                  onChange={(event) =>
+                                    setNameDraft((current) => ({
+                                      ...current,
+                                      [row.name]: event.target.value,
+                                    }))
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault();
+                                      void handleRenameProduct(row.name);
+                                    }
+                                  }}
+                                  aria-label={`Название: ${row.name}`}
+                                />
+                                {catalogNameChanged(row.name) ? (
+                                  <button
+                                    type="button"
+                                    className="dwCatalogNameSaveBtn"
+                                    disabled={renamingName === row.name}
+                                    title="Сохранить название"
+                                    aria-label="Сохранить название"
+                                    onClick={() => void handleRenameProduct(row.name)}
+                                  >
+                                    {renamingName === row.name ? '…' : '✓'}
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : (
+                              row.name
+                            )}
+                          </td>
+                          {showProcurement ? (
+                            <td className="invTdNum dwTdCost">
+                              <input
+                                className="dwCostInput procurementCostInput"
+                                inputMode="decimal"
+                                value={costDraft[row.name] ?? String(row.currentCost)}
+                                onChange={(event) =>
+                                  setCostDraft((current) => ({
+                                    ...current,
+                                    [row.name]: event.target.value,
+                                  }))
+                                }
+                                aria-label={`Закупочная цена: ${row.name}`}
+                              />
+                            </td>
+                          ) : null}
+                          {canDeleteProduct ? (
+                            <td className="invTdAction dwTdDelete">
+                              <button
+                                type="button"
+                                className="directorWarehouseDeleteBtn"
+                                disabled={deletingName === row.name}
+                                title="Удалить из каталога (остатки должны быть 0)"
+                                onClick={() => void handleDeleteProduct(row.name)}
+                              >
+                                {deletingName === row.name ? '…' : 'Удалить'}
+                              </button>
+                            </td>
+                          ) : null}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {showProcurement ? (
+                <div className="directorWarehouseProcurementFooter">
+                  <button
+                    type="button"
+                    className="primaryAction directorWarehouseProcurementSaveBtn"
+                    disabled={costSaving}
+                    onClick={() => void saveProcurementCosts()}
+                  >
+                    {costSaving ? 'Сохраняем…' : 'Сохранить закупочные цены'}
+                  </button>
+                </div>
+              ) : null}
             </section>
-            {bottomAside ? <div className="directorWarehouseAside">{bottomAside}</div> : null}
+            )}
+            {bottomAside ? (
+              webMobileLayout ? (
+                <WebWarehouseSheet
+                  id="acquiring"
+                  title="Эквайринг"
+                  open={acquiringSheetOpen}
+                  onToggle={() => setAcquiringSheetOpen((open) => !open)}
+                  className="webWarehouseSheet--acquiring"
+                >
+                  {bottomAside}
+                </WebWarehouseSheet>
+              ) : (
+                <div className="directorWarehouseAside">{bottomAside}</div>
+              )
+            ) : null}
             </div>
           ) : null}
         </div>
@@ -11656,16 +12116,19 @@ function AccountantProcurementPanel({
   profiles,
   onProfilesChange,
   onSaveProfiles,
+  webMobileLayout = false,
 }: {
   layout?: 'horizontal' | 'vertical';
   token: string;
   profiles: AcquiringProfile[];
   onProfilesChange: (profiles: AcquiringProfile[]) => void;
   onSaveProfiles: (token: string, profiles: AcquiringProfile[]) => Promise<void>;
+  webMobileLayout?: boolean;
 }) {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [editingProfileId, setEditingProfileId] = useState<AcquiringProfileId | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profilesRef = useRef(profiles);
   profilesRef.current = profiles;
@@ -11691,7 +12154,7 @@ function AccountantProcurementPanel({
 
   const isVertical = layout === 'vertical';
 
-  return (
+  const panel = (
     <section
       className={`directorWarehouseCatalogCard acquiringCard${isVertical ? ' acquiringCard--vertical' : ''}`}
     >
@@ -11912,6 +12375,22 @@ function AccountantProcurementPanel({
       </div>
     </section>
   );
+
+  if (webMobileLayout && !isVertical) {
+    return (
+      <WebWarehouseSheet
+        id="acquiring-standalone"
+        title="Эквайринг"
+        open={sheetOpen}
+        onToggle={() => setSheetOpen((open) => !open)}
+        className="webWarehouseSheet--acquiring webWarehouseSheet--standalone"
+      >
+        <div className="webWarehouseSheetEmbeddedPanel">{panel}</div>
+      </WebWarehouseSheet>
+    );
+  }
+
+  return panel;
 }
 
 function FinanceReportPanel({
