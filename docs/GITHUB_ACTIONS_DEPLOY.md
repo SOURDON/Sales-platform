@@ -36,16 +36,16 @@ chmod 600 ~/.ssh/authorized_keys
 
 ### 3. Секрет в GitHub
 
-1. [Settings → Secrets and variables → Actions](https://github.com/SOURDON/Sales-platform/settings/secrets/actions)
+1. **Repository secrets** (не Environments): [Settings → Secrets and variables → Actions](https://github.com/SOURDON/Sales-platform/settings/secrets/actions)
 2. **New repository secret**
 3. Name: `TIMEWEB_SSH_KEY`
-4. Value: **весь** приватный ключ из файла:
+4. Value: **приватный** ключ (не `.pub`):
 
 ```bash
 pbcopy < scripts/timeweb/.deploy-keys/github_actions_ed25519
 ```
 
-Вставьте в поле Value (включая строки `-----BEGIN OPENSSH PRIVATE KEY-----` / `-----END...`).
+Вставьте целиком, со строками `-----BEGIN OPENSSH PRIVATE KEY-----` / `-----END...`, без лишних пробелов.
 
 ### 4. Запустить деплой
 
@@ -74,7 +74,7 @@ curl -sf http://127.0.0.1/health
 | Симптом | Причина | Решение |
 |--------|---------|---------|
 | `secret is not set` / пустой key | Нет `TIMEWEB_SSH_KEY` | Добавить секрет (шаг 3) |
-| `Permission denied (publickey)` | Pubkey не на сервере | Шаг 2, проверить `authorized_keys` |
+| `Permission denied (publickey)` | Pubkey не на сервере или в секрет вставлен `.pub` | Шаг 2; пересохранить **приватный** ключ |
 | Workflow не запускается | Push без изменений в `paths` | Run workflow вручную или изменить `frontend/**` |
 | Долгий build | Docker пересобирает caddy/api | Нормально 3–8 мин, смотреть лог job |
 
