@@ -8122,8 +8122,8 @@ function FinanceOpsPanel({
                   <button
                     key={acc.id}
                     type="button"
-                    className={`ghost paymentTypeBtn financeOpsAccountPickBtn ${
-                      selectedIncomeAccountId === acc.id ? 'paymentTypeBtnActive' : ''
+                    className={`ghost paymentTypeBtn financeOpsAccountPickBtn ${financeAccountToneClass(acc.id)}${
+                      selectedIncomeAccountId === acc.id ? ' paymentTypeBtnActive' : ''
                     }`}
                     onClick={() => setSelectedIncomeAccountId(acc.id)}
                   >
