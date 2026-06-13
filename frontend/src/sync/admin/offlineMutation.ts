@@ -7,7 +7,19 @@ export function isLikelyOfflineFetchError(error: unknown): boolean {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     return true;
   }
-  return error instanceof TypeError;
+  if (error instanceof TypeError) {
+    return true;
+  }
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return true;
+  }
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes('timeout') || msg.includes('время ожидания') || msg.includes('network')) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export async function runAdminMutation(

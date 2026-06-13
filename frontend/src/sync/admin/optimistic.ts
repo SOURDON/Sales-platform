@@ -23,6 +23,18 @@ type SellerLike = {
   commissionAmount: number;
 };
 
+type AdminSaleLike = {
+  id: string;
+  createdAt: string;
+  sellerName: string;
+  sellerId: number;
+  totalAmount: number;
+  units: number;
+  items: Array<{ name: string; qty: number }>;
+  paymentType: 'CASH' | 'NON_CASH' | 'TRANSFER';
+  pendingSync?: boolean;
+};
+
 type StaffLike = {
   id: number;
   fullName: string;
@@ -108,17 +120,36 @@ async function applyWriteOff(userId: number, payload: AdminWriteOffOutboxPayload
 
 async function applySaleStock(userId: number, payload: AdminSaleOutboxPayload): Promise<void> {
   const inv = await loadAdminCache<StoreInventoryLike | null>(userId, 'storeInventory');
-  if (!inv?.products) {
+  if (inv?.products) {
+    const products = inv.products.map((p) => {
+      const line = payload.items.find((i) => i.name === p.name);
+      if (!line) {
+        return p;
+      }
+      return { ...p, qtyInStore: Math.max(0, p.qtyInStore - line.qty) };
+    });
+    await saveAdminCache(userId, 'storeInventory', { ...inv, products });
+  }
+
+  const sales = (await loadAdminCache<AdminSaleLike[]>(userId, 'sales')) ?? [];
+  if (sales.some((sale) => sale.id === payload.saleId)) {
     return;
   }
-  const products = inv.products.map((p) => {
-    const line = payload.items.find((i) => i.name === p.name);
-    if (!line) {
-      return p;
-    }
-    return { ...p, qtyInStore: Math.max(0, p.qtyInStore - line.qty) };
-  });
-  await saveAdminCache(userId, 'storeInventory', { ...inv, products });
+  const sellers = (await loadAdminCache<SellerLike[]>(userId, 'sellers')) ?? [];
+  const seller = sellers.find((s) => s.id === payload.sellerId);
+  const units = payload.items.reduce((sum, line) => sum + line.qty, 0);
+  const optimisticSale: AdminSaleLike = {
+    id: payload.saleId,
+    createdAt: payload.createdAt,
+    sellerName: seller?.fullName ?? `Продавец #${payload.sellerId}`,
+    sellerId: payload.sellerId,
+    totalAmount: payload.totalAmount,
+    units,
+    items: payload.items,
+    paymentType: payload.paymentType,
+    pendingSync: true,
+  };
+  await saveAdminCache(userId, 'sales', [optimisticSale, ...sales]);
 }
 
 export async function revertSaleStock(userId: number, payload: AdminSaleOutboxPayload): Promise<void> {

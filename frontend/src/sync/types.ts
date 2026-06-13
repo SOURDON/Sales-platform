@@ -26,6 +26,8 @@ export type OutboxMutationType =
 export type AdminSaleOutboxPayload = {
   saleId: string;
   sellerId: number;
+  /** Магазин на момент продажи — не зависит от последующего переноса продавца. */
+  storeName?: string;
   items: Array<{ name: string; qty: number }>;
   totalAmount: number;
   paymentType: 'CASH' | 'NON_CASH' | 'TRANSFER';

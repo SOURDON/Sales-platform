@@ -1,5 +1,5 @@
 // Bump when shell caching logic changes; avoids stale SW breaking API calls.
-const CACHE_NAME = 'sales-platform-v8'
+const CACHE_NAME = 'sales-platform-v9'
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -64,7 +64,13 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy))
           return response
         })
-        .catch(() => caches.match('/index.html'))
+        .catch(() => {
+          const path = requestUrl.pathname
+          if (path.startsWith('/assets/') || path.endsWith('.js') || path.endsWith('.css')) {
+            return new Response('Offline', { status: 503, statusText: 'Offline' })
+          }
+          return caches.match('/index.html')
+        })
     }),
   )
 })

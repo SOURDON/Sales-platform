@@ -6,6 +6,8 @@
 export type OfflineQueuedSale = {
   saleId: string;
   sellerId: number;
+  /** Магазин на момент продажи (офлайн-очередь веб). */
+  storeName?: string;
   items: Array<{ name: string; qty: number }>;
   totalAmount: number;
   paymentType: 'CASH' | 'NON_CASH' | 'TRANSFER';

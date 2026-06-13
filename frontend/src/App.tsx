@@ -634,8 +634,18 @@ function formatSaleDeleteApprovalSummary(item: DirectorControlRequest): string {
   return `${parts.join(' · ')}. Чек: ${sid}`;
 }
 
-function offlineQueueToAdminSales(queue: OfflineQueuedSale[], sellers: SellerProfile[]): AdminSale[] {
-  return queue.map((q) => {
+function offlineQueueToAdminSales(
+  queue: OfflineQueuedSale[],
+  sellers: SellerProfile[],
+  currentStoreName?: string,
+): AdminSale[] {
+  const filtered = currentStoreName
+    ? queue.filter((q) => {
+        const store = q.storeName ?? sellers.find((s) => s.id === q.sellerId)?.storeName;
+        return store === currentStoreName;
+      })
+    : queue;
+  return filtered.map((q) => {
     const seller = sellers.find((s) => s.id === q.sellerId);
     const units = q.items.reduce((sum, line) => sum + line.qty, 0);
     return {
@@ -1119,6 +1129,14 @@ function App() {
   const [sales, setSales] = useState<AdminSale[]>([]);
   const [offlineQueueTick, setOfflineQueueTick] = useState(0);
   const [offlinePendingSales, setOfflinePendingSales] = useState<OfflineQueuedSale[]>([]);
+  const activeSessionUserIdRef = useRef<number | undefined>(session?.user?.id);
+  useEffect(() => {
+    activeSessionUserIdRef.current = session?.user?.id;
+  }, [session?.user?.id]);
+  const syncFreshGuard = useCallback(
+    () => ({ getActiveUserId: () => activeSessionUserIdRef.current }),
+    [],
+  );
   const [outboxSyncing, setOutboxSyncing] = useState(false);
   const [outboxPendingCount, setOutboxPendingCount] = useState(0);
   const [equipmentRefreshKey, setEquipmentRefreshKey] = useState(0);
@@ -1173,7 +1191,7 @@ function App() {
     void import('./web/webMobileIos.css');
   }, [isDesktopShell]);
 
-  const usesSyncEngine = roleUsesSyncEngine(session?.user?.role);
+  const usesSyncEngine = roleUsesSyncEngine(session?.user?.role, isDesktopShell);
   const desktopConnection = useDesktopConnection(
     outboxSyncing,
     usesSyncEngine || isDesktopShell ? apiReachable : undefined,
@@ -1233,7 +1251,7 @@ function App() {
     if (!isDesktopShell || !session?.token) {
       return;
     }
-    if (roleUsesSyncEngine(session.user.role)) {
+    if (roleUsesSyncEngine(session.user.role, isDesktopShell)) {
       return;
     }
     const net = subscribeNetwork(API_BASE_URL, setApiReachable, {
@@ -1248,7 +1266,7 @@ function App() {
       setOfflinePendingSales([]);
       return;
     }
-    if (isDesktopShell) {
+    if (session?.user?.role === 'ADMIN') {
       setOfflinePendingSales(await listAdminSalesQueue(userId));
       return;
     }
@@ -1446,15 +1464,21 @@ function App() {
   }, [apiReachable, isDesktopShell, refreshAdminFromCache, refreshFinanceFromCache]);
 
   const pendingOfflineSales = useMemo(
-    () => offlineQueueToAdminSales(offlinePendingSales, sellers),
-    [offlinePendingSales, sellers],
+    () => offlineQueueToAdminSales(offlinePendingSales, sellers, session?.user.storeName),
+    [offlinePendingSales, sellers, session?.user.storeName],
   );
 
   const salesMerged = useMemo(() => {
     const pendingIds = new Set(pendingOfflineSales.map((sale) => sale.id));
     const syncedOnly = sales.filter((sale) => !pendingIds.has(sale.id));
-    return sortSalesByCreatedAtDesc([...syncedOnly, ...pendingOfflineSales]);
-  }, [sales, pendingOfflineSales]);
+    const merged = sortSalesByCreatedAtDesc([...syncedOnly, ...pendingOfflineSales]);
+    if (session?.user.role === 'ADMIN' && session.user.storeName) {
+      const storeName = session.user.storeName;
+      const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
+      return merged.filter((sale) => sellerStoreById.get(sale.sellerId) === storeName);
+    }
+    return merged;
+  }, [sales, pendingOfflineSales, sellers, session?.user.role, session?.user.storeName]);
 
   const homeDashboard = useMemo((): DashboardResponse | null => {
     if (!dashboard || !session) {
@@ -1591,7 +1615,7 @@ function App() {
           'dashboard',
           fetcher,
           cachedFallback,
-          { onFresh: (data) => setDashboard(data) },
+          { onFresh: (data) => setDashboard(data), ...syncFreshGuard() },
         );
         if (result.data) {
           setDashboard(result.data);
@@ -1628,6 +1652,7 @@ function App() {
     ) {
       const result = await loadSyncResource(API_BASE_URL, session.user.id, 'sellers', fetcher, [], {
         onFresh: (data) => setSellers(data),
+        ...syncFreshGuard(),
       });
       setSellers(result.data);
       if (role === 'ADMIN') {
@@ -1661,12 +1686,8 @@ function App() {
     if (uid != null && roleUsesSyncCache(role)) {
       const result = await loadSyncResource(API_BASE_URL, uid, 'products', fetcher, [], {
         onFresh: (data) => setProducts(data),
+        ...syncFreshGuard(),
       });
-      setProducts(result.data);
-      return;
-    }
-    if (isDesktopShell && role === 'ADMIN' && uid != null) {
-      const result = await loadAdminResource(API_BASE_URL, uid, 'products', fetcher, []);
       setProducts(result.data);
       return;
     }
@@ -1695,6 +1716,7 @@ function App() {
           {
             onFresh: (data) =>
               setInventoryOverview(data ? normalizeInventoryOverview(data) : null),
+            ...syncFreshGuard(),
           },
         );
         setInventoryOverview(
@@ -1722,13 +1744,17 @@ function App() {
         }
         return (await response.json()) as StoreInventoryDetailResponse;
       };
-      if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
+      if (session?.user?.role === 'ADMIN' && session.user.id != null) {
         const result = await loadAdminResource(
           API_BASE_URL,
           session.user.id,
           'storeInventory',
           fetcher,
           null,
+          {
+            onFresh: (data) => setStoreInventory(data),
+            ...syncFreshGuard(),
+          },
         );
         setStoreInventory(result.data);
         return;
@@ -1739,7 +1765,7 @@ function App() {
         setStoreInventory(null);
       }
     },
-    [isDesktopShell, session?.user?.id, session?.user?.role],
+    [isDesktopShell, session?.user?.id, session?.user?.role, syncFreshGuard],
   );
 
   const addCatalogProduct = async (token: string, name: string, priceStr: string) => {
@@ -1868,14 +1894,14 @@ function App() {
       };
       const uid = session?.user?.id;
       const role = session?.user?.role;
-      if (uid != null && (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))) {
+      if (uid != null && roleUsesSyncCache(role)) {
         const result = await loadSyncResource(
           API_BASE_URL,
           uid,
           'managerStoreCommissions',
           fetcher,
           [],
-          { onFresh: (data) => setManagerStoreCommissions(data) },
+          { onFresh: (data) => setManagerStoreCommissions(data), ...syncFreshGuard() },
         );
         setManagerStoreCommissions(result.data);
         return;
@@ -2008,14 +2034,14 @@ function App() {
       };
       const uid = session?.user?.id;
       const role = session?.user?.role;
-      if (uid != null && (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))) {
+      if (uid != null && roleUsesSyncCache(role)) {
         const result = await loadSyncResource(
           API_BASE_URL,
           uid,
           'procurementCosts',
           fetcher,
           [],
-          { onFresh: (data) => setProductProcurementCosts(data) },
+          { onFresh: (data) => setProductProcurementCosts(data), ...syncFreshGuard() },
         );
         setProductProcurementCosts(result.data);
         return;
@@ -2155,7 +2181,7 @@ function App() {
       const role = session?.user?.role;
       const useAcquiringCache =
         uid != null &&
-        (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'));
+        roleUsesSyncCache(role);
       if (useAcquiringCache) {
         const result = await loadSyncResource(
           API_BASE_URL,
@@ -2163,7 +2189,7 @@ function App() {
           'acquiringProfiles',
           fetcher,
           defaultAcquiringProfiles(),
-          { onFresh: (data) => setAcquiringProfiles(data) },
+          { onFresh: (data) => setAcquiringProfiles(data), ...syncFreshGuard() },
         );
         setAcquiringProfiles(result.data);
         return;
@@ -2282,6 +2308,7 @@ function App() {
     if (roleUsesSyncCache(role) && session?.user?.id != null) {
       const result = await loadSyncResource(API_BASE_URL, session.user.id, 'financeOps', fetcher, empty, {
         onFresh: (data) => setFinanceOps(data),
+        ...syncFreshGuard(),
         preferNetwork: options?.preferNetwork,
       });
       setFinanceOps(result.data);
@@ -2642,17 +2669,18 @@ function App() {
       const role = session?.user?.role;
       if (
         uid != null &&
-        (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))
+        roleUsesSyncCache(role)
       ) {
         const result = await loadSyncResource(API_BASE_URL, uid, 'sales', fetcher, [], {
           onFresh: (data) => setSales(data),
+          ...syncFreshGuard(),
         });
         setSales(result.data);
         return;
       }
       setSales(await fetcher());
     },
-    [isDesktopShell, session?.user?.id, session?.user?.role],
+    [isDesktopShell, session?.user?.id, session?.user?.role, syncFreshGuard],
   );
 
   const refreshFinanceInputs = useCallback(async () => {
@@ -2679,7 +2707,7 @@ function App() {
         'commissionRequests',
         fetcher,
         [],
-        { onFresh: (data) => setCommissionRequests(data) },
+        { onFresh: (data) => setCommissionRequests(data), ...syncFreshGuard() },
       );
       setCommissionRequests(result.data);
       return;
@@ -2699,9 +2727,10 @@ function App() {
     };
     const role = session?.user?.role;
     const uid = session?.user?.id;
-    if (uid != null && (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))) {
+    if (uid != null && roleUsesSyncCache(role)) {
       const result = await loadSyncResource(API_BASE_URL, uid, 'shifts', fetcher, [], {
         onFresh: (data) => setShifts(data),
+        ...syncFreshGuard(),
       });
       setShifts(result.data);
       return;
@@ -2721,9 +2750,10 @@ function App() {
     };
     const role = session?.user?.role;
     const uid = session?.user?.id;
-    if (uid != null && (roleUsesSyncCache(role) || (isDesktopShell && role === 'ADMIN'))) {
+    if (uid != null && roleUsesSyncCache(role)) {
       const result = await loadSyncResource(API_BASE_URL, uid, 'staff', fetcher, [], {
         onFresh: (data) => setStaff(data),
+        ...syncFreshGuard(),
       });
       setStaff(result.data);
       return;
@@ -2917,9 +2947,11 @@ function App() {
     paymentType: 'CASH' | 'NON_CASH' | 'TRANSFER',
   ) => {
     const saleId = newClientId('sale');
+    const storeName = session?.user.storeName ?? '';
     const entry: OfflineQueuedSale = {
       saleId,
       sellerId,
+      storeName,
       items,
       totalAmount,
       paymentType,
@@ -2956,6 +2988,10 @@ function App() {
       const mode = await runAdminMutation(uid, saleId, 'ADMIN_SALE', entry, postSale);
       if (mode === 'queued') {
         setOfflineQueueTick((x) => x + 1);
+        const cachedSales = await loadSyncCache<AdminSale[]>(uid, 'sales');
+        if (cachedSales) {
+          setSales(cachedSales);
+        }
         return;
       }
     } else {
@@ -3121,16 +3157,16 @@ function App() {
       let usedOfflineCache = !apiReachable;
       let cachedManagerCommissions: ManagerStoreCommissionRow[] | null = null;
 
-      if (isDesktopShell && userId !== undefined) {
+      if (userId !== undefined) {
         const [cSales, cSellers, cStaff, cShifts, cProfiles, cManagerCommissions] =
           await Promise.all([
-          loadSyncCache<AdminSale[]>(userId, 'sales'),
-          loadSyncCache<SellerProfile[]>(userId, 'sellers'),
-          loadSyncCache<StaffMember[]>(userId, 'staff'),
-          loadSyncCache<ShiftInfo[]>(userId, 'shifts'),
-          loadSyncCache<AcquiringProfile[]>(userId, 'acquiringProfiles'),
-          loadSyncCache<ManagerStoreCommissionRow[]>(userId, 'managerStoreCommissions'),
-        ]);
+            loadSyncCache<AdminSale[]>(userId, 'sales'),
+            loadSyncCache<SellerProfile[]>(userId, 'sellers'),
+            loadSyncCache<StaffMember[]>(userId, 'staff'),
+            loadSyncCache<ShiftInfo[]>(userId, 'shifts'),
+            loadSyncCache<AcquiringProfile[]>(userId, 'acquiringProfiles'),
+            loadSyncCache<ManagerStoreCommissionRow[]>(userId, 'managerStoreCommissions'),
+          ]);
         if (cSellers?.length) {
           reportSellers = cSellers;
         }
@@ -3140,7 +3176,11 @@ function App() {
         if (cShifts?.length) {
           reportShifts = cShifts;
         }
-        const pending = offlineQueueToAdminSales(offlinePendingSales, reportSellers);
+        const pending = offlineQueueToAdminSales(
+          offlinePendingSales,
+          reportSellers,
+          session.user.storeName,
+        );
         const pendingIds = new Set(pending.map((sale) => sale.id));
         const syncedBase = cSales ?? sales;
         reportSales = sortSalesByCreatedAtDesc([
@@ -3202,8 +3242,19 @@ function App() {
           ? 'Отчёт за день сохранён (офлайн, из локального кэша).'
           : 'Отчёт за день сохранён.',
       );
-    } catch {
-      setDayReportNotice('Не удалось сформировать отчёт за день.');
+    } catch (error) {
+      console.error('downloadAdminDayReport failed', error);
+      let message = 'Не удалось сформировать отчёт за день.';
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('динамическ')) {
+          message = 'Не удалось загрузить модуль отчёта. Проверьте сеть и обновите приложение.';
+        } else if (error.message.includes('время ожидания') || error.message.includes('timeout')) {
+          message = 'Сервер не ответил вовремя. Повторите при стабильной сети или используйте офлайн-кэш.';
+        } else if (error.message.trim()) {
+          message = `Не удалось сформировать отчёт: ${error.message}`;
+        }
+      }
+      setDayReportNotice(message);
     } finally {
       setDayReportBusy(false);
     }
@@ -3219,7 +3270,7 @@ function App() {
       throw new Error('Сессия не найдена');
     }
     let removed: OfflineQueuedSale | null = null;
-    if (isDesktopShell) {
+    if (session?.user?.role === 'ADMIN') {
       removed = await removeAdminSaleFromOutbox(uid, saleId);
     } else {
       removed = removeOfflineSale(uid, saleId);
@@ -3227,7 +3278,7 @@ function App() {
     if (!removed) {
       throw new Error('Продажа не найдена в очереди отправки');
     }
-    if (isDesktopShell) {
+    if (session?.user?.role === 'ADMIN') {
       await revertSaleStock(uid, removed);
     }
     setOfflineQueueTick((x) => x + 1);
@@ -3600,8 +3651,10 @@ function App() {
         await Promise.allSettled([
           loadStaff(data.token),
           loadSellers(data.token),
+          loadSales(data.token),
           loadShifts(data.token),
           loadGlobalEmployees(data.token),
+          loadStoreInventory(data.token),
         ]);
       }
       return;
@@ -3857,7 +3910,7 @@ function App() {
   }, [session?.token, session?.user?.id, session?.user?.role]);
 
   useEffect(() => {
-    if (!session?.token || session.user.id == null || !roleUsesSyncEngine(session.user.role)) {
+    if (!session?.token || session.user.id == null || !roleUsesSyncEngine(session.user.role, isDesktopShell)) {
       return;
     }
     const token = session.token;
@@ -3904,6 +3957,25 @@ function App() {
               postFlushRefreshRef.current = null;
               void loadDashboard(token, { background: true }).catch(() => undefined);
             }, 2500);
+          } else {
+            void Promise.allSettled([
+              loadDashboard(token, { background: true }),
+              loadFinanceOps(token),
+              loadSales(token),
+              loadSellers(token),
+              ...(role === 'DIRECTOR'
+                ? [
+                    loadInventoryOverview(token),
+                    loadCommissionRequests(token),
+                    loadProducts(token),
+                    loadProductProcurementCosts(token),
+                    loadAcquiringProfiles(token),
+                    loadManagerStoreCommissions(token),
+                  ]
+                : role === 'ACCOUNTANT'
+                  ? [loadProducts(token), loadProductProcurementCosts(token), loadAcquiringProfiles(token)]
+                  : [loadStaff(token)]),
+            ]);
           }
           return;
         }
@@ -3924,10 +3996,27 @@ function App() {
     isDesktopShell,
     runDesktopManualSync,
     refreshOutboxPendingCount,
+    loadFinanceOps,
+    loadInventoryOverview,
+    loadCommissionRequests,
+    loadProducts,
+    loadProductProcurementCosts,
+    loadAcquiringProfiles,
+    loadManagerStoreCommissions,
+    loadStaff,
+    loadSales,
+    loadSellers,
+    loadShifts,
+    loadStoreInventory,
+    loadGlobalEmployees,
+    loadDashboard,
   ]);
 
   useEffect(() => {
     if (isDesktopShell || !session?.token || session.user.id == null) {
+      return;
+    }
+    if (session.user.role === 'ADMIN') {
       return;
     }
     const token = session.token;
@@ -4090,11 +4179,13 @@ function App() {
       void Promise.allSettled([
         loadStaff(token),
         loadSellers(token),
+        loadSales(token),
         loadShifts(token),
         loadGlobalEmployees(token),
         loadProductProcurementCosts(token),
         loadAcquiringProfiles(token),
         loadManagerStoreCommissions(token),
+        loadStoreInventory(token),
       ]);
     }
     if (role === 'ADMIN' && path === '/home') {
@@ -6237,9 +6328,6 @@ function DirectorDemoAccountsPanel({ token, userId }: { token: string; userId?: 
   const current = rows.length > 0 ? rows[idx] : undefined;
   const total = rows.length;
 
-  const goPrev = () => setIdx((i) => Math.max(0, i - 1));
-  const goNext = () => setIdx((i) => Math.min(total - 1, i + 1));
-
   const copyPassword = async () => {
     if (!current) {
       return;
@@ -6446,55 +6534,46 @@ function DirectorDemoAccountsPanel({ token, userId }: { token: string; userId?: 
             </p>
           ) : null}
           {current ? (
-            <div className="directorDemoAccountsCarousel">
-              <div className="directorDemoAccountsNav">
-                <button
-                  type="button"
-                  className="directorDemoAccountsNavBtn"
-                  onClick={goPrev}
-                  disabled={total <= 1 || idx <= 0}
-                  aria-label="Предыдущая учётная запись"
+            <div className="directorDemoAccountsMobile">
+              {total > 1 ? (
+                <div
+                  className="directorDemoAccountsPicker"
+                  role="tablist"
+                  aria-label="Учётные записи"
                 >
-                  ‹
-                </button>
-                <div className="directorDemoAccountsCard">
-                  <div className="directorDemoAccountsCardHead">
-                    <p className="directorDemoAccountsNick">{current.nickname}</p>
-                    <p className="directorDemoAccountsRole">
-                      <span className="directorDemoAccountsRolePill">{directorDemoRoleLabel(current.role)}</span>
-                      <span className="directorDemoAccountsStoreSep" aria-hidden>
-                        ·
-                      </span>
-                      <span className="directorDemoAccountsStore">{current.storeName}</span>
-                    </p>
-                    <p className="directorDemoAccountsFull muted">{current.fullName}</p>
-                  </div>
-                  {passwordEditor}
-                  {total > 1 ? (
-                    <div className="directorDemoAccountsDots" role="tablist" aria-label="Учётные записи">
-                      {Array.from({ length: total }, (_, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          role="tab"
-                          aria-selected={i === idx}
-                          aria-label={`${i + 1} из ${total}`}
-                          className={`directorDemoAccountsDot${i === idx ? ' directorDemoAccountsDotActive' : ''}`}
-                          onClick={() => setIdx(i)}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
+                  {rows.map((row, i) => (
+                    <button
+                      key={row.nickname}
+                      type="button"
+                      role="tab"
+                      aria-selected={i === idx}
+                      className={`directorDemoAccountsPickerChip${i === idx ? ' directorDemoAccountsPickerChip--active' : ''}`}
+                      onClick={() => {
+                        setIdx(i);
+                        setErr('');
+                        setHint('');
+                        setDraftPwd('');
+                      }}
+                    >
+                      <span className="directorDemoAccountsPickerNick">{row.nickname}</span>
+                      <span className="directorDemoAccountsPickerRole">{directorDemoRoleLabel(row.role)}</span>
+                    </button>
+                  ))}
                 </div>
-                <button
-                  type="button"
-                  className="directorDemoAccountsNavBtn"
-                  onClick={goNext}
-                  disabled={total <= 1 || idx >= total - 1}
-                  aria-label="Следующая учётная запись"
-                >
-                  ›
-                </button>
+              ) : null}
+              <div className="directorDemoAccountsCard">
+                <div className="directorDemoAccountsCardHead">
+                  <p className="directorDemoAccountsNick">{current.nickname}</p>
+                  <p className="directorDemoAccountsRole">
+                    <span className="directorDemoAccountsRolePill">{directorDemoRoleLabel(current.role)}</span>
+                    <span className="directorDemoAccountsStoreSep" aria-hidden>
+                      ·
+                    </span>
+                    <span className="directorDemoAccountsStore">{current.storeName}</span>
+                  </p>
+                  <p className="directorDemoAccountsFull muted">{current.fullName}</p>
+                </div>
+                {passwordEditor}
               </div>
             </div>
           ) : !loading ? (
@@ -7083,12 +7162,6 @@ function FinanceOpsHistoryList({
   );
   const groups = useMemo(() => groupFinanceHistoryByDay(filteredRows), [filteredRows]);
   const hasActiveFilters = Boolean(storeFilter || accountFilter || dateFilter);
-  const datePresetValue =
-    dateFilter === '' || dateFilter === 'today' || dateFilter === 'yesterday' || dateFilter === 'week'
-      ? dateFilter
-      : isFinanceHistoryDayKey(dateFilter)
-        ? 'custom'
-        : '';
   const customDateValue = isFinanceHistoryDayKey(dateFilter) ? dateFilter : '';
 
   const toggleFilterPanel = (panel: 'store' | 'account' | 'date') => {
@@ -7212,68 +7285,97 @@ function FinanceOpsHistoryList({
                 </button>
               </div>
               {openFilter === 'store' ? (
-                <div className="financeOpsHistoryFilterPanel">
-                  <select
-                    className="financeOpsHistoryFilterPanelSelect"
-                    value={storeFilter}
-                    onChange={(event) => setStoreFilter(event.target.value)}
-                    aria-label={`Фильтр по магазину: ${title}`}
+                <div className="financeOpsHistoryFilterChips" role="group" aria-label="Магазин">
+                  <button
+                    type="button"
+                    className={`financeOpsHistoryFilterChip${storeFilter === '' ? ' financeOpsHistoryFilterChip--active' : ''}`}
+                    onClick={() => {
+                      setStoreFilter('');
+                      setOpenFilter(null);
+                    }}
                   >
-                    <option value="">Все магазины</option>
-                    {ALL_DEMO_STORE_NAMES.map((storeName) => (
-                      <option key={storeName} value={storeName}>
-                        {storeName}
-                      </option>
-                    ))}
-                  </select>
+                    Все
+                  </button>
+                  {ALL_DEMO_STORE_NAMES.map((storeName) => (
+                    <button
+                      key={storeName}
+                      type="button"
+                      className={`financeOpsHistoryFilterChip${storeFilter === storeName ? ' financeOpsHistoryFilterChip--active' : ''}`}
+                      onClick={() => {
+                        setStoreFilter(storeName);
+                        setOpenFilter(null);
+                      }}
+                    >
+                      {storeName}
+                    </button>
+                  ))}
                 </div>
               ) : null}
               {openFilter === 'account' ? (
-                <div className="financeOpsHistoryFilterPanel">
-                  <select
-                    className="financeOpsHistoryFilterPanelSelect"
-                    value={accountFilter}
-                    onChange={(event) => setAccountFilter(event.target.value)}
-                    aria-label={`Фильтр по виду расчёта: ${title}`}
+                <div className="financeOpsHistoryFilterChips" role="group" aria-label="Вид расчёта">
+                  <button
+                    type="button"
+                    className={`financeOpsHistoryFilterChip${accountFilter === '' ? ' financeOpsHistoryFilterChip--active' : ''}`}
+                    onClick={() => {
+                      setAccountFilter('');
+                      setOpenFilter(null);
+                    }}
                   >
-                    <option value="">Все виды</option>
-                    {accountFilterOptions.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name}
-                      </option>
-                    ))}
-                  </select>
+                    Все
+                  </button>
+                  {accountFilterOptions.map((account) => (
+                    <button
+                      key={account.id}
+                      type="button"
+                      className={`financeOpsHistoryFilterChip financeOpsHistoryFilterChip--account ${financeAccountToneClass(account.id)}${
+                        accountFilter === account.id ? ' financeOpsHistoryFilterChip--active' : ''
+                      }`}
+                      onClick={() => {
+                        setAccountFilter(account.id);
+                        setOpenFilter(null);
+                      }}
+                    >
+                      {account.name}
+                    </button>
+                  ))}
                 </div>
               ) : null}
               {openFilter === 'date' ? (
-                <div className="financeOpsHistoryFilterPanel financeOpsHistoryFilterPanel--date">
-                  <select
-                    className="financeOpsHistoryFilterPanelSelect"
-                    value={datePresetValue}
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      if (next === 'custom') {
-                        setDateFilter(customDateValue || todayKeyMoscow());
-                        return;
-                      }
-                      setDateFilter(next);
-                    }}
-                    aria-label={`Фильтр по дате: ${title}`}
-                  >
-                    <option value="">Все даты</option>
-                    <option value="today">Сегодня</option>
-                    <option value="yesterday">Вчера</option>
-                    <option value="week">7 дней</option>
-                    <option value="custom">Конкретная дата</option>
-                  </select>
-                  <input
-                    className="financeOpsHistoryFilterPanelDate"
-                    type="date"
-                    value={customDateValue}
-                    max={todayKeyMoscow()}
-                    onChange={(event) => setDateFilter(event.target.value)}
-                    aria-label={`Конкретная дата: ${title}`}
-                  />
+                <div className="financeOpsHistoryFilterChips financeOpsHistoryFilterChips--date" role="group" aria-label="Дата">
+                  {[
+                    { value: '', label: 'Все' },
+                    { value: 'today', label: 'Сегодня' },
+                    { value: 'yesterday', label: 'Вчера' },
+                    { value: 'week', label: '7 дней' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.value || 'all'}
+                      type="button"
+                      className={`financeOpsHistoryFilterChip${
+                        dateFilter === preset.value ? ' financeOpsHistoryFilterChip--active' : ''
+                      }`}
+                      onClick={() => {
+                        setDateFilter(preset.value);
+                        setOpenFilter(null);
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                  <label className="financeOpsHistoryFilterDateInline">
+                    <span className="financeOpsHistoryFilterDateInlineLabel">Дата</span>
+                    <input
+                      className="financeOpsHistoryFilterPanelDate"
+                      type="date"
+                      value={customDateValue}
+                      max={todayKeyMoscow()}
+                      onChange={(event) => {
+                        setDateFilter(event.target.value);
+                        setOpenFilter(null);
+                      }}
+                      aria-label={`Конкретная дата: ${title}`}
+                    />
+                  </label>
                 </div>
               ) : null}
             </>
@@ -8364,8 +8466,91 @@ function FinanceOpsPanel({
           ) : null}
 
           {showExpensesSection ? (
-          <section className="financeOpsZone financeOpsZone--expense addSaleForm">
+          <section className={`financeOpsZone financeOpsZone--expense addSaleForm${isWebSplit ? ' financeOpsZone--expenseWeb' : ''}`}>
             <h4 className="financeOpsZoneTitle">Расход</h4>
+            {isWebSplit ? (
+              <>
+                <label className="financeOpsAccountsPick">
+                  <span className="financeOpsFieldLabel">Счёт списания</span>
+                  <div className="financeOpsAccountBtnRow" role="group" aria-label="Счёт списания">
+                    {snapshot.accounts.map((account) => (
+                      <button
+                        key={account.id}
+                        type="button"
+                        className={`ghost paymentTypeBtn financeOpsAccountPickBtn ${financeAccountToneClass(account.id)}${
+                          expenseAccountId === account.id ? ' paymentTypeBtnActive' : ''
+                        }`}
+                        onClick={() => setExpenseAccountId(account.id)}
+                      >
+                        {account.name}
+                      </button>
+                    ))}
+                  </div>
+                </label>
+                <label className="financeOpsAccountsPick">
+                  <span className="financeOpsFieldLabel">Статья расхода</span>
+                  <div
+                    className="financeOpsAccountBtnRow financeOpsExpenseCategoryRow"
+                    role="group"
+                    aria-label="Статья расхода"
+                  >
+                    {FINANCE_EXPENSE_CATEGORY_LABELS.map((label) => (
+                      <button
+                        key={label}
+                        type="button"
+                        className={`ghost paymentTypeBtn financeOpsExpenseCategoryBtn${
+                          expenseTitle === label ? ' paymentTypeBtnActive' : ''
+                        }`}
+                        onClick={() => setExpenseTitle(label)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </label>
+                {expenseTitle === 'ЗП' ? (
+                  <label className="financeOpsCommentField financeOpsExpenseStoreField">
+                    <span className="financeOpsFieldLabel">Магазин</span>
+                    <select
+                      className="financeOpsExpenseUnifiedSelect"
+                      value={expenseStore}
+                      onChange={(event) => setExpenseStore(event.target.value)}
+                      aria-label="Магазин для ЗП"
+                    >
+                      {ALL_DEMO_STORE_NAMES.map((storeName) => (
+                        <option key={storeName} value={storeName}>
+                          {storeName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                <label className="financeOpsAmountField">
+                  <span className="financeOpsFieldLabel">Сумма, ₽</span>
+                  <input
+                    inputMode="decimal"
+                    value={expenseAmount}
+                    onChange={(event) => setExpenseAmount(event.target.value)}
+                    placeholder="Например, 5000"
+                  />
+                </label>
+                {expenseTitle !== 'ЗП' ? (
+                  <label className="financeOpsCommentField">
+                    <span className="financeOpsFieldLabel">Комментарий</span>
+                    <input
+                      className="financeOpsCommentInput"
+                      type="text"
+                      maxLength={200}
+                      aria-label="Комментарий к расходу"
+                      value={expenseComment}
+                      onChange={(event) => setExpenseComment(event.target.value)}
+                      placeholder="Необязательно"
+                    />
+                  </label>
+                ) : null}
+              </>
+            ) : (
+              <>
             <div className="financeOpsExpensePickRow">
               <label
                 className={`financeOpsExpenseUnifiedPick financeOpsExpenseAccountPick ${financeAccountToneClass(expenseAccountId)}`}
@@ -8446,21 +8631,21 @@ function FinanceOpsPanel({
                 </label>
               )}
             </div>
+              </>
+            )}
             {expenseInsufficientMessage ? (
               <p className="error financeOpsExpenseHint" role="alert">
                 {expenseInsufficientMessage}
               </p>
             ) : null}
-            <div className="inlineActions financeOpsExpenseActions">
-              <button
-                type="button"
-                className="primaryAction"
-                disabled={!canSubmitExpense || busyId === 'expense'}
-                onClick={() => void submitExpense()}
-              >
-                Добавить расход
-              </button>
-            </div>
+            <button
+              type="button"
+              className="primaryAction addSaleSubmitBottom"
+              disabled={!canSubmitExpense || busyId === 'expense'}
+              onClick={() => void submitExpense()}
+            >
+              Добавить расход
+            </button>
           </section>
           ) : null}
         </>
@@ -10727,6 +10912,84 @@ function DirectorWarehousePanel({
     }
   };
 
+  const renderWebCatalogList = () => (
+    <div className="webCatalogList" role="list" aria-label="Каталог товаров">
+      {allRowsForCosts.length === 0 ? (
+        <p className="webCatalogEmpty muted">Нет товаров в каталоге</p>
+      ) : (
+        allRowsForCosts.map((row) => (
+          <article key={`catalog-mobile-${row.name}`} className="webCatalogCard" role="listitem">
+            <div className="webCatalogCardTop">
+              {canRenameProduct ? (
+                <div className="webCatalogNameRow" role="group" aria-label={`Название: ${row.name}`}>
+                  <input
+                    type="text"
+                    className="dwCatalogNameInput webCatalogNameInput"
+                    value={catalogNameValue(row.name)}
+                    maxLength={120}
+                    disabled={renamingName === row.name}
+                    onChange={(event) =>
+                      setNameDraft((current) => ({
+                        ...current,
+                        [row.name]: event.target.value,
+                      }))
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void handleRenameProduct(row.name);
+                      }
+                    }}
+                    aria-label={`Название: ${row.name}`}
+                  />
+                  {catalogNameChanged(row.name) ? (
+                    <button
+                      type="button"
+                      className="dwCatalogNameSaveBtn webCatalogSaveBtn"
+                      disabled={renamingName === row.name}
+                      onClick={() => void handleRenameProduct(row.name)}
+                    >
+                      {renamingName === row.name ? '…' : '✓'}
+                    </button>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="webCatalogName">{row.name}</p>
+              )}
+              {canDeleteProduct ? (
+                <button
+                  type="button"
+                  className="webCatalogDeleteBtn"
+                  disabled={deletingName === row.name}
+                  onClick={() => void handleDeleteProduct(row.name)}
+                >
+                  {deletingName === row.name ? '…' : 'Удалить'}
+                </button>
+              ) : null}
+            </div>
+            {showProcurement ? (
+              <label className="webCatalogCostRow">
+                <span className="webCatalogCostLabel">Закуп. цена, ₽</span>
+                <input
+                  className="dwCostInput procurementCostInput webCatalogCostInput"
+                  inputMode="decimal"
+                  value={costDraft[row.name] ?? String(row.currentCost)}
+                  onChange={(event) =>
+                    setCostDraft((current) => ({
+                      ...current,
+                      [row.name]: event.target.value,
+                    }))
+                  }
+                  aria-label={`Закупочная цена: ${row.name}`}
+                />
+              </label>
+            ) : null}
+          </article>
+        ))
+      )}
+    </div>
+  );
+
   return (
     <div
       className={`invGlassRoot directorWarehouseRoot${showProcurement ? ' directorWarehouseRoot--withCosts' : ''}${webMobileLayout ? ' directorWarehouseRoot--webMobile' : ''}`}
@@ -11002,118 +11265,10 @@ function DirectorWarehousePanel({
                 className="webWarehouseSheet--catalog"
               >
                 <p className="directorWarehouseCatalogHint">
-                  Название можно изменить в таблице (✓). Закупочные цены общие для обоих складов. Удаление —
+                  Название можно изменить в карточке (✓). Закупочные цены общие для обоих складов. Удаление —
                   только при нулевых остатках везде.
                 </p>
-                <div className="invTableScroll invTableScrollFit directorWarehouseCatalogTableWrap">
-                  <table className="invTable invTableCatalog">
-                  <thead>
-                    <tr>
-                      <th scope="col">Товар</th>
-                      {showProcurement ? (
-                        <th className="invThNum dwThCost" scope="col" title="Закупочная цена, ₽">
-                          Закуп. цена
-                        </th>
-                      ) : null}
-                      {canDeleteProduct ? (
-                        <th className="invThAction dwThDelete" scope="col">
-                          Удалить
-                        </th>
-                      ) : null}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allRowsForCosts.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={(showProcurement ? 1 : 0) + (canDeleteProduct ? 1 : 0) + 1}
-                          className="invTableEmpty"
-                        >
-                          Нет товаров в каталоге
-                        </td>
-                      </tr>
-                    ) : (
-                      allRowsForCosts.map((row) => (
-                        <tr key={`catalog-${row.name}`}>
-                          <td className="invTdName">
-                            {canRenameProduct ? (
-                              <div
-                                className="dwCatalogNameEdit"
-                                role="group"
-                                aria-label={`Название товара: ${row.name}`}
-                              >
-                                <input
-                                  type="text"
-                                  className="dwCatalogNameInput"
-                                  value={catalogNameValue(row.name)}
-                                  maxLength={120}
-                                  disabled={renamingName === row.name}
-                                  onChange={(event) =>
-                                    setNameDraft((current) => ({
-                                      ...current,
-                                      [row.name]: event.target.value,
-                                    }))
-                                  }
-                                  onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
-                                      event.preventDefault();
-                                      void handleRenameProduct(row.name);
-                                    }
-                                  }}
-                                  aria-label={`Название: ${row.name}`}
-                                />
-                                {catalogNameChanged(row.name) ? (
-                                  <button
-                                    type="button"
-                                    className="dwCatalogNameSaveBtn"
-                                    disabled={renamingName === row.name}
-                                    title="Сохранить название"
-                                    aria-label="Сохранить название"
-                                    onClick={() => void handleRenameProduct(row.name)}
-                                  >
-                                    {renamingName === row.name ? '…' : '✓'}
-                                  </button>
-                                ) : null}
-                              </div>
-                            ) : (
-                              row.name
-                            )}
-                          </td>
-                          {showProcurement ? (
-                            <td className="invTdNum dwTdCost">
-                              <input
-                                className="dwCostInput procurementCostInput"
-                                inputMode="decimal"
-                                value={costDraft[row.name] ?? String(row.currentCost)}
-                                onChange={(event) =>
-                                  setCostDraft((current) => ({
-                                    ...current,
-                                    [row.name]: event.target.value,
-                                  }))
-                                }
-                                aria-label={`Закупочная цена: ${row.name}`}
-                              />
-                            </td>
-                          ) : null}
-                          {canDeleteProduct ? (
-                            <td className="invTdAction dwTdDelete">
-                              <button
-                                type="button"
-                                className="directorWarehouseDeleteBtn"
-                                disabled={deletingName === row.name}
-                                title="Удалить из каталога (остатки должны быть 0)"
-                                onClick={() => void handleDeleteProduct(row.name)}
-                              >
-                                {deletingName === row.name ? '…' : 'Удалить'}
-                              </button>
-                            </td>
-                          ) : null}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                {renderWebCatalogList()}
               {showProcurement ? (
                 <div className="directorWarehouseProcurementFooter">
                   <button

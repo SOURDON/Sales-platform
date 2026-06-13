@@ -12,6 +12,11 @@ const FETCH_TIMEOUT_MS = 12_000;
 export type LoadSyncResourceOptions<T> = {
   /** Вызывается, когда с сервера пришли свежие данные (после показа кэша). */
   onFresh?: (data: T) => void;
+  /**
+   * Текущий userId сессии. Если задан — onFresh вызывается только когда он совпадает
+   * с userId запроса (защита от гонки при смене аккаунта/магазина).
+   */
+  getActiveUserId?: () => number | undefined;
   /** Не ходить в сеть — только IndexedDB (ручное «только кэш»). */
   cacheOnly?: boolean;
   /** Если кэш моложе этого интервала — фоновый fetch не выполняется. */
@@ -40,7 +45,12 @@ export async function loadSyncResource<T>(
       ]);
       markApiReachableSuccess();
       await saveSyncCache(userId, cacheKey, data);
-      options?.onFresh?.(data);
+      if (options?.onFresh) {
+        const activeUserId = options.getActiveUserId?.();
+        if (activeUserId === undefined || activeUserId === userId) {
+          options.onFresh(data);
+        }
+      }
       return { data, fromCache: false };
     } catch {
       if (cached !== null) {

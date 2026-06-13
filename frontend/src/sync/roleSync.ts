@@ -1,14 +1,19 @@
-/** Роли, для которых в браузере и Tauri используется IndexedDB-кэш и outbox (как на десктопе). */
+/** Роли с IndexedDB-кэшем и outbox (веб + Tauri). */
 export function roleUsesSyncCache(role: string | undefined): boolean {
-  return role === 'DIRECTOR' || role === 'ACCOUNTANT' || role === 'MANAGER';
+  return (
+    role === 'DIRECTOR' ||
+    role === 'ACCOUNTANT' ||
+    role === 'MANAGER' ||
+    role === 'ADMIN'
+  );
 }
 
-/** Роли с фоновой синхронизацией outbox (веб + десктоп). */
-export function roleUsesSyncEngine(role: string | undefined): boolean {
+/** Роли с фоновой синхронизацией outbox при появлении сети (веб + десктоп). */
+export function roleUsesSyncEngine(role: string | undefined, _isDesktop = false): boolean {
   return roleUsesSyncCache(role);
 }
 
-/** ADMIN: outbox только в Tauri; в веб остаётся legacy sessionStorage-очередь продаж. */
-export function roleUsesAdminDesktopOutbox(role: string | undefined, isDesktop: boolean): boolean {
-  return isDesktop && role === 'ADMIN';
+/** ADMIN: полный outbox (веб и Tauri). */
+export function roleUsesAdminDesktopOutbox(role: string | undefined, _isDesktop?: boolean): boolean {
+  return role === 'ADMIN';
 }
