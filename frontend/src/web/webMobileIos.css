@@ -390,3 +390,140 @@
     min-height: 40px !important;
   }
 }
+
+/* ——— Финансы: две страницы (оперативка / расходы) ——— */
+.app.app--web .financeOpsCard--web-expenses .financeOpsHero--expensesWeb {
+  margin-bottom: 4px !important;
+}
+
+.app.app--web .financeOpsExpenseArticlesSheet--carousel .financeOpsExpenseArticlesSheetHandle {
+  display: none !important;
+}
+
+.app.app--web .financeOpsExpenseArticlesSheet--carousel .financeOpsExpenseArticlesSheetPanel {
+  max-height: none !important;
+  overflow: visible !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.app.app--web .financeOpsExpenseArticlesSheet--carousel .financeOpsExpenseArticlesSheetPanelInner {
+  padding: 0 !important;
+}
+
+.app.app--web .financeOpsExpenseArticlesSheet--carousel .financeOpsArticlesHead,
+.app.app--web .financeOpsExpenseArticlesSheet--carousel .financeOpsZoneTitle {
+  margin: 0 0 10px !important;
+}
+
+.app.app--web .financeOpsZone--historyPage {
+  margin-top: 12px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryMiniHead {
+  gap: 10px !important;
+  margin-bottom: 12px !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryMiniTitle {
+  font-size: 11px !important;
+  letter-spacing: 0.1em !important;
+  color: #9aa3ad !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryFilters {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryStoreFilter {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 6px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryStoreFilterLabel {
+  font-size: 12px !important;
+  white-space: normal !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryStoreFilter select {
+  width: 100% !important;
+  min-height: 44px !important;
+  font-size: 16px !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryMiniTrack {
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryMiniChip {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 10px 12px !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryMiniChipLine {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-areas:
+    'account value'
+    'meta time' !important;
+  gap: 4px 10px !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryMiniChipAccount {
+  grid-area: account !important;
+  flex: none !important;
+  max-width: 100% !important;
+  font-size: 13px !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryMiniChipValue {
+  grid-area: value !important;
+  justify-self: end !important;
+  font-size: 15px !important;
+  white-space: nowrap !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryMiniChipCategory,
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryMiniChipNote {
+  grid-area: meta !important;
+  min-width: 0 !important;
+  font-size: 12px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryMiniChipTail {
+  grid-area: time !important;
+  justify-self: end !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.app.app--web .financeOpsHistoryMini--page .financeOpsHistoryEditBtn {
+  min-height: 36px !important;
+  padding: 6px 10px !important;
+  font-size: 12px !important;
+}
+
+.app.app--web .financeOpsExpenseArticlesCarousel {
+  padding-bottom: 4px !important;
+}

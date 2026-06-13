@@ -968,6 +968,22 @@ function ShiftIcon() {
   );
 }
 
+function ExpensesIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg" aria-hidden>
+        <path
+          d="M6 8.5h12v9H6z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <path d="M9 12h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    </DockIcon>
+  );
+}
+
 function SalesIcon() {
   return (
     <DockIcon>
@@ -4136,6 +4152,9 @@ function App() {
       { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
       { to: '/shift', label: shiftL, icon: <ShiftIcon /> },
     ];
+    if (!isDesktopShell && financeViewer) {
+      base.push({ to: '/finance/expenses', label: 'Расходы', icon: <ExpensesIcon /> });
+    }
     if (!directorWebTrimmed) {
       base.push({ to: '/sales', label: 'Продажи', icon: <SalesIcon /> });
     }
@@ -4509,6 +4528,34 @@ function App() {
             />
             <Route path="/finance/auto" element={<Navigate to="/shift" replace />} />
             <Route
+              path="/finance/expenses"
+              element={
+                isFinanceViewer && !isDesktopShell ? (
+                  <div className="dashboard dashboard--financeDesktop dashboard--financeExpensesWeb">
+                    <section className="sectionCard">
+                      <div className="financeOpsWebBridge">
+                        <FinanceOpsPanel
+                          token={session.token}
+                          isDirector={role === 'DIRECTOR'}
+                          snapshot={financeOps}
+                          onAddIncome={addFinanceIncome}
+                          onAddExpense={addFinanceExpense}
+                          onUpdateIncome={updateFinanceIncome}
+                          onUpdateExpense={updateFinanceExpense}
+                          onSetAccountBalance={setFinanceAccountBalance}
+                          onSetCategoryAmount={setFinanceExpenseCategoryAmount}
+                          preferDesktopLayout={false}
+                          webSection="expenses"
+                        />
+                      </div>
+                    </section>
+                  </div>
+                ) : (
+                  <Navigate to="/shift" replace />
+                )
+              }
+            />
+            <Route
               path="/shift"
               element={
                 <div
@@ -4542,6 +4589,7 @@ function App() {
                           onSetAccountBalance={setFinanceAccountBalance}
                           onSetCategoryAmount={setFinanceExpenseCategoryAmount}
                           preferDesktopLayout={isDesktopShell}
+                          webSection={!isDesktopShell ? 'ops' : undefined}
                         />
                       </div>
                     ) : (
@@ -5244,6 +5292,11 @@ function App() {
           {shiftLabel}
         </NavLink>
       )}
+      {!isDesktopShell && isFinanceViewer ? (
+        <NavLink to="/finance/expenses" className={navTabClass}>
+          Расходы
+        </NavLink>
+      ) : null}
       {!isRetoucher && !isSellerOnly && (
         <>
           {!directorWebTrimmed ? (
@@ -6925,6 +6978,7 @@ function FinanceOpsHistoryList({
   busyId,
   onEditExpense,
   onEditIncome,
+  pageLayout = false,
 }: {
   title: string;
   emptyLabel: string;
@@ -6934,6 +6988,7 @@ function FinanceOpsHistoryList({
   expenseCategories?: readonly string[];
   canEdit: boolean;
   busyId: string;
+  pageLayout?: boolean;
   onEditExpense?: (
     id: string,
     payload: { accountId: string; title: string; amount: string; comment?: string },
@@ -7028,7 +7083,11 @@ function FinanceOpsHistoryList({
   };
 
   return (
-    <div className={`financeOpsHistoryMini financeOpsHistoryMini--${kind}`}>
+    <div
+      className={`financeOpsHistoryMini financeOpsHistoryMini--${kind}${
+        pageLayout ? ' financeOpsHistoryMini--page' : ''
+      }`}
+    >
       <div className="financeOpsHistoryMiniHead">
         <p className="financeOpsHistoryMiniTitle">{title}</p>
         <div className="financeOpsHistoryFilters">
@@ -7261,6 +7320,7 @@ function FinanceOpsPanel({
   onSetAccountBalance,
   onSetCategoryAmount,
   preferDesktopLayout = false,
+  webSection,
 }: {
   token: string;
   isDirector: boolean;
@@ -7286,6 +7346,7 @@ function FinanceOpsPanel({
   onSetAccountBalance: (token: string, accountId: string, balance: string) => Promise<void>;
   onSetCategoryAmount?: (token: string, title: string, amount: string) => Promise<void>;
   preferDesktopLayout?: boolean;
+  webSection?: 'ops' | 'expenses';
 }) {
   const primaryFinanceAccounts = useMemo(() => {
     const map = new Map(snapshot.accounts.map((a) => [a.id, a]));
@@ -7316,7 +7377,13 @@ function FinanceOpsPanel({
   const [incomesHistoryOpen, setIncomesHistoryOpen] = useState(false);
   const [expensesHistoryOpen, setExpensesHistoryOpen] = useState(false);
   const compactFinanceUi = useWideFinanceLayout(preferDesktopLayout);
-  const [expenseArticlesSheetOpen, setExpenseArticlesSheetOpen] = useState(compactFinanceUi);
+  const isWebSplit = Boolean(webSection) && !preferDesktopLayout;
+  const showOpsSection = !isWebSplit || webSection === 'ops';
+  const showExpensesSection = !isWebSplit || webSection === 'expenses';
+  const showArticlesCarousel = preferDesktopLayout || (isWebSplit && webSection === 'expenses');
+  const [expenseArticlesSheetOpen, setExpenseArticlesSheetOpen] = useState(
+    compactFinanceUi || webSection === 'expenses',
+  );
   const [editingCategoryTitle, setEditingCategoryTitle] = useState<string | null>(null);
   const [editingCategoryAmount, setEditingCategoryAmount] = useState('');
   const [categoryAmountBusy, setCategoryAmountBusy] = useState('');
@@ -7744,9 +7811,10 @@ function FinanceOpsPanel({
     <div
       className={`opsCard financeOpsCard ${isDirector ? 'financeOpsCardDirector' : ''}${
         compactFinanceUi ? ' financeOpsCard--desktop' : ''
-      }`}
+      }${isWebSplit ? ` financeOpsCard--web-${webSection}` : ''}`}
     >
       <div className={`financeOpsShell${compactFinanceUi ? ' financeOpsShell--desktop' : ''}`}>
+      {showOpsSection ? (
       <header className="financeOpsHero">
         <div className="financeOpsHeroTop">
           <h4 className="financeOpsPageTitle">Оперативные финансы</h4>
@@ -7868,6 +7936,17 @@ function FinanceOpsPanel({
           </div>
         </div>
       </header>
+      ) : (
+      <header className="financeOpsHero financeOpsHero--expensesWeb">
+        <div className="financeOpsHeroTop">
+          <h4 className="financeOpsPageTitle">Расходы</h4>
+          <FinanceSensitiveToggleButton
+            visible={financeSensitiveVisible}
+            onToggle={() => setFinanceSensitiveVisible((open) => !open)}
+          />
+        </div>
+      </header>
+      )}
 
       {compactFinanceUi ? (
         <section className="financeOpsZone financeOpsZone--flows addSaleForm">
@@ -8033,6 +8112,7 @@ function FinanceOpsPanel({
         </section>
       ) : (
         <>
+          {showOpsSection ? (
           <section className="financeOpsZone financeOpsZone--income financeOpsIncomeBlock addSaleForm">
             <h4 className="financeOpsZoneTitle">Приход за день</h4>
             <label className="financeOpsAccountsPick">
@@ -8091,7 +8171,9 @@ function FinanceOpsPanel({
               Записать приход
             </button>
           </section>
+          ) : null}
 
+          {showExpensesSection ? (
           <section className="financeOpsZone financeOpsZone--expense addSaleForm">
             <h4 className="financeOpsZoneTitle">Расход</h4>
             <div className="financeOpsExpensePickRow">
@@ -8188,6 +8270,7 @@ function FinanceOpsPanel({
               </button>
             </div>
           </section>
+          ) : null}
         </>
       )}
 
@@ -8198,12 +8281,15 @@ function FinanceOpsPanel({
         </div>
       ) : null}
 
+      {showExpensesSection ? (
       <section
         className={`financeOpsZone financeOpsZone--articles financeOpsExpenseArticlesSheet${
           compactFinanceUi ? ' financeOpsExpenseArticlesSheet--desktop' : ''
-        }${expenseArticlesSheetOpen ? ' financeOpsExpenseArticlesSheet--open' : ''}`}
+        }${showArticlesCarousel ? ' financeOpsExpenseArticlesSheet--open financeOpsExpenseArticlesSheet--carousel' : ''}${
+          expenseArticlesSheetOpen ? ' financeOpsExpenseArticlesSheet--open' : ''
+        }`}
       >
-        {compactFinanceUi ? (
+        {showArticlesCarousel ? (
           <>
             <div className="financeOpsArticlesHead">
               <h4 className="financeOpsZoneTitle">Расходы по статьям</h4>
@@ -8214,6 +8300,13 @@ function FinanceOpsPanel({
                 className="financeOpsArticlesTotal"
               />
             </div>
+            {isWebSplit ? (
+              <p className="financeOpsExpenseArticlesSheetHint">
+                {isDirector
+                  ? 'Нажмите на статью, чтобы изменить сумму. Прокрутите вбок для остальных статей.'
+                  : 'Прокрутите вбок — суммы по каждой статье.'}
+              </p>
+            ) : null}
             <div
               className="financeOpsExpenseArticlesCarousel financeOpsExpenseArticlesCarousel--desktop"
               role="list"
@@ -8269,6 +8362,7 @@ function FinanceOpsPanel({
           </>
         )}
       </section>
+      ) : null}
 
       {compactFinanceUi ? (
         <section className="financeOpsZone financeOpsZone--historyMini">
@@ -8296,6 +8390,40 @@ function FinanceOpsPanel({
             />
           </div>
         </section>
+      ) : isWebSplit ? (
+        <>
+          {showOpsSection ? (
+            <section className="financeOpsZone financeOpsZone--historyPage financeOpsZone--historyIncomes">
+              <FinanceOpsHistoryList
+                title="Последние приходы по счетам"
+                emptyLabel="Приходов пока нет"
+                rows={recentIncomeHistoryRows}
+                kind="income"
+                accounts={snapshot.accounts}
+                canEdit={Boolean(onUpdateIncome)}
+                busyId={busyId}
+                pageLayout
+                onEditIncome={onUpdateIncome ? handleHistoryIncomeEdit : undefined}
+              />
+            </section>
+          ) : null}
+          {showExpensesSection ? (
+            <section className="financeOpsZone financeOpsZone--historyPage financeOpsZone--historyExpenses">
+              <FinanceOpsHistoryList
+                title="Последние расходы"
+                emptyLabel="Расходов пока нет"
+                rows={recentExpenseHistoryRows}
+                kind="expense"
+                accounts={snapshot.accounts}
+                expenseCategories={FINANCE_EXPENSE_CATEGORY_LABELS}
+                canEdit={Boolean(onUpdateExpense)}
+                busyId={busyId}
+                pageLayout
+                onEditExpense={onUpdateExpense ? handleHistoryExpenseEdit : undefined}
+              />
+            </section>
+          ) : null}
+        </>
       ) : (
         <section className="financeOpsZone financeOpsZone--history financeHistoryAccordions">
           <section className={`procurementAccordion ${expensesHistoryOpen ? '' : 'procurementAccordion--collapsed'}`}>
