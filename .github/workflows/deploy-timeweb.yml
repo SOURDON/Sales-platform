@@ -1,7 +1,7 @@
 # Деплой API на Timeweb по SSH (после push в main или вручную).
 # Один раз в GitHub → Settings → Secrets → Actions:
 #   TIMEWEB_SSH_KEY — приватный SSH-ключ с доступом к root@77.233.223.48
-name: Deploy Timeweb API
+name: Deploy Timeweb
 
 on:
   workflow_dispatch:
@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
+      - 'frontend/**'
       - 'deploy/timeweb/**'
       - 'scripts/timeweb/**'
 
