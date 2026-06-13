@@ -21,6 +21,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: TIMEWEB_SSH_KEY
     steps:
       - name: Validate and load deploy key
         run: |
@@ -30,7 +31,9 @@ jobs:
           KEY_RAW="$RUNNER_TEMP/key_raw"
           printf '%s' "${{ secrets.TIMEWEB_SSH_KEY }}" > "$KEY_RAW"
           if [ ! -s "$KEY_RAW" ]; then
-            echo "::error::TIMEWEB_SSH_KEY пустой. Добавьте Repository secret."
+            echo "::error::TIMEWEB_SSH_KEY пустой."
+            echo "Добавьте секрет в Environment TIMEWEB_SSH_KEY → Environment secrets"
+            echo "или в Settings → Secrets → Actions → Repository secrets"
             exit 1
           fi
           if grep -q 'BEGIN OPENSSH PRIVATE KEY' "$KEY_RAW"; then

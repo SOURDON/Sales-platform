@@ -36,16 +36,22 @@ chmod 600 ~/.ssh/authorized_keys
 
 ### 3. Секрет в GitHub
 
-1. **Repository secrets** (не Environments): [Settings → Secrets and variables → Actions](https://github.com/SOURDON/Sales-platform/settings/secrets/actions)
-2. **New repository secret**
+**Вариант A (у вас уже есть Environment `TIMEWEB_SSH_KEY`):**
+
+1. https://github.com/SOURDON/Sales-platform/settings/environments
+2. Откройте **TIMEWEB_SSH_KEY** → **Environment secrets** → Add secret
 3. Name: `TIMEWEB_SSH_KEY`
-4. Value — **рекомендуется base64** (одна строка):
+4. Value (base64, одна строка):
 
 ```bash
 base64 < scripts/timeweb/.deploy-keys/github_actions_ed25519 | tr -d '\n' | pbcopy
 ```
 
-Альтернатива — сырой приватный ключ: `pbcopy < scripts/timeweb/.deploy-keys/github_actions_ed25519`
+**Вариант B — Repository secret:**
+
+1. https://github.com/SOURDON/Sales-platform/settings/secrets/actions
+2. **Repository secrets** → New repository secret
+3. Name: `TIMEWEB_SSH_KEY`, Value — та же base64-строка
 
 ### 4. Запустить деплой
 
