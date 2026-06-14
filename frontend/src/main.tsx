@@ -15,9 +15,13 @@ const isTauriShell =
 
 async function startApp() {
   if (isTauriShell) {
-    const backup = await import('./desktop/desktopLocalBackup')
-    await backup.ensureDesktopLocalDataRestored()
-    void backup.flushDesktopLocalBackup()
+    try {
+      const backup = await import('./desktop/desktopLocalBackup')
+      await backup.ensureDesktopLocalDataRestored()
+      void backup.flushDesktopLocalBackup()
+    } catch (error) {
+      console.error('Desktop local backup init failed:', error)
+    }
   }
 
   if (!rootEl) {

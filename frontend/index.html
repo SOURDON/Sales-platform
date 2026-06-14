@@ -23,7 +23,9 @@
     />
     <title>Фотографы</title>
     <script>
-      if ('serviceWorker' in navigator) {
+      var isTauriShell =
+        '__TAURI_INTERNALS__' in window || '__TAURI__' in window
+      if ('serviceWorker' in navigator && !isTauriShell) {
         window.addEventListener('load', function () {
           navigator.serviceWorker.register('/sw.js').catch(function () {})
         })
