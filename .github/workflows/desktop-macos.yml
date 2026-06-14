@@ -6,14 +6,18 @@ on:
   push:
     tags:
       - 'desktop-v*'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-dmg:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
@@ -28,12 +32,17 @@ jobs:
           npm ci --prefix frontend
           npm ci --prefix desktop
 
-      - name: Generate macOS icons
-        run: bash desktop/scripts/generate-icons.sh
+      - name: Generate icons
+        working-directory: desktop
+        run: npm run icon
 
       - name: Prepare desktop env (production API)
         run: |
-          echo 'VITE_API_URL=http://77.233.223.48' > desktop/.env
+          VERSION=$(node -pe "JSON.parse(require('fs').readFileSync('desktop/src-tauri/tauri.conf.json','utf8')).version")
+          {
+            echo 'VITE_API_URL=http://77.233.223.48'
+            echo "VITE_APP_VERSION=${VERSION}"
+          } > desktop/.env
 
       - name: Smoke API
         run: bash scripts/desktop-smoke.sh http://77.233.223.48
@@ -46,8 +55,14 @@ jobs:
           chmod +x scripts/desktop-build.sh
           bash scripts/desktop-build.sh
 
+      - name: List bundle dir on failure
+        if: failure()
+        run: |
+          find desktop/src-tauri/target -path '*/bundle/*' 2>/dev/null | head -50 || true
+          ls -la desktop/dist 2>/dev/null || true
+
       - name: Upload DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: desktop-macos-dmg
           path: desktop/dist/*.dmg
