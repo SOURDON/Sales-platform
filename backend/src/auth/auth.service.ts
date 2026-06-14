@@ -2872,7 +2872,7 @@ export class AuthService implements OnModuleInit {
 
   getDirectorControlRequestsSnapshot() {
     return [...this.directorApprovalRequests]
-      .filter((r) => r.state === 'PENDING')
+      .filter((r) => r.state === 'PENDING' && r.kind === 'WRITE_OFF')
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .map((row) => ({
         id: row.id,
@@ -2915,6 +2915,10 @@ export class AuthService implements OnModuleInit {
         parts.push(
           lines.map((line) => `${line.name} × ${line.qty}`).join(', '),
         );
+      }
+      const deleteReason = row.payload.reason?.trim();
+      if (deleteReason) {
+        parts.push(`причина: ${deleteReason}`);
       }
       return `Отмена продажи — ${parts.join(' · ')}. Чек: ${sid}`;
     }
@@ -3025,48 +3029,45 @@ export class AuthService implements OnModuleInit {
     return sale;
   }
 
-  requestSaleDeletion(saleId: string, actorNickname: string): DirectorApprovalRequestMem | null {
+  deleteAdminSale(
+    saleId: string,
+    actorNickname: string,
+    deleteReason: string,
+  ): boolean {
     const admin = this.demoUsers.find((u) => u.nickname === actorNickname);
     if (!admin || admin.role !== 'ADMIN') {
-      return null;
+      return false;
     }
     const sid = String(saleId ?? '').trim();
-    if (!sid) {
-      return null;
+    const reason = String(deleteReason ?? '').trim();
+    if (!sid || reason.length < 3) {
+      return false;
     }
     const hit = this.findAdminStoreSaleIndex(sid, actorNickname);
     if (!hit) {
-      return null;
-    }
-    if (
-      this.directorApprovalRequests.some(
-        (r) => r.state === 'PENDING' && r.kind === 'SALE_DELETE' && r.payload.saleId === sid,
-      )
-    ) {
-      return null;
+      return false;
     }
     const sale = hit.seller.sales[hit.idx];
-    const row: DirectorApprovalRequestMem = {
-      id: `dap-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-      createdAt: new Date().toISOString(),
-      kind: 'SALE_DELETE',
-      state: 'PENDING',
-      requestedByNickname: actorNickname,
-      storeName: admin.storeName,
-      payload: {
-        saleId: sid,
-        totalAmount: sale.totalAmount,
-        units: sale.units,
-        items: sale.items.map((line) => ({ name: line.name, qty: line.qty })),
-        sellerId: hit.seller.id,
-        sellerName: hit.seller.fullName,
-        sellerNickname: hit.seller.nickname,
-      },
-    };
-    this.directorApprovalRequests.unshift(row);
-    this.pushAudit(actorNickname, 'SALE_DELETE_REQUESTED', `sale=${sid}, store=${admin.storeName}`);
+    const storeKey = hit.seller.storeName;
+    for (const line of sale.items) {
+      this.addStockDelta(storeKey, line.name, line.qty);
+    }
+    this.tryDecrementShiftCountersForDeletedSale(sale, hit.seller.id);
+    hit.seller.sales.splice(hit.idx, 1);
+    this.recomputeSeller(hit.seller);
+    this.syncRetoucherEarnings();
+    const allSales = this.sellerProfiles.flatMap((p) => p.sales);
+    const newest = allSales.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )[0];
+    this.lastSaleAt = newest?.createdAt ?? null;
+    this.pushAudit(
+      actorNickname,
+      'SALE_DELETED',
+      `sale=${sid}, store=${admin.storeName}, reason=${reason}`,
+    );
     this.queuePersist();
-    return row;
+    return true;
   }
 
   requestWriteOffApproval(
@@ -3142,24 +3143,19 @@ export class AuthService implements OnModuleInit {
       await this.persistChain;
       return { ok: true };
     }
-    if (req.kind === 'SALE_DELETE') {
-      const saleId = String(req.payload.saleId ?? '');
-      const okDel = this.applyApprovedSaleDeletion(saleId);
-      if (!okDel) {
-        return { ok: false, error: 'sale_missing' };
-      }
-    } else {
-      const p = req.payload;
-      const qty = typeof p.qty === 'number' ? p.qty : 0;
-      const nm = typeof p.name === 'string' ? p.name.trim() : '';
-      const reason = p.reason === 'Поломка' ? 'Поломка' : 'Брак';
-      if (!nm || qty <= 0) {
-        return { ok: false, error: 'bad_payload' };
-      }
-      const applied = this.addWriteOff(nm, qty, reason, req.requestedByNickname);
-      if (!applied) {
-        return { ok: false, error: 'writeoff_failed' };
-      }
+    if (req.kind !== 'WRITE_OFF') {
+      return { ok: false, error: 'not_found' };
+    }
+    const p = req.payload;
+    const qty = typeof p.qty === 'number' ? p.qty : 0;
+    const nm = typeof p.name === 'string' ? p.name.trim() : '';
+    const reason = p.reason === 'Поломка' ? 'Поломка' : 'Брак';
+    if (!nm || qty <= 0) {
+      return { ok: false, error: 'bad_payload' };
+    }
+    const applied = this.addWriteOff(nm, qty, reason, req.requestedByNickname);
+    if (!applied) {
+      return { ok: false, error: 'writeoff_failed' };
     }
     req.state = 'APPROVED';
     req.resolvedAt = new Date().toISOString();

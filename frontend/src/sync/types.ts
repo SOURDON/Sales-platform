@@ -1,6 +1,7 @@
 /** Мутации в outbox (ADMIN + DIRECTOR + ACCOUNTANT). */
 export type OutboxMutationType =
   | 'ADMIN_SALE'
+  | 'ADMIN_SALE_DELETE_REQUEST'
   | 'ADMIN_WRITE_OFF'
   | 'ADMIN_SHIFT_OPEN'
   | 'ADMIN_SHIFT_CLOSE'
@@ -22,6 +23,17 @@ export type OutboxMutationType =
   | 'MANAGER_STORE_COMMISSIONS'
   | 'ACQUIRING_PROFILES'
   | 'PROCUREMENT_COSTS';
+
+export type AdminSaleDeleteRequestOutboxPayload = {
+  requestId: string;
+  saleId: string;
+  reason: string;
+  storeName?: string;
+  sellerName?: string;
+  totalAmount?: number;
+  items?: Array<{ name: string; qty: number }>;
+  createdAt: string;
+};
 
 export type AdminSaleOutboxPayload = {
   saleId: string;
@@ -183,6 +195,7 @@ export type ProcurementCostsOutboxPayload = {
 /** Payload по типу мутации (для сужения типов в flush handlers). */
 export type OutboxPayloadByType = {
   ADMIN_SALE: AdminSaleOutboxPayload;
+  ADMIN_SALE_DELETE_REQUEST: AdminSaleDeleteRequestOutboxPayload;
   ADMIN_WRITE_OFF: AdminWriteOffOutboxPayload;
   ADMIN_SHIFT_OPEN: AdminShiftOpenOutboxPayload;
   ADMIN_SHIFT_CLOSE: AdminShiftCloseOutboxPayload;
@@ -228,7 +241,8 @@ export type AdminCacheKey =
   | 'globalEmployees'
   | 'procurementCosts'
   | 'acquiringProfiles'
-  | 'managerStoreCommissions';
+  | 'managerStoreCommissions'
+  | 'saleDeleteJournal';
 
 export type FinanceCacheKey =
   | 'dashboard'

@@ -2575,6 +2575,61 @@ button.salePayBtn:focus-visible {
   min-height: 36px;
 }
 
+.opsDayUnlockBar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
+
+.opsDayUnlockInput {
+  width: 72px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+  opacity: 0.55;
+}
+
+.opsDayUnlockInput:focus {
+  opacity: 1;
+}
+
+.adminViewDayStrip {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin: 0 0 10px;
+  opacity: 0.45;
+}
+
+.adminViewDayStrip:focus-within {
+  opacity: 0.85;
+}
+
+.adminViewDayInput {
+  width: 118px;
+  min-height: 26px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 11px;
+}
+
+.adminViewDayNav {
+  min-width: 24px;
+  min-height: 26px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.adminHomeMetricTap {
+  cursor: default;
+  user-select: none;
+}
+
 .saleItem ul {
   margin: 0;
   padding-left: 16px;

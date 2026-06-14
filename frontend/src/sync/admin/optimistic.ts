@@ -8,6 +8,7 @@ import type {
   AdminStaffRemoveOutboxPayload,
   AdminStaffRestoreOutboxPayload,
   AdminWriteOffOutboxPayload,
+  AdminSaleDeleteRequestOutboxPayload,
   OutboxMutationType,
   OutboxPayload,
 } from '../types';
@@ -100,6 +101,9 @@ export async function applyOptimisticOutbox(
     case 'ADMIN_SALE':
       await applySaleStock(userId, payload as AdminSaleOutboxPayload);
       break;
+    case 'ADMIN_SALE_DELETE_REQUEST':
+      await applySaleDelete(userId, payload as AdminSaleDeleteRequestOutboxPayload);
+      break;
     default:
       break;
   }
@@ -159,6 +163,38 @@ export async function revertSaleStock(userId: number, payload: AdminSaleOutboxPa
   }
   const products = inv.products.map((p) => {
     const line = payload.items.find((i) => i.name === p.name);
+    if (!line) {
+      return p;
+    }
+    return { ...p, qtyInStore: p.qtyInStore + line.qty };
+  });
+  await saveAdminCache(userId, 'storeInventory', { ...inv, products });
+}
+
+async function applySaleDelete(
+  userId: number,
+  payload: AdminSaleDeleteRequestOutboxPayload,
+): Promise<void> {
+  const sales = (await loadAdminCache<AdminSaleLike[]>(userId, 'sales')) ?? [];
+  if (!sales.some((sale) => sale.id === payload.saleId)) {
+    return;
+  }
+  await saveAdminCache(
+    userId,
+    'sales',
+    sales.filter((sale) => sale.id !== payload.saleId),
+  );
+
+  const items = payload.items ?? [];
+  if (items.length === 0) {
+    return;
+  }
+  const inv = await loadAdminCache<StoreInventoryLike | null>(userId, 'storeInventory');
+  if (!inv?.products) {
+    return;
+  }
+  const products = inv.products.map((p) => {
+    const line = items.find((i) => i.name === p.name);
     if (!line) {
       return p;
     }

@@ -1305,26 +1305,30 @@ export class AdminController {
     return result as unknown;
   }
 
-  @Post('sales/delete-request')
-  requestSaleDeletion(
+  @Post('sales/delete')
+  deleteSale(
     @Headers('authorization') authorization: string | undefined,
-    @Body() body: { saleId?: string },
+    @Body() body: { saleId?: string; reason?: string },
   ) {
     const session = this.requireWriteAccess(authorization);
     if (session.role !== 'ADMIN') {
-      throw new ForbiddenException('Запрос на отмену продажи может отправить только администратор точки');
+      throw new ForbiddenException('Удалить продажу может только администратор точки');
     }
     const saleId = body.saleId?.trim();
+    const reason = body.reason?.trim();
     if (!saleId) {
       throw new BadRequestException('saleId обязателен');
     }
-    const row = this.authService.requestSaleDeletion(saleId, session.nickname);
-    if (!row) {
+    if (!reason || reason.length < 3) {
+      throw new BadRequestException('Укажите причину удаления (не короче 3 символов)');
+    }
+    const ok = this.authService.deleteAdminSale(saleId, session.nickname, reason);
+    if (!ok) {
       throw new BadRequestException(
-        'Не удалось отправить запрос: продажа не найдена на вашей точке или уже есть ожидающая заявка на этот чек',
+        'Не удалось удалить продажу: чек не найден на вашей точке или указана короткая причина',
       );
     }
-    return row as unknown;
+    return { ok: true } as unknown;
   }
 
   @Post('write-offs')

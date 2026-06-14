@@ -1,4 +1,5 @@
 import { flushAdminSaleEntry } from './handlers/adminSale';
+import { flushAdminSaleDeleteEntry } from './handlers/adminSaleDelete';
 import { flushAdminShiftCloseEntry } from './handlers/adminShiftClose';
 import { flushAdminShiftOpenEntry } from './handlers/adminShiftOpen';
 import { flushAdminStaffEntry } from './handlers/adminStaff';
@@ -25,6 +26,8 @@ async function flushEntry(
   switch (entry.type) {
     case 'ADMIN_SALE':
       return flushAdminSaleEntry(apiBaseUrl, token, entry);
+    case 'ADMIN_SALE_DELETE_REQUEST':
+      return flushAdminSaleDeleteEntry(apiBaseUrl, token, entry);
     case 'ADMIN_WRITE_OFF':
       return flushAdminWriteOffEntry(apiBaseUrl, token, entry);
     case 'ADMIN_SHIFT_OPEN':

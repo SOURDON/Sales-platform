@@ -15,6 +15,14 @@ export type StoreDayReportProductRow = {
   qty: number;
 };
 
+export type StoreDayReportDeletedSaleRow = {
+  sellerName: string;
+  amount: number;
+  reason: string;
+  statusLabel: string;
+  deletedAt: string;
+};
+
 export type StoreDayReportStaffBlock = {
   name: string;
   salaryRub: number;
@@ -41,6 +49,7 @@ export type StoreDayReportData = {
   manager?: StoreDayReportStaffBlock;
   retoucher?: StoreDayReportStaffBlock;
   shiftLabel?: string;
+  deletedSales?: StoreDayReportDeletedSaleRow[];
   generatedAt: string;
 };
 
@@ -266,6 +275,7 @@ export function buildStoreDayReportData(options: {
   shifts: ShiftLike[];
   acquiringProfiles: AcquiringProfile[];
   managerStoreCommissions?: ManagerCommissionRow[];
+  deletedSales?: StoreDayReportDeletedSaleRow[];
 }): StoreDayReportData {
   const {
     storeName,
@@ -276,6 +286,7 @@ export function buildStoreDayReportData(options: {
     shifts,
     acquiringProfiles,
     managerStoreCommissions = [],
+    deletedSales = [],
   } = options;
 
   const sellerIds = new Set(
@@ -466,6 +477,7 @@ export function buildStoreDayReportData(options: {
     manager: managerBlock,
     retoucher: retoucherBlock,
     shiftLabel,
+    deletedSales,
     generatedAt: new Date().toLocaleString('ru-RU'),
   };
 }
@@ -731,6 +743,75 @@ function addPaymentMixBlock(sheet: ExcelJS.Worksheet, startRow: number, data: St
   }
 }
 
+function addDeletedSalesBlock(
+  sheet: ExcelJS.Worksheet,
+  startRow: number,
+  rows: StoreDayReportDeletedSaleRow[],
+): number {
+  sheet.mergeCells(`A${startRow}:L${startRow}`);
+  const title = sheet.getCell(`A${startRow}`);
+  title.value = 'Удалённые продажи';
+  title.font = { bold: true, size: 10, color: { argb: C.sectionText } };
+  title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.sectionBg } };
+  title.alignment = { horizontal: 'center', vertical: 'middle' };
+  sheet.getRow(startRow).height = 16;
+
+  const headerRow = startRow + 1;
+  const headers = ['Продавец', 'Сумма', 'Причина', 'Статус', 'Время'];
+  const colSpans = [3, 2, 4, 2, 1];
+  let col = 1;
+  headers.forEach((label, idx) => {
+    const span = colSpans[idx];
+    if (span > 1) {
+      sheet.mergeCells(headerRow, col, headerRow, col + span - 1);
+    }
+    const cell = sheet.getCell(headerRow, col);
+    cell.value = label;
+    cell.font = { bold: true, size: 9, color: { argb: C.headerText } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.headerBg } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    col += span;
+  });
+  sheet.getRow(headerRow).height = 15;
+
+  let rowNum = headerRow + 1;
+  let totalDeleted = 0;
+  rows.forEach((row, idx) => {
+    const bg = idx % 2 === 0 ? C.rowNormalA : C.rowNormalB;
+    sheet.mergeCells(rowNum, 1, rowNum, 3);
+    sheet.mergeCells(rowNum, 4, rowNum, 5);
+    sheet.mergeCells(rowNum, 6, rowNum, 9);
+    sheet.mergeCells(rowNum, 10, rowNum, 11);
+    sheet.getCell(rowNum, 1).value = row.sellerName;
+    rubCell(sheet.getCell(rowNum, 4), row.amount, { color: C.rowText, size: 9 });
+    sheet.getCell(rowNum, 6).value = row.reason;
+    sheet.getCell(rowNum, 10).value = row.statusLabel;
+    sheet.getCell(rowNum, 12).value = row.deletedAt;
+    fillRange(sheet, `A${rowNum}:L${rowNum}`, bg);
+    borderRange(sheet, `A${rowNum}:L${rowNum}`);
+    for (const addr of [`A${rowNum}`, `D${rowNum}`, `F${rowNum}`, `J${rowNum}`, `L${rowNum}`]) {
+      const cell = sheet.getCell(addr);
+      cell.font = { size: 9, color: { argb: C.rowText } };
+      cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+    }
+    sheet.getRow(rowNum).height = 16;
+    totalDeleted += row.amount;
+    rowNum += 1;
+  });
+
+  sheet.mergeCells(rowNum, 1, rowNum, 3);
+  sheet.mergeCells(rowNum, 4, rowNum, 5);
+  sheet.mergeCells(rowNum, 6, rowNum, 12);
+  sheet.getCell(rowNum, 1).value = 'Итого удалено';
+  sheet.getCell(rowNum, 1).font = { bold: true, size: 9, color: { argb: C.totalText } };
+  rubCell(sheet.getCell(rowNum, 4), totalDeleted, { color: C.totalText, size: 9, bold: true });
+  fillRange(sheet, `A${rowNum}:L${rowNum}`, C.totalBg);
+  borderRange(sheet, `A${rowNum}:L${rowNum}`, C.borderDark);
+  sheet.getRow(rowNum).height = 15;
+
+  return rowNum + 2;
+}
+
 export async function downloadStoreDayReportXlsx(data: StoreDayReportData): Promise<SaveXlsxResult> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Фотографы';
@@ -954,7 +1035,11 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData): Prom
     sheet.getRow(row).height = 14;
   });
 
-  const footerRow = payRow + 3;
+  let footerRow = payRow + payLines.length;
+  if (data.deletedSales && data.deletedSales.length > 0) {
+    footerRow = addDeletedSalesBlock(sheet, footerRow + 1, data.deletedSales);
+  }
+
   sheet.mergeCells(`A${footerRow}:L${footerRow}`);
   const footerParts = [
     `Чеков: ${data.checksCount}`,

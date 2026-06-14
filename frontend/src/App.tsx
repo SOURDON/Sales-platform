@@ -48,11 +48,15 @@ import { fetchWithTimeout } from './sync/fetchTimeout';
 import {
   appendOfflineSale,
   readOfflineQueue,
-  removeOfflineSale,
   writeOfflineQueue,
   type OfflineQueuedSale,
 } from './offlineSalesQueue';
-import { verifyOfflineSaleDeletePin } from './offlineSaleDeletePin';
+import { appendSaleDeleteJournal, listSaleDeleteJournal } from './saleDeleteJournal';
+import {
+  readOpsDayUnlock,
+  verifyOpsDayUnlockPin,
+  writeOpsDayUnlock,
+} from './opsDayUnlock';
 import {
   isLikelyOfflineFetchError as isOfflineFetchError,
   listAdminSalesQueue,
@@ -267,6 +271,29 @@ function managerEarnForStore(
   return Math.round((revenue * pct) / 100);
 }
 
+function buildEmptyDashboardSkeleton(storeName: string): DashboardResponse {
+  return {
+    role: 'ADMIN',
+    sellerDataManagedByAdmin: true,
+    title: storeName,
+    metrics: [
+      { label: 'Продажи (точка)', value: '0 ₽' },
+      { label: 'Открытые смены (точка)', value: '0' },
+    ],
+    stores: [
+      {
+        name: storeName,
+        revenue: '0 ₽',
+        salaries: '0 ₽',
+        cash: '0 ₽',
+        acquiring: '0 ₽',
+        transfer: '0 ₽',
+      },
+    ],
+    sellerRegister: [],
+  };
+}
+
 /**
  * Сводка для админа на «Главной» считается на клиенте (продавцы, продажи, смены),
  * чтобы UI совпадал с запросом даже при старом ответе /dashboard/overview на сервере.
@@ -279,6 +306,7 @@ function buildAdminHomeDashboard(
   sales: AdminSale[],
   shifts: ShiftInfo[],
   staff: StaffMember[],
+  dayKey = todayKeyMoscow(),
 ): DashboardResponse {
   const storeSellers = sellers.filter((s) => s.storeName === storeName);
   const sellerIds = new Set(storeSellers.map((s) => s.id));
@@ -287,7 +315,7 @@ function buildAdminHomeDashboard(
       .filter((m) => m.isActive && staffAssignedStores(m).includes(storeName))
       .map((m) => m.id),
   );
-  const today = todayKeyMoscow();
+  const today = dayKey;
   const openShift = shifts.find((sh) => sh.status === 'OPEN');
   const inOpenShiftIds = openShift
     ? staff
@@ -566,7 +594,7 @@ type AdminSale = {
 type DirectorControlRequest = {
   id: string;
   createdAt: string;
-  kind: 'SALE_DELETE' | 'WRITE_OFF';
+  kind: 'WRITE_OFF';
   state: string;
   requestedByNickname: string;
   storeName: string;
@@ -598,40 +626,6 @@ function sellerLabelFromProfiles(
 ): string {
   const seller = sellers.find((item) => item.id === sellerId);
   return formatPersonWithNickname(sellerName, seller?.nickname);
-}
-
-function formatSaleDeleteApprovalSummary(item: DirectorControlRequest): string {
-  const payload = item.payload;
-  const store = item.storeName?.trim() || '—';
-  const sellerName = typeof payload.sellerName === 'string' ? payload.sellerName : '';
-  const sellerNick =
-    typeof payload.sellerNickname === 'string' ? payload.sellerNickname : '';
-  const sellerLabel = sellerName
-    ? formatPersonWithNickname(sellerName, sellerNick)
-    : item.requestedByNickname;
-  const amount =
-    typeof payload.totalAmount === 'number'
-      ? `${Math.round(payload.totalAmount).toLocaleString('ru-RU')} ₽`
-      : null;
-  const units = typeof payload.units === 'number' ? `${payload.units} шт.` : null;
-  const lines = Array.isArray(payload.items)
-    ? (payload.items as Array<{ name?: string; qty?: number }>)
-    : [];
-  const parts = [`«${store}»`, `продавец: ${sellerLabel}`];
-  if (amount) {
-    parts.push(`сумма: ${amount}`);
-  }
-  if (units) {
-    parts.push(`кол-во: ${units}`);
-  }
-  if (lines.length > 0) {
-    parts.push(lines.map((line) => `${line.name ?? '?'} × ${line.qty ?? 0}`).join(', '));
-  }
-  if (parts.length <= 2 && !amount && !units) {
-    return item.summary;
-  }
-  const sid = typeof payload.saleId === 'string' ? payload.saleId : item.id;
-  return `${parts.join(' · ')}. Чек: ${sid}`;
 }
 
 function offlineQueueToAdminSales(
@@ -1211,9 +1205,19 @@ function App() {
   const [adminError, setAdminError] = useState('');
   const [salesNotice, setSalesNotice] = useState('');
   const [paymentEditSaleId, setPaymentEditSaleId] = useState<string | null>(null);
-  const [offlineDeleteSaleId, setOfflineDeleteSaleId] = useState<string | null>(null);
-  const [offlineDeletePin, setOfflineDeletePin] = useState('');
-  const [offlineDeleteBusy, setOfflineDeleteBusy] = useState(false);
+  const [saleDeleteTarget, setSaleDeleteTarget] = useState<{
+    id: string;
+    pendingSync: boolean;
+    sellerName: string;
+    amount: number;
+  } | null>(null);
+  const [saleDeleteReason, setSaleDeleteReason] = useState('');
+  const [saleDeleteBusy, setSaleDeleteBusy] = useState(false);
+  const [opsDayUnlocked, setOpsDayUnlocked] = useState(() => readOpsDayUnlock());
+  const [adminViewDayKey, setAdminViewDayKey] = useState(todayKeyMoscow);
+  const [opsDayUnlockOpen, setOpsDayUnlockOpen] = useState(false);
+  const [opsDayUnlockDraft, setOpsDayUnlockDraft] = useState('');
+  const adminMetricTapRef = useRef(0);
   const [dayReportBusy, setDayReportBusy] = useState(false);
   const [dayReportNotice, setDayReportNotice] = useState('');
   const [paymentEditBusy, setPaymentEditBusy] = useState(false);
@@ -1289,6 +1293,7 @@ function App() {
       cachedProcurement,
       cachedAcquiring,
       cachedManagerCommissions,
+      cachedDashboard,
     ] = await Promise.all([
       loadAdminCache<SellerProfile[]>(userId, 'sellers'),
       loadAdminCache<ProductItem[]>(userId, 'products'),
@@ -1300,6 +1305,7 @@ function App() {
       loadAdminCache<ProductProcurementCost[]>(userId, 'procurementCosts'),
       loadAdminCache<AcquiringProfile[]>(userId, 'acquiringProfiles'),
       loadAdminCache<ManagerStoreCommissionRow[]>(userId, 'managerStoreCommissions'),
+      loadAdminCache<DashboardResponse>(userId, 'dashboard'),
     ]);
     if (cachedSellers) {
       setSellers(cachedSellers);
@@ -1331,7 +1337,13 @@ function App() {
     if (cachedManagerCommissions?.length) {
       setManagerStoreCommissions(cachedManagerCommissions);
     }
-  }, [isDesktopShell, session?.user?.id, session?.user?.role]);
+    if (cachedDashboard) {
+      setDashboard(cachedDashboard);
+    } else if (session?.user.storeName) {
+      setDashboard(buildEmptyDashboardSkeleton(session.user.storeName));
+    }
+    setDashboardLoading(false);
+  }, [isDesktopShell, session?.user?.id, session?.user?.role, session?.user?.storeName]);
 
   const refreshFinanceFromCache = useCallback(async () => {
     const userId = session?.user?.id;
@@ -1456,12 +1468,14 @@ function App() {
   ]);
 
   useEffect(() => {
-    if (apiReachable || isDesktopShell) {
+    if (!session?.token || apiReachable) {
       return;
     }
-    void refreshAdminFromCache();
+    if (session.user.role === 'ADMIN') {
+      void refreshAdminFromCache();
+    }
     void refreshFinanceFromCache();
-  }, [apiReachable, isDesktopShell, refreshAdminFromCache, refreshFinanceFromCache]);
+  }, [apiReachable, session?.token, session?.user?.role, refreshAdminFromCache, refreshFinanceFromCache]);
 
   const pendingOfflineSales = useMemo(
     () => offlineQueueToAdminSales(offlinePendingSales, sellers, session?.user.storeName),
@@ -1480,41 +1494,54 @@ function App() {
     return merged;
   }, [sales, pendingOfflineSales, sellers, session?.user.role, session?.user.storeName]);
 
+  const adminDayKey = useMemo(() => {
+    if (session?.user.role !== 'ADMIN' || !opsDayUnlocked) {
+      return todayKeyMoscow();
+    }
+    return adminViewDayKey;
+  }, [session?.user.role, opsDayUnlocked, adminViewDayKey]);
+
   const homeDashboard = useMemo((): DashboardResponse | null => {
-    if (!dashboard || !session) {
+    if (!session) {
       return null;
     }
     if (session.user.role === 'ADMIN') {
+      const base =
+        dashboard ?? buildEmptyDashboardSkeleton(session.user.storeName);
       return buildAdminHomeDashboard(
-        dashboard,
+        base,
         session.user.storeName,
         sellers,
         salesMerged,
         shifts,
         staff,
+        adminDayKey,
       );
     }
+    if (!dashboard) {
+      return null;
+    }
     return dashboard;
-  }, [dashboard, session, sellers, salesMerged, shifts, staff]);
+  }, [dashboard, session, sellers, salesMerged, shifts, staff, adminDayKey]);
 
   const todayStoreSales = useMemo(() => {
     if (!session) {
       return [] as AdminSale[];
     }
-    const todayKey = todayKeyMoscow();
+    const todayKey = adminDayKey;
     const currentStoreName = session.user.storeName;
     const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
     return salesMerged.filter((sale) => {
       const saleStore = sellerStoreById.get(sale.sellerId);
       return saleStore === currentStoreName && calendarDayKeyMoscow(sale.createdAt) === todayKey;
     });
-  }, [salesMerged, sellers, session]);
+  }, [salesMerged, sellers, session, adminDayKey]);
 
   const todaySoldProducts = useMemo(() => {
     if (!session) {
       return [] as Array<{ name: string; qty: number }>;
     }
-    const todayKey = todayKeyMoscow();
+    const todayKey = adminDayKey;
     const currentStoreName = session.user.storeName;
     const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
     const qtyByProduct = new Map<string, number>();
@@ -1530,7 +1557,7 @@ function App() {
     return Array.from(qtyByProduct.entries())
       .map(([name, qty]) => ({ name, qty }))
       .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ru-RU'));
-  }, [salesMerged, sellers, session]);
+  }, [salesMerged, sellers, session, adminDayKey]);
 
   const directorCashflowPages = useMemo(() => {
     if (session?.user.role !== 'DIRECTOR') {
@@ -1603,18 +1630,30 @@ function App() {
       return (await response.json()) as DashboardResponse;
     };
     const role = session?.user?.role;
-    const desktopDashboardCache = roleUsesSyncCache(role) && session?.user?.id != null;
+    const uid = session?.user?.id;
+    const storeName = session?.user?.storeName;
+    const desktopDashboardCache = roleUsesSyncCache(role) && uid != null;
     try {
       if (desktopDashboardCache) {
-        const cachedFallback =
-          (await loadSyncCache<DashboardResponse>(session!.user.id, 'dashboard')) ??
-          (null as unknown as DashboardResponse);
+        const cached =
+          (await loadSyncCache<DashboardResponse>(uid!, 'dashboard')) ?? null;
+        const skeleton =
+          role === 'ADMIN' && storeName
+            ? buildEmptyDashboardSkeleton(storeName)
+            : null;
+        const immediate = cached ?? skeleton;
+        if (immediate) {
+          setDashboard(immediate);
+          if (!background) {
+            setDashboardLoading(false);
+          }
+        }
         const result = await loadSyncResource(
           API_BASE_URL,
-          session!.user.id,
+          uid!,
           'dashboard',
           fetcher,
-          cachedFallback,
+          immediate ?? (null as unknown as DashboardResponse),
           { onFresh: (data) => setDashboard(data), ...syncFreshGuard() },
         );
         if (result.data) {
@@ -1627,7 +1666,11 @@ function App() {
         setDashboard(await fetcher());
       }
     } catch {
-      setDashboard((current) => current);
+      if (role === 'ADMIN' && storeName && !dashboard) {
+        setDashboard(buildEmptyDashboardSkeleton(storeName));
+      } else {
+        setDashboard((current) => current);
+      }
     } finally {
       if (!background) {
         setDashboardLoading(false);
@@ -2671,6 +2714,10 @@ function App() {
         uid != null &&
         roleUsesSyncCache(role)
       ) {
+        const cached = await loadSyncCache<AdminSale[]>(uid, 'sales');
+        if (cached) {
+          setSales(cached);
+        }
         const result = await loadSyncResource(API_BASE_URL, uid, 'sales', fetcher, [], {
           onFresh: (data) => setSales(data),
           ...syncFreshGuard(),
@@ -3069,31 +3116,113 @@ function App() {
     }
   };
 
-  const requestSaleDelete = async (token: string, saleId: string) => {
-    setSalesNotice('');
-    const response = await fetch(`${API_BASE_URL}/admin/sales/delete-request`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ saleId }),
-    });
-    if (!response.ok) {
-      let message = 'Не удалось отправить запрос';
-      try {
-        const parsed = (await response.json()) as { message?: string | string[] };
-        if (typeof parsed.message === 'string') {
-          message = parsed.message;
-        }
-      } catch {
-        // ignore
+  const submitSaleDeleteWithReason = async (
+    sale: Pick<AdminSale, 'id' | 'sellerName' | 'totalAmount' | 'createdAt' | 'pendingSync' | 'items'>,
+    reason: string,
+  ) => {
+    const trimmed = reason.trim();
+    if (trimmed.length < 3) {
+      throw new Error('Укажите причину удаления (не короче 3 символов)');
+    }
+    if (!session?.token) {
+      throw new Error('Сессия не найдена');
+    }
+    const token = session.token;
+    const uid = session.user.id;
+    const storeName = session.user.storeName ?? '';
+    const dayKey = calendarDayKeyMoscow(sale.createdAt);
+    const journalBase = {
+      id: newClientId('sdj'),
+      saleId: sale.id,
+      sellerName: sale.sellerName,
+      amount: sale.totalAmount,
+      reason: trimmed,
+      createdAt: new Date().toISOString(),
+      storeName,
+      dayKey,
+    };
+
+    if (sale.pendingSync && uid !== undefined) {
+      const removed = await removeAdminSaleFromOutbox(uid, sale.id);
+      if (!removed) {
+        throw new Error('Продажа не найдена в очереди отправки');
       }
-      throw new Error(message);
+      await revertSaleStock(uid, removed);
+      const cachedSales = (await loadAdminCache<Array<{ id: string }>>(uid, 'sales')) ?? [];
+      await saveAdminCache(
+        uid,
+        'sales',
+        cachedSales.filter((row) => row.id !== sale.id),
+      );
+      await appendSaleDeleteJournal(uid, { ...journalBase, status: 'local_removed' });
+      setOfflineQueueTick((x) => x + 1);
+      await loadSales(token).catch(() => undefined);
+      setSalesNotice('Офлайн-продажа удалена локально.');
+      return;
+    }
+
+    const requestId = newClientId('sdel');
+    const createdAt = new Date().toISOString();
+    const payload = {
+      requestId,
+      saleId: sale.id,
+      reason: trimmed,
+      storeName,
+      sellerName: sale.sellerName,
+      totalAmount: sale.totalAmount,
+      items: sale.items ?? [],
+      createdAt,
+    };
+    const postDelete = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/sales/delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ saleId: sale.id, reason: trimmed }),
+      });
+      if (!response.ok) {
+        let message = 'Не удалось удалить продажу';
+        try {
+          const parsed = (await response.json()) as { message?: string | string[] };
+          if (typeof parsed.message === 'string') {
+            message = parsed.message;
+          }
+        } catch {
+          // ignore
+        }
+        throw new Error(message);
+      }
+    };
+
+    const adminOutbox = roleUsesAdminDesktopOutbox(session.user.role, isDesktopShell) && uid !== undefined;
+    if (adminOutbox) {
+      const mode = await runAdminMutation(uid, requestId, 'ADMIN_SALE_DELETE_REQUEST', payload, postDelete);
+      if (mode === 'queued') {
+        await appendSaleDeleteJournal(uid, { ...journalBase, status: 'pending_sync' });
+        setOfflineQueueTick((x) => x + 1);
+        await loadSales(token).catch(() => undefined);
+        await loadDashboard(token, { background: true }).catch(() => undefined);
+        setSalesNotice('Удаление сохранено офлайн — отправится при подключении.');
+        return;
+      }
+    } else {
+      await postDelete();
+    }
+
+    if (uid !== undefined) {
+      const cachedSales = (await loadAdminCache<Array<{ id: string }>>(uid, 'sales')) ?? [];
+      await saveAdminCache(
+        uid,
+        'sales',
+        cachedSales.filter((row) => row.id !== sale.id),
+      );
+      await appendSaleDeleteJournal(uid, { ...journalBase, status: 'deleted' });
     }
     await loadSales(token);
-    await loadDashboard(token);
-    setSalesNotice('Запрос на отмену продажи отправлен директору.');
+    await loadDashboard(token, { background: true }).catch(() => undefined);
+    setSalesNotice('Продажа удалена.');
   };
 
   const updateSalePaymentType = async (
@@ -3222,15 +3351,46 @@ function App() {
         }
       }
 
+      const reportDayKey = adminDayKey;
+      let deletedSalesForReport: Array<{
+        sellerName: string;
+        amount: number;
+        reason: string;
+        statusLabel: string;
+        deletedAt: string;
+      }> = [];
+
+      if (userId !== undefined) {
+        const journal = await listSaleDeleteJournal(userId, session.user.storeName, reportDayKey);
+        deletedSalesForReport = journal.map((entry) => ({
+          sellerName: entry.sellerName,
+          amount: entry.amount,
+          reason: entry.reason,
+          statusLabel:
+            entry.status === 'local_removed'
+              ? 'Удалено локально'
+              : entry.status === 'pending_sync'
+                ? 'Ожидает отправки'
+                : 'Удалено',
+          deletedAt: new Date(entry.createdAt).toLocaleString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        }));
+      }
+
       const reportData = buildStoreDayReportData({
         storeName: session.user.storeName,
-        dayKey: todayKeyMoscow(),
+        dayKey: reportDayKey,
         sales: reportSales,
         sellers: reportSellers,
         staff: reportStaff,
         shifts: reportShifts,
         acquiringProfiles: profiles,
         managerStoreCommissions: managerCommissions,
+        deletedSales: deletedSalesForReport,
       });
       const saveResult = await downloadStoreDayReportXlsx(reportData);
       if (saveResult === 'cancelled') {
@@ -3258,33 +3418,6 @@ function App() {
     } finally {
       setDayReportBusy(false);
     }
-  };
-
-  const deleteOfflinePendingSale = async (saleId: string, pin: string) => {
-    setSalesNotice('');
-    if (!verifyOfflineSaleDeletePin(pin)) {
-      throw new Error('Неверный пароль');
-    }
-    const uid = session?.user?.id;
-    if (uid === undefined) {
-      throw new Error('Сессия не найдена');
-    }
-    let removed: OfflineQueuedSale | null = null;
-    if (session?.user?.role === 'ADMIN') {
-      removed = await removeAdminSaleFromOutbox(uid, saleId);
-    } else {
-      removed = removeOfflineSale(uid, saleId);
-    }
-    if (!removed) {
-      throw new Error('Продажа не найдена в очереди отправки');
-    }
-    if (session?.user?.role === 'ADMIN') {
-      await revertSaleStock(uid, removed);
-    }
-    setOfflineQueueTick((x) => x + 1);
-    setOfflineDeleteSaleId(null);
-    setOfflineDeletePin('');
-    setSalesNotice('Офлайн-продажа удалена. Когда появится сеть, на сервер она не попадёт.');
   };
 
   const openShift = async (token: string, assignedSellerIds: number[]) => {
@@ -3586,6 +3719,7 @@ function App() {
         cachedProcurement,
         cachedAcquiring,
         cachedManagerCommissions,
+        cachedDashboard,
       ] = await Promise.all([
         loadAdminCache<SellerProfile[]>(uid, 'sellers'),
         loadAdminCache<ProductItem[]>(uid, 'products'),
@@ -3596,6 +3730,7 @@ function App() {
         loadAdminCache<ProductProcurementCost[]>(uid, 'procurementCosts'),
         loadAdminCache<AcquiringProfile[]>(uid, 'acquiringProfiles'),
         loadAdminCache<ManagerStoreCommissionRow[]>(uid, 'managerStoreCommissions'),
+        loadAdminCache<DashboardResponse>(uid, 'dashboard'),
       ]);
       if (cachedSellers) {
         setSellers(cachedSellers);
@@ -3624,6 +3759,12 @@ function App() {
       if (cachedManagerCommissions?.length) {
         setManagerStoreCommissions(cachedManagerCommissions);
       }
+      if (cachedDashboard) {
+        setDashboard(cachedDashboard);
+      } else {
+        setDashboard(buildEmptyDashboardSkeleton(data.user.storeName));
+      }
+      setDashboardLoading(false);
     }
   };
 
@@ -3641,9 +3782,10 @@ function App() {
     } else if (roleUsesSyncCache(data.user.role)) {
       await hydrateRoleCacheForUser(data);
     }
-    const dashboardLoaded = await loadDashboardWithRetry(data.token);
-    if (!dashboardLoaded) {
-      setAdminError('Вход выполнен, но сводка загрузится с задержкой. Нажмите «Обновить данные».');
+    void loadDashboardWithRetry(data.token).catch(() => undefined);
+    if (!dashboard && data.user.role === 'ADMIN') {
+      setDashboard(buildEmptyDashboardSkeleton(data.user.storeName));
+      setDashboardLoading(false);
     }
     if (isDesktopShell) {
       setAdminError('');
@@ -4403,6 +4545,67 @@ function App() {
                           {dayReportNotice ? (
                             <p className="notice homeDayReportNotice">{dayReportNotice}</p>
                           ) : null}
+                          {homeDashboard.role === 'ADMIN' && opsDayUnlockOpen ? (
+                            <form
+                              className="opsDayUnlockBar"
+                              onSubmit={(event) => {
+                                event.preventDefault();
+                                if (verifyOpsDayUnlockPin(opsDayUnlockDraft)) {
+                                  writeOpsDayUnlock(true);
+                                  setOpsDayUnlocked(true);
+                                  setOpsDayUnlockOpen(false);
+                                  setOpsDayUnlockDraft('');
+                                  return;
+                                }
+                                setOpsDayUnlockDraft('');
+                              }}
+                            >
+                              <input
+                                className="opsDayUnlockInput"
+                                type="password"
+                                autoComplete="off"
+                                placeholder="Код"
+                                value={opsDayUnlockDraft}
+                                onChange={(event) => setOpsDayUnlockDraft(event.target.value)}
+                              />
+                            </form>
+                          ) : null}
+                          {homeDashboard.role === 'ADMIN' && opsDayUnlocked ? (
+                            <div className="adminViewDayStrip" aria-label="День просмотра">
+                              <button
+                                type="button"
+                                className="ghost adminViewDayNav"
+                                onClick={() => {
+                                  const prev = new Date(`${adminViewDayKey}T12:00:00`);
+                                  prev.setDate(prev.getDate() - 1);
+                                  setAdminViewDayKey(calendarDayKeyMoscow(prev.toISOString()));
+                                }}
+                              >
+                                ‹
+                              </button>
+                              <input
+                                className="adminViewDayInput"
+                                type="date"
+                                value={adminViewDayKey}
+                                max={todayKeyMoscow()}
+                                onChange={(event) => setAdminViewDayKey(event.target.value)}
+                              />
+                              <button
+                                type="button"
+                                className="ghost adminViewDayNav"
+                                onClick={() => {
+                                  const next = new Date(`${adminViewDayKey}T12:00:00`);
+                                  next.setDate(next.getDate() + 1);
+                                  const key = calendarDayKeyMoscow(next.toISOString());
+                                  if (key <= todayKeyMoscow()) {
+                                    setAdminViewDayKey(key);
+                                  }
+                                }}
+                              >
+                                ›
+                              </button>
+                            </div>
+                          ) : null}
                           {homeDashboard.role === 'DIRECTOR' && session ? (
                             <DirectorHomeApprovalsCarousel
                               token={session.token}
@@ -4479,7 +4682,18 @@ function App() {
                                 <article key={store.name} className="homeStoreCard">
                                   <dl className="homeStoreDl">
                                     <div className="homeStoreRow">
-                                      <dt>Выручка</dt>
+                                      <dt
+                                        className="adminHomeMetricTap"
+                                        onClick={() => {
+                                          adminMetricTapRef.current += 1;
+                                          if (adminMetricTapRef.current >= 5) {
+                                            adminMetricTapRef.current = 0;
+                                            setOpsDayUnlockOpen((open) => !open);
+                                          }
+                                        }}
+                                      >
+                                        Выручка
+                                      </dt>
                                       <dd>{store.revenue}</dd>
                                     </div>
                                     <div className="homeStoreRow">
@@ -4937,47 +5151,21 @@ function App() {
                                           </span>
                                         )}
                                         <span className="saleHeaderTrailing">
-                                          {role === 'ADMIN' && sale.pendingSync ? (
-                                            <button
-                                              type="button"
-                                              className="saleDeleteBtn saleDeleteBtn--offline"
-                                              title="Удалить офлайн-продажу (нужен пароль)"
-                                              aria-label="Удалить офлайн-продажу"
-                                              onClick={() => {
-                                                setSalesNotice('');
-                                                setOfflineDeletePin('');
-                                                setOfflineDeleteSaleId(sale.id);
-                                              }}
-                                            >
-                                              <svg
-                                                className="saleDeleteBtnIcon"
-                                                viewBox="0 0 24 24"
-                                                width="16"
-                                                height="16"
-                                                aria-hidden
-                                              >
-                                                <path
-                                                  fill="currentColor"
-                                                  d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 5h2v10h-2V8zm4 0h2v10h-2V8zM6 8h12v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8z"
-                                                />
-                                              </svg>
-                                            </button>
-                                          ) : role === 'ADMIN' && !sale.pendingSync ? (
+                                          {role === 'ADMIN' ? (
                                             <button
                                               type="button"
                                               className="saleDeleteBtn"
-                                              title="Запросить у директора удаление этой продажи"
-                                              aria-label="Запросить у директора удаление этой продажи"
+                                              title="Удалить продажу"
+                                              aria-label="Удалить продажу"
                                               onClick={() => {
-                                                void (async () => {
-                                                  try {
-                                                    await requestSaleDelete(session.token, sale.id);
-                                                  } catch (e) {
-                                                    setSalesNotice(
-                                                      e instanceof Error ? e.message : 'Не удалось отправить запрос',
-                                                    );
-                                                  }
-                                                })();
+                                                setSalesNotice('');
+                                                setSaleDeleteReason('');
+                                                setSaleDeleteTarget({
+                                                  id: sale.id,
+                                                  pendingSync: Boolean(sale.pendingSync),
+                                                  sellerName: sale.sellerName,
+                                                  amount: sale.totalAmount,
+                                                });
                                               }}
                                             >
                                               <svg
@@ -4999,13 +5187,13 @@ function App() {
                                           </span>
                                         </span>
                                       </p>
-                                      {offlineDeleteSaleId === sale.id ? (
+                                      {saleDeleteTarget?.id === sale.id ? (
                                         <form
                                           className="offlineSaleDeleteBar"
                                           onSubmit={(event) => {
                                             event.preventDefault();
-                                            setOfflineDeleteBusy(true);
-                                            void deleteOfflinePendingSale(sale.id, offlineDeletePin)
+                                            setSaleDeleteBusy(true);
+                                            void submitSaleDeleteWithReason(sale, saleDeleteReason)
                                               .catch((err) => {
                                                 setSalesNotice(
                                                   err instanceof Error
@@ -5013,38 +5201,43 @@ function App() {
                                                     : 'Не удалось удалить продажу',
                                                 );
                                               })
-                                              .finally(() => setOfflineDeleteBusy(false));
+                                              .finally(() => {
+                                                setSaleDeleteBusy(false);
+                                                setSaleDeleteTarget(null);
+                                                setSaleDeleteReason('');
+                                              });
                                           }}
                                         >
                                           <p className="offlineSaleDeleteBarHint">
-                                            Продажа ещё не на сервере. Введите пароль удаления.
+                                            {sale.pendingSync
+                                              ? 'Продажа ещё не на сервере. Укажите причину удаления.'
+                                              : 'Укажите причину удаления продажи.'}
                                           </p>
                                           <div className="offlineSaleDeleteBarRow">
                                             <input
                                               className="offlineSaleDeleteBarInput"
-                                              type="password"
-                                              inputMode="numeric"
+                                              type="text"
                                               autoComplete="off"
                                               autoFocus
-                                              placeholder="Пароль"
-                                              value={offlineDeletePin}
-                                              disabled={offlineDeleteBusy}
-                                              onChange={(event) => setOfflineDeletePin(event.target.value)}
+                                              placeholder="Причина удаления"
+                                              value={saleDeleteReason}
+                                              disabled={saleDeleteBusy}
+                                              onChange={(event) => setSaleDeleteReason(event.target.value)}
                                             />
                                             <button
                                               type="submit"
                                               className="primaryAction offlineSaleDeleteBarConfirm"
-                                              disabled={offlineDeleteBusy || !offlineDeletePin.trim()}
+                                              disabled={saleDeleteBusy || saleDeleteReason.trim().length < 3}
                                             >
-                                              {offlineDeleteBusy ? '…' : 'Удалить'}
+                                              {saleDeleteBusy ? '…' : 'Удалить'}
                                             </button>
                                             <button
                                               type="button"
                                               className="ghost offlineSaleDeleteBarCancel"
-                                              disabled={offlineDeleteBusy}
+                                              disabled={saleDeleteBusy}
                                               onClick={() => {
-                                                setOfflineDeleteSaleId(null);
-                                                setOfflineDeletePin('');
+                                                setSaleDeleteTarget(null);
+                                                setSaleDeleteReason('');
                                               }}
                                             >
                                               Отмена
@@ -6042,6 +6235,8 @@ function DirectorHomeApprovalsCarousel({
       }
       return (await response.json()) as DirectorControlRequest[];
     };
+    const applyItems = (rows: DirectorControlRequest[]) =>
+      rows.filter((row) => row.kind === 'WRITE_OFF');
     if (userId !== undefined) {
       const result = await loadSyncResource(
         API_BASE_URL,
@@ -6049,13 +6244,13 @@ function DirectorHomeApprovalsCarousel({
         'controlRequests',
         fetcher,
         [],
-        { onFresh: (data) => setItems(data) },
+        { onFresh: (data) => setItems(applyItems(data)) },
       );
-      setItems(result.data);
+      setItems(applyItems(result.data));
       return;
     }
     try {
-      setItems(await fetcher());
+      setItems(applyItems(await fetcher()));
     } catch {
       /* keep cached items */
     }
@@ -6182,14 +6377,8 @@ function DirectorHomeApprovalsCarousel({
 
   const renderApprovalCard = (item: DirectorControlRequest) => (
     <article className="directorApprovalsCarouselCard" key={item.id}>
-      <p className="directorApprovalsCarouselKind">
-        {item.kind === 'SALE_DELETE' ? 'Отмена продажи' : 'Списание товара'}
-      </p>
-      <p className="directorApprovalsCarouselSummary">
-        {item.kind === 'SALE_DELETE'
-          ? formatSaleDeleteApprovalSummary(item)
-          : item.summary}
-      </p>
+      <p className="directorApprovalsCarouselKind">Списание товара</p>
+      <p className="directorApprovalsCarouselSummary">{item.summary}</p>
       <p className="directorApprovalsCarouselMeta">{formatApprovalTime(item.createdAt)}</p>
       <div className="directorApprovalsCarouselActions">
         <button
