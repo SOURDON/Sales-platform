@@ -10,7 +10,7 @@ const OFFLINE_AFTER_FAILURES = 3;
 const PROBE_TIMEOUT_MS = 8_000;
 const DEFAULT_POLL_MS = 300_000;
 
-let lastApiSuccessAt = Date.now();
+let lastApiSuccessAt = 0;
 let consecutiveProbeFailures = 0;
 let displayedReachable = true;
 
@@ -54,10 +54,22 @@ export function markApiReachableSuccess(): void {
 }
 
 export function resetApiReachabilityCache(): void {
-  lastApiSuccessAt = Date.now();
+  lastApiSuccessAt = 0;
   consecutiveProbeFailures = 0;
   displayedReachable = true;
   reconcileDisplayedReachability();
+}
+
+/** Сразу проверить /health и обновить плашку связи (при старте приложения). */
+export async function bootstrapReachability(apiBaseUrl: string): Promise<boolean> {
+  const ok = await probeHealth(apiBaseUrl, 6_000);
+  if (ok) {
+    markApiReachableSuccess();
+    return true;
+  }
+  consecutiveProbeFailures = OFFLINE_AFTER_FAILURES;
+  reconcileDisplayedReachability();
+  return false;
 }
 
 export function getApiReachableDisplayed(): boolean {
@@ -200,7 +212,8 @@ export function subscribeNetwork(
     reconcileDisplayedReachability();
   };
 
-  emit(true);
+  emit(displayedReachable);
+  void runCheck();
   const initialProbeDelay = window.setTimeout(() => void runCheck(), 2_500);
   window.addEventListener('online', onNavigatorOnline);
   window.addEventListener('offline', onNavigatorOffline);

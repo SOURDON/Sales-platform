@@ -7,6 +7,13 @@
 		reverse_proxy api:3000
 	}
 
+	@sw path /sw.js
+	handle @sw {
+		root * /srv/www
+		header Cache-Control "no-cache, no-store, must-revalidate"
+		file_server
+	}
+
 	handle {
 		root * /srv/www
 		try_files {path} /index.html

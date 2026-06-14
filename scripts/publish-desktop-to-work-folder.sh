@@ -8,9 +8,9 @@ source "$REPO/scripts/lib/desktop-work-dir.sh"
 
 mkdir -p "$DESKTOP_WORK_DIR"
 
-DMG="$(ls -t "$REPO/desktop/dist/"Fotografy_*.dmg 2>/dev/null | head -1 || true)"
+DMG="$(ls -t "$REPO"/desktop/dist/Fotografy_*.dmg "$REPO"/desktop/releases/Fotografy_*.dmg 2>/dev/null | head -1 || true)"
 if [[ -z "$DMG" ]]; then
-  echo "Нет .dmg в $REPO/desktop/dist/ — сначала: bash scripts/desktop-build-timeweb.sh"
+  echo "Нет .dmg в $REPO/desktop/dist/ или desktop/releases/ — сначала: bash scripts/desktop-build-timeweb.sh"
   exit 1
 fi
 

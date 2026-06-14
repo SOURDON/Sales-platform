@@ -1,12 +1,27 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { spawnSync } from 'node:child_process'
+import { resolve } from 'node:path'
 
 const tauriHost = process.env.TAURI_DEV_HOST
 const isTauri = Boolean(process.env.TAURI_ENV_PLATFORM ?? process.env.TAURI_CLI_VERBOSITY)
 
+function injectServiceWorkerPrecache() {
+  return {
+    name: 'inject-sw-precache',
+    closeBundle() {
+      const script = resolve(__dirname, 'scripts/inject-sw-precache.mjs')
+      const result = spawnSync(process.execPath, [script], { stdio: 'inherit' })
+      if (result.status !== 0) {
+        throw new Error('inject-sw-precache failed')
+      }
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), injectServiceWorkerPrecache()],
   clearScreen: !isTauri,
   envPrefix: ['VITE_', 'TAURI_ENV_'],
   server: {

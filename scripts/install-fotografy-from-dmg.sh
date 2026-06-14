@@ -6,7 +6,7 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=lib/desktop-work-dir.sh
 source "$REPO/scripts/lib/desktop-work-dir.sh"
 DEST="${1:-$DESKTOP_WORK_DIR/Fotografy.app}"
-DMG="$(ls -t "$REPO"/desktop/dist/Fotografy_*.dmg 2>/dev/null | head -1)"
+DMG="$(ls -t "$REPO"/desktop/dist/Fotografy_*.dmg "$REPO"/desktop/releases/Fotografy_*.dmg 2>/dev/null | head -1)"
 
 if [[ -z "$DMG" ]]; then
   echo "Нет .dmg в $REPO/desktop/dist/"

@@ -34,12 +34,8 @@ export function useDesktopConnection(
 
   const online =
     apiReachable !== undefined
-      ? trustApiOnly
-        ? apiReachable
-        : apiReachable && navigatorOnline
-      : trustApiOnly
-        ? true
-        : navigatorOnline;
+      ? apiReachable && navigatorOnline
+      : navigatorOnline;
 
   return { online, syncing };
 }

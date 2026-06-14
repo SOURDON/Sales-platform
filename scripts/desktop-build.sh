@@ -48,6 +48,7 @@ find_bundle_artifact() {
   local pattern="$2"
   local -a roots=(
     "$REPO/desktop/src-tauri/target"
+    "$REPO/desktop/releases"
     "${CARGO_TARGET_DIR:-}"
   )
   local root dmg

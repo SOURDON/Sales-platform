@@ -743,73 +743,86 @@ function addPaymentMixBlock(sheet: ExcelJS.Worksheet, startRow: number, data: St
   }
 }
 
-function addDeletedSalesBlock(
+function addDeletedSalesSidePanel(
   sheet: ExcelJS.Worksheet,
-  startRow: number,
+  tableHeaderRow: number,
+  colHeaderRow: number,
+  tableRows: number,
   rows: StoreDayReportDeletedSaleRow[],
-): number {
-  sheet.mergeCells(`A${startRow}:L${startRow}`);
-  const title = sheet.getCell(`A${startRow}`);
+): void {
+  sheet.mergeCells(tableHeaderRow, 9, tableHeaderRow, 12);
+  const title = sheet.getCell(tableHeaderRow, 9);
   title.value = 'Удалённые продажи';
   title.font = { bold: true, size: 10, color: { argb: C.sectionText } };
   title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.sectionBg } };
   title.alignment = { horizontal: 'center', vertical: 'middle' };
-  sheet.getRow(startRow).height = 16;
+  sheet.getRow(tableHeaderRow).height = 17;
 
-  const headerRow = startRow + 1;
-  const headers = ['Продавец', 'Сумма', 'Причина', 'Статус', 'Время'];
-  const colSpans = [3, 2, 4, 2, 1];
-  let col = 1;
-  headers.forEach((label, idx) => {
-    const span = colSpans[idx];
-    if (span > 1) {
-      sheet.mergeCells(headerRow, col, headerRow, col + span - 1);
-    }
-    const cell = sheet.getCell(headerRow, col);
-    cell.value = label;
+  sheet.getCell(colHeaderRow, 9).value = 'Продавец';
+  sheet.mergeCells(colHeaderRow, 10, colHeaderRow, 11);
+  sheet.getCell(colHeaderRow, 10).value = 'Сумма';
+  sheet.getCell(colHeaderRow, 12).value = 'Причина';
+  for (const col of [9, 10, 12]) {
+    const cell = sheet.getCell(colHeaderRow, col);
     cell.font = { bold: true, size: 9, color: { argb: C.headerText } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.headerBg } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    col += span;
-  });
-  sheet.getRow(headerRow).height = 15;
+  }
+  sheet.getRow(colHeaderRow).height = 16;
 
-  let rowNum = headerRow + 1;
+  const bodyRows = Math.max(tableRows, rows.length > 0 ? rows.length : 1);
   let totalDeleted = 0;
-  rows.forEach((row, idx) => {
-    const bg = idx % 2 === 0 ? C.rowNormalA : C.rowNormalB;
-    sheet.mergeCells(rowNum, 1, rowNum, 3);
-    sheet.mergeCells(rowNum, 4, rowNum, 5);
-    sheet.mergeCells(rowNum, 6, rowNum, 9);
-    sheet.mergeCells(rowNum, 10, rowNum, 11);
-    sheet.getCell(rowNum, 1).value = row.sellerName;
-    rubCell(sheet.getCell(rowNum, 4), row.amount, { color: C.rowText, size: 9 });
-    sheet.getCell(rowNum, 6).value = row.reason;
-    sheet.getCell(rowNum, 10).value = row.statusLabel;
-    sheet.getCell(rowNum, 12).value = row.deletedAt;
-    fillRange(sheet, `A${rowNum}:L${rowNum}`, bg);
-    borderRange(sheet, `A${rowNum}:L${rowNum}`);
-    for (const addr of [`A${rowNum}`, `D${rowNum}`, `F${rowNum}`, `J${rowNum}`, `L${rowNum}`]) {
-      const cell = sheet.getCell(addr);
-      cell.font = { size: 9, color: { argb: C.rowText } };
-      cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+
+  for (let i = 0; i < bodyRows; i += 1) {
+    const rowNum = colHeaderRow + 1 + i;
+    const entry = rows[i];
+    const bg = i % 2 === 0 ? C.rowNormalA : C.rowNormalB;
+
+    if (entry) {
+      sheet.getCell(rowNum, 9).value = entry.sellerName;
+      rubCell(sheet.getCell(rowNum, 10), entry.amount, { color: C.rowText, size: 9 });
+      sheet.mergeCells(rowNum, 10, rowNum, 11);
+      sheet.getCell(rowNum, 12).value = entry.reason;
+      totalDeleted += entry.amount;
+    } else if (rows.length === 0 && i === 0) {
+      sheet.mergeCells(rowNum, 9, rowNum, 12);
+      sheet.getCell(rowNum, 9).value = 'Нет удалённых продаж';
+      sheet.getCell(rowNum, 9).font = { size: 9, color: { argb: C.muted } };
+      sheet.getCell(rowNum, 9).alignment = { horizontal: 'center', vertical: 'middle' };
     }
-    sheet.getRow(rowNum).height = 16;
-    totalDeleted += row.amount;
-    rowNum += 1;
-  });
 
-  sheet.mergeCells(rowNum, 1, rowNum, 3);
-  sheet.mergeCells(rowNum, 4, rowNum, 5);
-  sheet.mergeCells(rowNum, 6, rowNum, 12);
-  sheet.getCell(rowNum, 1).value = 'Итого удалено';
-  sheet.getCell(rowNum, 1).font = { bold: true, size: 9, color: { argb: C.totalText } };
-  rubCell(sheet.getCell(rowNum, 4), totalDeleted, { color: C.totalText, size: 9, bold: true });
-  fillRange(sheet, `A${rowNum}:L${rowNum}`, C.totalBg);
-  borderRange(sheet, `A${rowNum}:L${rowNum}`, C.borderDark);
-  sheet.getRow(rowNum).height = 15;
+    fillRange(sheet, `I${rowNum}:L${rowNum}`, bg);
+    borderRange(sheet, `I${rowNum}:L${rowNum}`);
+    if (entry) {
+      for (const col of [9, 10, 12]) {
+        const cell = sheet.getCell(rowNum, col);
+        cell.font = { size: 9, color: { argb: C.rowText } };
+        cell.alignment = {
+          horizontal: col === 12 ? 'left' : 'center',
+          vertical: 'middle',
+          wrapText: true,
+        };
+      }
+    }
+    sheet.getRow(rowNum).height = entry ? 16 : 14;
+  }
 
-  return rowNum + 2;
+  if (rows.length > 0) {
+    const totalRow = colHeaderRow + 1 + bodyRows;
+    sheet.mergeCells(totalRow, 9, totalRow, 11);
+    sheet.getCell(totalRow, 9).value = 'Итого';
+    sheet.getCell(totalRow, 9).font = { bold: true, size: 9, color: { argb: C.totalText } };
+    rubCell(sheet.getCell(totalRow, 10), totalDeleted, {
+      color: C.totalText,
+      size: 9,
+      bold: true,
+    });
+    sheet.getCell(totalRow, 12).value = `${rows.length} шт.`;
+    sheet.getCell(totalRow, 12).font = { bold: true, size: 9, color: { argb: C.totalText } };
+    fillRange(sheet, `I${totalRow}:L${totalRow}`, C.totalBg);
+    borderRange(sheet, `I${totalRow}:L${totalRow}`, C.borderDark);
+    sheet.getRow(totalRow).height = 15;
+  }
 }
 
 export async function downloadStoreDayReportXlsx(data: StoreDayReportData): Promise<SaveXlsxResult> {
@@ -930,6 +943,13 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData): Prom
   sheet.getRow(colHeaderRow).height = 16;
 
   const tableRows = Math.max(data.sellers.length, data.products.length, 1);
+  addDeletedSalesSidePanel(
+    sheet,
+    tableHeaderRow,
+    colHeaderRow,
+    tableRows,
+    data.deletedSales ?? [],
+  );
   let totalSales = 0;
   let totalSellerSalary = 0;
   let totalQty = 0;
@@ -1036,9 +1056,6 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData): Prom
   });
 
   let footerRow = payRow + payLines.length;
-  if (data.deletedSales && data.deletedSales.length > 0) {
-    footerRow = addDeletedSalesBlock(sheet, footerRow + 1, data.deletedSales);
-  }
 
   sheet.mergeCells(`A${footerRow}:L${footerRow}`);
   const footerParts = [
@@ -1051,6 +1068,9 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData): Prom
   }
   if (data.retoucher) {
     footerParts.push(`Ретушёр: ${rubPlain(data.retoucher.salaryRub)}`);
+  }
+  if (data.deletedSales && data.deletedSales.length > 0) {
+    footerParts.push(`Удалено продаж: ${data.deletedSales.length}`);
   }
   const footerCell = sheet.getCell(`A${footerRow}`);
   footerCell.value = footerParts.join(' · ');

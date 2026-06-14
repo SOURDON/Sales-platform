@@ -53,6 +53,14 @@ import {
 } from './offlineSalesQueue';
 import { appendSaleDeleteJournal, listSaleDeleteJournal } from './saleDeleteJournal';
 import {
+  isOfflineLoginFetchError,
+  isOfflineLoginMode,
+  OFFLINE_ADMIN_LOGIN_HINT,
+  readLastOfflineNickname,
+  saveOfflineLoginCred,
+  tryOfflineAdminLogin,
+} from './offlineLogin';
+import {
   readOpsDayUnlock,
   verifyOpsDayUnlockPin,
   writeOpsDayUnlock,
@@ -75,6 +83,7 @@ import {
   listOutboxForUser,
   installApiReachabilityHook,
   markApiReachableSuccess,
+  bootstrapReachability,
   subscribeNetwork,
   roleUsesSyncCache,
   roleUsesSyncEngine,
@@ -1106,7 +1115,7 @@ function App() {
   const location = useLocation();
   const restoredSession = useMemo(() => readStoredSession(), []);
   const restoredPersistence = useMemo(() => readSessionPersistence(), []);
-  const [nickname, setNickname] = useState('');
+  const [nickname, setNickname] = useState(() => readLastOfflineNickname());
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(restoredPersistence === 'local');
   const [loading, setLoading] = useState(false);
@@ -1134,7 +1143,9 @@ function App() {
   const [outboxSyncing, setOutboxSyncing] = useState(false);
   const [outboxPendingCount, setOutboxPendingCount] = useState(0);
   const [equipmentRefreshKey, setEquipmentRefreshKey] = useState(0);
-  const [apiReachable, setApiReachable] = useState(true);
+  const [apiReachable, setApiReachable] = useState(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  );
   const isDesktopShell = isTauriRuntime();
   const [desktopTheme, setDesktopTheme] = useState<DesktopTheme>(() =>
     isTauriRuntime() ? getStoredDesktopTheme() : 'dark',
@@ -1185,12 +1196,34 @@ function App() {
     void import('./web/webMobileIos.css');
   }, [isDesktopShell]);
 
-  const usesSyncEngine = roleUsesSyncEngine(session?.user?.role, isDesktopShell);
-  const desktopConnection = useDesktopConnection(
-    outboxSyncing,
-    usesSyncEngine || isDesktopShell ? apiReachable : undefined,
-    { trustApiOnly: isDesktopShell },
-  );
+  useEffect(() => {
+    if (!isDesktopShell) {
+      return;
+    }
+    let backupModule: typeof import('./desktop/desktopLocalBackup') | null = null;
+    void import('./desktop/desktopLocalBackup').then((module) => {
+      backupModule = module;
+    });
+    const flush = () => {
+      void backupModule?.flushDesktopLocalBackup();
+    };
+    const timer = window.setInterval(flush, 5 * 60 * 1000);
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') {
+        flush();
+      }
+    };
+    window.addEventListener('beforeunload', flush);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('beforeunload', flush);
+      document.removeEventListener('visibilitychange', onHide);
+      flush();
+    };
+  }, [isDesktopShell]);
+
+  const desktopConnection = useDesktopConnection(outboxSyncing, apiReachable);
 
   useEffect(() => {
     if (!API_BASE_URL) {
@@ -1198,6 +1231,18 @@ function App() {
     }
     return installApiReachabilityHook(API_BASE_URL);
   }, []);
+
+  useEffect(() => {
+    if (!API_BASE_URL || !isDesktopShell) {
+      return;
+    }
+    void bootstrapReachability(API_BASE_URL).then((ok) => setApiReachable(ok));
+    const net = subscribeNetwork(API_BASE_URL, setApiReachable, {
+      ignoreNavigatorOffline: false,
+      pollMs: 90_000,
+    });
+    return () => net.dispose();
+  }, [isDesktopShell]);
   const [commissionRequests, setCommissionRequests] = useState<CommissionRequest[]>([]);
   const [shifts, setShifts] = useState<ShiftInfo[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -1259,7 +1304,8 @@ function App() {
       return;
     }
     const net = subscribeNetwork(API_BASE_URL, setApiReachable, {
-      ignoreNavigatorOffline: true,
+      ignoreNavigatorOffline: false,
+      pollMs: 90_000,
     });
     return () => net.dispose();
   }, [isDesktopShell, session?.token, session?.user?.role]);
@@ -3958,15 +4004,42 @@ function App() {
     }
     setLoading(true);
 
-    try {
-      const data = await loginWithNicknamePassword(nickname, password);
-      setApiReachable(true);
+    const enterWithSession = async (data: LoginResponse, fromOffline: boolean) => {
+      if (fromOffline) {
+        setApiReachable(false);
+      } else {
+        setApiReachable(true);
+        if (data.user.role === 'ADMIN') {
+          saveOfflineLoginCred(nickname, password, data);
+        }
+      }
       writeDirectorRootSession(null);
       setDirectorRootSession(null);
       setPassword('');
+      setError('');
       navigate('/home', { replace: true });
       await bootstrapLoggedInUser(data);
+    };
+
+    try {
+      const offlineAdmin = tryOfflineAdminLogin(nickname, password);
+      if (offlineAdmin) {
+        await enterWithSession(offlineAdmin, isOfflineLoginMode());
+        return;
+      }
+      if (isOfflineLoginMode()) {
+        setError(OFFLINE_ADMIN_LOGIN_HINT);
+        return;
+      }
+
+      const data = await loginWithNicknamePassword(nickname, password);
+      await enterWithSession(data, false);
     } catch (e) {
+      const offlineAdmin = isOfflineLoginFetchError(e) ? tryOfflineAdminLogin(nickname, password) : null;
+      if (offlineAdmin) {
+        await enterWithSession(offlineAdmin, true);
+        return;
+      }
       setSession(null);
       setDashboard(null);
       setSellers([]);
@@ -3980,10 +4053,14 @@ function App() {
       setAcquiringProfiles(defaultAcquiringProfiles());
       setInventoryOverview(null);
       setStoreInventory(null);
-      setError(describeLoginFetchError(e));
-      window.localStorage.removeItem(SESSION_STORAGE_KEY);
-      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
-      window.localStorage.removeItem(SESSION_PERSISTENCE_KEY);
+      setError(
+        isOfflineLoginFetchError(e) ? OFFLINE_ADMIN_LOGIN_HINT : describeLoginFetchError(e),
+      );
+      if (!isOfflineLoginFetchError(e)) {
+        window.localStorage.removeItem(SESSION_STORAGE_KEY);
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        window.localStorage.removeItem(SESSION_PERSISTENCE_KEY);
+      }
     } finally {
       setLoading(false);
     }
@@ -4036,6 +4113,7 @@ function App() {
   }, [rememberMe, session]);
 
   const webSessionBootstrappedRef = useRef<string | null>(null);
+  const desktopSessionBootstrappedRef = useRef<string | null>(null);
   const postFlushRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -4262,6 +4340,19 @@ function App() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- один прогон при входе / смене роли
   }, [isDesktopShell, session?.token, session?.user?.role]);
+
+  useEffect(() => {
+    if (!isDesktopShell || !session?.token) {
+      return;
+    }
+    const bootKey = `${session.user.id ?? 'x'}:${session.user.role}`;
+    if (desktopSessionBootstrappedRef.current === bootKey) {
+      return;
+    }
+    desktopSessionBootstrappedRef.current = bootKey;
+    void bootstrapLoggedInUser(session);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- один прогон при восстановлении сессии
+  }, [isDesktopShell, session?.token, session?.user?.id, session?.user?.role]);
 
   /** Тяжёлые разделы — грузим по переходу с TTL, без дублирования параллельных запросов. */
   useEffect(() => {

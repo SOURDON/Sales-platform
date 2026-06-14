@@ -8,22 +8,29 @@ import { installIosVisualViewportHeightVar } from './iosVisualViewportHeight'
 
 installIosVisualViewportHeightVar()
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </StrictMode>,
-)
-
+const rootEl = document.getElementById('root')
 const isTauriShell =
   typeof window !== 'undefined' &&
   ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
 
-if ('serviceWorker' in navigator && !isTauriShell) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((error) => {
-      console.error('Service worker registration failed:', error)
-    })
-  })
+async function startApp() {
+  if (isTauriShell) {
+    const backup = await import('./desktop/desktopLocalBackup')
+    await backup.ensureDesktopLocalDataRestored()
+    void backup.flushDesktopLocalBackup()
+  }
+
+  if (!rootEl) {
+    return
+  }
+
+  createRoot(rootEl).render(
+    <StrictMode>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </StrictMode>,
+  )
 }
+
+void startApp()

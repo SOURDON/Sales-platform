@@ -1,9 +1,15 @@
-// Bump when shell caching logic changes; avoids stale SW breaking API calls.
-const CACHE_NAME = 'sales-platform-v9'
+// Bump when shell caching logic changes.
+const CACHE_NAME = 'sales-platform-v10'
+const API_PATH_PREFIXES = ['/auth', '/admin', '/director', '/dashboard', '/health']
+
+const PRECACHE_URLS = /*__PRECACHE__*/[]
+
 const APP_SHELL = [
   '/',
   '/index.html',
+  '/sw.js',
   '/manifest.webmanifest',
+  '/app-icon.svg',
   '/favicon.svg',
   '/icons.svg',
   '/icon-180.png',
@@ -11,11 +17,38 @@ const APP_SHELL = [
   '/icon-512.png',
 ]
 
+function isApiPath(pathname) {
+  return API_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  )
+}
+
+function isStaticAsset(pathname) {
+  return (
+    pathname.startsWith('/assets/') ||
+    pathname.endsWith('.js') ||
+    pathname.endsWith('.css') ||
+    pathname.endsWith('.webmanifest') ||
+    pathname.endsWith('.svg') ||
+    pathname.endsWith('.png') ||
+    pathname.endsWith('.woff2')
+  )
+}
+
 self.addEventListener('install', (event) => {
+  const urls = [...new Set([...APP_SHELL, ...PRECACHE_URLS])]
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(APP_SHELL)
-    }),
+    caches
+      .open(CACHE_NAME)
+      .then((cache) =>
+        Promise.all(
+          urls.map((url) =>
+            cache.add(url).catch(() => {
+              // Ignore missing optional assets during install.
+            }),
+          ),
+        ),
+      ),
   )
   self.skipWaiting()
 })
@@ -43,34 +76,58 @@ self.addEventListener('fetch', (event) => {
 
   const requestUrl = new URL(event.request.url)
   if (requestUrl.origin !== self.location.origin) {
-    // Do not touch API or other origins: no cache, no index.html fallback on error.
+    return
+  }
+
+  if (isApiPath(requestUrl.pathname)) {
     event.respondWith(fetch(event.request))
+    return
+  }
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.ok) {
+            const copy = response.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy))
+          }
+          return response
+        })
+        .catch(() => caches.match('/index.html')),
+    )
+    return
+  }
+
+  if (!isStaticAsset(requestUrl.pathname)) {
+    event.respondWith(
+      caches.match(event.request).then(
+        (cached) =>
+          cached ||
+          fetch(event.request).catch(() => caches.match('/index.html')),
+      ),
+    )
     return
   }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
+      const networkFetch = fetch(event.request)
+        .then((response) => {
+          if (response && response.ok && response.type === 'basic') {
+            const copy = response.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy))
+          }
+          return response
+        })
+        .catch(() => null)
+
       if (cached) {
+        void networkFetch
         return cached
       }
 
-      return fetch(event.request)
-        .then((response) => {
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response
-          }
-
-          const copy = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy))
-          return response
-        })
-        .catch(() => {
-          const path = requestUrl.pathname
-          if (path.startsWith('/assets/') || path.endsWith('.js') || path.endsWith('.css')) {
-            return new Response('Offline', { status: 503, statusText: 'Offline' })
-          }
-          return caches.match('/index.html')
-        })
+      return networkFetch.then((response) => response || caches.match('/index.html'))
     }),
   )
 })

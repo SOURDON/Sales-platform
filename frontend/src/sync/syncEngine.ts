@@ -69,7 +69,7 @@ export function startSyncEngine(options: SyncEngineOptions): () => void {
         void flushAndRefresh();
       }
     },
-    { ignoreNavigatorOffline: true, pollMs: enablePeriodicFlush ? undefined : 600_000 },
+    { ignoreNavigatorOffline: false, pollMs: enablePeriodicFlush ? undefined : 600_000 },
   );
 
   const onOnline = () => void flushAndRefresh();
