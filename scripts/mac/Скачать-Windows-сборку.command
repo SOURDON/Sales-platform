@@ -1,4 +1,3 @@
 #!/bin/bash
-#!/bin/bash
-# Открыть последнюю Windows-сборку v1.0.45 (Artifacts → desktop-windows-setup, ~130 МБ).
-open "https://github.com/SOURDON/Sales-platform/actions/runs/27201947486"
+# Последняя Windows-сборка (GitHub Actions → desktop-windows-setup).
+open "https://github.com/SOURDON/Sales-platform/actions/runs/27512263309"
