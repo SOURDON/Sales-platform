@@ -154,6 +154,22 @@ async function applySaleStock(userId: number, payload: AdminSaleOutboxPayload): 
     pendingSync: true,
   };
   await saveAdminCache(userId, 'sales', [optimisticSale, ...sales]);
+
+  if (seller) {
+    await saveAdminCache(
+      userId,
+      'sellers',
+      sellers.map((row) =>
+        row.id === payload.sellerId
+          ? {
+              ...row,
+              salesAmount: row.salesAmount + payload.totalAmount,
+              checksCount: row.checksCount + 1,
+            }
+          : row,
+      ),
+    );
+  }
 }
 
 export async function revertSaleStock(userId: number, payload: AdminSaleOutboxPayload): Promise<void> {

@@ -337,10 +337,11 @@ function buildAdminHomeDashboard(
         )
         .map((member) => member.id)
     : [];
+  const revenueSellerIds = new Set([...sellerIds, ...inOpenShiftIds]);
 
   let storeRevenue = 0;
   for (const sale of sales) {
-    if (!sellerIds.has(sale.sellerId)) {
+    if (!revenueSellerIds.has(sale.sellerId) && !sale.pendingSync) {
       continue;
     }
     if (calendarDayKeyMoscow(sale.createdAt) !== today) {
@@ -366,7 +367,7 @@ function buildAdminHomeDashboard(
   let payAcquiring = 0;
   let payTransfer = 0;
   for (const sale of sales) {
-    if (!sellerIds.has(sale.sellerId)) {
+    if (!revenueSellerIds.has(sale.sellerId) && !sale.pendingSync) {
       continue;
     }
     if (calendarDayKeyMoscow(sale.createdAt) !== today) {
@@ -1223,7 +1224,9 @@ function App() {
     };
   }, [isDesktopShell]);
 
-  const desktopConnection = useDesktopConnection(outboxSyncing, apiReachable);
+  const desktopConnection = useDesktopConnection(outboxSyncing, apiReachable, {
+    trustApiOnly: isDesktopShell,
+  });
 
   useEffect(() => {
     if (!API_BASE_URL) {
@@ -1238,8 +1241,8 @@ function App() {
     }
     void bootstrapReachability(API_BASE_URL).then((ok) => setApiReachable(ok));
     const net = subscribeNetwork(API_BASE_URL, setApiReachable, {
-      ignoreNavigatorOffline: false,
-      pollMs: 90_000,
+      ignoreNavigatorOffline: true,
+      pollMs: 120_000,
     });
     return () => net.dispose();
   }, [isDesktopShell]);
@@ -1535,10 +1538,23 @@ function App() {
     if (session?.user.role === 'ADMIN' && session.user.storeName) {
       const storeName = session.user.storeName;
       const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
-      return merged.filter((sale) => sellerStoreById.get(sale.sellerId) === storeName);
+      const staffAtStoreIds = new Set(
+        staff
+          .filter((member) => member.isActive && staffAssignedStores(member).includes(storeName))
+          .map((member) => member.id),
+      );
+      return merged.filter((sale) => {
+        if (sale.pendingSync) {
+          return true;
+        }
+        if (staffAtStoreIds.has(sale.sellerId)) {
+          return true;
+        }
+        return sellerStoreById.get(sale.sellerId) === storeName;
+      });
     }
     return merged;
-  }, [sales, pendingOfflineSales, sellers, session?.user.role, session?.user.storeName]);
+  }, [sales, pendingOfflineSales, sellers, staff, session?.user.role, session?.user.storeName]);
 
   const adminDayKey = useMemo(() => {
     if (session?.user.role !== 'ADMIN' || !opsDayUnlocked) {
@@ -2756,24 +2772,42 @@ function App() {
       };
       const uid = session?.user?.id;
       const role = session?.user?.role;
+      const mergePending = async (rows: AdminSale[]): Promise<AdminSale[]> => {
+        if (uid === undefined || role !== 'ADMIN') {
+          return rows;
+        }
+        const pending = await listAdminSalesQueue(uid);
+        const pendingSales = offlineQueueToAdminSales(
+          pending,
+          sellers,
+          session?.user.storeName,
+        );
+        const pendingIds = new Set(pendingSales.map((sale) => sale.id));
+        return sortSalesByCreatedAtDesc([
+          ...rows.filter((sale) => !pendingIds.has(sale.id)),
+          ...pendingSales,
+        ]);
+      };
       if (
         uid != null &&
         roleUsesSyncCache(role)
       ) {
         const cached = await loadSyncCache<AdminSale[]>(uid, 'sales');
         if (cached) {
-          setSales(cached);
+          setSales(await mergePending(cached));
         }
         const result = await loadSyncResource(API_BASE_URL, uid, 'sales', fetcher, [], {
-          onFresh: (data) => setSales(data),
+          onFresh: (data) => {
+            void mergePending(data).then((merged) => setSales(merged));
+          },
           ...syncFreshGuard(),
         });
-        setSales(result.data);
+        setSales(await mergePending(result.data));
         return;
       }
       setSales(await fetcher());
     },
-    [isDesktopShell, session?.user?.id, session?.user?.role, syncFreshGuard],
+    [isDesktopShell, session?.user?.id, session?.user?.role, session?.user?.storeName, sellers, syncFreshGuard],
   );
 
   const refreshFinanceInputs = useCallback(async () => {
@@ -3081,10 +3115,21 @@ function App() {
       const mode = await runAdminMutation(uid, saleId, 'ADMIN_SALE', entry, postSale);
       if (mode === 'queued') {
         setOfflineQueueTick((x) => x + 1);
-        const cachedSales = await loadSyncCache<AdminSale[]>(uid, 'sales');
+        const [cachedSales, cachedSellers, cachedInv] = await Promise.all([
+          loadSyncCache<AdminSale[]>(uid, 'sales'),
+          loadSyncCache<SellerProfile[]>(uid, 'sellers'),
+          loadSyncCache<StoreInventoryDetailResponse | null>(uid, 'storeInventory'),
+        ]);
         if (cachedSales) {
           setSales(cachedSales);
         }
+        if (cachedSellers) {
+          setSellers(cachedSellers);
+        }
+        if (cachedInv !== null) {
+          setStoreInventory(cachedInv);
+        }
+        void refreshOfflinePending();
         return;
       }
     } else {
@@ -4141,6 +4186,7 @@ function App() {
       token,
       userId,
       enablePeriodicFlush: isDesktopShell,
+      ignoreNavigatorOffline: isDesktopShell,
       onSyncingChange: setOutboxSyncing,
       onReachableChange: setApiReachable,
       onFlushed: () => {

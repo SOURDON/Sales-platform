@@ -11,6 +11,8 @@ export type SyncEngineOptions = {
   onReachableChange?: (reachable: boolean) => void;
   /** Периодический flush outbox (в вебе отключён — только online / ручной). */
   enablePeriodicFlush?: boolean;
+  /** Tauri/Windows: не реагировать на navigator.onLine (часто ложный офлайн). */
+  ignoreNavigatorOffline?: boolean;
 };
 
 export function startSyncEngine(options: SyncEngineOptions): () => void {
@@ -22,6 +24,7 @@ export function startSyncEngine(options: SyncEngineOptions): () => void {
     onFlushed,
     onReachableChange,
     enablePeriodicFlush = true,
+    ignoreNavigatorOffline = false,
   } = options;
   let flushing = false;
 
@@ -69,7 +72,7 @@ export function startSyncEngine(options: SyncEngineOptions): () => void {
         void flushAndRefresh();
       }
     },
-    { ignoreNavigatorOffline: false, pollMs: enablePeriodicFlush ? undefined : 600_000 },
+    { ignoreNavigatorOffline, pollMs: enablePeriodicFlush ? undefined : 600_000 },
   );
 
   const onOnline = () => void flushAndRefresh();
