@@ -67,7 +67,7 @@ import {
   clearOpsDayUnlock,
 } from './opsDayUnlock';
 import { isOfflineStoreApp } from './offlineStore';
-import { ensureOfflineStoreDefaults, renameOfflineStoreAssignments, saveOfflineManagerCommission } from './offlineStoreSeed';
+import { ensureOfflineStoreDefaults, ensureOfflineStoreProducts, pullOfflineAdminSnapshot, renameOfflineStoreAssignments, saveOfflineManagerCommission } from './offlineStoreSeed';
 import {
   effectiveStoreName,
   persistOfflineStoreSession,
@@ -1449,6 +1449,22 @@ function App() {
     setDashboardLoading(false);
   }, [isDesktopShell, session?.user?.id, session?.user?.role, session?.user?.storeName]);
 
+  const applyOfflineAdminSnapshot = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!offlineStoreMode || userId === undefined) {
+      return;
+    }
+    const snapshot = await pullOfflineAdminSnapshot(userId);
+    setStaff(snapshot.staff as StaffMember[]);
+    setSellers(snapshot.sellers);
+    setShifts(snapshot.shifts as ShiftInfo[]);
+    setSales(snapshot.sales as AdminSale[]);
+    setProducts(snapshot.products);
+    if (snapshot.managerStoreCommissions.length > 0) {
+      setManagerStoreCommissions(snapshot.managerStoreCommissions);
+    }
+  }, [offlineStoreMode, session?.user?.id]);
+
   const refreshFinanceFromCache = useCallback(async () => {
     const userId = session?.user?.id;
     const role = session?.user?.role;
@@ -1832,6 +1848,12 @@ function App() {
   };
 
   const loadProducts = async (token: string) => {
+    const uid = session?.user?.id;
+    if (offlineStoreMode && uid != null) {
+      const list = await ensureOfflineStoreProducts(uid);
+      setProducts(list);
+      return;
+    }
     const fetcher = async () => {
       const response = await fetch(`${API_BASE_URL}/admin/products`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -1841,7 +1863,6 @@ function App() {
       }
       return (await response.json()) as ProductItem[];
     };
-    const uid = session?.user?.id;
     const role = session?.user?.role;
     if (uid != null && roleUsesSyncCache(role)) {
       const result = await loadSyncResource(API_BASE_URL, uid, 'products', fetcher, [], {
@@ -3223,7 +3244,9 @@ function App() {
     paymentType: 'CASH' | 'NON_CASH' | 'TRANSFER',
   ) => {
     const saleId = newClientId('sale');
-    const storeName = session?.user.storeName ?? '';
+    const storeName = offlineStoreMode
+      ? effectiveStoreName(session?.user.storeName ?? '')
+      : (session?.user.storeName ?? '');
     const entry: OfflineQueuedSale = {
       saleId,
       sellerId,
@@ -3264,19 +3287,23 @@ function App() {
       const mode = await runAdminMutation(uid, saleId, 'ADMIN_SALE', entry, postSale);
       if (mode === 'queued') {
         setOfflineQueueTick((x) => x + 1);
-        const [cachedSales, cachedSellers, cachedInv] = await Promise.all([
-          loadSyncCache<AdminSale[]>(uid, 'sales'),
-          loadSyncCache<SellerProfile[]>(uid, 'sellers'),
-          loadSyncCache<StoreInventoryDetailResponse | null>(uid, 'storeInventory'),
-        ]);
-        if (cachedSales) {
-          setSales(cachedSales);
-        }
-        if (cachedSellers) {
-          setSellers(cachedSellers);
-        }
-        if (cachedInv !== null) {
-          setStoreInventory(cachedInv);
+        if (offlineStoreMode) {
+          await applyOfflineAdminSnapshot();
+        } else {
+          const [cachedSales, cachedSellers, cachedInv] = await Promise.all([
+            loadSyncCache<AdminSale[]>(uid, 'sales'),
+            loadSyncCache<SellerProfile[]>(uid, 'sellers'),
+            loadSyncCache<StoreInventoryDetailResponse | null>(uid, 'storeInventory'),
+          ]);
+          if (cachedSales) {
+            setSales(cachedSales);
+          }
+          if (cachedSellers) {
+            setSellers(cachedSellers);
+          }
+          if (cachedInv !== null) {
+            setStoreInventory(cachedInv);
+          }
         }
         void refreshOfflinePending();
         return;
@@ -3703,12 +3730,15 @@ function App() {
       const mode = await runAdminMutation(uid, clientShiftId, 'ADMIN_SHIFT_OPEN', payload, postOpen);
       if (mode === 'queued') {
         setOfflineQueueTick((x) => x + 1);
-        return;
       }
     } else {
       await postOpen();
     }
-    await Promise.all([loadShifts(token), loadStaff(token)]);
+    if (offlineStoreMode) {
+      await applyOfflineAdminSnapshot();
+    } else {
+      await Promise.all([loadShifts(token), loadStaff(token)]);
+    }
   };
 
   const closeShift = async (token: string, assignedSellerIds: number[] = []) => {
@@ -3733,12 +3763,15 @@ function App() {
       const mode = await runAdminMutation(uid, closeId, 'ADMIN_SHIFT_CLOSE', payload, postClose);
       if (mode === 'queued') {
         setOfflineQueueTick((x) => x + 1);
-        return;
       }
     } else {
       await postClose();
     }
-    await Promise.all([loadShifts(token), loadStaff(token)]);
+    if (offlineStoreMode) {
+      await applyOfflineAdminSnapshot();
+    } else {
+      await Promise.all([loadShifts(token), loadStaff(token)]);
+    }
   };
 
   const addStaffMember = async (
@@ -3777,8 +3810,12 @@ function App() {
       if (mode === 'queued') {
         setOfflineQueueTick((x) => x + 1);
       }
-      await loadStaff(token);
-      await loadSellers(token);
+      if (offlineStoreMode) {
+        await applyOfflineAdminSnapshot();
+      } else {
+        await loadStaff(token);
+        await loadSellers(token);
+      }
       if (!offlineStoreMode) {
         await loadGlobalEmployees(token);
       }
@@ -3802,10 +3839,7 @@ function App() {
     }
     await addStaffMember(token, fullName, nickname, { staffPosition: 'MANAGER' });
     await saveOfflineManagerCommission(uid, storeDisplayName, percent);
-    const cached = await loadAdminCache<ManagerStoreCommissionRow[]>(uid, 'managerStoreCommissions');
-    if (cached) {
-      setManagerStoreCommissions(cached);
-    }
+    await applyOfflineAdminSnapshot();
   };
 
   const exitDirectorManagement = () => {
@@ -4075,20 +4109,13 @@ function App() {
     setSession(data);
     if (offlineStoreMode) {
       await hydrateRoleCacheForUser(data);
-      if (data.user.id != null) {
+      if (data.user.id != null && data.user.role === 'ADMIN') {
         await ensureOfflineStoreDefaults(data.user.id);
-      }
-      if (!dashboard && data.user.role === 'ADMIN') {
-        setDashboard(buildEmptyDashboardSkeleton(storeDisplayName || data.user.storeName));
-        setDashboardLoading(false);
-      }
-      if (data.user.role === 'ADMIN') {
-        await Promise.allSettled([
-          loadStaff(data.token).catch(() => undefined),
-          loadSellers(data.token).catch(() => undefined),
-          loadSales(data.token).catch(() => undefined),
-          loadShifts(data.token).catch(() => undefined),
-        ]);
+        await applyOfflineAdminSnapshot();
+        if (!dashboard) {
+          setDashboard(buildEmptyDashboardSkeleton(storeDisplayName || data.user.storeName));
+          setDashboardLoading(false);
+        }
       }
       return;
     }
@@ -9627,6 +9654,16 @@ function FinanceOpsPanel({
   );
 }
 
+function shiftMemberRoleLabel(position: StaffPositionKind): string {
+  if (position === 'RETOUCHER') {
+    return 'ретушёр';
+  }
+  if (position === 'MANAGER') {
+    return 'управляющий';
+  }
+  return 'продавец';
+}
+
 function ShiftPanel({
   token,
   staff,
@@ -9705,7 +9742,7 @@ function ShiftPanel({
               </span>
               <span className="shiftSellerStore">
                 {' '}
-                — {member.storeName} {member.staffPosition === 'RETOUCHER' ? '(ретушёр)' : '(продавец)'}
+                — {member.storeName || storeName || 'точка'} ({shiftMemberRoleLabel(member.staffPosition)})
               </span>
             </span>
           </label>

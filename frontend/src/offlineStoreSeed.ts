@@ -3,6 +3,18 @@ import { readOfflineStoreSettings } from './offlineStoreSettings';
 
 const SEED_KEY = 'sales-platform-offline-store-seeded-v1';
 
+export type OfflineStoreProduct = { name: string; price: number };
+
+export const OFFLINE_STORE_PRODUCTS: OfflineStoreProduct[] = [
+  { name: 'Магнит', price: 200 },
+  { name: 'Рамка А4', price: 500 },
+  { name: 'Декоративная рамка', price: 800 },
+  { name: 'Бамбуковая рамка', price: 900 },
+  { name: 'электронный вариант и фото', price: 1500 },
+  { name: 'Рамка А5', price: 400 },
+  { name: 'Рамка дерево', price: 700 },
+];
+
 type StaffSeedRow = {
   id: number;
   fullName: string;
@@ -28,7 +40,17 @@ function writeSeedFlag(): void {
   }
 }
 
+export async function ensureOfflineStoreProducts(userId: number): Promise<OfflineStoreProduct[]> {
+  const cached = await loadAdminCache<OfflineStoreProduct[]>(userId, 'products');
+  if (cached && cached.length > 0) {
+    return cached;
+  }
+  await saveAdminCache(userId, 'products', OFFLINE_STORE_PRODUCTS);
+  return OFFLINE_STORE_PRODUCTS;
+}
+
 export async function ensureOfflineStoreDefaults(userId: number): Promise<void> {
+  await ensureOfflineStoreProducts(userId);
   const staff = (await loadAdminCache<StaffSeedRow[]>(userId, 'staff')) ?? [];
   const hasRetoucher = staff.some(
     (member: StaffSeedRow) => member.staffPosition === 'RETOUCHER' && member.isActive,
@@ -126,6 +148,96 @@ export async function renameOfflineStoreAssignments(
       })),
     );
   }
+}
+
+export async function pullOfflineAdminSnapshot(userId: number): Promise<{
+  staff: StaffSeedRow[];
+  sellers: Array<{
+    id: number;
+    fullName: string;
+    nickname: string;
+    storeName: string;
+    ratePercent: number;
+    salesAmount: number;
+    checksCount: number;
+    commissionAmount: number;
+  }>;
+  shifts: Array<{
+    id: string;
+    status: 'OPEN' | 'CLOSED';
+    openedAt: string;
+    openedBy: string;
+    closedAt?: string;
+    closedBy?: string;
+    assignedSellerIds: number[];
+    checksCount: number;
+    itemsCount: number;
+  }>;
+  sales: Array<{
+    id: string;
+    createdAt: string;
+    sellerName: string;
+    sellerId: number;
+    totalAmount: number;
+    units: number;
+    items: Array<{ name: string; qty: number }>;
+    paymentType: 'CASH' | 'NON_CASH' | 'TRANSFER';
+    pendingSync?: boolean;
+  }>;
+  products: OfflineStoreProduct[];
+  managerStoreCommissions: Array<{ storeName: string; percent: number }>;
+}> {
+  const products = await ensureOfflineStoreProducts(userId);
+  const [staff, sellers, shifts, sales, managerStoreCommissions] = await Promise.all([
+    loadAdminCache<StaffSeedRow[]>(userId, 'staff'),
+    loadAdminCache<
+      Array<{
+        id: number;
+        fullName: string;
+        nickname: string;
+        storeName: string;
+        ratePercent: number;
+        salesAmount: number;
+        checksCount: number;
+        commissionAmount: number;
+      }>
+    >(userId, 'sellers'),
+    loadAdminCache<
+      Array<{
+        id: string;
+        status: 'OPEN' | 'CLOSED';
+        openedAt: string;
+        openedBy: string;
+        closedAt?: string;
+        closedBy?: string;
+        assignedSellerIds: number[];
+        checksCount: number;
+        itemsCount: number;
+      }>
+    >(userId, 'shifts'),
+    loadAdminCache<
+      Array<{
+        id: string;
+        createdAt: string;
+        sellerName: string;
+        sellerId: number;
+        totalAmount: number;
+        units: number;
+        items: Array<{ name: string; qty: number }>;
+        paymentType: 'CASH' | 'NON_CASH' | 'TRANSFER';
+        pendingSync?: boolean;
+      }>
+    >(userId, 'sales'),
+    loadAdminCache<Array<{ storeName: string; percent: number }>>(userId, 'managerStoreCommissions'),
+  ]);
+  return {
+    staff: staff ?? [],
+    sellers: sellers ?? [],
+    shifts: shifts ?? [],
+    sales: sales ?? [],
+    products,
+    managerStoreCommissions: managerStoreCommissions ?? [],
+  };
 }
 
 export async function saveOfflineManagerCommission(
