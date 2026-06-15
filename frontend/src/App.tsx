@@ -8071,11 +8071,9 @@ function FinanceOpsPanel({
     ) / 100;
   }, [snapshot.totals.categoryTotal, expenseTotalsByArticle]);
 
-  const recentIncomeHistoryRows = useMemo((): FinanceHistoryListRow[] => {
+  const incomeHistoryRows = useMemo((): FinanceHistoryListRow[] => {
     const accountNames = new Map(snapshot.accounts.map((a) => [a.id, a.name?.trim() || 'Счёт']));
-    return sortFinanceIncomesDesc(snapshot.incomes ?? [])
-      .slice(0, 60)
-      .map((item) => {
+    return sortFinanceIncomesDesc(snapshot.incomes ?? []).map((item) => {
         const entryTime = new Date(item.createdAt).toLocaleString('ru-RU', {
           hour: '2-digit',
           minute: '2-digit',
@@ -8093,10 +8091,8 @@ function FinanceOpsPanel({
       });
   }, [snapshot.incomes, snapshot.accounts]);
 
-  const recentExpenseHistoryRows = useMemo((): FinanceHistoryListRow[] => {
-    return sortFinanceExpensesDesc(snapshot.expenses)
-      .slice(0, 60)
-      .map((item) => {
+  const expenseHistoryRows = useMemo((): FinanceHistoryListRow[] => {
+    return sortFinanceExpensesDesc(snapshot.expenses).map((item) => {
         const when = new Date(item.createdAt).toLocaleString('ru-RU', {
           hour: '2-digit',
           minute: '2-digit',
@@ -9073,22 +9069,24 @@ function FinanceOpsPanel({
             <FinanceOpsHistoryList
               title="Последние расходы"
               emptyLabel="Расходов пока нет"
-              rows={recentExpenseHistoryRows}
+              rows={expenseHistoryRows}
               kind="expense"
               accounts={snapshot.accounts}
               expenseCategories={FINANCE_EXPENSE_CATEGORY_LABELS}
               canEdit={Boolean(onUpdateExpense)}
               busyId={busyId}
+              pageLayout
               onEditExpense={onUpdateExpense ? handleHistoryExpenseEdit : undefined}
             />
             <FinanceOpsHistoryList
               title="Последние приходы по счетам"
               emptyLabel="Приходов пока нет"
-              rows={recentIncomeHistoryRows}
+              rows={incomeHistoryRows}
               kind="income"
               accounts={snapshot.accounts}
               canEdit={Boolean(onUpdateIncome)}
               busyId={busyId}
+              pageLayout
               onEditIncome={onUpdateIncome ? handleHistoryIncomeEdit : undefined}
             />
           </div>
@@ -9100,7 +9098,7 @@ function FinanceOpsPanel({
               <FinanceOpsHistoryList
                 title="Последние приходы по счетам"
                 emptyLabel="Приходов пока нет"
-                rows={recentIncomeHistoryRows}
+                rows={incomeHistoryRows}
                 kind="income"
                 accounts={snapshot.accounts}
                 canEdit={Boolean(onUpdateIncome)}
@@ -9115,7 +9113,7 @@ function FinanceOpsPanel({
               <FinanceOpsHistoryList
                 title="Последние расходы"
                 emptyLabel="Расходов пока нет"
-                rows={recentExpenseHistoryRows}
+                rows={expenseHistoryRows}
                 kind="expense"
                 accounts={snapshot.accounts}
                 expenseCategories={FINANCE_EXPENSE_CATEGORY_LABELS}
@@ -9150,7 +9148,7 @@ function FinanceOpsPanel({
                 <FinanceOpsHistoryList
                   title="Последние расходы"
                   emptyLabel="Расходов пока нет"
-                  rows={recentExpenseHistoryRows}
+                  rows={expenseHistoryRows}
                   kind="expense"
                   accounts={snapshot.accounts}
                   expenseCategories={FINANCE_EXPENSE_CATEGORY_LABELS}
@@ -9183,7 +9181,7 @@ function FinanceOpsPanel({
                 <FinanceOpsHistoryList
                   title="Последние приходы по счетам"
                   emptyLabel="Приходов пока нет"
-                  rows={recentIncomeHistoryRows}
+                  rows={incomeHistoryRows}
                   kind="income"
                   accounts={snapshot.accounts}
                   canEdit={Boolean(onUpdateIncome)}

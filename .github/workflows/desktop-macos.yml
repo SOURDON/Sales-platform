@@ -51,6 +51,7 @@ jobs:
         env:
           DESKTOP_BUILD_SKIP_CONFIRM: '1'
           DESKTOP_BUILD_SKIP_SMOKE: '1'
+          DESKTOP_BUILD_SKIP_WORK_FOLDER: '1'
         run: |
           chmod +x scripts/desktop-build.sh
           bash scripts/desktop-build.sh

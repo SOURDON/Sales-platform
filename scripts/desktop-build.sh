@@ -82,6 +82,6 @@ else
   fi
 fi
 echo "Инструкция для пользователей: docs/DESKTOP_USER_GUIDE.md"
-if [[ "$(uname -s)" == "Darwin" && "${DESKTOP_BUILD_SKIP_WORK_FOLDER:-}" != "1" ]]; then
+if [[ "$(uname -s)" == "Darwin" && "${DESKTOP_BUILD_SKIP_WORK_FOLDER:-}" != "1" && "${CI:-}" != "true" ]]; then
   bash "$REPO/scripts/publish-desktop-to-work-folder.sh"
 fi

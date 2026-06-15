@@ -32,8 +32,9 @@ export function useDesktopConnection(
     };
   }, [trustApiOnly]);
 
-  const online =
-    apiReachable !== undefined
+  const online = trustApiOnly
+    ? apiReachable !== false
+    : apiReachable !== undefined
       ? apiReachable && navigatorOnline
       : navigatorOnline;
 
