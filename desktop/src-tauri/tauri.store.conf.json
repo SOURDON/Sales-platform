@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Fotografy Store",
+  "mainBinaryName": "Fotografy",
+  "version": "1.1.0",
+  "identifier": "ru.salesplatform.store.offline",
+  "build": {
+    "beforeDevCommand": "node scripts/dev-frontend.mjs",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "node scripts/build-frontend.mjs",
+    "frontendDist": "../../frontend/dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Фотографы",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "resizable": true,
+        "maximized": true,
+        "dataDirectory": "webview-data"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller",
+        "silent": false
+      },
+      "nsis": {
+        "languages": ["Russian", "English"],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser",
+        "installerHooks": "windows/installer-hooks.nsh"
+      }
+    }
+  }
+}

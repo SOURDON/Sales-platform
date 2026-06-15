@@ -10,6 +10,8 @@ export type SaleDeleteJournalEntry = {
   storeName: string;
   dayKey: string;
   status: 'local_removed' | 'pending_sync' | 'deleted';
+  items?: Array<{ name: string; qty: number }>;
+  saleCreatedAt?: string;
 };
 
 export async function appendSaleDeleteJournal(

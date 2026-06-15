@@ -2,6 +2,7 @@ import { applyFinanceOptimistic } from './optimisticFinance';
 import { applyOptimisticOutbox } from './optimistic';
 import { enqueueOutbox } from '../outbox';
 import type { OutboxMutationType, OutboxPayload } from '../types';
+import { isOfflineStoreApp } from '../../offlineStore';
 
 export function isLikelyOfflineFetchError(error: unknown): boolean {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -29,6 +30,19 @@ export async function runAdminMutation(
   payload: OutboxPayload,
   online: () => Promise<void>,
 ): Promise<'online' | 'queued'> {
+  if (isOfflineStoreApp()) {
+    const createdAt =
+      'createdAt' in payload && typeof payload.createdAt === 'string'
+        ? payload.createdAt
+        : new Date().toISOString();
+    await enqueueOutbox(userId, clientId, type, payload, createdAt);
+    if (type.startsWith('ADMIN_')) {
+      await applyOptimisticOutbox(userId, type, payload);
+    } else {
+      await applyFinanceOptimistic(userId, type, payload);
+    }
+    return 'queued';
+  }
   try {
     await online();
     return 'online';

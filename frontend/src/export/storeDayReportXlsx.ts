@@ -21,6 +21,8 @@ export type StoreDayReportDeletedSaleRow = {
   reason: string;
   statusLabel: string;
   deletedAt: string;
+  saleAt?: string;
+  itemsSold?: string;
 };
 
 export type StoreDayReportStaffBlock = {
@@ -276,6 +278,7 @@ export function buildStoreDayReportData(options: {
   acquiringProfiles: AcquiringProfile[];
   managerStoreCommissions?: ManagerCommissionRow[];
   deletedSales?: StoreDayReportDeletedSaleRow[];
+  acquiringRatePercentOverride?: number;
 }): StoreDayReportData {
   const {
     storeName,
@@ -287,6 +290,7 @@ export function buildStoreDayReportData(options: {
     acquiringProfiles,
     managerStoreCommissions = [],
     deletedSales = [],
+    acquiringRatePercentOverride,
   } = options;
 
   const sellerIds = new Set(
@@ -314,7 +318,9 @@ export function buildStoreDayReportData(options: {
     }
   }
 
-  const acquiringRatePercent = percentForStore(storeName, acquiringProfiles);
+  const acquiringRatePercent =
+    acquiringRatePercentOverride ??
+    percentForStore(storeName, acquiringProfiles);
   const acquiringFee = Math.round((acquiringGross * acquiringRatePercent) / 100);
   const acquiringNet = acquiringGross - acquiringFee;
 
@@ -743,86 +749,96 @@ function addPaymentMixBlock(sheet: ExcelJS.Worksheet, startRow: number, data: St
   }
 }
 
-function addDeletedSalesSidePanel(
+function addDeletedSalesBottomPanel(
   sheet: ExcelJS.Worksheet,
-  tableHeaderRow: number,
-  colHeaderRow: number,
-  tableRows: number,
+  startRow: number,
   rows: StoreDayReportDeletedSaleRow[],
-): void {
-  sheet.mergeCells(tableHeaderRow, 9, tableHeaderRow, 12);
-  const title = sheet.getCell(tableHeaderRow, 9);
+): number {
+  sheet.mergeCells(`A${startRow}:L${startRow}`);
+  const title = sheet.getCell(`A${startRow}`);
   title.value = 'Удалённые продажи';
   title.font = { bold: true, size: 10, color: { argb: C.sectionText } };
   title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.sectionBg } };
   title.alignment = { horizontal: 'center', vertical: 'middle' };
-  sheet.getRow(tableHeaderRow).height = 17;
+  sheet.getRow(startRow).height = 17;
 
-  sheet.getCell(colHeaderRow, 9).value = 'Продавец';
-  sheet.mergeCells(colHeaderRow, 10, colHeaderRow, 11);
-  sheet.getCell(colHeaderRow, 10).value = 'Сумма';
-  sheet.getCell(colHeaderRow, 12).value = 'Причина';
-  for (const col of [9, 10, 12]) {
-    const cell = sheet.getCell(colHeaderRow, col);
+  const headerRow = startRow + 1;
+  const headers = [
+    { col: 1, span: 2, label: 'Продавец' },
+    { col: 3, span: 1, label: 'Сумма' },
+    { col: 4, span: 2, label: 'Что продано' },
+    { col: 6, span: 2, label: 'Время продажи' },
+    { col: 8, span: 2, label: 'Время удаления' },
+    { col: 10, span: 3, label: 'Причина' },
+  ];
+  for (const header of headers) {
+    if (header.span > 1) {
+      sheet.mergeCells(headerRow, header.col, headerRow, header.col + header.span - 1);
+    }
+    const cell = sheet.getCell(headerRow, header.col);
+    cell.value = header.label;
     cell.font = { bold: true, size: 9, color: { argb: C.headerText } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.headerBg } };
-    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
   }
-  sheet.getRow(colHeaderRow).height = 16;
+  sheet.getRow(headerRow).height = 18;
 
-  const bodyRows = Math.max(tableRows, rows.length > 0 ? rows.length : 1);
+  const bodyRows = Math.max(rows.length, 1);
   let totalDeleted = 0;
 
   for (let i = 0; i < bodyRows; i += 1) {
-    const rowNum = colHeaderRow + 1 + i;
+    const rowNum = headerRow + 1 + i;
     const entry = rows[i];
     const bg = i % 2 === 0 ? C.rowNormalA : C.rowNormalB;
 
     if (entry) {
-      sheet.getCell(rowNum, 9).value = entry.sellerName;
-      rubCell(sheet.getCell(rowNum, 10), entry.amount, { color: C.rowText, size: 9 });
-      sheet.mergeCells(rowNum, 10, rowNum, 11);
-      sheet.getCell(rowNum, 12).value = entry.reason;
+      sheet.mergeCells(rowNum, 1, rowNum, 2);
+      sheet.getCell(rowNum, 1).value = entry.sellerName;
+      rubCell(sheet.getCell(rowNum, 3), entry.amount, { color: C.rowText, size: 9 });
+      sheet.mergeCells(rowNum, 4, rowNum, 5);
+      sheet.getCell(rowNum, 4).value = entry.itemsSold || '—';
+      sheet.mergeCells(rowNum, 6, rowNum, 7);
+      sheet.getCell(rowNum, 6).value = entry.saleAt || '—';
+      sheet.mergeCells(rowNum, 8, rowNum, 9);
+      sheet.getCell(rowNum, 8).value = entry.deletedAt;
+      sheet.mergeCells(rowNum, 10, rowNum, 12);
+      sheet.getCell(rowNum, 10).value = entry.reason;
       totalDeleted += entry.amount;
     } else if (rows.length === 0 && i === 0) {
-      sheet.mergeCells(rowNum, 9, rowNum, 12);
-      sheet.getCell(rowNum, 9).value = 'Нет удалённых продаж';
-      sheet.getCell(rowNum, 9).font = { size: 9, color: { argb: C.muted } };
-      sheet.getCell(rowNum, 9).alignment = { horizontal: 'center', vertical: 'middle' };
+      sheet.mergeCells(rowNum, 1, rowNum, 12);
+      sheet.getCell(rowNum, 1).value = 'Нет удалённых продаж';
+      sheet.getCell(rowNum, 1).font = { size: 9, color: { argb: C.muted } };
+      sheet.getCell(rowNum, 1).alignment = { horizontal: 'center', vertical: 'middle' };
     }
 
-    fillRange(sheet, `I${rowNum}:L${rowNum}`, bg);
-    borderRange(sheet, `I${rowNum}:L${rowNum}`);
+    fillRange(sheet, `A${rowNum}:L${rowNum}`, bg);
+    borderRange(sheet, `A${rowNum}:L${rowNum}`);
     if (entry) {
-      for (const col of [9, 10, 12]) {
+      for (const col of [1, 3, 4, 6, 8, 10]) {
         const cell = sheet.getCell(rowNum, col);
         cell.font = { size: 9, color: { argb: C.rowText } };
         cell.alignment = {
-          horizontal: col === 12 ? 'left' : 'center',
+          horizontal: col === 10 ? 'left' : 'center',
           vertical: 'middle',
           wrapText: true,
         };
       }
     }
-    sheet.getRow(rowNum).height = entry ? 16 : 14;
+    sheet.getRow(rowNum).height = entry ? 18 : 14;
   }
 
-  if (rows.length > 0) {
-    const totalRow = colHeaderRow + 1 + bodyRows;
-    sheet.mergeCells(totalRow, 9, totalRow, 11);
-    sheet.getCell(totalRow, 9).value = 'Итого';
-    sheet.getCell(totalRow, 9).font = { bold: true, size: 9, color: { argb: C.totalText } };
-    rubCell(sheet.getCell(totalRow, 10), totalDeleted, {
-      color: C.totalText,
-      size: 9,
-      bold: true,
-    });
-    sheet.getCell(totalRow, 12).value = `${rows.length} шт.`;
-    sheet.getCell(totalRow, 12).font = { bold: true, size: 9, color: { argb: C.totalText } };
-    fillRange(sheet, `I${totalRow}:L${totalRow}`, C.totalBg);
-    borderRange(sheet, `I${totalRow}:L${totalRow}`, C.borderDark);
-    sheet.getRow(totalRow).height = 15;
-  }
+  const totalRow = headerRow + 1 + bodyRows;
+  sheet.mergeCells(totalRow, 1, totalRow, 2);
+  sheet.getCell(totalRow, 1).value = 'ИТОГО';
+  sheet.getCell(totalRow, 1).font = { bold: true, size: 10, color: { argb: C.totalText } };
+  rubCell(sheet.getCell(totalRow, 3), totalDeleted, { color: C.totalText, size: 10 });
+  sheet.mergeCells(totalRow, 4, totalRow, 12);
+  sheet.getCell(totalRow, 4).value = rows.length > 0 ? `${rows.length} шт.` : '';
+  fillRange(sheet, `A${totalRow}:L${totalRow}`, C.totalBg);
+  borderRange(sheet, `A${totalRow}:L${totalRow}`, C.borderDark);
+  sheet.getRow(totalRow).height = 16;
+
+  return totalRow + 1;
 }
 
 export async function downloadStoreDayReportXlsx(data: StoreDayReportData): Promise<SaveXlsxResult> {
@@ -943,13 +959,6 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData): Prom
   sheet.getRow(colHeaderRow).height = 16;
 
   const tableRows = Math.max(data.sellers.length, data.products.length, 1);
-  addDeletedSalesSidePanel(
-    sheet,
-    tableHeaderRow,
-    colHeaderRow,
-    tableRows,
-    data.deletedSales ?? [],
-  );
   let totalSales = 0;
   let totalSellerSalary = 0;
   let totalQty = 0;
@@ -1056,6 +1065,8 @@ export async function downloadStoreDayReportXlsx(data: StoreDayReportData): Prom
   });
 
   let footerRow = payRow + payLines.length;
+
+  footerRow = addDeletedSalesBottomPanel(sheet, footerRow + 1, data.deletedSales ?? []);
 
   sheet.mergeCells(`A${footerRow}:L${footerRow}`);
   const footerParts = [

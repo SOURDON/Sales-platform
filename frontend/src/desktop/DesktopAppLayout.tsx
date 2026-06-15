@@ -33,6 +33,7 @@ export function DesktopAppLayout({
   userLabel,
   roleLabel,
   onLogout,
+  hideLogout = false,
   directorAccountSwitcher,
   syncToolbar,
   desktopTheme,
@@ -45,6 +46,7 @@ export function DesktopAppLayout({
   userLabel?: string;
   roleLabel?: string;
   onLogout: () => void;
+  hideLogout?: boolean;
   directorAccountSwitcher?: ReactNode;
   syncToolbar?: ReactNode;
   desktopTheme: DesktopTheme;
@@ -104,9 +106,11 @@ export function DesktopAppLayout({
             </div>
           )}
           <DesktopThemeToggle theme={desktopTheme} onChange={onDesktopThemeChange} />
+          {hideLogout ? null : (
           <button type="button" className="desktopSidebarLogout" onClick={onLogout}>
             Выйти
           </button>
+          )}
         </footer>
       </aside>
 

@@ -35,7 +35,11 @@ if (-not (Test-Path 'src-tauri\icons\icon.ico')) {
   npm run icon
 }
 npm install
-npm run build
+if ($env:DESKTOP_BUILD_PROFILE -eq 'store-offline') {
+  npm run build:store
+} else {
+  npm run build
+}
 Pop-Location
 
 $bundleRoot = "$Repo\desktop\src-tauri\target\release\bundle"

@@ -37,9 +37,14 @@ function loadEnvFile(filePath) {
 
 // desktop/.env имеет приоритет; Render в .env не используем
 const TIMEWEB_API = 'http://77.233.223.48';
+const profile = process.env.DESKTOP_BUILD_PROFILE || '';
+const profileEnvFile =
+  profile === 'store-offline' ? resolve(desktopRoot, '.env.store-offline') : null;
+const fromProfile = profileEnvFile ? loadEnvFile(profileEnvFile) : {};
 const fromFrontend = loadEnvFile(resolve(frontendRoot, '.env'));
 const fromDesktop = loadEnvFile(resolve(desktopRoot, '.env'));
-let apiUrl = fromDesktop.VITE_API_URL || fromFrontend.VITE_API_URL || TIMEWEB_API;
+let apiUrl =
+  fromProfile.VITE_API_URL || fromDesktop.VITE_API_URL || fromFrontend.VITE_API_URL || TIMEWEB_API;
 if (String(apiUrl).includes('onrender.com')) {
   console.warn(`[build-frontend] Render → Timeweb: ${TIMEWEB_API}`);
   apiUrl = TIMEWEB_API;
@@ -49,9 +54,13 @@ const env = {
   ...process.env,
   ...fromFrontend,
   ...fromDesktop,
+  ...fromProfile,
   VITE_API_URL: apiUrl,
   ...(appVersion ? { VITE_APP_VERSION: appVersion } : {}),
 };
+if (profile === 'store-offline') {
+  console.log('[build-frontend] Профиль: store-offline (магазин, полный офлайн)');
+}
 if (appVersion) {
   console.log(`[build-frontend] Версия приложения: ${appVersion}`);
 }

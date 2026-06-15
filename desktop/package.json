@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
+    "build:store": "tauri build --config src-tauri/tauri.store.conf.json",
     "build:frontend": "node scripts/build-frontend.mjs",
     "icon": "tauri icon ../frontend/public/app-icon.svg",
     "icons:mac": "bash scripts/generate-icons.sh",

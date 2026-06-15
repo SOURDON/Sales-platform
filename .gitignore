@@ -12,6 +12,9 @@ coverage/
 
 !.env.example
 !**/.env.example
+!desktop/.env.store-offline
+
+desktop/releases/
 
 deploy/timeweb/.env
 deploy/timeweb/.env.local

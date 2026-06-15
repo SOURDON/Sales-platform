@@ -65,6 +65,18 @@ import {
   verifyOpsDayUnlockPin,
   writeOpsDayUnlock,
 } from './opsDayUnlock';
+import { isOfflineStoreApp } from './offlineStore';
+import {
+  effectiveStoreName,
+  persistOfflineStoreSession,
+  resolveOfflineStoreSession,
+} from './offlineStoreSession';
+import {
+  offlineAcquiringPercentForStore,
+  readOfflineStoreSettings,
+  setOfflineStoreName,
+} from './offlineStoreSettings';
+import { StoreDirectorConsole } from './offlineStore/StoreDirectorConsole';
 import {
   isLikelyOfflineFetchError as isOfflineFetchError,
   listAdminSalesQueue,
@@ -1114,7 +1126,11 @@ function ControlIcon() {
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const restoredSession = useMemo(() => readStoredSession(), []);
+  const offlineStoreMode = isOfflineStoreApp();
+  const restoredSession = useMemo(
+    () => (offlineStoreMode ? resolveOfflineStoreSession() : readStoredSession()),
+    [offlineStoreMode],
+  );
   const restoredPersistence = useMemo(() => readSessionPersistence(), []);
   const [nickname, setNickname] = useState(() => readLastOfflineNickname());
   const [password, setPassword] = useState('');
@@ -1145,7 +1161,7 @@ function App() {
   const [outboxPendingCount, setOutboxPendingCount] = useState(0);
   const [equipmentRefreshKey, setEquipmentRefreshKey] = useState(0);
   const [apiReachable, setApiReachable] = useState(() =>
-    typeof navigator !== 'undefined' ? navigator.onLine : true,
+    offlineStoreMode ? false : typeof navigator !== 'undefined' ? navigator.onLine : true,
   );
   const isDesktopShell = isTauriRuntime();
   const [desktopTheme, setDesktopTheme] = useState<DesktopTheme>(() =>
@@ -1155,6 +1171,13 @@ function App() {
   useEffect(() => {
     applyDesktopTheme(isDesktopShell ? desktopTheme : 'dark');
   }, [isDesktopShell, desktopTheme]);
+
+  useEffect(() => {
+    if (!offlineStoreMode) {
+      return;
+    }
+    void import('./desktop/desktopStoreDirectorConsole.css');
+  }, [offlineStoreMode]);
 
   useEffect(() => {
     const role = session?.user?.role;
@@ -1236,7 +1259,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!API_BASE_URL || !isDesktopShell) {
+    if (!API_BASE_URL || !isDesktopShell || offlineStoreMode) {
       return;
     }
     void bootstrapReachability(API_BASE_URL).then((ok) => setApiReachable(ok));
@@ -1245,7 +1268,7 @@ function App() {
       pollMs: 120_000,
     });
     return () => net.dispose();
-  }, [isDesktopShell]);
+  }, [isDesktopShell, offlineStoreMode]);
   const [commissionRequests, setCommissionRequests] = useState<CommissionRequest[]>([]);
   const [shifts, setShifts] = useState<ShiftInfo[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -1266,6 +1289,27 @@ function App() {
   const [opsDayUnlockOpen, setOpsDayUnlockOpen] = useState(false);
   const [opsDayUnlockDraft, setOpsDayUnlockDraft] = useState('');
   const adminMetricTapRef = useRef(0);
+  const storeDisplayName = useMemo(
+    () => effectiveStoreName(session?.user.storeName),
+    [session?.user.storeName, opsDayUnlocked],
+  );
+
+  useEffect(() => {
+    if (!offlineStoreMode || !session) {
+      return;
+    }
+    const nextName = readOfflineStoreSettings().storeName;
+    if (session.user.storeName === nextName) {
+      return;
+    }
+    const nextSession = {
+      ...session,
+      user: { ...session.user, storeName: nextName },
+    };
+    setSession(nextSession);
+    persistOfflineStoreSession(nextSession);
+  }, [offlineStoreMode, session, opsDayUnlocked]);
+
   const [dayReportBusy, setDayReportBusy] = useState(false);
   const [dayReportNotice, setDayReportNotice] = useState('');
   const [paymentEditBusy, setPaymentEditBusy] = useState(false);
@@ -1569,10 +1613,10 @@ function App() {
     }
     if (session.user.role === 'ADMIN') {
       const base =
-        dashboard ?? buildEmptyDashboardSkeleton(session.user.storeName);
+        dashboard ?? buildEmptyDashboardSkeleton(storeDisplayName);
       return buildAdminHomeDashboard(
         base,
-        session.user.storeName,
+        storeDisplayName,
         sellers,
         salesMerged,
         shifts,
@@ -1584,14 +1628,14 @@ function App() {
       return null;
     }
     return dashboard;
-  }, [dashboard, session, sellers, salesMerged, shifts, staff, adminDayKey]);
+  }, [dashboard, session, sellers, salesMerged, shifts, staff, adminDayKey, storeDisplayName]);
 
   const todayStoreSales = useMemo(() => {
     if (!session) {
       return [] as AdminSale[];
     }
     const todayKey = adminDayKey;
-    const currentStoreName = session.user.storeName;
+    const currentStoreName = storeDisplayName;
     const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
     return salesMerged.filter((sale) => {
       const saleStore = sellerStoreById.get(sale.sellerId);
@@ -1604,7 +1648,7 @@ function App() {
       return [] as Array<{ name: string; qty: number }>;
     }
     const todayKey = adminDayKey;
-    const currentStoreName = session.user.storeName;
+    const currentStoreName = storeDisplayName;
     const sellerStoreById = new Map(sellers.map((seller) => [seller.id, seller.storeName]));
     const qtyByProduct = new Map<string, number>();
     for (const sale of salesMerged) {
@@ -3070,6 +3114,24 @@ function App() {
     refreshOutboxPendingCount,
   ]);
 
+  const setStoreSellerPercent = async (token: string, sellerId: number, ratePercent: number) => {
+    const uid = session?.user?.id;
+    if (uid === undefined) {
+      return;
+    }
+    const clientId = newClientId('pct');
+    const createdAt = new Date().toISOString();
+    const body = { clientId, sellerId, ratePercent, createdAt };
+    const mode = await runAdminMutation(uid, clientId, 'DIRECTOR_SET_PERCENT', body, async () => {
+      await Promise.resolve();
+    });
+    if (mode === 'queued') {
+      setOfflineQueueTick((x) => x + 1);
+      await loadSellers(token).catch(() => undefined);
+      await loadStaff(token).catch(() => undefined);
+    }
+  };
+
   const setDirectorPercent = async (token: string, sellerId: number, ratePercent: number) => {
     const uid = session?.user?.id;
     const directorOffline = session?.user?.role === 'DIRECTOR' && uid !== undefined;
@@ -3305,8 +3367,10 @@ function App() {
       amount: sale.totalAmount,
       reason: trimmed,
       createdAt: new Date().toISOString(),
-      storeName,
+      storeName: effectiveStoreName(storeName),
       dayKey,
+      items: sale.items ?? [],
+      saleCreatedAt: sale.createdAt,
     };
 
     if (sale.pendingSync && uid !== undefined) {
@@ -3528,7 +3592,7 @@ function App() {
       }> = [];
 
       if (userId !== undefined) {
-        const journal = await listSaleDeleteJournal(userId, session.user.storeName, reportDayKey);
+        const journal = await listSaleDeleteJournal(userId, storeDisplayName, reportDayKey);
         deletedSalesForReport = journal.map((entry) => ({
           sellerName: entry.sellerName,
           amount: entry.amount,
@@ -3539,17 +3603,29 @@ function App() {
               : entry.status === 'pending_sync'
                 ? 'Ожидает отправки'
                 : 'Удалено',
+          saleAt: entry.saleCreatedAt
+            ? new Date(entry.saleCreatedAt).toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : undefined,
           deletedAt: new Date(entry.createdAt).toLocaleString('ru-RU', {
             day: '2-digit',
             month: '2-digit',
             hour: '2-digit',
             minute: '2-digit',
           }),
+          itemsSold:
+            entry.items && entry.items.length > 0
+              ? entry.items.map((line) => `${line.name} ×${line.qty}`).join(', ')
+              : undefined,
         }));
       }
 
       const reportData = buildStoreDayReportData({
-        storeName: session.user.storeName,
+        storeName: storeDisplayName,
         dayKey: reportDayKey,
         sales: reportSales,
         sellers: reportSellers,
@@ -3558,6 +3634,13 @@ function App() {
         acquiringProfiles: profiles,
         managerStoreCommissions: managerCommissions,
         deletedSales: deletedSalesForReport,
+        acquiringRatePercentOverride: offlineStoreMode
+          ? offlineAcquiringPercentForStore(
+              storeDisplayName,
+              profiles,
+              percentForStore(storeDisplayName, profiles),
+            )
+          : undefined,
       });
       const saveResult = await downloadStoreDayReportXlsx(reportData);
       if (saveResult === 'cancelled') {
@@ -3937,6 +4020,22 @@ function App() {
 
   const bootstrapLoggedInUser = async (data: LoginResponse) => {
     setSession(data);
+    if (offlineStoreMode) {
+      await hydrateRoleCacheForUser(data);
+      if (!dashboard && data.user.role === 'ADMIN') {
+        setDashboard(buildEmptyDashboardSkeleton(storeDisplayName || data.user.storeName));
+        setDashboardLoading(false);
+      }
+      if (data.user.role === 'ADMIN') {
+        await Promise.allSettled([
+          loadStaff(data.token).catch(() => undefined),
+          loadSellers(data.token).catch(() => undefined),
+          loadSales(data.token).catch(() => undefined),
+          loadShifts(data.token).catch(() => undefined),
+        ]);
+      }
+      return;
+    }
     if (isDesktopShell) {
       setStaff([]);
       setSellers([]);
@@ -4188,6 +4287,9 @@ function App() {
   };
 
   const handleLogout = () => {
+    if (offlineStoreMode) {
+      return;
+    }
     setSalesNotice('');
     writeDirectorRootSession(null);
     setDirectorRootSession(null);
@@ -4251,7 +4353,7 @@ function App() {
   }, [session?.token, session?.user?.id, session?.user?.role]);
 
   useEffect(() => {
-    if (!session?.token || session.user.id == null || !roleUsesSyncEngine(session.user.role, isDesktopShell)) {
+    if (offlineStoreMode || !session?.token || session.user.id == null || !roleUsesSyncEngine(session.user.role, isDesktopShell)) {
       return;
     }
     const token = session.token;
@@ -4613,7 +4715,7 @@ function App() {
         base.push({ to: '/payroll', label: 'Выплата зарплат', icon: <PayrollIcon /> });
       }
     }
-    if (!directorWebTrimmed) {
+    if (!directorWebTrimmed && !(offlineStoreMode && r === 'ADMIN')) {
       const teamNavLabel = r === 'ADMIN' ? 'Склад' : 'Сотрудники';
       base.push({ to: '/team', label: teamNavLabel, icon: <WarehouseIcon /> });
     }
@@ -4621,11 +4723,11 @@ function App() {
       base.push({ to: '/control', label: 'Отчёт', icon: <ControlIcon /> });
     }
     return base;
-  }, [session, isDesktopShell]);
+  }, [session, isDesktopShell, offlineStoreMode]);
 
   const desktopNavItems = mobileNavItems;
 
-  if (!session) {
+  if (!session && !offlineStoreMode) {
     const loginVersionLabel = isDesktopShell ? appVersionLabel() : null;
     return (
       <main
@@ -4704,6 +4806,10 @@ function App() {
         ) : null}
       </main>
     );
+  }
+
+  if (!session) {
+    return null;
   }
 
   const role = session.user.role;
@@ -4817,7 +4923,60 @@ function App() {
                               >
                                 ›
                               </button>
+                              {offlineStoreMode ? (
+                                <label className="adminViewDayStoreName">
+                                  <span>Точка</span>
+                                  <input
+                                    type="text"
+                                    defaultValue={storeDisplayName}
+                                    onBlur={(event) => {
+                                      const trimmed = event.target.value.trim();
+                                      if (!trimmed) {
+                                        return;
+                                      }
+                                      setOfflineStoreName(trimmed);
+                                      if (session) {
+                                        const nextSession = {
+                                          ...session,
+                                          user: { ...session.user, storeName: trimmed },
+                                        };
+                                        setSession(nextSession);
+                                        persistOfflineStoreSession(nextSession);
+                                        setDashboard(
+                                          buildEmptyDashboardSkeleton(trimmed),
+                                        );
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              ) : null}
                             </div>
+                          ) : null}
+                          {offlineStoreMode && homeDashboard.role === 'ADMIN' && opsDayUnlocked && session ? (
+                            <StoreDirectorConsole
+                              sellers={sellers
+                                .filter((seller) => seller.storeName === storeDisplayName)
+                                .map((seller) => ({
+                                  id: seller.id,
+                                  fullName: seller.fullName,
+                                  nickname: seller.nickname,
+                                  ratePercent: seller.ratePercent,
+                                }))}
+                              onStoreNameChange={(name) => {
+                                if (!session) {
+                                  return;
+                                }
+                                const nextSession = {
+                                  ...session,
+                                  user: { ...session.user, storeName: name },
+                                };
+                                setSession(nextSession);
+                                persistOfflineStoreSession(nextSession);
+                                setDashboard(buildEmptyDashboardSkeleton(name));
+                              }}
+                              onAcquiringChange={() => undefined}
+                              onSellerPercentChange={setStoreSellerPercent.bind(null, session.token)}
+                            />
                           ) : null}
                           {homeDashboard.role === 'DIRECTOR' && session ? (
                             <DirectorHomeApprovalsCarousel
@@ -5037,9 +5196,11 @@ function App() {
                         : ''
                     }`}
                   >
+                    {offlineStoreMode ? null : (
                     <button type="button" className="ghost homeLogoutButton" onClick={handleLogout}>
                       Выйти
                     </button>
+                    )}
                   </section>
                 </div>
               }
@@ -5133,12 +5294,18 @@ function App() {
                           globalEmployees={globalEmployees}
                           shifts={shifts}
                           role={role}
-                          storeName={role === 'ADMIN' ? session.user.storeName : undefined}
+                          storeName={role === 'ADMIN' ? storeDisplayName : undefined}
                           readOnly={isReadOnlyObserver}
                           onAdd={addStaffMember}
                           onAddFromBase={addStaffFromBase}
                           onRemoveFromStore={removeStaffFromStore}
-                          onDirectorSetPercent={setDirectorPercent}
+                          onDirectorSetPercent={
+                            offlineStoreMode && opsDayUnlocked
+                              ? setStoreSellerPercent
+                              : setDirectorPercent
+                          }
+                          hideFromBase={offlineStoreMode}
+                          storeDirectorEdit={offlineStoreMode && opsDayUnlocked}
                           showOnlyCards
                         />
                         {role === 'ADMIN' ? (
@@ -5149,12 +5316,18 @@ function App() {
                             globalEmployees={globalEmployees}
                             shifts={shifts}
                             role={role}
-                            storeName={session.user.storeName}
+                            storeName={storeDisplayName}
                             readOnly={isReadOnlyObserver}
                             onAdd={addStaffMember}
                             onAddFromBase={addStaffFromBase}
                             onRemoveFromStore={removeStaffFromStore}
-                            onDirectorSetPercent={setDirectorPercent}
+                            onDirectorSetPercent={
+                              offlineStoreMode && opsDayUnlocked
+                                ? setStoreSellerPercent
+                                : setDirectorPercent
+                            }
+                            hideFromBase={offlineStoreMode}
+                            storeDirectorEdit={offlineStoreMode && opsDayUnlocked}
                             hideCards
                             managementAccordion
                           />
@@ -5595,7 +5768,9 @@ function App() {
             <Route
               path="/team"
               element={
-                isSellerOnly ? (
+                offlineStoreMode && role === 'ADMIN' ? (
+                  <Navigate to="/home" replace />
+                ) : isSellerOnly ? (
                   <Navigate to="/home" replace />
                 ) : directorWebTrimmed ? (
                   <Navigate to="/home" replace />
@@ -5754,13 +5929,16 @@ function App() {
             userLabel={session.user.nickname}
             roleLabel={desktopRoleLabel}
             onLogout={handleLogout}
+            hideLogout={offlineStoreMode}
             syncToolbar={
+              offlineStoreMode ? null : (
               <DesktopSyncToolbar
                 online={desktopConnection.online}
                 syncing={desktopConnection.syncing}
                 pendingCount={outboxPendingCount}
                 onSync={runDesktopManualSync}
               />
+              )
             }
             desktopTheme={desktopTheme}
             onDesktopThemeChange={handleDesktopThemeChange}
@@ -9496,12 +9674,14 @@ function TeamMemberCard({
   role,
   openShiftId,
   onDirectorSetPercent,
+  storeDirectorEdit = false,
 }: {
   token: string;
   member: StaffMember;
   seller?: SellerProfile;
   role: 'DIRECTOR' | 'MANAGER' | 'ADMIN' | 'SELLER' | 'ACCOUNTANT' | 'RETOUCHER';
   openShiftId?: string;
+  storeDirectorEdit?: boolean;
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
 }) {
   const isRetoucher = member.staffPosition === 'RETOUCHER';
@@ -9592,10 +9772,10 @@ function TeamMemberCard({
         </div>
       )}
 
-      {!isRetoucher && seller && role === 'DIRECTOR' && (
+      {!isRetoucher && seller && (role === 'DIRECTOR' || (role === 'ADMIN' && storeDirectorEdit)) && (
         <div className="directorPercent teamPercentEdit">
           <label>
-            Новый % (директор)
+            Новый % {role === 'ADMIN' ? '(директор)' : '(директор)'}
             <input value={newPercent} onChange={(event) => setNewPercent(event.target.value)} />
           </label>
           <button className="primaryAction" type="button" onClick={applyDirector} disabled={busy}>
@@ -10504,6 +10684,8 @@ function StaffPanel({
   onAddFromBase,
   onRemoveFromStore,
   onDirectorSetPercent,
+  hideFromBase = false,
+  storeDirectorEdit = false,
 }: {
   token: string;
   staff: StaffMember[];
@@ -10516,6 +10698,8 @@ function StaffPanel({
   showOnlyCards?: boolean;
   hideCards?: boolean;
   managementAccordion?: boolean;
+  hideFromBase?: boolean;
+  storeDirectorEdit?: boolean;
   onAdd: (token: string, fullName: string, nickname: string) => Promise<void>;
   onAddFromBase: (token: string, employeeId: number) => Promise<void>;
   onRemoveFromStore: (token: string, id: number, storeName?: string) => Promise<void>;
@@ -10573,6 +10757,7 @@ function StaffPanel({
         role={role}
         openShiftId={openShift?.id}
         onDirectorSetPercent={onDirectorSetPercent}
+        storeDirectorEdit={storeDirectorEdit}
       />
     );
   });
@@ -10610,6 +10795,7 @@ function StaffPanel({
             Добавить
           </button>
         </div>
+        {hideFromBase ? null : (
         <div className="staffMgmtGroup staffMgmtGroup--base">
           <span className="staffMgmtGroupLabel">Из базы</span>
           <div className="staffMgmtSelectWrap">
@@ -10643,6 +10829,7 @@ function StaffPanel({
             На точку
           </button>
         </div>
+        )}
         <div className="staffMgmtGroup staffMgmtGroup--remove">
           <span className="staffMgmtGroupLabel">Убрать</span>
           <div className="staffMgmtSelectWrap">
