@@ -673,6 +673,32 @@ export class AdminController {
     return expense as unknown;
   }
 
+  @Delete('finance/incomes/:id')
+  deleteFinanceIncome(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    const income = this.authService.deleteFinanceIncome(id, session.nickname);
+    if (!income) {
+      throw new BadRequestException('Finance income not found');
+    }
+    return { ok: true, id: income.id };
+  }
+
+  @Delete('finance/expenses/:id')
+  deleteFinanceExpense(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const session = this.requireFinancePlanningAccess(authorization);
+    const expense = this.authService.deleteFinanceExpense(id, session.nickname);
+    if (!expense) {
+      throw new BadRequestException('Finance expense not found');
+    }
+    return { ok: true, id: expense.id };
+  }
+
   @Post('finance/expenses')
   addFinanceExpense(
     @Headers('authorization') authorization: string | undefined,

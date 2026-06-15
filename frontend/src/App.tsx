@@ -2717,6 +2717,82 @@ function App() {
     await loadFinanceOps(token, { preferNetwork: true });
   };
 
+  const deleteFinanceIncome = async (token: string, id: string) => {
+    const uid = session?.user?.id;
+    const financeOffline =
+      (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'ACCOUNTANT') &&
+      uid !== undefined;
+    const deleteId = newClientId('fincd');
+    const createdAt = new Date().toISOString();
+    const body = { deleteId, incomeId: id, createdAt };
+
+    const del = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/finance/incomes/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(
+          await readApiErrorMessage(response, 'Не удалось удалить приход', {
+            notFoundHint: `На сервере ещё нет API для удаления приходов. ${API_DEPLOY_HINT}`,
+          }),
+        );
+      }
+    };
+
+    if (financeOffline) {
+      const mode = await runAdminMutation(uid, deleteId, 'FINANCE_INCOME_DELETE', body, del);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        await applyCachedFinanceOps();
+        return;
+      }
+    } else {
+      await del();
+    }
+    await loadFinanceOps(token, { preferNetwork: true });
+  };
+
+  const deleteFinanceExpense = async (token: string, id: string) => {
+    const uid = session?.user?.id;
+    const financeOffline =
+      (session?.user?.role === 'DIRECTOR' || session?.user?.role === 'ACCOUNTANT') &&
+      uid !== undefined;
+    const deleteId = newClientId('fexpd');
+    const createdAt = new Date().toISOString();
+    const body = { deleteId, expenseId: id, createdAt };
+
+    const del = async () => {
+      const response = await fetch(`${API_BASE_URL}/admin/finance/expenses/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(
+          await readApiErrorMessage(response, 'Не удалось удалить расход', {
+            notFoundHint: `На сервере ещё нет API для удаления расходов. ${API_DEPLOY_HINT}`,
+          }),
+        );
+      }
+    };
+
+    if (financeOffline) {
+      const mode = await runAdminMutation(uid, deleteId, 'FINANCE_EXPENSE_DELETE', body, del);
+      if (mode === 'queued') {
+        setOfflineQueueTick((x) => x + 1);
+        await applyCachedFinanceOps();
+        return;
+      }
+    } else {
+      await del();
+    }
+    await loadFinanceOps(token, { preferNetwork: true });
+  };
+
   const setFinanceAccountBalance = async (token: string, accountId: string, balanceStr: string) => {
     const num = Number(String(balanceStr).replace(',', '.'));
     if (!Number.isFinite(num) || num < 0) {
@@ -4984,6 +5060,8 @@ function App() {
                           onAddExpense={addFinanceExpense}
                           onUpdateIncome={updateFinanceIncome}
                           onUpdateExpense={updateFinanceExpense}
+                          onDeleteIncome={deleteFinanceIncome}
+                          onDeleteExpense={deleteFinanceExpense}
                           onSetAccountBalance={setFinanceAccountBalance}
                           onSetCategoryAmount={setFinanceExpenseCategoryAmount}
                           preferDesktopLayout={false}
@@ -5028,6 +5106,8 @@ function App() {
                           onAddExpense={addFinanceExpense}
                           onUpdateIncome={updateFinanceIncome}
                           onUpdateExpense={updateFinanceExpense}
+                          onDeleteIncome={deleteFinanceIncome}
+                          onDeleteExpense={deleteFinanceExpense}
                           onSetAccountBalance={setFinanceAccountBalance}
                           onSetCategoryAmount={setFinanceExpenseCategoryAmount}
                           preferDesktopLayout={isDesktopShell}
@@ -7453,6 +7533,8 @@ function FinanceOpsHistoryList({
   busyId,
   onEditExpense,
   onEditIncome,
+  onDeleteExpense,
+  onDeleteIncome,
   pageLayout = false,
 }: {
   title: string;
@@ -7472,6 +7554,8 @@ function FinanceOpsHistoryList({
     id: string,
     payload: { accountId: string; amount: string; workDay: string; comment?: string },
   ) => Promise<void>;
+  onDeleteExpense?: (id: string) => Promise<void>;
+  onDeleteIncome?: (id: string) => Promise<void>;
 }) {
   const fmt = (v: number) => `${v.toLocaleString('ru-RU')} ₽`;
   const [storeFilter, setStoreFilter] = useState('');
@@ -7561,6 +7645,28 @@ function FinanceOpsHistoryList({
     } catch (err) {
       const message = err instanceof Error ? err.message : '';
       setEditError(message || 'Не удалось сохранить изменения');
+    }
+  };
+
+  const deleteEdit = async () => {
+    if (!editingId) {
+      return;
+    }
+    const label = kind === 'income' ? 'приход' : 'расход';
+    if (!window.confirm(`Удалить этот ${label}? Сумма на счёте будет пересчитана.`)) {
+      return;
+    }
+    setEditError('');
+    try {
+      if (kind === 'expense' && onDeleteExpense) {
+        await onDeleteExpense(editingId);
+      } else if (kind === 'income' && onDeleteIncome) {
+        await onDeleteIncome(editingId);
+      }
+      setEditingId(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      setEditError(message || 'Не удалось удалить запись');
     }
   };
 
@@ -7854,6 +7960,16 @@ function FinanceOpsHistoryList({
                           <button type="button" className="ghost" disabled={isBusy} onClick={cancelEdit}>
                             Отмена
                           </button>
+                          {(kind === 'income' && onDeleteIncome) || (kind === 'expense' && onDeleteExpense) ? (
+                            <button
+                              type="button"
+                              className="ghost financeOpsHistoryDeleteBtn"
+                              disabled={isBusy}
+                              onClick={() => void deleteEdit()}
+                            >
+                              {isBusy ? '…' : 'Удалить'}
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                     ) : (
@@ -7935,6 +8051,8 @@ function FinanceOpsPanel({
   onAddExpense,
   onUpdateIncome,
   onUpdateExpense,
+  onDeleteIncome,
+  onDeleteExpense,
   onSetAccountBalance,
   onSetCategoryAmount,
   preferDesktopLayout = false,
@@ -7961,6 +8079,8 @@ function FinanceOpsPanel({
     id: string,
     payload: { accountId: string; title: string; amount: string; comment?: string },
   ) => Promise<void>;
+  onDeleteIncome?: (token: string, id: string) => Promise<void>;
+  onDeleteExpense?: (token: string, id: string) => Promise<void>;
   onSetAccountBalance: (token: string, accountId: string, balance: string) => Promise<void>;
   onSetCategoryAmount?: (token: string, title: string, amount: string) => Promise<void>;
   preferDesktopLayout?: boolean;
@@ -8145,6 +8265,40 @@ function FinanceOpsPanel({
     } catch (err) {
       const message = err instanceof Error ? err.message : '';
       throw new Error(message || 'Не удалось изменить расход');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const handleHistoryIncomeDelete = async (id: string) => {
+    if (!onDeleteIncome) {
+      return;
+    }
+    setBusyId(id);
+    setError('');
+    try {
+      await onDeleteIncome(token, id);
+      setStatus('Приход удалён.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      throw new Error(message || 'Не удалось удалить приход');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const handleHistoryExpenseDelete = async (id: string) => {
+    if (!onDeleteExpense) {
+      return;
+    }
+    setBusyId(id);
+    setError('');
+    try {
+      await onDeleteExpense(token, id);
+      setStatus('Расход удалён.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      throw new Error(message || 'Не удалось удалить расход');
     } finally {
       setBusyId('');
     }
@@ -9077,6 +9231,7 @@ function FinanceOpsPanel({
               busyId={busyId}
               pageLayout
               onEditExpense={onUpdateExpense ? handleHistoryExpenseEdit : undefined}
+              onDeleteExpense={onDeleteExpense ? handleHistoryExpenseDelete : undefined}
             />
             <FinanceOpsHistoryList
               title="Последние приходы по счетам"
@@ -9088,6 +9243,7 @@ function FinanceOpsPanel({
               busyId={busyId}
               pageLayout
               onEditIncome={onUpdateIncome ? handleHistoryIncomeEdit : undefined}
+              onDeleteIncome={onDeleteIncome ? handleHistoryIncomeDelete : undefined}
             />
           </div>
         </section>
@@ -9105,6 +9261,7 @@ function FinanceOpsPanel({
                 busyId={busyId}
                 pageLayout
                 onEditIncome={onUpdateIncome ? handleHistoryIncomeEdit : undefined}
+                onDeleteIncome={onDeleteIncome ? handleHistoryIncomeDelete : undefined}
               />
             </section>
           ) : null}
@@ -9121,6 +9278,7 @@ function FinanceOpsPanel({
                 busyId={busyId}
                 pageLayout
                 onEditExpense={onUpdateExpense ? handleHistoryExpenseEdit : undefined}
+                onDeleteExpense={onDeleteExpense ? handleHistoryExpenseDelete : undefined}
               />
             </section>
           ) : null}
@@ -9155,6 +9313,7 @@ function FinanceOpsPanel({
                   canEdit={Boolean(onUpdateExpense)}
                   busyId={busyId}
                   onEditExpense={onUpdateExpense ? handleHistoryExpenseEdit : undefined}
+                  onDeleteExpense={onDeleteExpense ? handleHistoryExpenseDelete : undefined}
                 />
               </div>
             </div>
@@ -9187,6 +9346,7 @@ function FinanceOpsPanel({
                   canEdit={Boolean(onUpdateIncome)}
                   busyId={busyId}
                   onEditIncome={onUpdateIncome ? handleHistoryIncomeEdit : undefined}
+                  onDeleteIncome={onDeleteIncome ? handleHistoryIncomeDelete : undefined}
                 />
               </div>
             </div>

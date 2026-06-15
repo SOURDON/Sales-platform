@@ -44,6 +44,8 @@ async function flushEntry(
     case 'FINANCE_ACCOUNT_BALANCE':
     case 'FINANCE_INCOME_UPDATE':
     case 'FINANCE_EXPENSE_UPDATE':
+    case 'FINANCE_INCOME_DELETE':
+    case 'FINANCE_EXPENSE_DELETE':
     case 'FINANCE_EXPENSE_CATEGORY':
       return flushFinanceEntry(apiBaseUrl, token, entry);
     case 'DIRECTOR_COMMISSION_DECISION':

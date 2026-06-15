@@ -1,6 +1,25 @@
 import { removeOutboxEntry } from '../outbox';
 import type { OutboxEntry } from '../types';
+import { fetchWithTimeout } from '../fetchTimeout';
 import { isEntry, outcomeFromResponse, postJson, type FlushOutcome } from './flushEntry';
+
+async function deleteRequest(
+  apiBaseUrl: string,
+  token: string,
+  path: string,
+): Promise<Response> {
+  const base = apiBaseUrl.replace(/\/$/, '');
+  return fetchWithTimeout(
+    `${base}${path}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    20_000,
+  );
+}
 
 export async function flushFinanceEntry(
   apiBaseUrl: string,
@@ -88,6 +107,34 @@ export async function flushFinanceEntry(
         'PUT',
       );
       const outcome = outcomeFromResponse(response);
+      if (outcome === 'ok') {
+        await removeOutboxEntry(entry.id);
+      }
+      return outcome;
+    }
+    if (isEntry(entry, 'FINANCE_INCOME_DELETE')) {
+      const { payload } = entry;
+      const response = await deleteRequest(
+        apiBaseUrl,
+        token,
+        `/admin/finance/incomes/${encodeURIComponent(payload.incomeId)}`,
+      );
+      const outcome =
+        response.ok || response.status === 404 ? 'ok' : outcomeFromResponse(response);
+      if (outcome === 'ok') {
+        await removeOutboxEntry(entry.id);
+      }
+      return outcome;
+    }
+    if (isEntry(entry, 'FINANCE_EXPENSE_DELETE')) {
+      const { payload } = entry;
+      const response = await deleteRequest(
+        apiBaseUrl,
+        token,
+        `/admin/finance/expenses/${encodeURIComponent(payload.expenseId)}`,
+      );
+      const outcome =
+        response.ok || response.status === 404 ? 'ok' : outcomeFromResponse(response);
       if (outcome === 'ok') {
         await removeOutboxEntry(entry.id);
       }

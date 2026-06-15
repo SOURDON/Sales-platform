@@ -19,6 +19,8 @@ export type OutboxMutationType =
   | 'MANAGER_REVENUE_PLANS'
   | 'FINANCE_INCOME_UPDATE'
   | 'FINANCE_EXPENSE_UPDATE'
+  | 'FINANCE_INCOME_DELETE'
+  | 'FINANCE_EXPENSE_DELETE'
   | 'FINANCE_EXPENSE_CATEGORY'
   | 'MANAGER_STORE_COMMISSIONS'
   | 'ACQUIRING_PROFILES'
@@ -167,6 +169,18 @@ export type FinanceExpenseUpdateOutboxPayload = {
   createdAt: string;
 };
 
+export type FinanceIncomeDeleteOutboxPayload = {
+  deleteId: string;
+  incomeId: string;
+  createdAt: string;
+};
+
+export type FinanceExpenseDeleteOutboxPayload = {
+  deleteId: string;
+  expenseId: string;
+  createdAt: string;
+};
+
 export type FinanceExpenseCategoryOutboxPayload = {
   patchId: string;
   title: string;
@@ -213,6 +227,8 @@ export type OutboxPayloadByType = {
   MANAGER_REVENUE_PLANS: ManagerRevenuePlansPayload;
   FINANCE_INCOME_UPDATE: FinanceIncomeUpdateOutboxPayload;
   FINANCE_EXPENSE_UPDATE: FinanceExpenseUpdateOutboxPayload;
+  FINANCE_INCOME_DELETE: FinanceIncomeDeleteOutboxPayload;
+  FINANCE_EXPENSE_DELETE: FinanceExpenseDeleteOutboxPayload;
   FINANCE_EXPENSE_CATEGORY: FinanceExpenseCategoryOutboxPayload;
   MANAGER_STORE_COMMISSIONS: ManagerStoreCommissionsOutboxPayload;
   ACQUIRING_PROFILES: AcquiringProfilesOutboxPayload;

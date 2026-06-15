@@ -1776,6 +1776,52 @@ export class AuthService implements OnModuleInit {
     return expense;
   }
 
+  deleteFinanceIncome(id: string, actor = 'system') {
+    const income = this.financeIncomes.find((item) => item.id === id);
+    if (!income) {
+      return null;
+    }
+    const account = this.financeAccounts.find((item) => item.id === income.accountId);
+    if (!account) {
+      return null;
+    }
+    account.balance = Math.round((account.balance - income.amount) * 100) / 100;
+    this.financeIncomes = this.financeIncomes.filter((item) => item.id !== id);
+    this.pushAudit(
+      actor,
+      'FINANCE_INCOME_DELETED',
+      `id=${id} ${account.name} -${income.amount}`,
+    );
+    this.invalidateDashboardCache();
+    this.queueIncremental(() => this.persistIncrementalFinanceIncomeDelete(income, account.id));
+    return income;
+  }
+
+  deleteFinanceExpense(id: string, actor = 'system') {
+    const expense = this.financeExpenses.find((item) => item.id === id);
+    if (!expense) {
+      return null;
+    }
+    const account = this.financeAccounts.find((item) => item.id === expense.accountId);
+    if (!account) {
+      return null;
+    }
+    account.balance = Math.round((account.balance + expense.amount) * 100) / 100;
+    const categoryKey = isFinanceExpenseCategoryLabel(expense.title) ? expense.title : 'Прочие траты';
+    this.financeExpenseCategoryAmounts[categoryKey] = Math.round(
+      ((this.financeExpenseCategoryAmounts[categoryKey] ?? 0) - expense.amount) * 100,
+    ) / 100;
+    this.financeExpenses = this.financeExpenses.filter((item) => item.id !== id);
+    this.pushAudit(
+      actor,
+      'FINANCE_EXPENSE_DELETED',
+      `id=${id} ${expense.title}: +${expense.amount} to ${account.name}`,
+    );
+    this.invalidateDashboardCache();
+    this.queueIncremental(() => this.persistIncrementalFinanceExpenseDelete(expense, account.id));
+    return expense;
+  }
+
   updateAutoFinanceIncome(
     id: string,
     payload: {
@@ -4328,6 +4374,50 @@ export class AuthService implements OnModuleInit {
         if (!account) {
           continue;
         }
+        await tx.financeAccount.upsert({
+          where: { id: account.id },
+          create: {
+            id: account.id,
+            name: account.name,
+            kind:
+              account.kind === 'CASH' ? PrismaFinanceAccountKind.CASH : PrismaFinanceAccountKind.BANK,
+            balance: account.balance,
+          },
+          update: { balance: account.balance },
+        });
+      }
+      await this.persistFinanceAppStateSlice(tx);
+    });
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistIncrementalFinanceIncomeDelete(income: FinanceIncome, accountId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financeIncome.deleteMany({ where: { id: income.id } });
+      const account = this.financeAccounts.find((a) => a.id === accountId);
+      if (account) {
+        await tx.financeAccount.upsert({
+          where: { id: account.id },
+          create: {
+            id: account.id,
+            name: account.name,
+            kind:
+              account.kind === 'CASH' ? PrismaFinanceAccountKind.CASH : PrismaFinanceAccountKind.BANK,
+            balance: account.balance,
+          },
+          update: { balance: account.balance },
+        });
+      }
+      await this.persistFinanceAppStateSlice(tx);
+    });
+    await this.persistLatestAuditEntry();
+  }
+
+  private async persistIncrementalFinanceExpenseDelete(expense: FinanceExpense, accountId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financeExpense.deleteMany({ where: { id: expense.id } });
+      const account = this.financeAccounts.find((a) => a.id === accountId);
+      if (account) {
         await tx.financeAccount.upsert({
           where: { id: account.id },
           create: {

@@ -7,6 +7,8 @@ import type {
   DirectorSetPercentPayload,
   FinanceExpenseCategoryOutboxPayload,
   FinanceExpenseUpdateOutboxPayload,
+  FinanceIncomeDeleteOutboxPayload,
+  FinanceExpenseDeleteOutboxPayload,
   FinanceIncomeUpdateOutboxPayload,
   ManagerRevenuePlansPayload,
   ManagerStoreCommissionsOutboxPayload,
@@ -132,6 +134,12 @@ export async function applyFinanceOptimistic(
       break;
     case 'FINANCE_EXPENSE_UPDATE':
       await applyExpenseUpdate(userId, payload as FinanceExpenseUpdateOutboxPayload);
+      break;
+    case 'FINANCE_INCOME_DELETE':
+      await applyIncomeDelete(userId, payload as FinanceIncomeDeleteOutboxPayload);
+      break;
+    case 'FINANCE_EXPENSE_DELETE':
+      await applyExpenseDelete(userId, payload as FinanceExpenseDeleteOutboxPayload);
       break;
     case 'FINANCE_EXPENSE_CATEGORY':
       await applyExpenseCategory(userId, payload as FinanceExpenseCategoryOutboxPayload);
@@ -374,6 +382,53 @@ async function applyExpenseUpdate(
         }
       : row,
   );
+  await saveFinance(userId, { ...snap, accounts, expenses, categoryAmounts });
+}
+
+async function applyIncomeDelete(
+  userId: number,
+  payload: FinanceIncomeDeleteOutboxPayload,
+): Promise<void> {
+  const snap = await loadFinance(userId);
+  if (!snap) {
+    return;
+  }
+  const existing = snap.incomes.find((row) => row.id === payload.incomeId);
+  if (!existing) {
+    return;
+  }
+  const accounts = snap.accounts.map((account) =>
+    account.id === existing.accountId
+      ? { ...account, balance: Math.round((account.balance - existing.amount) * 100) / 100 }
+      : account,
+  );
+  const incomes = snap.incomes.filter((row) => row.id !== payload.incomeId);
+  await saveFinance(userId, { ...snap, accounts, incomes });
+}
+
+async function applyExpenseDelete(
+  userId: number,
+  payload: FinanceExpenseDeleteOutboxPayload,
+): Promise<void> {
+  const snap = await loadFinance(userId);
+  if (!snap) {
+    return;
+  }
+  const existing = snap.expenses.find((row) => row.id === payload.expenseId);
+  if (!existing) {
+    return;
+  }
+  const accounts = snap.accounts.map((account) =>
+    account.id === existing.accountId
+      ? { ...account, balance: Math.round((account.balance + existing.amount) * 100) / 100 }
+      : account,
+  );
+  const categoryAmounts = bumpCategoryAmount(
+    snap.categoryAmounts ?? defaultCategoryAmounts(),
+    existing.title,
+    -existing.amount,
+  );
+  const expenses = snap.expenses.filter((row) => row.id !== payload.expenseId);
   await saveFinance(userId, { ...snap, accounts, expenses, categoryAmounts });
 }
 
