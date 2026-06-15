@@ -17,6 +17,11 @@
   font-size: 12px;
 }
 
+.app.app--desktop .storeDirectorConsoleExit {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
 .app.app--desktop .storeDirectorConsole {
   margin: 10px 0 14px;
   padding: 12px 14px;
@@ -25,8 +30,16 @@
   background: var(--dt-surface-2, rgba(255, 255, 255, 0.04));
 }
 
+.storeDirectorConsoleHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
 .app.app--desktop .storeDirectorConsoleTitle {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--dt-text);

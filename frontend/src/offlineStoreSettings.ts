@@ -6,12 +6,14 @@ export type OfflineStoreSettings = {
   storeName: string;
   acquiringPercent: number;
   sellerPercents: Record<string, number>;
+  managerPercent: number;
 };
 
 const DEFAULT_SETTINGS: OfflineStoreSettings = {
   storeName: 'Моя точка',
   acquiringPercent: 1.8,
   sellerPercents: {},
+  managerPercent: 5,
 };
 
 export function readOfflineStoreSettings(): OfflineStoreSettings {
@@ -41,6 +43,10 @@ export function readOfflineStoreSettings(): OfflineStoreSettings {
               ),
             )
           : {},
+      managerPercent:
+        typeof parsed.managerPercent === 'number' && Number.isFinite(parsed.managerPercent)
+          ? Math.max(0, Math.min(100, parsed.managerPercent))
+          : DEFAULT_SETTINGS.managerPercent,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -56,6 +62,10 @@ export function writeOfflineStoreSettings(patch: Partial<OfflineStoreSettings>):
         ? Math.max(0, Math.min(100, patch.acquiringPercent))
         : current.acquiringPercent,
     sellerPercents: patch.sellerPercents ? { ...patch.sellerPercents } : { ...current.sellerPercents },
+    managerPercent:
+      patch.managerPercent !== undefined
+        ? Math.max(0, Math.min(100, patch.managerPercent))
+        : current.managerPercent,
   };
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
@@ -79,6 +89,10 @@ export function setOfflineSellerPercent(sellerId: number, ratePercent: number): 
       [String(sellerId)]: Math.max(0, Math.min(100, ratePercent)),
     },
   });
+}
+
+export function setOfflineManagerPercent(managerPercent: number): OfflineStoreSettings {
+  return writeOfflineStoreSettings({ managerPercent });
 }
 
 export function offlineSellerPercent(sellerId: number, fallback: number): number {

@@ -42,6 +42,8 @@ type StaffLike = {
   nickname: string;
   isActive: boolean;
   assignedShiftId?: string;
+  storeName?: string;
+  assignedStores?: string[];
   staffPosition?: string;
   retoucherRatePercent?: number;
   earningsAmount?: number;
@@ -290,8 +292,9 @@ async function applyStaffAdd(userId: number, payload: AdminStaffAddOutboxPayload
   const staff = (await loadAdminCache<StaffLike[]>(userId, 'staff')) ?? [];
   const sellers = (await loadAdminCache<SellerLike[]>(userId, 'sellers')) ?? [];
   const tempId = hashTempId(payload.clientMemberId);
-  const storeName = sellers[0]?.storeName ?? '';
-  if (staff.some((m) => m.nickname === payload.nickname)) {
+  const storeName = payload.storeName?.trim() || sellers[0]?.storeName?.trim() || '';
+  const position = payload.staffPosition ?? 'SALES';
+  if (staff.some((m) => m.nickname === payload.nickname && m.staffPosition === position)) {
     return;
   }
   const member: StaffLike = {
@@ -299,24 +302,28 @@ async function applyStaffAdd(userId: number, payload: AdminStaffAddOutboxPayload
     fullName: payload.fullName,
     nickname: payload.nickname,
     isActive: true,
-    staffPosition: 'SALES',
-    retoucherRatePercent: 5,
+    storeName,
+    assignedStores: storeName ? [storeName] : [],
+    staffPosition: position,
+    retoucherRatePercent: position === 'RETOUCHER' ? (payload.retoucherRatePercent ?? 5) : undefined,
     earningsAmount: 0,
   };
   await saveAdminCache(userId, 'staff', [...staff, member]);
-  await saveAdminCache(userId, 'sellers', [
-    ...sellers,
-    {
-      id: tempId,
-      fullName: payload.fullName,
-      nickname: payload.nickname,
-      storeName,
-      ratePercent: 30,
-      salesAmount: 0,
-      checksCount: 0,
-      commissionAmount: 0,
-    },
-  ]);
+  if (position === 'SALES') {
+    await saveAdminCache(userId, 'sellers', [
+      ...sellers,
+      {
+        id: tempId,
+        fullName: payload.fullName,
+        nickname: payload.nickname,
+        storeName,
+        ratePercent: 30,
+        salesAmount: 0,
+        checksCount: 0,
+        commissionAmount: 0,
+      },
+    ]);
+  }
 }
 
 async function applyStaffFromBase(
@@ -333,6 +340,8 @@ async function applyStaffFromBase(
     return;
   }
   const staff = (await loadAdminCache<StaffLike[]>(userId, 'staff')) ?? [];
+  const sellers = (await loadAdminCache<SellerLike[]>(userId, 'sellers')) ?? [];
+  const storeName = sellers[0]?.storeName?.trim() || '';
   if (staff.some((m) => m.id === payload.employeeId)) {
     await saveAdminCache(
       userId,
@@ -348,6 +357,8 @@ async function applyStaffFromBase(
       fullName: emp.fullName,
       nickname: emp.nickname,
       isActive: true,
+      storeName,
+      assignedStores: storeName ? [storeName] : [],
       staffPosition: 'SALES',
       retoucherRatePercent: 5,
       earningsAmount: 0,

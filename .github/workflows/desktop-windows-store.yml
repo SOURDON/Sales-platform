@@ -33,10 +33,10 @@ jobs:
           npm ci --prefix frontend
           npm ci --prefix desktop
 
-      - name: Generate icons
+      - name: Generate store icons
         shell: bash
         working-directory: desktop
-        run: npm run icon
+        run: npm run icon:store
 
       - name: Prepare store-offline env
         shell: bash

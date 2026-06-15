@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   readOfflineStoreSettings,
   setOfflineAcquiringPercent,
+  setOfflineManagerPercent,
   setOfflineSellerPercent,
   setOfflineStoreName,
 } from '../offlineStoreSettings';
@@ -15,21 +16,33 @@ type SellerRow = {
 
 export function StoreDirectorConsole({
   sellers,
+  managerPercent,
+  hasManager,
   onStoreNameChange,
   onAcquiringChange,
   onSellerPercentChange,
+  onAddManager,
+  onExitDirector,
 }: {
   sellers: SellerRow[];
+  managerPercent: number;
+  hasManager: boolean;
   onStoreNameChange: (name: string) => void;
   onAcquiringChange: (percent: number) => void;
   onSellerPercentChange: (sellerId: number, percent: number) => Promise<void>;
+  onAddManager: (fullName: string, nickname: string, percent: number) => Promise<void>;
+  onExitDirector: () => void;
 }) {
   const settings = useMemo(() => readOfflineStoreSettings(), []);
   const [storeNameDraft, setStoreNameDraft] = useState(settings.storeName);
   const [acquiringDraft, setAcquiringDraft] = useState(String(settings.acquiringPercent));
   const [percentDrafts, setPercentDrafts] = useState<Record<number, string>>({});
+  const [managerFullName, setManagerFullName] = useState('');
+  const [managerNickname, setManagerNickname] = useState('');
+  const [managerPercentDraft, setManagerPercentDraft] = useState(String(managerPercent));
   const [status, setStatus] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [managerBusy, setManagerBusy] = useState(false);
 
   const saveStoreName = () => {
     const trimmed = storeNameDraft.trim();
@@ -68,9 +81,34 @@ export function StoreDirectorConsole({
     }
   };
 
+  const saveManager = async () => {
+    const fullName = managerFullName.trim();
+    const nickname = managerNickname.trim();
+    const num = Number(String(managerPercentDraft).replace(',', '.'));
+    if (!fullName || !nickname || !Number.isFinite(num)) {
+      return;
+    }
+    setManagerBusy(true);
+    setStatus('');
+    try {
+      setOfflineManagerPercent(num);
+      await onAddManager(fullName, nickname, num);
+      setManagerFullName('');
+      setManagerNickname('');
+      setStatus(`Управляющий ${nickname} добавлен`);
+    } finally {
+      setManagerBusy(false);
+    }
+  };
+
   return (
     <section className="storeDirectorConsole" aria-label="Консоль директора">
-      <p className="storeDirectorConsoleTitle">Консоль директора</p>
+      <div className="storeDirectorConsoleHeader">
+        <p className="storeDirectorConsoleTitle">Консоль директора</p>
+        <button type="button" className="ghost storeDirectorConsoleExit" onClick={onExitDirector}>
+          Выйти
+        </button>
+      </div>
       {status ? <p className="notice storeDirectorConsoleStatus">{status}</p> : null}
       <div className="storeDirectorConsoleGrid">
         <label className="storeDirectorConsoleField">
@@ -132,6 +170,49 @@ export function StoreDirectorConsole({
           ))}
         </div>
       ) : null}
+      {hasManager ? (
+        <p className="storeDirectorConsoleSubtitle">Управляющий уже добавлен на точку</p>
+      ) : (
+        <div className="storeDirectorConsoleSellers">
+          <p className="storeDirectorConsoleSubtitle">Управляющий</p>
+          <div className="storeDirectorConsoleGrid">
+            <label className="storeDirectorConsoleField">
+              <span>ФИО</span>
+              <input
+                value={managerFullName}
+                onChange={(event) => setManagerFullName(event.target.value)}
+                placeholder="ФИО управляющего"
+              />
+            </label>
+            <label className="storeDirectorConsoleField">
+              <span>Ник</span>
+              <input
+                value={managerNickname}
+                onChange={(event) => setManagerNickname(event.target.value)}
+                placeholder="Ник"
+              />
+            </label>
+            <label className="storeDirectorConsoleField">
+              <span>% от выручки точки</span>
+              <div className="storeDirectorConsoleRow">
+                <input
+                  inputMode="decimal"
+                  value={managerPercentDraft}
+                  onChange={(event) => setManagerPercentDraft(event.target.value)}
+                />
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={managerBusy}
+                  onClick={() => void saveManager()}
+                >
+                  {managerBusy ? '…' : 'Добавить'}
+                </button>
+              </div>
+            </label>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -34,6 +34,7 @@ export function DesktopAppLayout({
   roleLabel,
   onLogout,
   hideLogout = false,
+  hideConnectionStatus = false,
   directorAccountSwitcher,
   syncToolbar,
   desktopTheme,
@@ -47,6 +48,7 @@ export function DesktopAppLayout({
   roleLabel?: string;
   onLogout: () => void;
   hideLogout?: boolean;
+  hideConnectionStatus?: boolean;
   directorAccountSwitcher?: ReactNode;
   syncToolbar?: ReactNode;
   desktopTheme: DesktopTheme;
@@ -121,13 +123,13 @@ export function DesktopAppLayout({
               <h2 className="desktopTitlebarTitle">{pageTitle}</h2>
             </div>
             <div className="desktopTitlebarTrailing">
-              {syncToolbar}
-              <ConnectionBanner {...connection} variant="pill" />
+              {hideConnectionStatus ? null : syncToolbar}
+              {hideConnectionStatus ? null : <ConnectionBanner {...connection} variant="pill" />}
             </div>
           </div>
         </header>
 
-        {(connection.syncing || !connection.online) && (
+        {(hideConnectionStatus ? false : connection.syncing || !connection.online) && (
           <ConnectionBanner {...connection} variant="bar" />
         )}
 

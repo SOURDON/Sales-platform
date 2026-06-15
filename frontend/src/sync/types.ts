@@ -72,6 +72,9 @@ export type AdminStaffAddOutboxPayload = {
   fullName: string;
   nickname: string;
   createdAt: string;
+  storeName?: string;
+  staffPosition?: 'SALES' | 'RETOUCHER' | 'MANAGER';
+  retoucherRatePercent?: number;
 };
 
 export type AdminStaffFromBaseOutboxPayload = {
