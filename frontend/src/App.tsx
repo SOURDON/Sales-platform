@@ -3425,8 +3425,13 @@ function App() {
       );
       await appendSaleDeleteJournal(uid, { ...journalBase, status: 'local_removed' });
       setOfflineQueueTick((x) => x + 1);
-      await loadSales(token).catch(() => undefined);
-      setSalesNotice('Офлайн-продажа удалена локально.');
+      if (offlineStoreMode) {
+        await applyOfflineAdminSnapshot();
+        setSalesNotice('');
+      } else {
+        await loadSales(token).catch(() => undefined);
+        setSalesNotice('Офлайн-продажа удалена локально.');
+      }
       return;
     }
 
@@ -3471,9 +3476,14 @@ function App() {
       if (mode === 'queued') {
         await appendSaleDeleteJournal(uid, { ...journalBase, status: 'pending_sync' });
         setOfflineQueueTick((x) => x + 1);
-        await loadSales(token).catch(() => undefined);
-        await loadDashboard(token, { background: true }).catch(() => undefined);
-        setSalesNotice('Удаление сохранено офлайн — отправится при подключении.');
+        if (offlineStoreMode) {
+          await applyOfflineAdminSnapshot();
+          setSalesNotice('');
+        } else {
+          await loadSales(token).catch(() => undefined);
+          await loadDashboard(token, { background: true }).catch(() => undefined);
+          setSalesNotice('Удаление сохранено офлайн — отправится при подключении.');
+        }
         return;
       }
     } else {
@@ -3491,7 +3501,7 @@ function App() {
     }
     await loadSales(token);
     await loadDashboard(token, { background: true }).catch(() => undefined);
-    setSalesNotice('Продажа удалена.');
+    setSalesNotice(offlineStoreMode ? '' : 'Продажа удалена.');
   };
 
   const updateSalePaymentType = async (
@@ -5543,6 +5553,7 @@ function App() {
                                 sellers={sellers}
                                 shiftSellers={sellersOnOpenShift(staff, sellers, shifts)}
                                 storeName={session.user.storeName}
+                                hidePendingLabels={offlineStoreMode}
                               />
                             ) : null}
                             {isDesktopShell ? (
@@ -5576,12 +5587,12 @@ function App() {
                                   {todayStoreSales.map((sale) => (
                                     <article
                                       key={sale.id}
-                                      className={`saleItem ${sale.pendingSync ? 'saleItemPendingSync' : ''}`}
+                                      className={`saleItem ${sale.pendingSync && !offlineStoreMode ? 'saleItemPendingSync' : ''}`}
                                     >
                                       <p className="saleHeader">
                                         <strong>{new Date(sale.createdAt).toLocaleTimeString('ru-RU')}</strong> –{' '}
                                         {sellerLabelFromProfiles(sellers, sale.sellerId, sale.sellerName)}
-                                        {sale.pendingSync ? (
+                                        {sale.pendingSync && !offlineStoreMode ? (
                                           <span className="salePendingBadge"> нет сети · отправится позже</span>
                                         ) : null}
                                         {role === 'ADMIN' ? (
@@ -5716,9 +5727,9 @@ function App() {
                                           }}
                                         >
                                           <p className="offlineSaleDeleteBarHint">
-                                            {sale.pendingSync
-                                              ? 'Продажа ещё не на сервере. Укажите причину удаления.'
-                                              : 'Укажите причину удаления продажи.'}
+                                            {offlineStoreMode || !sale.pendingSync
+                                              ? 'Укажите причину удаления продажи.'
+                                              : 'Продажа ещё не на сервере. Укажите причину удаления.'}
                                           </p>
                                           <div className="offlineSaleDeleteBarRow">
                                             <input
@@ -6263,11 +6274,13 @@ function SalesBySellerStrip({
   sellers,
   shiftSellers,
   storeName,
+  hidePendingLabels = false,
 }: {
   sales: AdminSale[];
   sellers: SellerProfile[];
   shiftSellers: SellerProfile[];
   storeName: string;
+  hidePendingLabels?: boolean;
 }) {
   const groups = useMemo(() => {
     const sellerById = new Map(sellers.map((seller) => [seller.id, seller]));
@@ -6353,7 +6366,7 @@ function SalesBySellerStrip({
                 {group.sales.map((sale) => (
                   <li
                     key={sale.id}
-                    className={`salesBySellerSaleRow${sale.pendingSync ? ' salesBySellerSaleRow--pending' : ''}`}
+                    className={`salesBySellerSaleRow${sale.pendingSync && !hidePendingLabels ? ' salesBySellerSaleRow--pending' : ''}`}
                   >
                     <div className="salesBySellerSaleTop">
                       <time dateTime={sale.createdAt}>
@@ -6375,7 +6388,7 @@ function SalesBySellerStrip({
                     <p className="salesBySellerSaleItems" title={formatSaleItemsLine(sale.items)}>
                       {formatSaleItemsLine(sale.items)}
                     </p>
-                    {sale.pendingSync ? (
+                    {sale.pendingSync && !hidePendingLabels ? (
                       <span className="salesBySellerSalePending">Офлайн · отправится позже</span>
                     ) : null}
                   </li>
