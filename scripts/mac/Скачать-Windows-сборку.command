@@ -1,4 +1,3 @@
 #!/bin/bash
-# Последняя Windows-сборка v1.0.64 (GitHub Actions → desktop-windows-setup).
-# После push тега desktop-v1.0.64 замените URL на run из Actions.
+# Последняя Windows-сборка v1.0.65 (GitHub Actions → desktop-windows-setup).
 open "https://github.com/SOURDON/Sales-platform/actions/workflows/desktop-windows.yml"

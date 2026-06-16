@@ -8,6 +8,7 @@
     "build": "tauri build",
     "build:store": "tauri build --config src-tauri/tauri.store.conf.json",
     "build:frontend": "node scripts/build-frontend.mjs",
+    "icon": "tauri icon ../frontend/public/app-icon.svg -o src-tauri/icons",
     "icon:store": "tauri icon ../frontend/public/app-icon-store.svg -o src-tauri/icons-store",
     "icons:mac": "bash scripts/generate-icons.sh",
     "tauri": "tauri"
