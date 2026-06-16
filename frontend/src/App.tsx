@@ -805,23 +805,35 @@ type FinanceOpsSnapshot = {
   };
 };
 
-/** Backend base URL. VITE_API_URL при сборке; иначе в браузере — тот же origin (Timeweb: сайт + API на одном домене). */
-const API_BASE_URL = (() => {
+/** Backend base URL. Веб-прод: тот же origin (Caddy). Десктоп: VITE_API_URL при сборке. */
+function resolveApiBaseUrl(): string {
   const fromEnv = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
-  if (fromEnv) {
-    return fromEnv.replace(/\/$/, '');
-  }
+  const envUrl = fromEnv ? fromEnv.replace(/\/$/, '') : '';
+
   if (import.meta.env.DEV) {
+    if (envUrl) {
+      return envUrl;
+    }
     if (typeof window !== 'undefined') {
       return `http://${window.location.hostname}:3000`;
     }
     return 'http://localhost:3000';
   }
-  if (typeof window !== 'undefined' && window.location?.origin) {
+
+  if (typeof window !== 'undefined') {
+    if (isTauriRuntime() || import.meta.env.VITE_OFFLINE_STORE === '1') {
+      if (envUrl) {
+        return envUrl;
+      }
+      return window.location.origin;
+    }
     return window.location.origin;
   }
-  return '';
-})();
+
+  return envUrl;
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const API_CONFIG_ERROR =
   !import.meta.env.DEV && !API_BASE_URL && typeof window === 'undefined'
@@ -829,7 +841,7 @@ const API_CONFIG_ERROR =
     : '';
 
 const API_DEPLOY_HINT =
-  'На сервере старая версия API. Обновите Timeweb (git pull + docker compose up -d --build api) и нажмите ↻.';
+  'На сервере старая версия API. Обновите backend (git pull + docker compose up -d --build api) и нажмите ↻.';
 
 const MANAGER_COMMISSIONS_DEPLOY_HINT =
   `На сервере ещё нет API для процентов управляющего. ${API_DEPLOY_HINT}`;
@@ -838,10 +850,10 @@ function apiServerLabel(baseUrl: string): string {
   try {
     const host = new URL(baseUrl).hostname;
     if (host.includes('onrender.com')) {
-      return 'Render (устарело — смените VITE_API_URL на Timeweb)';
+      return 'Render (устарело)';
     }
     if (host === '77.233.223.48') {
-      return 'Timeweb';
+      return 'Продакшен';
     }
     if (host === 'localhost' || host === '127.0.0.1') {
       return 'Локальный сервер';
@@ -866,7 +878,7 @@ async function readApiErrorMessage(
 }
 
 function describeLoginFetchError(error: unknown): string {
-  const serverHint = API_BASE_URL ? apiServerLabel(API_BASE_URL) : 'Timeweb';
+  const serverHint = API_BASE_URL ? apiServerLabel(API_BASE_URL) : 'сервер';
   if (error instanceof Error) {
     if (error.name === 'AbortError') {
       return `Сервер не ответил за 15 секунд (${serverHint}). Подождите полминуты и войдите снова. Если повторяется — на VPS: docker compose restart api.`;
@@ -4840,7 +4852,7 @@ function App() {
           <header className="brandHeader">
             <h1>Фотографы</h1>
             <p className="subtitle">Авторизация в системе</p>
-            {API_BASE_URL ? (
+            {isDesktopShell && API_BASE_URL ? (
               <p className="subtitle loginServerHint">
                 Сервер: {apiServerLabel(API_BASE_URL)}
                 {import.meta.env.DEV ? ` · ${API_BASE_URL}` : null}
