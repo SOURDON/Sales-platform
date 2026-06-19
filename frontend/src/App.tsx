@@ -8448,9 +8448,20 @@ function FinanceOpsPanel({
   const compactFinanceUi = useWideFinanceLayout(preferDesktopLayout);
   const isDesktopSplit = Boolean(desktopSection) && preferDesktopLayout;
   const isWebSplit = Boolean(webSection) && !preferDesktopLayout;
-  const showOpsSection = isDesktopSplit
-    ? desktopSection === 'home'
-    : !isWebSplit || webSection === 'ops' || webSection === 'home';
+  const isHomeFinanceView =
+    (isDesktopSplit && desktopSection === 'home') ||
+    (isWebSplit && webSection === 'home');
+  const isShiftFinanceView =
+    (isDesktopSplit && desktopSection === 'shift') ||
+    (isWebSplit && webSection === 'shift');
+  const isFullFinanceView = !isDesktopSplit && !isWebSplit;
+  const showOpsHero =
+    isHomeFinanceView ||
+    isFullFinanceView ||
+    (isWebSplit && webSection === 'ops');
+  const showIncomeDayForm =
+    !isHomeFinanceView &&
+    (isFullFinanceView || (isWebSplit && webSection === 'ops'));
   const showExpensesSection = isDesktopSplit
     ? desktopSection === 'shift'
     : !isWebSplit || webSection === 'expenses';
@@ -8463,8 +8474,9 @@ function FinanceOpsPanel({
     showArticlesPanel &&
     (preferDesktopLayout || isWebSplit);
   const showCompactFlows =
-    compactFinanceUi && (!isDesktopSplit || desktopSection === 'shift');
-  const showWebShiftHistory = isWebSplit && webSection === 'shift';
+    compactFinanceUi && (isShiftFinanceView || isFullFinanceView);
+  const showWebIncomeHistory = isWebSplit && webSection === 'shift';
+  const showAccordionHistory = !isWebSplit && !showCompactFlows && !isHomeFinanceView;
   const [expenseArticlesSheetOpen, setExpenseArticlesSheetOpen] = useState(
     compactFinanceUi || webSection === 'expenses' || webSection === 'home',
   );
@@ -8928,7 +8940,7 @@ function FinanceOpsPanel({
       }${isWebSplit ? ` financeOpsCard--web-${webSection}` : ''}`}
     >
       <div className={`financeOpsShell${compactFinanceUi ? ' financeOpsShell--desktop' : ''}`}>
-      {showOpsSection ? (
+      {showOpsHero ? (
       <header className="financeOpsHero">
         <div className="financeOpsHeroTop">
           <h4 className="financeOpsPageTitle">Оперативные финансы</h4>
@@ -9050,7 +9062,7 @@ function FinanceOpsPanel({
           </div>
         </div>
       </header>
-      ) : (
+      ) : showExpensesSection && isWebSplit ? (
       <header className="financeOpsHero financeOpsHero--expensesWeb">
         <div className="financeOpsHeroTop">
           <h4 className="financeOpsPageTitle">Расходы</h4>
@@ -9060,7 +9072,7 @@ function FinanceOpsPanel({
           />
         </div>
       </header>
-      )}
+      ) : null}
 
       {showCompactFlows ? (
         <section className="financeOpsZone financeOpsZone--flows addSaleForm">
@@ -9226,7 +9238,7 @@ function FinanceOpsPanel({
         </section>
       ) : (
         <>
-          {showOpsSection ? (
+          {showIncomeDayForm ? (
           <section className="financeOpsZone financeOpsZone--income financeOpsIncomeBlock addSaleForm">
             <h4 className="financeOpsZoneTitle">Приход за день</h4>
             <label className="financeOpsAccountsPick">
@@ -9595,7 +9607,7 @@ function FinanceOpsPanel({
         </section>
       ) : isWebSplit ? (
         <>
-          {showOpsSection || showWebShiftHistory ? (
+          {showWebIncomeHistory ? (
             <section className="financeOpsZone financeOpsZone--historyPage financeOpsZone--historyIncomes">
               <FinanceOpsHistoryList
                 title="Последние приходы по счетам"
@@ -9629,7 +9641,7 @@ function FinanceOpsPanel({
             </section>
           ) : null}
         </>
-      ) : (
+      ) : showAccordionHistory ? (
         <section className="financeOpsZone financeOpsZone--history financeHistoryAccordions">
           <section className={`procurementAccordion ${expensesHistoryOpen ? '' : 'procurementAccordion--collapsed'}`}>
             <button
@@ -9698,7 +9710,7 @@ function FinanceOpsPanel({
             </div>
           </section>
         </section>
-      )}
+      ) : null}
       </div>
     </div>
   );
