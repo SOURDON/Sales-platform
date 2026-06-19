@@ -1150,6 +1150,8 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const offlineStoreMode = isOfflineStoreApp();
+  /** Веб и онлайн-десктоп: без продаж, склада, зарплат и спецтехники. Офлайн-магазин — полный UI. */
+  const onlineSectionsTrimmed = !offlineStoreMode;
   const restoredSession = useMemo(
     () => (offlineStoreMode ? resolveOfflineStoreSession() : readStoredSession()),
     [offlineStoreMode],
@@ -4688,10 +4690,10 @@ function App() {
     if (!session?.token) {
       return;
     }
-    if (!isDesktopShell) {
+    if (onlineSectionsTrimmed) {
       const path = location.pathname;
-      const blockedWebPaths = ['/sales', '/team', '/payroll', '/accounting/equipment', '/accounting/procurement'];
-      if (blockedWebPaths.includes(path)) {
+      const blockedOnlinePaths = ['/sales', '/team', '/payroll', '/accounting/equipment', '/accounting/procurement'];
+      if (blockedOnlinePaths.includes(path)) {
         return;
       }
     }
@@ -4791,7 +4793,6 @@ function App() {
       return [];
     }
     const r = session.user.role;
-    const webSectionsTrimmed = !isDesktopShell;
     const retoucher = r === 'RETOUCHER';
     const sellerOnly = r === 'SELLER';
     const financeViewer = r === 'ACCOUNTANT' || r === 'DIRECTOR' || r === 'MANAGER';
@@ -4812,17 +4813,17 @@ function App() {
     if (!isDesktopShell && financeViewer) {
       base.push({ to: '/finance/expenses', label: 'Расходы', icon: <ExpensesIcon /> });
     }
-    if (!webSectionsTrimmed) {
+    if (!onlineSectionsTrimmed) {
       base.push({ to: '/sales', label: 'Продажи', icon: <SalesIcon /> });
     }
-    if (r === 'DIRECTOR' && !webSectionsTrimmed) {
+    if (r === 'DIRECTOR' && !onlineSectionsTrimmed) {
       base.push(
         { to: '/accounting/equipment', label: 'Спецтехника', icon: <EquipmentIcon /> },
         { to: '/accounting/procurement', label: 'Закупки и склад', icon: <ProcurementIcon /> },
         { to: '/payroll', label: 'Выплата зарплат', icon: <PayrollIcon /> },
       );
     }
-    if (!webSectionsTrimmed && !(offlineStoreMode && r === 'ADMIN')) {
+    if (!onlineSectionsTrimmed && !(offlineStoreMode && r === 'ADMIN')) {
       const teamNavLabel = r === 'ADMIN' ? 'Склад' : 'Сотрудники';
       base.push({ to: '/team', label: teamNavLabel, icon: <WarehouseIcon /> });
     }
@@ -4830,7 +4831,7 @@ function App() {
       base.push({ to: '/control', label: 'Отчёт', icon: <ControlIcon /> });
     }
     return base;
-  }, [session, isDesktopShell, offlineStoreMode]);
+  }, [session, isDesktopShell, offlineStoreMode, onlineSectionsTrimmed]);
 
   const desktopNavItems = mobileNavItems;
 
@@ -4925,7 +4926,6 @@ function App() {
   const isManager = role === 'MANAGER';
   const isReadOnlyObserver = role === 'ACCOUNTANT' || role === 'MANAGER';
   const isFinanceViewer = role === 'ACCOUNTANT' || role === 'DIRECTOR';
-  const webSectionsTrimmed = !isDesktopShell;
   const shiftLabel = isFinanceViewer || isManager ? 'Оперативка' : 'Смена';
   const routesOutlet = (
     <div className="pageOutlet">
@@ -5392,7 +5392,7 @@ function App() {
                   }`}
                 >
                   <section className="sectionCard">
-                    {isManager ? null : role === 'ACCOUNTANT' && isDesktopShell ? (
+                    {isManager ? null : role === 'ACCOUNTANT' && isDesktopShell && !onlineSectionsTrimmed ? (
                       <AccountantStoreEquipmentStoresPanel
                         token={session.token}
                         userId={session.user.id}
@@ -5484,7 +5484,7 @@ function App() {
               element={
                 isSellerOnly ? (
                   <Navigate to="/home" replace />
-                ) : webSectionsTrimmed ? (
+                ) : onlineSectionsTrimmed ? (
                   <Navigate to="/home" replace />
                 ) : (
                   <div
@@ -5800,7 +5800,7 @@ function App() {
             <Route
               path="/accounting/equipment"
               element={
-                role !== 'DIRECTOR' || webSectionsTrimmed ? (
+                role !== 'DIRECTOR' || onlineSectionsTrimmed ? (
                   <Navigate to="/home" replace />
                 ) : (
                   <div
@@ -5822,7 +5822,7 @@ function App() {
             <Route
               path="/accounting/procurement"
               element={
-                role !== 'DIRECTOR' || webSectionsTrimmed ? (
+                role !== 'DIRECTOR' || onlineSectionsTrimmed ? (
                   <Navigate to="/home" replace />
                 ) : (
                   <div className={`dashboard${isDesktopShell ? ' dashboard--financeDesktop' : ''}`}>
@@ -5864,7 +5864,7 @@ function App() {
             <Route
               path="/payroll"
               element={
-                role === 'DIRECTOR' && isDesktopShell ? (
+                role === 'DIRECTOR' && isDesktopShell && !onlineSectionsTrimmed ? (
                   <div
                     className={`dashboard teamPage${
                       isDesktopShell ? ' dashboard--warehouseDesktop' : ''
@@ -5914,7 +5914,7 @@ function App() {
                   <Navigate to="/home" replace />
                 ) : isSellerOnly ? (
                   <Navigate to="/home" replace />
-                ) : webSectionsTrimmed ? (
+                ) : onlineSectionsTrimmed ? (
                   <Navigate to="/home" replace />
                 ) : (
                   <div
