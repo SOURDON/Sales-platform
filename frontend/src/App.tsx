@@ -4688,6 +4688,13 @@ function App() {
     if (!session?.token) {
       return;
     }
+    if (!isDesktopShell) {
+      const path = location.pathname;
+      const blockedWebPaths = ['/sales', '/team', '/payroll', '/accounting/equipment', '/accounting/procurement'];
+      if (blockedWebPaths.includes(path)) {
+        return;
+      }
+    }
     const token = session.token;
     const role = session.user.role;
     const path = location.pathname;
@@ -4768,11 +4775,8 @@ function App() {
     if (path === '/home' || path === '/shift') {
       loads.push(loadShifts(token), loadStaff(token), loadSellers(token));
     }
-    if (path === '/sales' || path === '/shift') {
+    if (path === '/shift') {
       loads.push(loadSales(token), loadSellers(token), loadProducts(token));
-    }
-    if (path === '/team') {
-      loads.push(loadStoreInventory(token), loadGlobalEmployees(token));
     }
     void Promise.allSettled(loads);
   }, [isDesktopShell, location.pathname, session?.token, session?.user?.role]);
@@ -4787,7 +4791,7 @@ function App() {
       return [];
     }
     const r = session.user.role;
-    const directorWebTrimmed = !isDesktopShell && r === 'DIRECTOR';
+    const webSectionsTrimmed = !isDesktopShell;
     const retoucher = r === 'RETOUCHER';
     const sellerOnly = r === 'SELLER';
     const financeViewer = r === 'ACCOUNTANT' || r === 'DIRECTOR' || r === 'MANAGER';
@@ -4808,19 +4812,17 @@ function App() {
     if (!isDesktopShell && financeViewer) {
       base.push({ to: '/finance/expenses', label: 'Расходы', icon: <ExpensesIcon /> });
     }
-    if (!directorWebTrimmed) {
+    if (!webSectionsTrimmed) {
       base.push({ to: '/sales', label: 'Продажи', icon: <SalesIcon /> });
     }
-    if (r === 'DIRECTOR') {
+    if (r === 'DIRECTOR' && !webSectionsTrimmed) {
       base.push(
         { to: '/accounting/equipment', label: 'Спецтехника', icon: <EquipmentIcon /> },
         { to: '/accounting/procurement', label: 'Закупки и склад', icon: <ProcurementIcon /> },
+        { to: '/payroll', label: 'Выплата зарплат', icon: <PayrollIcon /> },
       );
-      if (!directorWebTrimmed) {
-        base.push({ to: '/payroll', label: 'Выплата зарплат', icon: <PayrollIcon /> });
-      }
     }
-    if (!directorWebTrimmed && !(offlineStoreMode && r === 'ADMIN')) {
+    if (!webSectionsTrimmed && !(offlineStoreMode && r === 'ADMIN')) {
       const teamNavLabel = r === 'ADMIN' ? 'Склад' : 'Сотрудники';
       base.push({ to: '/team', label: teamNavLabel, icon: <WarehouseIcon /> });
     }
@@ -4923,7 +4925,7 @@ function App() {
   const isManager = role === 'MANAGER';
   const isReadOnlyObserver = role === 'ACCOUNTANT' || role === 'MANAGER';
   const isFinanceViewer = role === 'ACCOUNTANT' || role === 'DIRECTOR';
-  const directorWebTrimmed = !isDesktopShell && role === 'DIRECTOR';
+  const webSectionsTrimmed = !isDesktopShell;
   const shiftLabel = isFinanceViewer || isManager ? 'Оперативка' : 'Смена';
   const routesOutlet = (
     <div className="pageOutlet">
@@ -5390,7 +5392,7 @@ function App() {
                   }`}
                 >
                   <section className="sectionCard">
-                    {isManager ? null : role === 'ACCOUNTANT' ? (
+                    {isManager ? null : role === 'ACCOUNTANT' && isDesktopShell ? (
                       <AccountantStoreEquipmentStoresPanel
                         token={session.token}
                         userId={session.user.id}
@@ -5482,7 +5484,7 @@ function App() {
               element={
                 isSellerOnly ? (
                   <Navigate to="/home" replace />
-                ) : directorWebTrimmed ? (
+                ) : webSectionsTrimmed ? (
                   <Navigate to="/home" replace />
                 ) : (
                   <div
@@ -5798,7 +5800,7 @@ function App() {
             <Route
               path="/accounting/equipment"
               element={
-                role !== 'DIRECTOR' ? (
+                role !== 'DIRECTOR' || webSectionsTrimmed ? (
                   <Navigate to="/home" replace />
                 ) : (
                   <div
@@ -5820,7 +5822,7 @@ function App() {
             <Route
               path="/accounting/procurement"
               element={
-                role !== 'DIRECTOR' ? (
+                role !== 'DIRECTOR' || webSectionsTrimmed ? (
                   <Navigate to="/home" replace />
                 ) : (
                   <div className={`dashboard${isDesktopShell ? ' dashboard--financeDesktop' : ''}`}>
@@ -5912,7 +5914,7 @@ function App() {
                   <Navigate to="/home" replace />
                 ) : isSellerOnly ? (
                   <Navigate to="/home" replace />
-                ) : directorWebTrimmed ? (
+                ) : webSectionsTrimmed ? (
                   <Navigate to="/home" replace />
                 ) : (
                   <div
@@ -6120,35 +6122,11 @@ function App() {
           Расходы
         </NavLink>
       ) : null}
-      {!isRetoucher && !isSellerOnly && (
-        <>
-          {!directorWebTrimmed ? (
-            <NavLink to="/sales" className={navTabClass}>
-              Продажи
-            </NavLink>
-          ) : null}
-          {role === 'DIRECTOR' ? (
-            <>
-              <NavLink to="/accounting/equipment" className={navTabClass}>
-                Спецтехника
-              </NavLink>
-              <NavLink to="/accounting/procurement" className={navTabClass}>
-                Закупки и склад
-              </NavLink>
-            </>
-          ) : null}
-          {!directorWebTrimmed ? (
-            <NavLink to="/team" className={navTabClass}>
-              {role === 'ADMIN' ? 'Склад' : 'Сотрудники'}
-            </NavLink>
-          ) : null}
-          {role === 'ACCOUNTANT' ? (
-            <NavLink to="/control" className={navTabClass}>
-              Отчёт
-            </NavLink>
-          ) : null}
-        </>
-      )}
+      {!isRetoucher && !isSellerOnly && role === 'ACCOUNTANT' ? (
+        <NavLink to="/control" className={navTabClass}>
+          Отчёт
+        </NavLink>
+      ) : null}
     </>
   );
 
