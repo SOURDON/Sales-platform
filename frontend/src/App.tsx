@@ -4702,7 +4702,7 @@ function App() {
     const path = location.pathname;
 
     if (role === 'DIRECTOR' || role === 'ACCOUNTANT') {
-      if (path === '/shift') {
+      if (path === '/shift' || (path === '/home' && role === 'DIRECTOR' && onlineSectionsTrimmed)) {
         void fetchRouteDataIfStale(`${role}:financeOps`, () => loadFinanceOps(token));
       }
       if (path === '/sales' || path === '/accounting/procurement') {
@@ -4762,7 +4762,7 @@ function App() {
     if (role === 'ADMIN' && path === '/home') {
       void refreshOfflinePending();
     }
-  }, [isDesktopShell, location.pathname, session?.token, session?.user?.role, refreshOfflinePending]);
+  }, [isDesktopShell, location.pathname, session?.token, session?.user?.role, refreshOfflinePending, onlineSectionsTrimmed]);
 
   const refreshAdminWebLive = useCallback(() => {
     if (!session?.token || isDesktopShell || session.user.role !== 'ADMIN') {
@@ -4926,6 +4926,7 @@ function App() {
   const isManager = role === 'MANAGER';
   const isReadOnlyObserver = role === 'ACCOUNTANT' || role === 'MANAGER';
   const isFinanceViewer = role === 'ACCOUNTANT' || role === 'DIRECTOR';
+  const directorFinanceHomeSplit = role === 'DIRECTOR' && onlineSectionsTrimmed;
   const shiftLabel = isFinanceViewer || isManager ? 'Оперативка' : 'Смена';
   const routesOutlet = (
     <div className="pageOutlet">
@@ -4956,7 +4957,9 @@ function App() {
                             <p className="notice">Данные продавца заполняет администратор точки.</p>
                           )}
                           <div className="homePanelTitleRow">
-                            <h3 className="homePanelTitle">{homeDashboard.title}</h3>
+                            {homeDashboard.role === 'DIRECTOR' && directorFinanceHomeSplit ? null : (
+                              <h3 className="homePanelTitle">{homeDashboard.title}</h3>
+                            )}
                             {homeDashboard.role === 'ADMIN' && session ? (
                               <button
                                 type="button"
@@ -5128,7 +5131,25 @@ function App() {
                               }}
                             />
                           ) : null}
-                          {homeDashboard.role !== 'ADMIN' ? (
+                          {directorFinanceHomeSplit && session ? (
+                            <FinanceOpsPanel
+                              token={session.token}
+                              isDirector
+                              snapshot={financeOps}
+                              onAddIncome={addFinanceIncome}
+                              onAddExpense={addFinanceExpense}
+                              onUpdateIncome={updateFinanceIncome}
+                              onUpdateExpense={updateFinanceExpense}
+                              onDeleteIncome={deleteFinanceIncome}
+                              onDeleteExpense={deleteFinanceExpense}
+                              onSetAccountBalance={setFinanceAccountBalance}
+                              onSetCategoryAmount={setFinanceExpenseCategoryAmount}
+                              preferDesktopLayout={isDesktopShell}
+                              desktopSection={isDesktopShell ? 'home' : undefined}
+                              webSection={!isDesktopShell ? 'home' : undefined}
+                            />
+                          ) : null}
+                          {homeDashboard.role !== 'ADMIN' && !(homeDashboard.role === 'DIRECTOR' && directorFinanceHomeSplit) ? (
                             (() => {
                               const visibleMetrics = homeDashboard.metrics.filter((metric) => {
                                 const l = metric.label.toLowerCase().trim();
@@ -5237,7 +5258,7 @@ function App() {
                                 ))}
                               </ul>
                             </div>
-                          ) : homeDashboard.role === 'DIRECTOR' ? (
+                          ) : homeDashboard.role === 'DIRECTOR' && directorFinanceHomeSplit ? null : homeDashboard.role === 'DIRECTOR' ? (
                             isDesktopShell ? (
                               <div className="directorHomeMidRow">
                                 <div className="homeStoresAggregateCard directorHomeZone">
@@ -5413,7 +5434,16 @@ function App() {
                           onSetAccountBalance={setFinanceAccountBalance}
                           onSetCategoryAmount={setFinanceExpenseCategoryAmount}
                           preferDesktopLayout={isDesktopShell}
-                          webSection={!isDesktopShell ? 'ops' : undefined}
+                          desktopSection={
+                            isDesktopShell && directorFinanceHomeSplit ? 'shift' : undefined
+                          }
+                          webSection={
+                            !isDesktopShell
+                              ? directorFinanceHomeSplit
+                                ? 'shift'
+                                : 'ops'
+                              : undefined
+                          }
                         />
                       </div>
                     ) : (
@@ -8356,6 +8386,7 @@ function FinanceOpsPanel({
   onSetCategoryAmount,
   preferDesktopLayout = false,
   webSection,
+  desktopSection,
 }: {
   token: string;
   isDirector: boolean;
@@ -8383,7 +8414,8 @@ function FinanceOpsPanel({
   onSetAccountBalance: (token: string, accountId: string, balance: string) => Promise<void>;
   onSetCategoryAmount?: (token: string, title: string, amount: string) => Promise<void>;
   preferDesktopLayout?: boolean;
-  webSection?: 'ops' | 'expenses';
+  webSection?: 'ops' | 'expenses' | 'home' | 'shift';
+  desktopSection?: 'home' | 'shift';
 }) {
   const primaryFinanceAccounts = useMemo(() => {
     const map = new Map(snapshot.accounts.map((a) => [a.id, a]));
@@ -8414,12 +8446,27 @@ function FinanceOpsPanel({
   const [incomesHistoryOpen, setIncomesHistoryOpen] = useState(false);
   const [expensesHistoryOpen, setExpensesHistoryOpen] = useState(false);
   const compactFinanceUi = useWideFinanceLayout(preferDesktopLayout);
+  const isDesktopSplit = Boolean(desktopSection) && preferDesktopLayout;
   const isWebSplit = Boolean(webSection) && !preferDesktopLayout;
-  const showOpsSection = !isWebSplit || webSection === 'ops';
-  const showExpensesSection = !isWebSplit || webSection === 'expenses';
-  const showArticlesCarousel = preferDesktopLayout || (isWebSplit && webSection === 'expenses');
+  const showOpsSection = isDesktopSplit
+    ? desktopSection === 'home'
+    : !isWebSplit || webSection === 'ops' || webSection === 'home';
+  const showExpensesSection = isDesktopSplit
+    ? desktopSection === 'shift'
+    : !isWebSplit || webSection === 'expenses';
+  const showArticlesPanel = isDesktopSplit
+    ? desktopSection === 'home'
+    : isWebSplit
+      ? webSection === 'home' || webSection === 'expenses'
+      : true;
+  const showArticlesCarousel =
+    showArticlesPanel &&
+    (preferDesktopLayout || isWebSplit);
+  const showCompactFlows =
+    compactFinanceUi && (!isDesktopSplit || desktopSection === 'shift');
+  const showWebShiftHistory = isWebSplit && webSection === 'shift';
   const [expenseArticlesSheetOpen, setExpenseArticlesSheetOpen] = useState(
-    compactFinanceUi || webSection === 'expenses',
+    compactFinanceUi || webSection === 'expenses' || webSection === 'home',
   );
   const [editingCategoryTitle, setEditingCategoryTitle] = useState<string | null>(null);
   const [editingCategoryAmount, setEditingCategoryAmount] = useState('');
@@ -9015,7 +9062,7 @@ function FinanceOpsPanel({
       </header>
       )}
 
-      {compactFinanceUi ? (
+      {showCompactFlows ? (
         <section className="financeOpsZone financeOpsZone--flows addSaleForm">
           <h4 className="financeOpsZoneTitle">Приход и расход</h4>
           <div className="financeOpsFlowsMain">
@@ -9433,7 +9480,7 @@ function FinanceOpsPanel({
         </div>
       ) : null}
 
-      {showExpensesSection ? (
+      {showArticlesPanel ? (
       <section
         className={`financeOpsZone financeOpsZone--articles financeOpsExpenseArticlesSheet${
           compactFinanceUi ? ' financeOpsExpenseArticlesSheet--desktop' : ''
@@ -9516,7 +9563,7 @@ function FinanceOpsPanel({
       </section>
       ) : null}
 
-      {compactFinanceUi ? (
+      {showCompactFlows ? (
         <section className="financeOpsZone financeOpsZone--historyMini">
           <div className="financeOpsHistoryMiniRow">
             <FinanceOpsHistoryList
@@ -9548,7 +9595,7 @@ function FinanceOpsPanel({
         </section>
       ) : isWebSplit ? (
         <>
-          {showOpsSection ? (
+          {showOpsSection || showWebShiftHistory ? (
             <section className="financeOpsZone financeOpsZone--historyPage financeOpsZone--historyIncomes">
               <FinanceOpsHistoryList
                 title="Последние приходы по счетам"
