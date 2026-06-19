@@ -7749,6 +7749,50 @@ function FinanceHistoryDateFilterIcon() {
   );
 }
 
+function FinanceHistoryCategoryFilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="financeOpsHistoryFilterIconSvg" aria-hidden>
+      <path d="M6 7h12M6 12h12M6 17h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M17 16.5 19 18.5 17 20.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function FinanceHistoryFilterMenu({
+  options,
+  selected,
+  onSelect,
+}: {
+  options: Array<{ value: string; label: string }>;
+  selected: string;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <div className="financeOpsHistoryFilterMenu" role="listbox" aria-label="Фильтр">
+      {options.map((option) => {
+        const isSelected = selected === option.value;
+        return (
+          <button
+            key={option.value || '__all__'}
+            type="button"
+            role="option"
+            aria-selected={isSelected}
+            className={`financeOpsHistoryFilterMenuItem${
+              isSelected ? ' financeOpsHistoryFilterMenuItem--selected' : ''
+            }`}
+            onClick={() => onSelect(option.value)}
+          >
+            <span className="financeOpsHistoryFilterMenuCheck" aria-hidden>
+              {isSelected ? '✓' : ''}
+            </span>
+            <span className="financeOpsHistoryFilterMenuLabel">{option.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function formatFinanceHistoryDayLabel(dayKey: string): string {
   const today = todayKeyMoscow();
   const yesterday = financeHistoryYesterdayKey();
@@ -7803,6 +7847,7 @@ function filterFinanceHistoryRows(
   storeFilter: string,
   accountFilter: string,
   dateFilter: string,
+  categoryFilter: string,
 ): FinanceHistoryListRow[] {
   let result = rows;
   if (storeFilter) {
@@ -7810,6 +7855,12 @@ function filterFinanceHistoryRows(
   }
   if (accountFilter) {
     result = result.filter((row) => row.accountId === accountFilter);
+  }
+  if (categoryFilter && kind === 'expense') {
+    result = result.filter((row) => {
+      const title = row.title?.trim() || 'Прочие траты';
+      return title === categoryFilter;
+    });
   }
   if (dateFilter) {
     const today = todayKeyMoscow();
@@ -7890,22 +7941,47 @@ function FinanceOpsHistoryList({
   const [storeFilter, setStoreFilter] = useState('');
   const [accountFilter, setAccountFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
-  const [openFilter, setOpenFilter] = useState<'store' | 'account' | 'date' | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [openFilter, setOpenFilter] = useState<'store' | 'account' | 'date' | 'category' | null>(null);
   const accountFilterOptions = useMemo(
     () => financeHistoryAccountFilterOptions(accounts),
     [accounts],
   );
   const filteredRows = useMemo(
-    () => filterFinanceHistoryRows(rows, kind, storeFilter, accountFilter, dateFilter),
-    [rows, kind, storeFilter, accountFilter, dateFilter],
+    () =>
+      filterFinanceHistoryRows(
+        rows,
+        kind,
+        storeFilter,
+        accountFilter,
+        dateFilter,
+        categoryFilter,
+      ),
+    [rows, kind, storeFilter, accountFilter, dateFilter, categoryFilter],
   );
   const groups = useMemo(() => groupFinanceHistoryByDay(filteredRows), [filteredRows]);
-  const hasActiveFilters = Boolean(storeFilter || accountFilter || dateFilter);
+  const hasActiveFilters = Boolean(storeFilter || accountFilter || dateFilter || categoryFilter);
   const customDateValue = isFinanceHistoryDayKey(dateFilter) ? dateFilter : '';
 
-  const toggleFilterPanel = (panel: 'store' | 'account' | 'date') => {
+  const toggleFilterPanel = (panel: 'store' | 'account' | 'date' | 'category') => {
     setOpenFilter((current) => (current === panel ? null : panel));
   };
+  const filterToolbarRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!pageLayout || !openFilter) {
+      return;
+    }
+    const handlePointerDown = (event: PointerEvent) => {
+      const root = filterToolbarRef.current;
+      if (!root || root.contains(event.target as Node)) {
+        return;
+      }
+      setOpenFilter(null);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [openFilter, pageLayout]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAccountId, setEditAccountId] = useState('');
   const [editAmount, setEditAmount] = useState('');
@@ -8010,135 +8086,154 @@ function FinanceOpsHistoryList({
         <div className="financeOpsHistoryFilters">
           {pageLayout ? (
             <>
-              <div className="financeOpsHistoryFilterIconRow" role="toolbar" aria-label="Фильтры истории">
-                <button
-                  type="button"
-                  className={`financeOpsHistoryFilterIconBtn${
-                    openFilter === 'store' || storeFilter ? ' financeOpsHistoryFilterIconBtn--active' : ''
-                  }`}
-                  aria-label="Фильтр по магазину"
-                  aria-pressed={openFilter === 'store' || Boolean(storeFilter)}
-                  onClick={() => toggleFilterPanel('store')}
-                >
-                  <FinanceHistoryStoreFilterIcon />
-                </button>
-                <button
-                  type="button"
-                  className={`financeOpsHistoryFilterIconBtn${
-                    openFilter === 'account' || accountFilter ? ' financeOpsHistoryFilterIconBtn--active' : ''
-                  }`}
-                  aria-label="Фильтр по виду расчёта"
-                  aria-pressed={openFilter === 'account' || Boolean(accountFilter)}
-                  onClick={() => toggleFilterPanel('account')}
-                >
-                  <FinanceHistoryAccountFilterIcon />
-                </button>
-                <button
-                  type="button"
-                  className={`financeOpsHistoryFilterIconBtn${
-                    openFilter === 'date' || dateFilter ? ' financeOpsHistoryFilterIconBtn--active' : ''
-                  }`}
-                  aria-label="Фильтр по дате"
-                  aria-pressed={openFilter === 'date' || Boolean(dateFilter)}
-                  onClick={() => toggleFilterPanel('date')}
-                >
-                  <FinanceHistoryDateFilterIcon />
-                </button>
-              </div>
-              {openFilter === 'store' ? (
-                <div className="financeOpsHistoryFilterChips" role="group" aria-label="Магазин">
+              <div
+                ref={filterToolbarRef}
+                className={`financeOpsHistoryFilterIconRow${
+                  kind === 'expense' ? ' financeOpsHistoryFilterIconRow--expense' : ''
+                }`}
+                role="toolbar"
+                aria-label="Фильтры истории"
+              >
+                <div className="financeOpsHistoryFilterSlot">
                   <button
                     type="button"
-                    className={`financeOpsHistoryFilterChip${storeFilter === '' ? ' financeOpsHistoryFilterChip--active' : ''}`}
-                    onClick={() => {
-                      setStoreFilter('');
-                      setOpenFilter(null);
-                    }}
+                    className={`financeOpsHistoryFilterIconBtn${
+                      openFilter === 'store' || storeFilter ? ' financeOpsHistoryFilterIconBtn--active' : ''
+                    }`}
+                    aria-label="Фильтр по магазину"
+                    aria-pressed={openFilter === 'store' || Boolean(storeFilter)}
+                    aria-expanded={openFilter === 'store'}
+                    onClick={() => toggleFilterPanel('store')}
                   >
-                    Все
+                    <FinanceHistoryStoreFilterIcon />
                   </button>
-                  {ALL_DEMO_STORE_NAMES.map((storeName) => (
-                    <button
-                      key={storeName}
-                      type="button"
-                      className={`financeOpsHistoryFilterChip${storeFilter === storeName ? ' financeOpsHistoryFilterChip--active' : ''}`}
-                      onClick={() => {
-                        setStoreFilter(storeName);
+                  {openFilter === 'store' ? (
+                    <FinanceHistoryFilterMenu
+                      options={[
+                        { value: '', label: 'Все магазины' },
+                        ...ALL_DEMO_STORE_NAMES.map((storeName) => ({
+                          value: storeName,
+                          label: storeName,
+                        })),
+                      ]}
+                      selected={storeFilter}
+                      onSelect={(value) => {
+                        setStoreFilter(value);
                         setOpenFilter(null);
                       }}
-                    >
-                      {storeName}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              {openFilter === 'account' ? (
-                <div className="financeOpsHistoryFilterChips" role="group" aria-label="Вид расчёта">
-                  <button
-                    type="button"
-                    className={`financeOpsHistoryFilterChip${accountFilter === '' ? ' financeOpsHistoryFilterChip--active' : ''}`}
-                    onClick={() => {
-                      setAccountFilter('');
-                      setOpenFilter(null);
-                    }}
-                  >
-                    Все
-                  </button>
-                  {accountFilterOptions.map((account) => (
-                    <button
-                      key={account.id}
-                      type="button"
-                      className={`financeOpsHistoryFilterChip financeOpsHistoryFilterChip--account ${financeAccountToneClass(account.id)}${
-                        accountFilter === account.id ? ' financeOpsHistoryFilterChip--active' : ''
-                      }`}
-                      onClick={() => {
-                        setAccountFilter(account.id);
-                        setOpenFilter(null);
-                      }}
-                    >
-                      {account.name}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              {openFilter === 'date' ? (
-                <div className="financeOpsHistoryFilterChips financeOpsHistoryFilterChips--date" role="group" aria-label="Дата">
-                  {[
-                    { value: '', label: 'Все' },
-                    { value: 'today', label: 'Сегодня' },
-                    { value: 'yesterday', label: 'Вчера' },
-                    { value: 'week', label: '7 дней' },
-                  ].map((preset) => (
-                    <button
-                      key={preset.value || 'all'}
-                      type="button"
-                      className={`financeOpsHistoryFilterChip${
-                        dateFilter === preset.value ? ' financeOpsHistoryFilterChip--active' : ''
-                      }`}
-                      onClick={() => {
-                        setDateFilter(preset.value);
-                        setOpenFilter(null);
-                      }}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                  <label className="financeOpsHistoryFilterDateInline">
-                    <span className="financeOpsHistoryFilterDateInlineLabel">Дата</span>
-                    <input
-                      className="financeOpsHistoryFilterPanelDate"
-                      type="date"
-                      value={customDateValue}
-                      max={todayKeyMoscow()}
-                      onChange={(event) => {
-                        setDateFilter(event.target.value);
-                        setOpenFilter(null);
-                      }}
-                      aria-label={`Конкретная дата: ${title}`}
                     />
-                  </label>
+                  ) : null}
                 </div>
-              ) : null}
+                <div className="financeOpsHistoryFilterSlot">
+                  <button
+                    type="button"
+                    className={`financeOpsHistoryFilterIconBtn${
+                      openFilter === 'account' || accountFilter ? ' financeOpsHistoryFilterIconBtn--active' : ''
+                    }`}
+                    aria-label="Фильтр по виду расчёта"
+                    aria-pressed={openFilter === 'account' || Boolean(accountFilter)}
+                    aria-expanded={openFilter === 'account'}
+                    onClick={() => toggleFilterPanel('account')}
+                  >
+                    <FinanceHistoryAccountFilterIcon />
+                  </button>
+                  {openFilter === 'account' ? (
+                    <FinanceHistoryFilterMenu
+                      options={[
+                        { value: '', label: 'Все виды' },
+                        ...accountFilterOptions.map((account) => ({
+                          value: account.id,
+                          label: account.name?.trim() || 'Счёт',
+                        })),
+                      ]}
+                      selected={accountFilter}
+                      onSelect={(value) => {
+                        setAccountFilter(value);
+                        setOpenFilter(null);
+                      }}
+                    />
+                  ) : null}
+                </div>
+                {kind === 'expense' ? (
+                  <div className="financeOpsHistoryFilterSlot">
+                    <button
+                      type="button"
+                      className={`financeOpsHistoryFilterIconBtn${
+                        openFilter === 'category' || categoryFilter
+                          ? ' financeOpsHistoryFilterIconBtn--active'
+                          : ''
+                      }`}
+                      aria-label="Фильтр по виду расхода"
+                      aria-pressed={openFilter === 'category' || Boolean(categoryFilter)}
+                      aria-expanded={openFilter === 'category'}
+                      onClick={() => toggleFilterPanel('category')}
+                    >
+                      <FinanceHistoryCategoryFilterIcon />
+                    </button>
+                    {openFilter === 'category' ? (
+                      <FinanceHistoryFilterMenu
+                        options={[
+                          { value: '', label: 'Все статьи' },
+                          ...FINANCE_EXPENSE_CATEGORY_LABELS.map((label) => ({
+                            value: label,
+                            label,
+                          })),
+                        ]}
+                        selected={categoryFilter}
+                        onSelect={(value) => {
+                          setCategoryFilter(value);
+                          setOpenFilter(null);
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="financeOpsHistoryFilterSlot">
+                  <button
+                    type="button"
+                    className={`financeOpsHistoryFilterIconBtn${
+                      openFilter === 'date' || dateFilter ? ' financeOpsHistoryFilterIconBtn--active' : ''
+                    }`}
+                    aria-label="Фильтр по дате"
+                    aria-pressed={openFilter === 'date' || Boolean(dateFilter)}
+                    aria-expanded={openFilter === 'date'}
+                    onClick={() => toggleFilterPanel('date')}
+                  >
+                    <FinanceHistoryDateFilterIcon />
+                  </button>
+                  {openFilter === 'date' ? (
+                    <div className="financeOpsHistoryFilterMenu financeOpsHistoryFilterMenu--date">
+                      <FinanceHistoryFilterMenu
+                        options={[
+                          { value: '', label: 'Все даты' },
+                          { value: 'today', label: 'Сегодня' },
+                          { value: 'yesterday', label: 'Вчера' },
+                          { value: 'week', label: '7 дней' },
+                        ]}
+                        selected={dateFilter === customDateValue ? '' : dateFilter}
+                        onSelect={(value) => {
+                          setDateFilter(value);
+                          setOpenFilter(null);
+                        }}
+                      />
+                      <label className="financeOpsHistoryFilterMenuDate">
+                        <span>Дата</span>
+                        <input
+                          className="financeOpsHistoryFilterPanelDate"
+                          type="date"
+                          value={customDateValue}
+                          max={todayKeyMoscow()}
+                          onChange={(event) => {
+                            setDateFilter(event.target.value);
+                            setOpenFilter(null);
+                          }}
+                          aria-label={`Конкретная дата: ${title}`}
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             </>
           ) : (
             <>
@@ -8937,9 +9032,15 @@ function FinanceOpsPanel({
     <div
       className={`opsCard financeOpsCard ${isDirector ? 'financeOpsCardDirector' : ''}${
         compactFinanceUi ? ' financeOpsCard--desktop' : ''
-      }${isWebSplit ? ` financeOpsCard--web-${webSection}` : ''}`}
+      }${desktopSection === 'shift' ? ' financeOpsCard--operativka' : ''}${
+        isWebSplit ? ` financeOpsCard--web-${webSection}` : ''
+      }`}
     >
-      <div className={`financeOpsShell${compactFinanceUi ? ' financeOpsShell--desktop' : ''}`}>
+      <div
+        className={`financeOpsShell${compactFinanceUi ? ' financeOpsShell--desktop' : ''}${
+          desktopSection === 'shift' ? ' financeOpsShell--operativka' : ''
+        }`}
+      >
       {showOpsHero ? (
       <header className="financeOpsHero">
         <div className="financeOpsHeroTop">
@@ -9076,7 +9177,7 @@ function FinanceOpsPanel({
 
       {showCompactFlows ? (
         <section className="financeOpsZone financeOpsZone--flows addSaleForm">
-          <h4 className="financeOpsZoneTitle">Приход и расход</h4>
+          <h4 className="financeOpsZoneTitle financeOpsZoneTitle--flows">Приход и расход</h4>
           <div className="financeOpsFlowsMain">
             <div className="financeOpsExpenseEntryCallout">
               <span className="financeOpsEntryCalloutLabel">Расход</span>
