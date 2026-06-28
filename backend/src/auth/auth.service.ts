@@ -1377,6 +1377,20 @@ export class AuthService implements OnModuleInit {
     return `auto-sync-${workDay}-${accountId}`;
   }
 
+  private shiftFinanceExpenseCreatedAtToWorkDay(workDay: string, previousCreatedAt: string): string {
+    const prev = new Date(previousCreatedAt);
+    const base = Number.isNaN(prev.getTime()) ? new Date() : prev;
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Moscow',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(base);
+    const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '00';
+    return `${workDay}T${part('hour')}:${part('minute')}:${part('second')}+03:00`;
+  }
+
   addAutoFinanceIncome(
     payload: {
       accountId: string;
@@ -1710,6 +1724,7 @@ export class AuthService implements OnModuleInit {
       title?: string;
       amount?: number;
       comment?: string;
+      workDay?: string;
     },
     actor = 'system',
   ) {
@@ -1763,6 +1778,12 @@ export class AuthService implements OnModuleInit {
     expense.amount = amount;
     if (payload.comment !== undefined) {
       expense.comment = payload.comment?.trim() || undefined;
+    }
+    if (payload.workDay && /^\d{4}-\d{2}-\d{2}$/.test(payload.workDay)) {
+      expense.createdAt = this.shiftFinanceExpenseCreatedAtToWorkDay(
+        payload.workDay,
+        expense.createdAt,
+      );
     }
     this.pushAudit(
       actor,
@@ -1876,6 +1897,7 @@ export class AuthService implements OnModuleInit {
       title?: string;
       amount?: number;
       comment?: string;
+      workDay?: string;
     },
     actor = 'system',
   ) {
@@ -1925,6 +1947,12 @@ export class AuthService implements OnModuleInit {
     expense.amount = amount;
     if (payload.comment !== undefined) {
       expense.comment = payload.comment?.trim() || undefined;
+    }
+    if (payload.workDay && /^\d{4}-\d{2}-\d{2}$/.test(payload.workDay)) {
+      expense.createdAt = this.shiftFinanceExpenseCreatedAtToWorkDay(
+        payload.workDay,
+        expense.createdAt,
+      );
     }
     this.pushAudit(
       actor,
@@ -4367,6 +4395,7 @@ export class AuthService implements OnModuleInit {
           comment: expense.comment ?? null,
           accountId: expense.accountId,
           accountName: expense.accountName,
+          createdAt: new Date(expense.createdAt),
         },
       });
       for (const accountId of accountIds) {

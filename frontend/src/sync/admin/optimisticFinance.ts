@@ -43,6 +43,20 @@ type FinanceIncome = {
 };
 type FinanceCategoryAmountRow = { title: string; amount: number };
 
+function financeExpenseCreatedAtForWorkDay(workDay: string, previousIso: string): string {
+  const prev = new Date(previousIso);
+  const base = Number.isNaN(prev.getTime()) ? new Date() : prev;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Moscow',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(base);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '00';
+  return `${workDay}T${part('hour')}:${part('minute')}:${part('second')}+03:00`;
+}
+
 const FINANCE_EXPENSE_CATEGORY_LABELS = [
   'Аренда',
   'Налоги',
@@ -379,6 +393,10 @@ async function applyExpenseUpdate(
           title: payload.title,
           amount: payload.amount,
           comment: payload.comment,
+          createdAt:
+            payload.workDay && /^\d{4}-\d{2}-\d{2}$/.test(payload.workDay)
+              ? financeExpenseCreatedAtForWorkDay(payload.workDay, row.createdAt)
+              : row.createdAt,
         }
       : row,
   );

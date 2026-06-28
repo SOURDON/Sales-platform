@@ -789,6 +789,197 @@
   font-size: 13px;
 }
 
+/* Мини-блок: ЗП за 2 дня + остатки перевод/наличные */
+.app.app--desktop .financeOpsHomeMiniStrip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.app.app--desktop .financeOpsHomeMiniStripItem {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 54px;
+  padding: 8px 10px;
+  border-radius: var(--dt-radius-md);
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .financeOpsHomeMiniStripItem--payroll {
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px rgba(212, 175, 55, 0.22);
+}
+
+.app.app--desktop .financeOpsHomeMiniStripLabel {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--dt-text-dim);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.app.app--desktop .financeOpsHomeMiniStripValue {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--dt-text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.app.app--desktop .financeOpsHomeMiniStripItem--payroll .financeOpsHomeMiniStripValue {
+  color: var(--dt-gold);
+}
+
+.app.app--desktop .financeOpsHomeMiniStripItem--combined {
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px rgba(154, 163, 173, 0.28);
+}
+
+.app.app--desktop .financeOpsHomeMiniStripItem--combined .financeOpsHomeMiniStripValue {
+  color: var(--dt-text);
+}
+
+.app.app--desktop .financeOpsHomeMiniStripHint {
+  font-size: 9px;
+  color: var(--dt-text-dim);
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.app.app--desktop .financeOpsHomeMiniStripHint--hidden {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Проходка — нейтральные карточки (не тона счетов / зелёный) */
+.app.app--desktop .financeOpsThroughputCarousel .financeOpsExpenseArticlesChip--throughput {
+  background: rgba(38, 42, 48, 0.82);
+  box-shadow:
+    var(--dt-surface-shine),
+    inset 0 0 0 1px rgba(154, 163, 173, 0.24);
+}
+
+.app.app--desktop
+  .financeOpsThroughputCarousel
+  .financeOpsExpenseArticlesChip--throughput
+  .financeOpsExpenseArticlesChipTitle {
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop
+  .financeOpsThroughputCarousel
+  .financeOpsExpenseArticlesChip--throughput
+  .financeOpsExpenseArticlesChipAmount {
+  color: #d8dde3;
+}
+
+/* Проходка по счетам — тот же каркас, что у «Расходы по статьям» */
+.app.app--desktop .financeOpsZone--throughput.financeOpsExpenseArticlesSheet--desktop {
+  padding-top: 16px;
+}
+
+.app.app--desktop .financeOpsArticlesHead--throughput {
+  align-items: center;
+}
+
+.app.app--desktop .financeOpsThroughputTitleWrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.app.app--desktop .financeOpsThroughputFilterRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app.app--desktop .financeOpsThroughputFilterSlot {
+  position: relative;
+}
+
+.app.app--desktop .financeOpsThroughputFilterBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--dt-radius-sm);
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px var(--dt-border-hairline);
+  color: var(--dt-text-dim);
+  cursor: pointer;
+}
+
+.app.app--desktop .financeOpsThroughputFilterBtn:hover {
+  color: var(--dt-text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.app.app--desktop .financeOpsThroughputFilterBtn--active {
+  color: var(--dt-gold);
+  box-shadow:
+    inset 0 0 0 1px rgba(212, 175, 55, 0.35),
+    0 0 0 1px rgba(212, 175, 55, 0.12);
+}
+
+.app.app--desktop .financeOpsThroughputPeriodPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 196px;
+  padding: 10px;
+  border-radius: var(--dt-radius-md);
+  background: rgba(12, 16, 14, 0.98);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.42),
+    inset 0 0 0 1px var(--dt-border-hairline);
+}
+
+.app.app--desktop .financeOpsThroughputPeriodField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .financeOpsThroughputPeriodInput {
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: var(--dt-radius-sm);
+  border: 1px solid var(--dt-border-hairline);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--dt-text);
+  font-size: 12px;
+  font-family: inherit;
+  color-scheme: dark;
+}
+
+.app.app--desktop .financeOpsThroughputPeriodHint {
+  margin: 0;
+  font-size: 10px;
+  color: var(--dt-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Расходы по статьям — сетка */
 .app.app--desktop .financeOpsZone--articles.financeOpsExpenseArticlesSheet--desktop {
   padding-top: 16px;
@@ -1237,14 +1428,41 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ——— Оперативка: без подложки, скролл только в лентах (явная высота) ——— */
+/* ——— Оперативка: без подложки, скролл только в лентах (flex + min-height: 0) ——— */
 .app.app--desktop .desktopMainScroll:has(.financeOpsCard--operativka) {
   overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app.app--desktop .desktopContentFrame:has(.financeOpsCard--operativka),
+.app.app--desktop .pageOutlet:has(.financeOpsCard--operativka),
+.app.app--desktop .dashboard--financeDesktop:has(.financeOpsCard--operativka) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app.app--desktop .dashboard--financeDesktop:has(.financeOpsCard--operativka) > .sectionCard {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.app.app--desktop .financeOpsCard--operativka.financeOpsCard--desktop {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 .app.app--desktop .financeOpsShell--operativka {
   display: flex !important;
   flex-direction: column !important;
+  flex: 1 1 auto;
+  min-height: 0;
   gap: 14px !important;
   padding: 0 !important;
   border: none !important;
@@ -1256,6 +1474,7 @@
 }
 
 .app.app--desktop .financeOpsShell--operativka .financeOpsZone--flows {
+  flex: 0 0 auto;
   flex-shrink: 0;
   padding: 0;
   box-shadow: none;
@@ -1266,6 +1485,11 @@
 }
 
 .app.app--desktop .financeOpsShell--operativka .financeOpsZone--historyMini {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 0;
   box-shadow: none;
 }
@@ -1273,11 +1497,13 @@
 .app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMini.financeOpsHistoryMini--page {
   display: flex;
   flex-direction: column;
-  padding: 10px 12px 12px;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px 12px 8px;
   border-radius: var(--dt-radius-md);
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(154, 163, 173, 0.28);
-  border-bottom: 2px solid rgba(154, 163, 173, 0.5);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     inset 0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -1285,7 +1511,6 @@
 
 .app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMini--expense.financeOpsHistoryMini--page {
   border-color: rgba(114, 166, 139, 0.34);
-  border-bottom-color: rgba(114, 166, 139, 0.58);
   background:
     linear-gradient(180deg, rgba(72, 120, 98, 0.08) 0%, transparent 28%),
     rgba(0, 0, 0, 0.2);
@@ -1296,7 +1521,6 @@
 
 .app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMini--income.financeOpsHistoryMini--page {
   border-color: rgba(154, 163, 173, 0.3);
-  border-bottom-color: rgba(154, 163, 173, 0.52);
   background:
     linear-gradient(180deg, rgba(154, 163, 173, 0.07) 0%, transparent 28%),
     rgba(0, 0, 0, 0.2);
@@ -1306,18 +1530,26 @@
 }
 
 .app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMiniHead {
-  flex-shrink: 0;
+  flex: 0 0 auto;
+}
+
+.app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMiniRow {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+  overflow: hidden;
 }
 
 .app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMiniTrack {
-  height: calc(100vh - var(--dt-titlebar-h) - 300px);
-  min-height: 220px;
-  max-height: calc(100vh - var(--dt-titlebar-h) - 300px);
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: none;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding: 2px 4px 8px 2px;
+  padding: 2px 6px 16px 2px;
   scrollbar-width: thin;
   scrollbar-color: rgba(154, 163, 173, 0.45) transparent;
 }
@@ -1354,6 +1586,43 @@
 
 .app.app--desktop .financeOpsShell--operativka .financeOpsIncomeEntryCallout .financeOpsIncomeEntryInput::placeholder {
   font-size: clamp(1.85rem, 3.2vw, 2.35rem) !important;
+}
+
+.app.app--desktop .financeOpsIncomeAcquiringHint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--dt-text-muted);
+}
+
+.app.app--desktop .financeOpsIncomeAcquiringHint strong {
+  color: var(--dt-gold-soft);
+  font-weight: 700;
+}
+
+.app.app--desktop .financeOpsIncomeAcquiringOverride {
+  margin: 0;
+}
+
+.app.app--desktop .financeOpsIncomeAcquiringOverrideInput {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 11px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dt-text);
+  border-radius: var(--dt-radius-md);
+  border: 1px solid rgba(154, 163, 173, 0.35);
+  background: rgba(2, 8, 6, 0.55);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.28);
+}
+
+.app.app--desktop .financeOpsIncomeAcquiringOverrideInput:focus {
+  outline: none;
+  border-color: rgba(154, 163, 173, 0.55);
+  box-shadow:
+    inset 0 1px 4px rgba(0, 0, 0, 0.28),
+    0 0 0 2px rgba(154, 163, 173, 0.14);
 }
 
 /* Фильтры истории — компактные кнопки и выпадающее меню */
@@ -1488,9 +1757,7 @@
   }
 
   .app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMiniTrack {
-    height: calc(100vh - var(--dt-titlebar-h) - 360px);
-    min-height: 180px;
-    max-height: calc(100vh - var(--dt-titlebar-h) - 360px);
+    min-height: 160px;
   }
 
   .app.app--desktop .financeOpsShell--operativka .financeOpsFlowAccountChip {

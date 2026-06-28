@@ -102,6 +102,7 @@ export async function flushFinanceEntry(
           accountId: payload.accountId,
           title: payload.title,
           amount: payload.amount,
+          workDay: payload.workDay,
           comment: payload.comment,
         },
         'PUT',

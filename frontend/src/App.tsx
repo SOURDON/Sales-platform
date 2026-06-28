@@ -19,9 +19,12 @@ import {
   ACQUIRING_DEFAULT_PROFILE_ID,
   type AcquiringProfile,
   type AcquiringProfileId,
+  acquiringPercentForFinanceAccount,
+  acquiringProfileIdForFinanceAccount,
   acquiringStoreChipLabel,
   canUnassignStoreFromProfile,
   defaultAcquiringProfiles,
+  financeIncomeAfterAcquiring,
   isStoreOnProfile,
   normalizeAcquiringProfiles,
   percentForStore,
@@ -104,6 +107,7 @@ import {
   roleUsesAdminDesktopOutbox,
   useLiveSessionRefresh,
 } from './sync';
+import { applyFinanceOptimistic } from './sync/admin/optimisticFinance';
 import { fetchRouteDataIfStale } from './web/routeFetchGuard';
 import {
   loadStoreEquipmentCache,
@@ -135,6 +139,12 @@ function todayKeyMoscow(): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+}
+
+/** 1 июня текущего года (МСК) — старт периода проходки по умолчанию. */
+function financeThroughputJuneStartKey(): string {
+  const today = todayKeyMoscow();
+  return `${today.slice(0, 4)}-06-01`;
 }
 
 function salePaymentLabel(paymentType?: 'CASH' | 'NON_CASH' | 'TRANSFER'): string {
@@ -2749,11 +2759,14 @@ function App() {
   const updateFinanceExpense = async (
     token: string,
     id: string,
-    payload: { accountId: string; title: string; amount: string; comment?: string },
+    payload: { accountId: string; title: string; amount: string; workDay: string; comment?: string },
   ) => {
     const amount = parseFinanceMoneyInput(payload.amount);
     if (amount === null) {
       throw new Error('Укажите корректную сумму');
+    }
+    if (!isFinanceHistoryDayKey(payload.workDay)) {
+      throw new Error('Укажите корректную дату');
     }
     const uid = session?.user?.id;
     const financeOffline =
@@ -2767,6 +2780,7 @@ function App() {
       accountId: payload.accountId,
       title: payload.title,
       amount,
+      workDay: payload.workDay,
       comment: payload.comment,
       createdAt,
     };
@@ -2782,6 +2796,7 @@ function App() {
           accountId: payload.accountId,
           title: payload.title,
           amount,
+          workDay: payload.workDay,
           comment: payload.comment,
         }),
       });
@@ -2801,10 +2816,31 @@ function App() {
         await applyCachedFinanceOps();
         return;
       }
-    } else {
-      await put();
+      await applyFinanceOptimistic(uid, 'FINANCE_EXPENSE_UPDATE', body);
+      setOfflineQueueTick((x) => x + 1);
+      await applyCachedFinanceOps();
+      return;
     }
-    await loadFinanceOps(token, { preferNetwork: true });
+    await put();
+    setFinanceOps((prev) => {
+      const account = prev.accounts.find((item) => item.id === payload.accountId);
+      return {
+        ...prev,
+        expenses: prev.expenses.map((expense) =>
+          expense.id === id
+            ? {
+                ...expense,
+                accountId: payload.accountId,
+                accountName: account?.name ?? expense.accountName,
+                title: payload.title,
+                amount,
+                comment: payload.comment,
+                createdAt: financeExpenseCreatedAtForWorkDay(payload.workDay, expense.createdAt),
+              }
+            : expense,
+        ),
+      };
+    });
   };
 
   const deleteFinanceIncome = async (token: string, id: string) => {
@@ -5136,6 +5172,7 @@ function App() {
                               token={session.token}
                               isDirector
                               snapshot={financeOps}
+                              acquiringProfiles={acquiringProfiles}
                               onAddIncome={addFinanceIncome}
                               onAddExpense={addFinanceExpense}
                               onUpdateIncome={updateFinanceIncome}
@@ -5379,6 +5416,7 @@ function App() {
                           token={session.token}
                           isDirector={role === 'DIRECTOR'}
                           snapshot={financeOps}
+                          acquiringProfiles={acquiringProfiles}
                           onAddIncome={addFinanceIncome}
                           onAddExpense={addFinanceExpense}
                           onUpdateIncome={updateFinanceIncome}
@@ -5425,6 +5463,7 @@ function App() {
                           token={session.token}
                           isDirector={role === 'DIRECTOR'}
                           snapshot={financeOps}
+                          acquiringProfiles={acquiringProfiles}
                           onAddIncome={addFinanceIncome}
                           onAddExpense={addFinanceExpense}
                           onUpdateIncome={updateFinanceIncome}
@@ -7638,6 +7677,30 @@ const FINANCE_EXPENSE_CATEGORY_LABELS = [
   'Прочие траты',
 ] as const;
 
+const FINANCE_MANAGER_SALARY_FILTER = 'ЗП Манагеру';
+
+/** ЗП для фильтра «ЗП Манагеру» — канонические имена точек из demo-stores. */
+const FINANCE_MANAGER_SALARY_STORE_NAMES = [
+  'Спортивнй',
+  'Центр пляж',
+  'Центр Тех. зона',
+  'Дельфин Тех. зона',
+  'Сады морей Пляж',
+] as const;
+
+const FINANCE_MANAGER_SALARY_STORE_SET = new Set<string>(FINANCE_MANAGER_SALARY_STORE_NAMES);
+
+function financeHistoryExpenseCategoryFilterOptions(): Array<{ value: string; label: string }> {
+  const options: Array<{ value: string; label: string }> = [{ value: '', label: 'Все статьи' }];
+  for (const label of FINANCE_EXPENSE_CATEGORY_LABELS) {
+    options.push({ value: label, label });
+    if (label === 'ЗП') {
+      options.push({ value: FINANCE_MANAGER_SALARY_FILTER, label: FINANCE_MANAGER_SALARY_FILTER });
+    }
+  }
+  return options;
+}
+
 const FINANCE_EXPENSE_DEFAULT_CATEGORY: (typeof FINANCE_EXPENSE_CATEGORY_LABELS)[number] = 'ЗП';
 
 function financeStoreNameFromComment(comment?: string): string {
@@ -7662,10 +7725,14 @@ function sortFinanceIncomesDesc<T extends { workDay: string; createdAt: string }
   });
 }
 
-function sortFinanceExpensesDesc<T extends { createdAt: string }>(items: T[]): T[] {
-  return [...items].sort(
-    (a, b) => financeRecordTimeMs(b.createdAt) - financeRecordTimeMs(a.createdAt),
-  );
+function sortFinanceExpensesDesc<T extends { createdAt: string; workDay?: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const byDay = financeExpenseDayKey(b).localeCompare(financeExpenseDayKey(a));
+    if (byDay !== 0) {
+      return byDay;
+    }
+    return financeRecordTimeMs(b.createdAt) - financeRecordTimeMs(a.createdAt);
+  });
 }
 
 const FINANCE_HISTORY_MONTH_LABELS = [
@@ -7690,6 +7757,31 @@ function financeHistoryDayKeyFromIso(iso: string): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date(iso));
+}
+
+/** Сохраняет время (МСК) расхода, меняя только календарный день. */
+function financeExpenseCreatedAtForWorkDay(workDay: string, previousIso: string): string {
+  const prev = new Date(previousIso);
+  const base = Number.isNaN(prev.getTime()) ? new Date() : prev;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Moscow',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(base);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '00';
+  return `${workDay}T${part('hour')}:${part('minute')}:${part('second')}+03:00`;
+}
+
+function financeExpenseDayKey(expense: { createdAt: string; workDay?: string }): string {
+  return expense.workDay ?? financeHistoryDayKeyFromIso(expense.createdAt);
+}
+
+function resolvePrimaryFinanceAccountId(accountId: string): string | null {
+  const key = accountId.replace(/^auto-/, '');
+  const known = FINANCE_OPS_PRIMARY_ACCOUNT_IDS as readonly string[];
+  return known.includes(key) ? key : null;
 }
 
 function financeHistoryYesterdayKey(): string {
@@ -7745,6 +7837,20 @@ function FinanceHistoryDateFilterIcon() {
       <rect x="4.5" y="6" width="15" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" />
       <path d="M8 4.8v3.2M16 4.8v3.2M4.5 10h15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       <path d="M8.2 13.8h2.4M13.4 13.8h2.4M8.2 16.8h2.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FinanceThroughputDefaultFilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="financeOpsHistoryFilterIconSvg" aria-hidden>
+      <path
+        d="M12 5v4.2M12 18.8V23M5 12h4.2M18.8 12H23"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="12" r="4.2" stroke="currentColor" strokeWidth="1.8" />
     </svg>
   );
 }
@@ -7858,6 +7964,13 @@ function filterFinanceHistoryRows(
   }
   if (categoryFilter && kind === 'expense') {
     result = result.filter((row) => {
+      if (categoryFilter === FINANCE_MANAGER_SALARY_FILTER) {
+        if (row.title?.trim() !== 'ЗП') {
+          return false;
+        }
+        const store = financeHistoryStoreLabel(row, kind);
+        return store !== null && FINANCE_MANAGER_SALARY_STORE_SET.has(store);
+      }
       const title = row.title?.trim() || 'Прочие траты';
       return title === categoryFilter;
     });
@@ -7928,7 +8041,7 @@ function FinanceOpsHistoryList({
   pageLayout?: boolean;
   onEditExpense?: (
     id: string,
-    payload: { accountId: string; title: string; amount: string; comment?: string },
+    payload: { accountId: string; title: string; amount: string; workDay: string; comment?: string },
   ) => Promise<void>;
   onEditIncome?: (
     id: string,
@@ -8028,10 +8141,14 @@ function FinanceOpsHistoryList({
         if (editTitle === 'ЗП' && !expenseComment) {
           throw new Error('Выберите магазин');
         }
+        if (!isFinanceHistoryDayKey(editWorkDay)) {
+          throw new Error('Укажите корректную дату');
+        }
         await onEditExpense(editingId, {
           accountId: editAccountId,
           title: editTitle,
           amount: editAmount,
+          workDay: editWorkDay,
           comment: expenseComment || undefined,
         });
       } else if (kind === 'income' && onEditIncome) {
@@ -8172,13 +8289,7 @@ function FinanceOpsHistoryList({
                     </button>
                     {openFilter === 'category' ? (
                       <FinanceHistoryFilterMenu
-                        options={[
-                          { value: '', label: 'Все статьи' },
-                          ...FINANCE_EXPENSE_CATEGORY_LABELS.map((label) => ({
-                            value: label,
-                            label,
-                          })),
-                        ]}
+                        options={financeHistoryExpenseCategoryFilterOptions()}
                         selected={categoryFilter}
                         onSelect={(value) => {
                           setCategoryFilter(value);
@@ -8329,9 +8440,9 @@ function FinanceOpsHistoryList({
                             </select>
                           </label>
                         ) : null}
-                        {kind === 'income' ? (
+                        {kind === 'income' || kind === 'expense' ? (
                           <label className="financeOpsHistoryEditField">
-                            <span>День</span>
+                            <span>{kind === 'income' ? 'День' : 'Дата'}</span>
                             <input
                               type="date"
                               value={editWorkDay}
@@ -8467,10 +8578,18 @@ function useWideFinanceLayout(preferDesktop: boolean) {
   return wide;
 }
 
+const FINANCE_FLOW_ACCOUNT_OVERRIDE_CLICKS = 3;
+const FINANCE_FLOW_ACCOUNT_MULTI_CLICK_MS = 900;
+
+function formatFinanceAcquiringPercent(percent: number): string {
+  return percent.toLocaleString('ru-RU', { maximumFractionDigits: 3 });
+}
+
 function FinanceOpsPanel({
   token,
   isDirector,
   snapshot,
+  acquiringProfiles,
   onAddIncome,
   onAddExpense,
   onUpdateIncome,
@@ -8486,6 +8605,7 @@ function FinanceOpsPanel({
   token: string;
   isDirector: boolean;
   snapshot: FinanceOpsSnapshot;
+  acquiringProfiles: AcquiringProfile[];
   onAddIncome: (
     token: string,
     payload: { accountId: string; amount: string; workDay: string; comment?: string },
@@ -8502,7 +8622,7 @@ function FinanceOpsPanel({
   onUpdateExpense?: (
     token: string,
     id: string,
-    payload: { accountId: string; title: string; amount: string; comment?: string },
+    payload: { accountId: string; title: string; amount: string; workDay: string; comment?: string },
   ) => Promise<void>;
   onDeleteIncome?: (token: string, id: string) => Promise<void>;
   onDeleteExpense?: (token: string, id: string) => Promise<void>;
@@ -8530,6 +8650,12 @@ function FinanceOpsPanel({
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseComment, setExpenseComment] = useState('');
   const [incomeStoreDraft, setIncomeStoreDraft] = useState<string>(ALL_DEMO_STORE_NAMES[0]);
+  const [incomeAcquiringPercentByAccount, setIncomeAcquiringPercentByAccount] = useState<
+    Record<string, number>
+  >({});
+  const [incomeAcquiringOverrideAccountId, setIncomeAcquiringOverrideAccountId] = useState('');
+  const [incomeAcquiringOverrideDraft, setIncomeAcquiringOverrideDraft] = useState('');
+  const flowAccountClickRef = useRef({ accountId: '', count: 0, lastClickMs: 0 });
   const [busyId, setBusyId] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -8568,6 +8694,8 @@ function FinanceOpsPanel({
   const showArticlesCarousel =
     showArticlesPanel &&
     (preferDesktopLayout || isWebSplit);
+  const showIncomeThroughputPanel = isHomeFinanceView;
+  const showHomePayrollCashStrip = isHomeFinanceView;
   const showCompactFlows =
     compactFinanceUi && (isShiftFinanceView || isFullFinanceView);
   const showWebIncomeHistory = isWebSplit && webSection === 'shift';
@@ -8580,10 +8708,29 @@ function FinanceOpsPanel({
   const [categoryAmountBusy, setCategoryAmountBusy] = useState('');
   const location = useLocation();
   const [financeSensitiveVisible, setFinanceSensitiveVisible] = useState(false);
+  const [incomeThroughputFrom, setIncomeThroughputFrom] = useState(financeThroughputJuneStartKey);
+  const [incomeThroughputTo, setIncomeThroughputTo] = useState(todayKeyMoscow);
+  const [throughputPeriodOpen, setThroughputPeriodOpen] = useState(false);
+  const throughputFiltersRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setFinanceSensitiveVisible(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!throughputPeriodOpen) {
+      return;
+    }
+    const handlePointerDown = (event: PointerEvent) => {
+      const root = throughputFiltersRef.current;
+      if (!root || root.contains(event.target as Node)) {
+        return;
+      }
+      setThroughputPeriodOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [throughputPeriodOpen]);
 
   useEffect(() => {
     if (!expenseAccountId && snapshot.accounts.length > 0) {
@@ -8644,6 +8791,117 @@ function FinanceOpsPanel({
     ) / 100;
   }, [snapshot.totals.categoryTotal, expenseTotalsByArticle]);
 
+  const incomeThroughputFromDay =
+    incomeThroughputFrom <= incomeThroughputTo ? incomeThroughputFrom : incomeThroughputTo;
+  const incomeThroughputToDay =
+    incomeThroughputFrom <= incomeThroughputTo ? incomeThroughputTo : incomeThroughputFrom;
+
+  const incomeThroughputByAccount = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const id of FINANCE_OPS_PRIMARY_ACCOUNT_IDS) {
+      totals.set(id, 0);
+    }
+    const manualIncomeBuckets = new Set<string>();
+    for (const income of snapshot.incomes ?? []) {
+      if (income.id.startsWith('auto-sync-')) {
+        continue;
+      }
+      if (income.workDay < incomeThroughputFromDay || income.workDay > incomeThroughputToDay) {
+        continue;
+      }
+      const accountKey = resolvePrimaryFinanceAccountId(income.accountId);
+      if (!accountKey) {
+        continue;
+      }
+      manualIncomeBuckets.add(`${income.workDay}|${accountKey}`);
+    }
+    for (const income of snapshot.incomes ?? []) {
+      if (income.workDay < incomeThroughputFromDay || income.workDay > incomeThroughputToDay) {
+        continue;
+      }
+      const accountKey = resolvePrimaryFinanceAccountId(income.accountId);
+      if (!accountKey) {
+        continue;
+      }
+      if (
+        income.id.startsWith('auto-sync-') &&
+        manualIncomeBuckets.has(`${income.workDay}|${accountKey}`)
+      ) {
+        continue;
+      }
+      const prev = totals.get(accountKey) ?? 0;
+      totals.set(accountKey, Math.round((prev + income.amount) * 100) / 100);
+    }
+    const accountNames = new Map(
+      primaryFinanceAccounts.map((account) => [account.id, account.name?.trim() || 'Счёт']),
+    );
+    return FINANCE_OPS_PRIMARY_ACCOUNT_IDS.map((id) => ({
+      accountId: id,
+      title: accountNames.get(id) ?? id,
+      total: totals.get(id) ?? 0,
+    }));
+  }, [
+    snapshot.incomes,
+    incomeThroughputFromDay,
+    incomeThroughputToDay,
+    primaryFinanceAccounts,
+  ]);
+
+  const incomeThroughputGrandTotal = useMemo(
+    () =>
+      Math.round(incomeThroughputByAccount.reduce((sum, row) => sum + row.total, 0) * 100) / 100,
+    [incomeThroughputByAccount],
+  );
+
+  const incomeThroughputIsDefault =
+    incomeThroughputFromDay === financeThroughputJuneStartKey() &&
+    incomeThroughputToDay === todayKeyMoscow();
+
+  const resetIncomeThroughputPeriod = () => {
+    setIncomeThroughputFrom(financeThroughputJuneStartKey());
+    setIncomeThroughputTo(todayKeyMoscow());
+    setThroughputPeriodOpen(false);
+  };
+
+  const homePayrollCashStrip = useMemo(() => {
+    const today = todayKeyMoscow();
+    const yesterday = financeHistoryYesterdayKey();
+    let payrollYesterday = 0;
+    let payrollToday = 0;
+    for (const expense of snapshot.expenses) {
+      if ((expense.title ?? '').trim() !== 'ЗП') {
+        continue;
+      }
+      const day = financeHistoryDayKeyFromIso(expense.createdAt);
+      if (day === yesterday) {
+        payrollYesterday = Math.round((payrollYesterday + expense.amount) * 100) / 100;
+      } else if (day === today) {
+        payrollToday = Math.round((payrollToday + expense.amount) * 100) / 100;
+      }
+    }
+    const transferAccount = primaryFinanceAccounts.find((account) => account.id === 'fa-transfer');
+    const cashAccount = primaryFinanceAccounts.find((account) => account.id === 'fa-cash-main');
+    return {
+      today,
+      yesterday,
+      payrollYesterday,
+      payrollToday,
+      payrollTotal: Math.round((payrollYesterday + payrollToday) * 100) / 100,
+      transferBalance: transferAccount?.balance ?? 0,
+      cashBalance: cashAccount?.balance ?? 0,
+      transferName: transferAccount?.name?.trim() || 'Перевод',
+      cashName: cashAccount?.name?.trim() || 'Наличные',
+      combinedTotal:
+        Math.round(
+          (payrollYesterday +
+            payrollToday +
+            (transferAccount?.balance ?? 0) +
+            (cashAccount?.balance ?? 0)) *
+            100,
+        ) / 100,
+    };
+  }, [snapshot.expenses, primaryFinanceAccounts]);
+
   const incomeHistoryRows = useMemo((): FinanceHistoryListRow[] => {
     const accountNames = new Map(snapshot.accounts.map((a) => [a.id, a.name?.trim() || 'Счёт']));
     return sortFinanceIncomesDesc(snapshot.incomes ?? []).map((item) => {
@@ -8679,6 +8937,7 @@ function FinanceOpsPanel({
           comment: item.comment?.trim() || undefined,
           timeLabel: when,
           title: item.title,
+          workDay: financeHistoryDayKeyFromIso(item.createdAt),
         };
       });
   }, [snapshot.expenses]);
@@ -8705,7 +8964,7 @@ function FinanceOpsPanel({
 
   const handleHistoryExpenseEdit = async (
     id: string,
-    payload: { accountId: string; title: string; amount: string; comment?: string },
+    payload: { accountId: string; title: string; amount: string; workDay: string; comment?: string },
   ) => {
     if (!onUpdateExpense) {
       return;
@@ -8805,6 +9064,57 @@ function FinanceOpsPanel({
     ? resolvedFlowAccountId
     : resolvedIncomeAccountId;
 
+  const resolveIncomeAcquiringPercent = useCallback(
+    (accountId: string) => {
+      if (!accountId) {
+        return 0;
+      }
+      const manual = incomeAcquiringPercentByAccount[accountId];
+      if (manual !== undefined && Number.isFinite(manual)) {
+        return Math.max(0, Math.min(100, manual));
+      }
+      return acquiringPercentForFinanceAccount(accountId, acquiringProfiles);
+    },
+    [acquiringProfiles, incomeAcquiringPercentByAccount],
+  );
+
+  const activeIncomeAcquiringPercent = resolveIncomeAcquiringPercent(activeFlowAccountId);
+  const parsedIncomeGross = parseFinanceMoneyInput(incomeAmountDraft);
+  const incomeAcquiringPreview =
+    parsedIncomeGross !== null && activeIncomeAcquiringPercent > 0
+      ? financeIncomeAfterAcquiring(parsedIncomeGross, activeIncomeAcquiringPercent)
+      : null;
+
+  const selectIncomeFlowAccount = useCallback(
+    (accountId: string) => {
+      const now = Date.now();
+      const prev = flowAccountClickRef.current;
+      const streak =
+        prev.accountId === accountId && now - prev.lastClickMs <= FINANCE_FLOW_ACCOUNT_MULTI_CLICK_MS
+          ? prev.count + 1
+          : 1;
+      flowAccountClickRef.current = { accountId, count: streak, lastClickMs: now };
+
+      if (compactFinanceUi) {
+        setSelectedFlowAccountId(accountId);
+      } else {
+        setSelectedIncomeAccountId(accountId);
+      }
+
+      if (streak >= FINANCE_FLOW_ACCOUNT_OVERRIDE_CLICKS && acquiringProfileIdForFinanceAccount(accountId)) {
+        setIncomeAcquiringOverrideAccountId(accountId);
+        const currentPercent = resolveIncomeAcquiringPercent(accountId);
+        setIncomeAcquiringOverrideDraft(
+          currentPercent > 0 ? String(currentPercent).replace('.', ',') : '',
+        );
+      } else if (incomeAcquiringOverrideAccountId && incomeAcquiringOverrideAccountId !== accountId) {
+        setIncomeAcquiringOverrideAccountId('');
+        setIncomeAcquiringOverrideDraft('');
+      }
+    },
+    [compactFinanceUi, incomeAcquiringOverrideAccountId, resolveIncomeAcquiringPercent],
+  );
+
   const submitIncomeForSelectedAccount = async () => {
     setError('');
     setStatus('');
@@ -8813,11 +9123,15 @@ function FinanceOpsPanel({
       return;
     }
     const amountStr = incomeAmountDraft;
-    const n = Number(String(amountStr).replace(',', '.'));
-    if (!Number.isFinite(n) || n <= 0) {
+    const gross = parseFinanceMoneyInput(amountStr);
+    if (gross === null) {
       setError('Укажите сумму прихода');
       return;
     }
+    const acquiringPercent = resolveIncomeAcquiringPercent(activeFlowAccountId);
+    const acquiringApplied =
+      acquiringPercent > 0 ? financeIncomeAfterAcquiring(gross, acquiringPercent) : null;
+    const amountToRecord = acquiringApplied?.net ?? gross;
     setBusyId(`income-${activeFlowAccountId}`);
     try {
       const incomePoint = incomeStoreDraft.trim();
@@ -8828,13 +9142,21 @@ function FinanceOpsPanel({
       }
       await onAddIncome(token, {
         accountId: activeFlowAccountId,
-        amount: amountStr,
+        amount: String(amountToRecord),
         workDay: todayKeyMoscow(),
         comment: incomePoint,
       });
       setIncomeAmountDraft('');
       const acc = snapshot.accounts.find((a) => a.id === activeFlowAccountId);
-      setStatus(acc ? `Приход на «${acc.name}» записан, баланс обновлён.` : 'Приход записан.');
+      if (acquiringApplied && acquiringApplied.fee > 0) {
+        setStatus(
+          acc
+            ? `Приход на «${acc.name}»: ${amountToRecord.toLocaleString('ru-RU')} ₽ (эквайринг ${formatFinanceAcquiringPercent(acquiringApplied.percent)}% с ${gross.toLocaleString('ru-RU')} ₽).`
+            : `Приход записан: ${amountToRecord.toLocaleString('ru-RU')} ₽ (с учётом эквайринга).`,
+        );
+      } else {
+        setStatus(acc ? `Приход на «${acc.name}» записан, баланс обновлён.` : 'Приход записан.');
+      }
     } catch {
       setError('Не удалось записать приход');
     } finally {
@@ -9175,6 +9497,50 @@ function FinanceOpsPanel({
       </header>
       ) : null}
 
+      {showHomePayrollCashStrip ? (
+        <section className="financeOpsHomeMiniStrip" aria-label="Зарплаты и остатки">
+          <article className="financeOpsHomeMiniStripItem financeOpsHomeMiniStripItem--payroll">
+            <span className="financeOpsHomeMiniStripLabel">ЗП · 2 дня</span>
+            <FinanceSensitiveAmount
+              visible={financeSensitiveVisible}
+              value={homePayrollCashStrip.payrollTotal}
+              format={fmt}
+              className="financeOpsHomeMiniStripValue"
+            />
+            <span
+              className={`financeOpsHomeMiniStripHint${
+                financeSensitiveVisible ? '' : ' financeOpsHomeMiniStripHint--hidden'
+              }`}
+            >
+              {formatFinanceHistoryDayLabel(homePayrollCashStrip.yesterday)}{' '}
+              {homePayrollCashStrip.payrollYesterday.toLocaleString('ru-RU')} ₽ ·{' '}
+              {formatFinanceHistoryDayLabel(homePayrollCashStrip.today)}{' '}
+              {homePayrollCashStrip.payrollToday.toLocaleString('ru-RU')} ₽
+            </span>
+          </article>
+          <article className="financeOpsHomeMiniStripItem financeOpsHomeMiniStripItem--combined">
+            <span className="financeOpsHomeMiniStripLabel">ЗП + перевод + наличные</span>
+            <FinanceSensitiveAmount
+              visible={financeSensitiveVisible}
+              value={homePayrollCashStrip.combinedTotal}
+              format={fmt}
+              className="financeOpsHomeMiniStripValue"
+            />
+            <span
+              className={`financeOpsHomeMiniStripHint${
+                financeSensitiveVisible ? '' : ' financeOpsHomeMiniStripHint--hidden'
+              }`}
+            >
+              ЗП {homePayrollCashStrip.payrollTotal.toLocaleString('ru-RU')} ₽ ·{' '}
+              {homePayrollCashStrip.transferName}{' '}
+              {homePayrollCashStrip.transferBalance.toLocaleString('ru-RU')} ₽ ·{' '}
+              {homePayrollCashStrip.cashName}{' '}
+              {homePayrollCashStrip.cashBalance.toLocaleString('ru-RU')} ₽
+            </span>
+          </article>
+        </section>
+      ) : null}
+
       {showCompactFlows ? (
         <section className="financeOpsZone financeOpsZone--flows addSaleForm">
           <h4 className="financeOpsZoneTitle financeOpsZoneTitle--flows">Приход и расход</h4>
@@ -9277,7 +9643,7 @@ function FinanceOpsPanel({
                     className={`ghost financeOpsFlowAccountChip ${financeAccountToneClass(acc.id)}${
                       selectedFlowAccountId === acc.id ? ' financeOpsFlowAccountChip--active' : ''
                     }${chipInsufficient ? ' financeOpsFlowAccountChip--insufficient' : ''}`}
-                    onClick={() => setSelectedFlowAccountId(acc.id)}
+                    onClick={() => selectIncomeFlowAccount(acc.id)}
                     title={
                       chipInsufficient
                         ? `Доступно: ${acc.balance.toLocaleString('ru-RU')} ₽`
@@ -9307,6 +9673,41 @@ function FinanceOpsPanel({
                   }}
                 />
               </label>
+              {incomeAcquiringPreview && incomeAcquiringPreview.fee > 0 ? (
+                <p className="financeOpsIncomeAcquiringHint">
+                  Эквайринг {formatFinanceAcquiringPercent(incomeAcquiringPreview.percent)}%: −
+                  {incomeAcquiringPreview.fee.toLocaleString('ru-RU')} ₽ → на счёт{' '}
+                  <strong>{incomeAcquiringPreview.net.toLocaleString('ru-RU')} ₽</strong>
+                </p>
+              ) : null}
+              {incomeAcquiringOverrideAccountId === selectedFlowAccountId &&
+              acquiringProfileIdForFinanceAccount(selectedFlowAccountId) ? (
+                <label className="financeOpsFlowSideField financeOpsIncomeAcquiringOverride">
+                  <span className="financeOpsFlowSideFieldLabel">Эквайринг, % (вручную)</span>
+                  <input
+                    className="financeOpsIncomeAcquiringOverrideInput"
+                    type="text"
+                    inputMode="decimal"
+                    aria-label="Процент эквайринга для выбранного счёта"
+                    value={incomeAcquiringOverrideDraft}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setIncomeAcquiringOverrideDraft(value);
+                      const parsed = Number(value.replace(',', '.').trim());
+                      if (!Number.isFinite(parsed)) {
+                        return;
+                      }
+                      setIncomeAcquiringPercentByAccount((current) => ({
+                        ...current,
+                        [selectedFlowAccountId]: Math.max(
+                          0,
+                          Math.min(100, Math.round(parsed * 1000) / 1000),
+                        ),
+                      }));
+                    }}
+                  />
+                </label>
+              ) : null}
               <label className="financeOpsFlowSideField financeOpsFlowSideField--comment">
                 <span className="financeOpsFlowSideFieldLabel">Точка прихода</span>
                 <select
@@ -9352,7 +9753,7 @@ function FinanceOpsPanel({
                     className={`ghost paymentTypeBtn financeOpsAccountPickBtn ${financeAccountToneClass(acc.id)}${
                       selectedIncomeAccountId === acc.id ? ' paymentTypeBtnActive' : ''
                     }`}
-                    onClick={() => setSelectedIncomeAccountId(acc.id)}
+                    onClick={() => selectIncomeFlowAccount(acc.id)}
                   >
                     {acc.name}
                   </button>
@@ -9385,6 +9786,41 @@ function FinanceOpsPanel({
                 </select>
               </label>
             </div>
+            {incomeAcquiringPreview && incomeAcquiringPreview.fee > 0 ? (
+              <p className="financeOpsIncomeAcquiringHint">
+                Эквайринг {formatFinanceAcquiringPercent(incomeAcquiringPreview.percent)}%: −
+                {incomeAcquiringPreview.fee.toLocaleString('ru-RU')} ₽ → на счёт{' '}
+                <strong>{incomeAcquiringPreview.net.toLocaleString('ru-RU')} ₽</strong>
+              </p>
+            ) : null}
+            {incomeAcquiringOverrideAccountId === selectedIncomeAccountId &&
+            acquiringProfileIdForFinanceAccount(selectedIncomeAccountId) ? (
+              <label className="financeOpsIncomeAcquiringOverride">
+                <span className="financeOpsFieldLabel">Эквайринг, % (вручную)</span>
+                <input
+                  className="financeOpsIncomeAcquiringOverrideInput"
+                  type="text"
+                  inputMode="decimal"
+                  aria-label="Процент эквайринга для выбранного счёта"
+                  value={incomeAcquiringOverrideDraft}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setIncomeAcquiringOverrideDraft(value);
+                    const parsed = Number(value.replace(',', '.').trim());
+                    if (!Number.isFinite(parsed)) {
+                      return;
+                    }
+                    setIncomeAcquiringPercentByAccount((current) => ({
+                      ...current,
+                      [selectedIncomeAccountId]: Math.max(
+                        0,
+                        Math.min(100, Math.round(parsed * 1000) / 1000),
+                      ),
+                    }));
+                  }}
+                />
+              </label>
+            ) : null}
             <button
               type="button"
               className="primaryAction addSaleSubmitBottom"
@@ -9591,6 +10027,112 @@ function FinanceOpsPanel({
           {status ? <p className="success financeOpsStatusMsg">{status}</p> : null}
           {error ? <p className="error financeOpsStatusMsg">{error}</p> : null}
         </div>
+      ) : null}
+
+      {showIncomeThroughputPanel ? (
+        <section
+          className={`financeOpsZone financeOpsZone--articles financeOpsZone--throughput${
+            compactFinanceUi ? ' financeOpsExpenseArticlesSheet--desktop' : ''
+          }${showArticlesCarousel ? ' financeOpsExpenseArticlesSheet--open financeOpsExpenseArticlesSheet--carousel' : ''}`}
+        >
+          <div className="financeOpsArticlesHead financeOpsArticlesHead--throughput">
+            <div className="financeOpsThroughputTitleWrap">
+              <h4 className="financeOpsZoneTitle">Проходка по счетам</h4>
+              <div
+                ref={throughputFiltersRef}
+                className="financeOpsThroughputFilterRow"
+                role="toolbar"
+                aria-label="Фильтры проходки"
+              >
+                <div className="financeOpsThroughputFilterSlot">
+                  <button
+                    type="button"
+                    className={`financeOpsThroughputFilterBtn${
+                      incomeThroughputIsDefault ? ' financeOpsThroughputFilterBtn--active' : ''
+                    }`}
+                    aria-label="Период по умолчанию"
+                    aria-pressed={incomeThroughputIsDefault}
+                    onClick={resetIncomeThroughputPeriod}
+                  >
+                    <FinanceThroughputDefaultFilterIcon />
+                  </button>
+                </div>
+                <div className="financeOpsThroughputFilterSlot">
+                  <button
+                    type="button"
+                    className={`financeOpsThroughputFilterBtn${
+                      throughputPeriodOpen || !incomeThroughputIsDefault
+                        ? ' financeOpsThroughputFilterBtn--active'
+                        : ''
+                    }`}
+                    aria-label="Выбрать период"
+                    aria-pressed={throughputPeriodOpen || !incomeThroughputIsDefault}
+                    aria-expanded={throughputPeriodOpen}
+                    onClick={() => setThroughputPeriodOpen((open) => !open)}
+                  >
+                    <FinanceHistoryDateFilterIcon />
+                  </button>
+                  {throughputPeriodOpen ? (
+                    <div className="financeOpsThroughputPeriodPopover">
+                      <label className="financeOpsThroughputPeriodField">
+                        <span>С</span>
+                        <input
+                          type="date"
+                          className="financeOpsThroughputPeriodInput"
+                          aria-label="Дата начала периода (МСК)"
+                          value={incomeThroughputFrom}
+                          max={todayKeyMoscow()}
+                          onChange={(event) => setIncomeThroughputFrom(event.target.value)}
+                        />
+                      </label>
+                      <label className="financeOpsThroughputPeriodField">
+                        <span>По</span>
+                        <input
+                          type="date"
+                          className="financeOpsThroughputPeriodInput"
+                          aria-label="Дата конца периода (МСК)"
+                          value={incomeThroughputTo}
+                          max={todayKeyMoscow()}
+                          onChange={(event) => setIncomeThroughputTo(event.target.value)}
+                        />
+                      </label>
+                      <p className="financeOpsThroughputPeriodHint">
+                        {incomeThroughputFromDay} — {incomeThroughputToDay}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            <FinanceSensitiveAmount
+              visible={financeSensitiveVisible}
+              value={incomeThroughputGrandTotal}
+              format={fmt}
+              className="financeOpsArticlesTotal"
+            />
+          </div>
+          <div
+            className="financeOpsExpenseArticlesCarousel financeOpsExpenseArticlesCarousel--desktop financeOpsThroughputCarousel"
+            role="list"
+            aria-label="Проходка приходов по счетам"
+          >
+            {incomeThroughputByAccount.map((row) => (
+              <article
+                key={row.accountId}
+                className="financeOpsExpenseArticlesChip financeOpsExpenseArticlesChip--throughput"
+                role="listitem"
+              >
+                <span className="financeOpsExpenseArticlesChipTitle">{row.title}</span>
+                <FinanceSensitiveAmount
+                  visible={financeSensitiveVisible}
+                  value={row.total}
+                  format={fmt}
+                  className="financeOpsExpenseArticlesChipAmount"
+                />
+              </article>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       {showArticlesPanel ? (

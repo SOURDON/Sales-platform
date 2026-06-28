@@ -168,6 +168,7 @@ export type FinanceExpenseUpdateOutboxPayload = {
   accountId: string;
   title: string;
   amount: number;
+  workDay?: string;
   comment?: string;
   createdAt: string;
 };

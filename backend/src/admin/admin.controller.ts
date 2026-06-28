@@ -115,6 +115,7 @@ interface FinanceExpenseBody {
   amount?: number;
   comment?: string;
   expenseId?: string;
+  workDay?: string;
 }
 
 interface FinanceIncomeBody {
@@ -651,6 +652,8 @@ export class AdminController {
         title: body.title,
         amount,
         comment: body.comment,
+        workDay:
+          body.workDay && /^\d{4}-\d{2}-\d{2}$/.test(body.workDay) ? body.workDay : undefined,
       },
       session.nickname,
     );
@@ -877,6 +880,8 @@ export class AdminController {
         title: body.title,
         amount,
         comment: body.comment,
+        workDay:
+          body.workDay && /^\d{4}-\d{2}-\d{2}$/.test(body.workDay) ? body.workDay : undefined,
       },
       session.nickname,
     );

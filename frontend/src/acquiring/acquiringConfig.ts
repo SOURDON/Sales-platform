@@ -264,3 +264,42 @@ export function setProfilePercent(
 ): AcquiringProfile[] {
   return profiles.map((p) => (p.id === profileId ? { ...p, percent: clampPercent(percent) } : p));
 }
+
+const FINANCE_ACCOUNT_ACQUIRING_PROFILE: Record<string, AcquiringProfileId> = {
+  'fa-bank-extra': 'detkov-vtb',
+  'fa-bank-main': 'putintsev-vtb',
+  'fa-bank-putintsev-sber': 'putintsev-sber',
+  'fa-bank-lyokha': 'lyokha-rs',
+};
+
+export function acquiringProfileIdForFinanceAccount(accountId: string): AcquiringProfileId | null {
+  const key = accountId.replace(/^auto-/, '').trim();
+  return FINANCE_ACCOUNT_ACQUIRING_PROFILE[key] ?? null;
+}
+
+export function acquiringPercentForFinanceAccount(
+  accountId: string,
+  profiles: AcquiringProfile[],
+): number {
+  const profileId = acquiringProfileIdForFinanceAccount(accountId);
+  if (!profileId) {
+    return 0;
+  }
+  const profile = profiles.find((item) => item.id === profileId);
+  return profile?.percent ?? 1.8;
+}
+
+export function financeIncomeAfterAcquiring(
+  gross: number,
+  percent: number,
+): { gross: number; fee: number; net: number; percent: number } {
+  if (!Number.isFinite(gross) || gross <= 0) {
+    return { gross: 0, fee: 0, net: 0, percent: 0 };
+  }
+  if (!Number.isFinite(percent) || percent <= 0) {
+    return { gross, fee: 0, net: gross, percent: 0 };
+  }
+  const fee = Math.round(((gross * percent) / 100) * 100) / 100;
+  const net = Math.max(0, Math.round((gross - fee) * 100) / 100);
+  return { gross, fee, net, percent };
+}
