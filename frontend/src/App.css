@@ -3524,7 +3524,147 @@ button.financeRangePresetBtn {
 }
 
 .financeOpsHistoryFilterMenu--date {
-  min-width: 168px;
+  min-width: 220px;
+}
+
+.financeOpsHistoryCalendar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 4px 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.financeOpsHistoryCalendarNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.financeOpsHistoryCalendarNavBtn {
+  min-width: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+}
+
+.financeOpsHistoryCalendarMonth {
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ece8df;
+}
+
+.financeOpsHistoryCalendarWeekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.financeOpsHistoryCalendarWeekday {
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7a8a80;
+}
+
+.financeOpsHistoryCalendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.financeOpsHistoryCalendarDay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #ece8df;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.financeOpsHistoryCalendarDay--empty {
+  pointer-events: none;
+}
+
+.financeOpsHistoryCalendarDay:hover:not(:disabled):not(.financeOpsHistoryCalendarDay--empty) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.financeOpsHistoryCalendarDay--selected {
+  background: rgba(154, 163, 173, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(154, 163, 173, 0.45);
+}
+
+.financeOpsHistoryCalendarDay--today {
+  color: #d4b67b;
+}
+
+.financeOpsHistoryCalendarDay:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+}
+
+.financeOpsHistoryDateFilterBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(154, 163, 173, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(154, 163, 173, 0.22);
+}
+
+.financeOpsHistoryDateFilterBarLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: #9aab9f;
+  line-height: 1.3;
+}
+
+.financeOpsHistoryDateFilterBarLabel strong {
+  color: #ece8df;
+  font-weight: 700;
+}
+
+.financeOpsHistoryDateFilterBarReset,
+.financeOpsHistoryDateFilterMenuReset {
+  flex: 0 0 auto;
+  min-height: 28px !important;
+  padding: 4px 10px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em;
+  border-radius: 7px !important;
+  color: #d4b67b !important;
+  background: rgba(212, 182, 123, 0.12) !important;
+  box-shadow: inset 0 0 0 1px rgba(212, 182, 123, 0.35) !important;
+}
+
+.financeOpsHistoryDateFilterBarReset:hover,
+.financeOpsHistoryDateFilterMenuReset:hover {
+  background: rgba(212, 182, 123, 0.2) !important;
+}
+
+.financeOpsHistoryDateFilterMenuReset {
+  width: calc(100% - 8px);
+  margin: 2px 4px 4px;
 }
 
 .financeOpsHistoryFilterMenuItem {

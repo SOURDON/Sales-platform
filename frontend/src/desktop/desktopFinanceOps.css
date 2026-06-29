@@ -1439,9 +1439,21 @@
 .app.app--desktop .pageOutlet:has(.financeOpsCard--operativka),
 .app.app--desktop .dashboard--financeDesktop:has(.financeOpsCard--operativka) {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 0 !important;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.app.app--desktop .desktopContentFrame:has(.financeOpsCard--operativka) {
+  padding-bottom: 16px !important;
+}
+
+.app.app--desktop .pageOutlet:has(.financeOpsCard--operativka) > .dashboard--financeDesktop {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .app.app--desktop .dashboard--financeDesktop:has(.financeOpsCard--operativka) > .sectionCard {
@@ -1449,6 +1461,7 @@
   min-height: 0;
   display: flex !important;
   flex-direction: column !important;
+  overflow: hidden;
 }
 
 .app.app--desktop .financeOpsCard--operativka.financeOpsCard--desktop {
@@ -1456,11 +1469,20 @@
   min-height: 0;
   display: flex !important;
   flex-direction: column !important;
+  overflow: hidden;
+}
+
+.app.app--desktop .financeOpsShell--operativka.financeOpsShell--desktop {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .app.app--desktop .financeOpsShell--operativka {
-  display: flex !important;
-  flex-direction: column !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr);
   flex: 1 1 auto;
   min-height: 0;
   gap: 14px !important;
@@ -1471,6 +1493,7 @@
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  overflow: hidden;
 }
 
 .app.app--desktop .financeOpsShell--operativka .financeOpsZone--flows {
@@ -1484,21 +1507,107 @@
   display: none;
 }
 
+.app.app--desktop .financeOpsShell--operativka .financeOpsZone--historyOperativka {
+  grid-row: 2;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  padding: 0;
+  padding-bottom: 2px;
+  box-shadow: none;
+}
+
+.app.app--desktop .financeOpsShell--operativka .financeOpsZone--historyOperativka .financeOpsHistoryMiniRow {
+  flex: 1 1 auto;
+  min-height: 0 !important;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  overflow: hidden;
+  gap: 16px;
+}
+
+.app.app--desktop .financeOpsHistoryMini--operativkaScroll {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+
+.app.app--desktop .financeOpsHistoryMini--operativkaScroll .financeOpsHistoryMiniHead {
+  flex: 0 0 auto;
+}
+
+.app.app--desktop .financeOpsHistoryMini--operativkaScroll .financeOpsHistoryMiniTrack {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  max-height: none !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 8px 12px 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 163, 173, 0.55) transparent;
+  touch-action: pan-y;
+}
+
+.app.app--desktop .financeOpsHistoryMini--operativkaScroll .financeOpsHistoryMiniTrack::-webkit-scrollbar {
+  width: 8px;
+}
+
+.app.app--desktop .financeOpsHistoryMini--operativkaScroll .financeOpsHistoryMiniTrack::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(154, 163, 173, 0.55);
+}
+
 .app.app--desktop .financeOpsShell--operativka .financeOpsZone--historyMini {
+  grid-row: 2;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   padding: 0;
+  padding-bottom: 2px;
   box-shadow: none;
+}
+
+.app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMiniRow {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  align-content: stretch;
+  overflow: hidden;
+  gap: 16px;
+}
+
+.app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMiniRow > .financeOpsHistoryMini {
+  min-height: 0 !important;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMiniHead {
+  flex: 0 0 auto;
 }
 
 .app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMini.financeOpsHistoryMini--page {
   display: flex;
   flex-direction: column;
-  flex: 1 1 0;
+  flex: 1 1 auto;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
   padding: 10px 12px 8px;
   border-radius: var(--dt-radius-md);
@@ -1527,31 +1636,6 @@
   box-shadow:
     inset 0 1px 0 rgba(154, 163, 173, 0.12),
     inset 0 0 0 1px rgba(154, 163, 173, 0.18);
-}
-
-.app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMiniHead {
-  flex: 0 0 auto;
-}
-
-.app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMiniRow {
-  flex: 1 1 auto;
-  min-height: 0;
-  align-items: stretch;
-  overflow: hidden;
-}
-
-.app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMiniTrack {
-  flex: 1 1 auto;
-  min-height: 0;
-  height: auto;
-  max-height: none;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  padding: 2px 6px 16px 2px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(154, 163, 173, 0.45) transparent;
 }
 
 .app.app--desktop .financeOpsShell--operativka .financeOpsHistoryMiniTrack::-webkit-scrollbar {
@@ -1677,7 +1761,57 @@
 }
 
 .app.app--desktop .financeOpsHistoryFilterMenu--date {
-  min-width: 168px;
+  min-width: 232px;
+  right: 0;
+  left: auto;
+}
+
+.app.app--desktop .financeOpsHistoryCalendar {
+  gap: 8px;
+  padding: 8px 6px 6px;
+}
+
+.app.app--desktop .financeOpsHistoryCalendarDay {
+  min-height: 30px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.app.app--desktop .financeOpsHistoryCalendarMonth {
+  font-size: 13px;
+  color: var(--dt-text);
+}
+
+.app.app--desktop .financeOpsHistoryCalendarWeekday {
+  font-size: 10px;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .financeOpsHistoryDateFilterBar {
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(154, 163, 173, 0.28);
+}
+
+.app.app--desktop .financeOpsHistoryDateFilterBarLabel {
+  font-size: 11px;
+  color: var(--dt-text-dim);
+}
+
+.app.app--desktop .financeOpsHistoryDateFilterBarLabel strong {
+  color: var(--dt-text);
+}
+
+.app.app--desktop .financeOpsHistoryDateFilterBarReset,
+.app.app--desktop .financeOpsHistoryDateFilterMenuReset {
+  min-height: 30px !important;
+  padding: 5px 12px !important;
+  font-size: 11px !important;
+  color: var(--dt-gold-soft) !important;
+  background: rgba(154, 163, 173, 0.14) !important;
+  box-shadow: inset 0 0 0 1px rgba(154, 163, 173, 0.35) !important;
 }
 
 .app.app--desktop .financeOpsHistoryFilterMenuItem {
@@ -1718,25 +1852,6 @@
 .app.app--desktop .financeOpsHistoryFilterMenuLabel {
   flex: 1 1 auto;
   min-width: 0;
-}
-
-.app.app--desktop .financeOpsHistoryFilterMenuDate {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 6px 8px 4px;
-  margin-top: 2px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--dt-text-dim);
-}
-
-.app.app--desktop .financeOpsHistoryFilterMenuDate .financeOpsHistoryFilterPanelDate {
-  min-height: 32px;
-  padding: 6px 10px;
-  font-size: 12px;
-  border-radius: 8px;
 }
 
 @media (max-width: 1100px) {

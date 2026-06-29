@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode, TouchEvent } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
@@ -7806,6 +7806,145 @@ function isFinanceHistoryDayKey(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
 }
 
+function formatFinanceHistoryDayRu(dayKey: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey.trim());
+  if (!match) {
+    return '';
+  }
+  return `${match[3]}.${match[2]}.${match[1]}`;
+}
+
+function financeHistoryMonthViewFromDayKey(dayKey: string): { year: number; month: number } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey.trim());
+  if (!match) {
+    const today = todayKeyMoscow();
+    const todayMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(today);
+    if (!todayMatch) {
+      const now = new Date();
+      return { year: now.getFullYear(), month: now.getMonth() + 1 };
+    }
+    return { year: Number(todayMatch[1]), month: Number(todayMatch[2]) };
+  }
+  return { year: Number(match[1]), month: Number(match[2]) };
+}
+
+type FinanceHistoryCalendarCell = {
+  dayKey: string;
+  day: number;
+  inMonth: boolean;
+};
+
+function buildFinanceHistoryMonthCells(year: number, month: number): FinanceHistoryCalendarCell[] {
+  const first = new Date(year, month - 1, 1);
+  const startOffset = (first.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const cells: FinanceHistoryCalendarCell[] = [];
+  const total = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+  for (let index = 0; index < total; index += 1) {
+    const dayNum = index - startOffset + 1;
+    if (dayNum < 1 || dayNum > daysInMonth) {
+      cells.push({ dayKey: '', day: 0, inMonth: false });
+      continue;
+    }
+    const dayKey = `${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+    cells.push({ dayKey, day: dayNum, inMonth: true });
+  }
+  return cells;
+}
+
+function FinanceHistoryMonthCalendar({
+  value,
+  onSelect,
+}: {
+  value: string;
+  onSelect: (dayKey: string) => void;
+}) {
+  const maxDayKey = todayKeyMoscow();
+  const initial = financeHistoryMonthViewFromDayKey(value || maxDayKey);
+  const [viewYear, setViewYear] = useState(initial.year);
+  const [viewMonth, setViewMonth] = useState(initial.month);
+
+  useEffect(() => {
+    const next = financeHistoryMonthViewFromDayKey(value || maxDayKey);
+    setViewYear(next.year);
+    setViewMonth(next.month);
+  }, [value, maxDayKey]);
+
+  const shiftMonth = (delta: number) => {
+    const date = new Date(viewYear, viewMonth - 1 + delta, 1);
+    setViewYear(date.getFullYear());
+    setViewMonth(date.getMonth() + 1);
+  };
+
+  const cells = useMemo(
+    () => buildFinanceHistoryMonthCells(viewYear, viewMonth),
+    [viewYear, viewMonth],
+  );
+  const monthTitle = `${FINANCE_HISTORY_MONTH_LABELS[viewMonth - 1] ?? viewMonth} ${viewYear}`;
+
+  return (
+    <div className="financeOpsHistoryCalendar" role="application" aria-label="Календарь">
+      <div className="financeOpsHistoryCalendarNav">
+        <button
+          type="button"
+          className="ghost financeOpsHistoryCalendarNavBtn"
+          onClick={() => shiftMonth(-1)}
+          aria-label="Предыдущий месяц"
+        >
+          ‹
+        </button>
+        <span className="financeOpsHistoryCalendarMonth">{monthTitle}</span>
+        <button
+          type="button"
+          className="ghost financeOpsHistoryCalendarNavBtn"
+          onClick={() => shiftMonth(1)}
+          aria-label="Следующий месяц"
+        >
+          ›
+        </button>
+      </div>
+      <div className="financeOpsHistoryCalendarWeekdays" aria-hidden>
+        {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((label) => (
+          <span key={label} className="financeOpsHistoryCalendarWeekday">
+            {label}
+          </span>
+        ))}
+      </div>
+      <div className="financeOpsHistoryCalendarGrid" role="grid">
+        {cells.map((cell, index) => {
+          if (!cell.inMonth) {
+            return (
+              <span
+                key={`empty-${viewYear}-${viewMonth}-${index}`}
+                className="financeOpsHistoryCalendarDay financeOpsHistoryCalendarDay--empty"
+              />
+            );
+          }
+          const isSelected = value === cell.dayKey;
+          const isToday = cell.dayKey === maxDayKey;
+          const isFuture = cell.dayKey > maxDayKey;
+          return (
+            <button
+              key={cell.dayKey}
+              type="button"
+              role="gridcell"
+              className={`financeOpsHistoryCalendarDay${
+                isSelected ? ' financeOpsHistoryCalendarDay--selected' : ''
+              }${isToday ? ' financeOpsHistoryCalendarDay--today' : ''}`}
+              disabled={isFuture}
+              aria-pressed={isSelected}
+              aria-label={formatFinanceHistoryDayRu(cell.dayKey)}
+              onClick={() => onSelect(cell.dayKey)}
+            >
+              {cell.day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function FinanceHistoryStoreFilterIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="financeOpsHistoryFilterIconSvg" aria-hidden>
@@ -8002,6 +8141,32 @@ function financeHistoryAccountFilterOptions(accounts: FinanceAccount[]): Finance
   return [...primary, ...rest];
 }
 
+function financeHistoryDateFilterLabel(dateFilter: string): string | null {
+  if (!dateFilter) {
+    return null;
+  }
+  if (dateFilter === 'today') {
+    return 'Сегодня';
+  }
+  if (dateFilter === 'yesterday') {
+    return 'Вчера';
+  }
+  if (dateFilter === 'week') {
+    return '7 дней';
+  }
+  if (isFinanceHistoryDayKey(dateFilter)) {
+    return formatFinanceHistoryDayLabel(dateFilter);
+  }
+  return null;
+}
+
+function financeHistoryDatePresetFilter(dateFilter: string): string {
+  if (dateFilter === 'today' || dateFilter === 'yesterday' || dateFilter === 'week') {
+    return dateFilter;
+  }
+  return '';
+}
+
 function groupFinanceHistoryByDay(rows: FinanceHistoryListRow[]) {
   const groups: Array<{ dayKey: string; rows: FinanceHistoryListRow[] }> = [];
   for (const row of rows) {
@@ -8029,6 +8194,7 @@ function FinanceOpsHistoryList({
   onDeleteExpense,
   onDeleteIncome,
   pageLayout = false,
+  operativkaScroll = false,
 }: {
   title: string;
   emptyLabel: string;
@@ -8039,6 +8205,7 @@ function FinanceOpsHistoryList({
   canEdit: boolean;
   busyId: string;
   pageLayout?: boolean;
+  operativkaScroll?: boolean;
   onEditExpense?: (
     id: string,
     payload: { accountId: string; title: string; amount: string; workDay: string; comment?: string },
@@ -8075,14 +8242,78 @@ function FinanceOpsHistoryList({
   const groups = useMemo(() => groupFinanceHistoryByDay(filteredRows), [filteredRows]);
   const hasActiveFilters = Boolean(storeFilter || accountFilter || dateFilter || categoryFilter);
   const customDateValue = isFinanceHistoryDayKey(dateFilter) ? dateFilter : '';
+  const dateFilterLabel = financeHistoryDateFilterLabel(dateFilter);
+
+  const clearDateFilter = () => {
+    setDateFilter('');
+    setOpenFilter(null);
+  };
 
   const toggleFilterPanel = (panel: 'store' | 'account' | 'date' | 'category') => {
     setOpenFilter((current) => (current === panel ? null : panel));
   };
   const filterToolbarRef = useRef<HTMLDivElement | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const headRef = useRef<HTMLDivElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAccountId, setEditAccountId] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editComment, setEditComment] = useState('');
+  const [editStore, setEditStore] = useState<string>(ALL_DEMO_STORE_NAMES[0]);
+  const [editTitle, setEditTitle] = useState('');
+  const [editWorkDay, setEditWorkDay] = useState('');
+  const [editError, setEditError] = useState('');
+
+  useLayoutEffect(() => {
+    if (!operativkaScroll) {
+      return;
+    }
+    const card = cardRef.current;
+    const head = headRef.current;
+    const track = trackRef.current;
+    if (!card || !head || !track) {
+      return;
+    }
+
+    const syncTrackHeight = () => {
+      const available = Math.floor(card.clientHeight - head.offsetHeight);
+      if (available < 72) {
+        return;
+      }
+      track.style.height = `${available}px`;
+      track.style.maxHeight = `${available}px`;
+      track.style.overflowY = 'auto';
+    };
+
+    syncTrackHeight();
+    window.requestAnimationFrame(syncTrackHeight);
+    const observer = new ResizeObserver(() => {
+      syncTrackHeight();
+    });
+    observer.observe(card);
+    observer.observe(head);
+    const zone = card.closest('.financeOpsZone--historyOperativka');
+    if (zone) {
+      observer.observe(zone);
+    }
+    return () => {
+      observer.disconnect();
+      track.style.height = '';
+      track.style.maxHeight = '';
+      track.style.overflowY = '';
+    };
+  }, [
+    operativkaScroll,
+    filteredRows.length,
+    groups.length,
+    editingId,
+    openFilter,
+    title,
+  ]);
 
   useEffect(() => {
-    if (!pageLayout || !openFilter) {
+    if (!pageLayout || !openFilter || openFilter === 'date') {
       return;
     }
     const handlePointerDown = (event: PointerEvent) => {
@@ -8095,14 +8326,6 @@ function FinanceOpsHistoryList({
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [openFilter, pageLayout]);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editAccountId, setEditAccountId] = useState('');
-  const [editAmount, setEditAmount] = useState('');
-  const [editComment, setEditComment] = useState('');
-  const [editStore, setEditStore] = useState<string>(ALL_DEMO_STORE_NAMES[0]);
-  const [editTitle, setEditTitle] = useState('');
-  const [editWorkDay, setEditWorkDay] = useState('');
-  const [editError, setEditError] = useState('');
 
   const startEdit = (row: FinanceHistoryListRow) => {
     setEditingId(row.id);
@@ -8194,11 +8417,12 @@ function FinanceOpsHistoryList({
 
   return (
     <div
+      ref={cardRef}
       className={`financeOpsHistoryMini financeOpsHistoryMini--${kind}${
         pageLayout ? ' financeOpsHistoryMini--page' : ''
-      }`}
+      }${operativkaScroll ? ' financeOpsHistoryMini--operativkaScroll' : ''}`}
     >
-      <div className="financeOpsHistoryMiniHead">
+      <div ref={headRef} className="financeOpsHistoryMiniHead">
         <p className="financeOpsHistoryMiniTitle">{title}</p>
         <div className="financeOpsHistoryFilters">
           {pageLayout ? (
@@ -8313,7 +8537,10 @@ function FinanceOpsHistoryList({
                     <FinanceHistoryDateFilterIcon />
                   </button>
                   {openFilter === 'date' ? (
-                    <div className="financeOpsHistoryFilterMenu financeOpsHistoryFilterMenu--date">
+                    <div
+                      className="financeOpsHistoryFilterMenu financeOpsHistoryFilterMenu--date"
+                      onPointerDown={(event) => event.stopPropagation()}
+                    >
                       <FinanceHistoryFilterMenu
                         options={[
                           { value: '', label: 'Все даты' },
@@ -8321,30 +8548,44 @@ function FinanceOpsHistoryList({
                           { value: 'yesterday', label: 'Вчера' },
                           { value: 'week', label: '7 дней' },
                         ]}
-                        selected={dateFilter === customDateValue ? '' : dateFilter}
+                        selected={financeHistoryDatePresetFilter(dateFilter)}
                         onSelect={(value) => {
                           setDateFilter(value);
                           setOpenFilter(null);
                         }}
                       />
-                      <label className="financeOpsHistoryFilterMenuDate">
-                        <span>Дата</span>
-                        <input
-                          className="financeOpsHistoryFilterPanelDate"
-                          type="date"
-                          value={customDateValue}
-                          max={todayKeyMoscow()}
-                          onChange={(event) => {
-                            setDateFilter(event.target.value);
-                            setOpenFilter(null);
-                          }}
-                          aria-label={`Конкретная дата: ${title}`}
-                        />
-                      </label>
+                      <FinanceHistoryMonthCalendar
+                        value={customDateValue}
+                        onSelect={(dayKey) => {
+                          setDateFilter(dayKey);
+                          setOpenFilter(null);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="financeOpsHistoryDateFilterMenuReset"
+                        onClick={clearDateFilter}
+                      >
+                        Все даты подряд
+                      </button>
                     </div>
                   ) : null}
                 </div>
               </div>
+              {dateFilterLabel ? (
+                <div className="financeOpsHistoryDateFilterBar">
+                  <span className="financeOpsHistoryDateFilterBarLabel">
+                    Показан период: <strong>{dateFilterLabel}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    className="financeOpsHistoryDateFilterBarReset"
+                    onClick={clearDateFilter}
+                  >
+                    Все даты подряд
+                  </button>
+                </div>
+              ) : null}
             </>
           ) : (
             <>
@@ -8382,7 +8623,7 @@ function FinanceOpsHistoryList({
           )}
         </div>
       </div>
-      <div className="financeOpsHistoryMiniTrack" role="list" aria-label={title}>
+      <div ref={trackRef} className="financeOpsHistoryMiniTrack" role="list" aria-label={title}>
         {filteredRows.length === 0 ? (
           <p className="financeOpsHistoryMiniEmpty">
             {rows.length === 0
@@ -8712,6 +8953,42 @@ function FinanceOpsPanel({
   const [incomeThroughputTo, setIncomeThroughputTo] = useState(todayKeyMoscow);
   const [throughputPeriodOpen, setThroughputPeriodOpen] = useState(false);
   const throughputFiltersRef = useRef<HTMLDivElement | null>(null);
+  const operativkaShellRef = useRef<HTMLDivElement | null>(null);
+  const operativkaHistoryZoneRef = useRef<HTMLElement | null>(null);
+  const isOperativkaHistoryScroll = Boolean(showCompactFlows && desktopSection === 'shift' && compactFinanceUi);
+
+  useLayoutEffect(() => {
+    if (!isOperativkaHistoryScroll) {
+      return;
+    }
+    const zone = operativkaHistoryZoneRef.current;
+    if (!zone) {
+      return;
+    }
+
+    const syncZoneHeight = () => {
+      const top = zone.getBoundingClientRect().top;
+      const height = Math.max(220, Math.floor(window.innerHeight - top - 20));
+      zone.style.height = `${height}px`;
+      zone.style.maxHeight = `${height}px`;
+      zone.style.minHeight = `${height}px`;
+    };
+
+    syncZoneHeight();
+    const observer = new ResizeObserver(syncZoneHeight);
+    observer.observe(document.documentElement);
+    if (operativkaShellRef.current) {
+      observer.observe(operativkaShellRef.current);
+    }
+    window.addEventListener('resize', syncZoneHeight);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', syncZoneHeight);
+      zone.style.height = '';
+      zone.style.maxHeight = '';
+      zone.style.minHeight = '';
+    };
+  }, [isOperativkaHistoryScroll, showCompactFlows, desktopSection, error, status]);
 
   useEffect(() => {
     setFinanceSensitiveVisible(false);
@@ -9359,6 +9636,7 @@ function FinanceOpsPanel({
       }`}
     >
       <div
+        ref={operativkaShellRef}
         className={`financeOpsShell${compactFinanceUi ? ' financeOpsShell--desktop' : ''}${
           desktopSection === 'shift' ? ' financeOpsShell--operativka' : ''
         }`}
@@ -10219,7 +10497,12 @@ function FinanceOpsPanel({
       ) : null}
 
       {showCompactFlows ? (
-        <section className="financeOpsZone financeOpsZone--historyMini">
+        <section
+          ref={operativkaHistoryZoneRef}
+          className={`financeOpsZone financeOpsZone--historyMini${
+            isOperativkaHistoryScroll ? ' financeOpsZone--historyOperativka' : ''
+          }`}
+        >
           <div className="financeOpsHistoryMiniRow">
             <FinanceOpsHistoryList
               title="Последние расходы"
@@ -10231,6 +10514,7 @@ function FinanceOpsPanel({
               canEdit={Boolean(onUpdateExpense)}
               busyId={busyId}
               pageLayout
+              operativkaScroll={isOperativkaHistoryScroll}
               onEditExpense={onUpdateExpense ? handleHistoryExpenseEdit : undefined}
               onDeleteExpense={onDeleteExpense ? handleHistoryExpenseDelete : undefined}
             />
@@ -10243,6 +10527,7 @@ function FinanceOpsPanel({
               canEdit={Boolean(onUpdateIncome)}
               busyId={busyId}
               pageLayout
+              operativkaScroll={isOperativkaHistoryScroll}
               onEditIncome={onUpdateIncome ? handleHistoryIncomeEdit : undefined}
               onDeleteIncome={onDeleteIncome ? handleHistoryIncomeDelete : undefined}
             />
