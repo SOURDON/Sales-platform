@@ -9,6 +9,9 @@
   letter-spacing: 0.02em;
   border: 1px solid transparent;
   white-space: nowrap;
+  min-width: 88px;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .desktopConnPillDot {

@@ -471,6 +471,8 @@ html[data-dt-theme='light'] .app.app--desktop.loginScreen .loginAppVersion {
   flex-direction: row;
   align-items: center;
   gap: 8px;
+  min-width: 168px;
+  justify-content: flex-end;
 }
 
 .desktopTitlebarTitle {

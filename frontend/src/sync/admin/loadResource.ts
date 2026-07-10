@@ -1,5 +1,6 @@
 import { loadSyncCache, saveSyncCache, syncCacheAgeMs } from '../cache';
-import { markApiReachableSuccess } from '../network';
+import { getApiReachableDisplayed, markApiReachableSuccess } from '../network';
+import { outboxCountForUser } from '../outbox';
 import type { SyncCacheKey } from '../types';
 
 export type LoadResourceResult<T> = {
@@ -8,6 +9,15 @@ export type LoadResourceResult<T> = {
 };
 
 const FETCH_TIMEOUT_MS = 12_000;
+/** Дольше не дергаем фоновый fetch — меньше дёргания UI при нестабильной сети. */
+const BACKGROUND_STALE_MS = 180_000;
+
+async function shouldDeferNetworkFetch(userId: number): Promise<boolean> {
+  if (!getApiReachableDisplayed()) {
+    return true;
+  }
+  return (await outboxCountForUser(userId)) > 0;
+}
 
 export type LoadSyncResourceOptions<T> = {
   /** Вызывается, когда с сервера пришли свежие данные (после показа кэша). */
@@ -21,7 +31,7 @@ export type LoadSyncResourceOptions<T> = {
   cacheOnly?: boolean;
   /** Если кэш моложе этого интервала — фоновый fetch не выполняется. */
   staleTimeMs?: number;
-  /** Всегда ждать ответ сети (после мутаций). */
+  /** Всегда ждать ответ сети (после мутаций), если API доступен и outbox пуст. */
   preferNetwork?: boolean;
 };
 
@@ -36,6 +46,12 @@ export async function loadSyncResource<T>(
   const cached = await loadSyncCache<T>(userId, cacheKey);
 
   const fetchFresh = async (): Promise<LoadResourceResult<T>> => {
+    if (await shouldDeferNetworkFetch(userId)) {
+      if (cached !== null) {
+        return { data: cached, fromCache: true };
+      }
+      return { data: fallback, fromCache: true };
+    }
     try {
       const data = await Promise.race([
         fetcher(),
@@ -44,14 +60,17 @@ export async function loadSyncResource<T>(
         }),
       ]);
       markApiReachableSuccess();
-      await saveSyncCache(userId, cacheKey, data);
-      if (options?.onFresh) {
+      const pending = await outboxCountForUser(userId);
+      if (pending === 0) {
+        await saveSyncCache(userId, cacheKey, data);
+      }
+      if (options?.onFresh && pending === 0) {
         const activeUserId = options.getActiveUserId?.();
         if (activeUserId === undefined || activeUserId === userId) {
           options.onFresh(data);
         }
       }
-      return { data, fromCache: false };
+      return { data: pending > 0 && cached !== null ? cached : data, fromCache: pending > 0 };
     } catch {
       if (cached !== null) {
         return { data: cached, fromCache: true };
@@ -68,18 +87,23 @@ export async function loadSyncResource<T>(
   }
 
   if (options?.preferNetwork) {
+    if (cached !== null && (await shouldDeferNetworkFetch(userId))) {
+      return { data: cached, fromCache: true };
+    }
     return fetchFresh();
   }
 
   if (cached !== null) {
-    const staleTimeMs = options?.staleTimeMs ?? 45_000;
+    const staleTimeMs = options?.staleTimeMs ?? BACKGROUND_STALE_MS;
     if (staleTimeMs > 0) {
       const ageMs = await syncCacheAgeMs(userId, cacheKey);
       if (ageMs !== null && ageMs < staleTimeMs) {
         return { data: cached, fromCache: true };
       }
     }
-    void fetchFresh();
+    if (!(await shouldDeferNetworkFetch(userId))) {
+      void fetchFresh();
+    }
     return { data: cached, fromCache: true };
   }
 

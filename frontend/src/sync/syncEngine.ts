@@ -1,4 +1,5 @@
 import { flushOutbox } from './flushOutbox';
+import { getApiBaseUrl } from '../apiBase';
 import { subscribeNetwork } from './network';
 import { listOutboxForUser, migrateLegacyOfflineSalesQueue } from './outbox';
 
@@ -17,7 +18,6 @@ export type SyncEngineOptions = {
 
 export function startSyncEngine(options: SyncEngineOptions): () => void {
   const {
-    apiBaseUrl,
     token,
     userId,
     onSyncingChange,
@@ -42,7 +42,7 @@ export function startSyncEngine(options: SyncEngineOptions): () => void {
       onSyncingChange?.(true);
       const pendingBefore = pending.length;
       await Promise.race([
-        flushOutbox(apiBaseUrl, token, userId),
+        flushOutbox(getApiBaseUrl(), token, userId),
         new Promise<void>((resolve) => window.setTimeout(resolve, 20_000)),
       ]);
       const pendingAfter = (await listOutboxForUser(userId)).length;
@@ -65,7 +65,7 @@ export function startSyncEngine(options: SyncEngineOptions): () => void {
   void migrateLegacyOfflineSalesQueue(userId).then(() => void flushAndRefresh());
 
   const network = subscribeNetwork(
-    apiBaseUrl,
+    getApiBaseUrl,
     (reachable) => {
       onReachableChange?.(reachable);
       if (reachable) {

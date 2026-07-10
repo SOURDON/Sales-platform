@@ -475,7 +475,22 @@ async function applyAcquiringProfiles(
   userId: number,
   payload: AcquiringProfilesOutboxPayload,
 ): Promise<void> {
-  await saveSyncCache(userId, 'acquiringProfiles', payload.profiles);
+  const { normalizeAcquiringProfiles } = await import('../../acquiring/acquiringConfig');
+  const existing = await loadSyncCache<Array<{ id: string; percent: number; label?: string; storeNames?: string[] }>>(
+    userId,
+    'acquiringProfiles',
+  );
+  const byId = new Map(existing?.map((row) => [row.id, row]) ?? []);
+  const mergedInput = payload.profiles.map((row) => {
+    const prev = byId.get(row.id);
+    return {
+      id: row.id,
+      percent: row.percent,
+      label: prev?.label,
+      storeNames: prev?.storeNames,
+    };
+  });
+  await saveSyncCache(userId, 'acquiringProfiles', normalizeAcquiringProfiles(mergedInput));
 }
 
 async function applyProcurementCosts(

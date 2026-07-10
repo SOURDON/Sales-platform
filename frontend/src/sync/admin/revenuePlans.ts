@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from '../../apiBase';
 import { loadSyncCache, saveSyncCache } from '../cache';
 import { isApiReachable } from '../network';
 import type { LoadResourceResult } from './loadResource';
@@ -11,13 +12,13 @@ export type StoreRevenuePlanRow = {
 export type RevenuePlansByDay = Record<string, StoreRevenuePlanRow[]>;
 
 export async function loadRevenuePlansWithCache(
-  apiBaseUrl: string,
+  _apiBaseUrl: string,
   userId: number,
   dayKey: string,
   fetcher: () => Promise<StoreRevenuePlanRow[]>,
 ): Promise<LoadResourceResult<StoreRevenuePlanRow[]>> {
   const empty: StoreRevenuePlanRow[] = [];
-  const reachable = await isApiReachable(apiBaseUrl);
+  const reachable = await isApiReachable(getApiBaseUrl);
   if (reachable) {
     try {
       const data = await fetcher();

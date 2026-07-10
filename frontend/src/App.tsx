@@ -6,6 +6,7 @@ import { ConnectionBanner } from './desktop/ConnectionBanner';
 import { DesktopAppLayout } from './desktop/DesktopAppLayout';
 import { DirectorAccountSwitcher } from './desktop/DirectorAccountSwitcher';
 import { appVersionLabel } from './appVersion';
+import { apiServerLabel, getApiBaseUrl, refreshApiBaseUrl } from './apiBase';
 import { isTauriRuntime } from './desktop/tauri';
 import {
   applyDesktopTheme,
@@ -46,7 +47,7 @@ import {
 if (isTauriRuntime()) {
   applyDesktopTheme(getStoredDesktopTheme());
 }
-import { useDesktopConnection } from './desktop/useDesktopConnection';
+import { useStableDesktopConnection } from './desktop/useStableDesktopConnection';
 import { fetchWithTimeout } from './sync/fetchTimeout';
 import {
   appendOfflineSale,
@@ -101,6 +102,7 @@ import {
   installApiReachabilityHook,
   markApiReachableSuccess,
   bootstrapReachability,
+  getApiReachableDisplayed,
   subscribeNetwork,
   roleUsesSyncCache,
   roleUsesSyncEngine,
@@ -108,6 +110,7 @@ import {
   useLiveSessionRefresh,
 } from './sync';
 import { applyFinanceOptimistic } from './sync/admin/optimisticFinance';
+import { FinanceAnalyticsPanel } from './finance/FinanceAnalyticsPanel';
 import { fetchRouteDataIfStale } from './web/routeFetchGuard';
 import {
   loadStoreEquipmentCache,
@@ -815,38 +818,12 @@ type FinanceOpsSnapshot = {
   };
 };
 
-/** Backend base URL. Веб-прод: тот же origin (Caddy). Десктоп: VITE_API_URL при сборке. */
-function resolveApiBaseUrl(): string {
-  const fromEnv = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
-  const envUrl = fromEnv ? fromEnv.replace(/\/$/, '') : '';
-
-  if (import.meta.env.DEV) {
-    if (envUrl) {
-      return envUrl;
-    }
-    if (typeof window !== 'undefined') {
-      return `http://${window.location.hostname}:3000`;
-    }
-    return 'http://localhost:3000';
-  }
-
-  if (typeof window !== 'undefined') {
-    if (isTauriRuntime() || import.meta.env.VITE_OFFLINE_STORE === '1') {
-      if (envUrl) {
-        return envUrl;
-      }
-      return window.location.origin;
-    }
-    return window.location.origin;
-  }
-
-  return envUrl;
-}
-
-const API_BASE_URL = resolveApiBaseUrl();
+/** Backend base URL: см. apiBase.ts (десктоп — авто-выбор IP/домена). */
 
 const API_CONFIG_ERROR =
-  !import.meta.env.DEV && !API_BASE_URL && typeof window === 'undefined'
+  !import.meta.env.DEV &&
+  !(import.meta.env.VITE_API_URL as string | undefined)?.trim() &&
+  typeof window === 'undefined'
     ? 'Сборка без адреса API: задайте VITE_API_URL при сборке frontend.'
     : '';
 
@@ -855,24 +832,6 @@ const API_DEPLOY_HINT =
 
 const MANAGER_COMMISSIONS_DEPLOY_HINT =
   `На сервере ещё нет API для процентов управляющего. ${API_DEPLOY_HINT}`;
-
-function apiServerLabel(baseUrl: string): string {
-  try {
-    const host = new URL(baseUrl).hostname;
-    if (host.includes('onrender.com')) {
-      return 'Render (устарело)';
-    }
-    if (host === '77.233.223.48') {
-      return 'Продакшен';
-    }
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'Локальный сервер';
-    }
-    return host;
-  } catch {
-    return baseUrl;
-  }
-}
 
 async function readApiErrorMessage(
   response: Response,
@@ -888,7 +847,7 @@ async function readApiErrorMessage(
 }
 
 function describeLoginFetchError(error: unknown): string {
-  const serverHint = API_BASE_URL ? apiServerLabel(API_BASE_URL) : 'сервер';
+  const serverHint = getApiBaseUrl() ? apiServerLabel(getApiBaseUrl()) : 'сервер';
   if (error instanceof Error) {
     if (error.name === 'AbortError') {
       return `Сервер не ответил за 15 секунд (${serverHint}). Подождите полминуты и войдите снова. Если повторяется — на VPS: docker compose restart api.`;
@@ -903,7 +862,7 @@ function describeLoginFetchError(error: unknown): string {
       if (import.meta.env.DEV) {
         return `Нет связи с API (${serverHint}). Проверьте VITE_API_URL и CORS на сервере — см. docs/DESKTOP_START_HERE.md.`;
       }
-      return `Нет связи с сервером ${serverHint} (это не ошибка пароля). Проверьте интернет и что API отвечает: ${API_BASE_URL || 'VITE_API_URL не задан'}/health`;
+      return `Нет связи с сервером ${serverHint} (это не ошибка пароля). Проверьте интернет и что API отвечает: ${getApiBaseUrl() || 'VITE_API_URL не задан'}/health`;
     }
     return error.message;
   }
@@ -1022,6 +981,18 @@ function ShiftIcon() {
           strokeLinecap="round"
           strokeLinejoin="round"
         />
+      </svg>
+    </DockIcon>
+  );
+}
+
+function AnalyticsIcon() {
+  return (
+    <DockIcon>
+      <svg viewBox="0 0 24 24" fill="none" className="dockSvg" aria-hidden>
+        <path d="M5 18V10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M12 18V6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M19 18v-8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     </DockIcon>
   );
@@ -1221,7 +1192,10 @@ function App() {
     }
     void import('./desktop/desktopFinanceOps.css');
     void import('./desktop/desktopDirectorHome.css');
-  }, [session?.user?.role]);
+    if (role === 'DIRECTOR' && isDesktopShell) {
+      void import('./finance/financeAnalyticsPanel.css');
+    }
+  }, [session?.user?.role, isDesktopShell]);
 
   const handleDesktopThemeChange = useCallback((theme: DesktopTheme) => {
     setDesktopTheme(theme);
@@ -1282,27 +1256,22 @@ function App() {
     };
   }, [isDesktopShell]);
 
-  const desktopConnection = useDesktopConnection(outboxSyncing, apiReachable, {
+  const desktopConnection = useStableDesktopConnection(outboxSyncing, apiReachable, {
     trustApiOnly: isDesktopShell,
   });
 
   useEffect(() => {
-    if (!API_BASE_URL) {
+    if (!getApiBaseUrl()) {
       return;
     }
-    return installApiReachabilityHook(API_BASE_URL);
+    return installApiReachabilityHook(getApiBaseUrl);
   }, []);
 
   useEffect(() => {
-    if (!API_BASE_URL || !isDesktopShell || offlineStoreMode) {
+    if (!getApiBaseUrl() || !isDesktopShell || offlineStoreMode) {
       return;
     }
-    void bootstrapReachability(API_BASE_URL).then((ok) => setApiReachable(ok));
-    const net = subscribeNetwork(API_BASE_URL, setApiReachable, {
-      ignoreNavigatorOffline: true,
-      pollMs: 120_000,
-    });
-    return () => net.dispose();
+    void bootstrapReachability(getApiBaseUrl).then((ok) => setApiReachable(ok));
   }, [isDesktopShell, offlineStoreMode]);
   const [commissionRequests, setCommissionRequests] = useState<CommissionRequest[]>([]);
   const [shifts, setShifts] = useState<ShiftInfo[]>([]);
@@ -1385,7 +1354,7 @@ function App() {
     if (roleUsesSyncEngine(session.user.role, isDesktopShell)) {
       return;
     }
-    const net = subscribeNetwork(API_BASE_URL, setApiReachable, {
+    const net = subscribeNetwork(getApiBaseUrl, setApiReachable, {
       ignoreNavigatorOffline: false,
       pollMs: 90_000,
     });
@@ -1570,7 +1539,7 @@ function App() {
       setProductProcurementCosts(cachedProcurement);
     }
     if (cachedAcquiring?.length) {
-      setAcquiringProfiles(cachedAcquiring);
+      setAcquiringProfiles(normalizeAcquiringProfiles(cachedAcquiring));
     }
     if (cachedManagerCommissions?.length) {
       setManagerStoreCommissions(cachedManagerCommissions);
@@ -1610,16 +1579,6 @@ function App() {
     refreshFinanceFromCache,
     refreshAdminFromCache,
   ]);
-
-  useEffect(() => {
-    if (!session?.token || apiReachable) {
-      return;
-    }
-    if (session.user.role === 'ADMIN') {
-      void refreshAdminFromCache();
-    }
-    void refreshFinanceFromCache();
-  }, [apiReachable, session?.token, session?.user?.role, refreshAdminFromCache, refreshFinanceFromCache]);
 
   const pendingOfflineSales = useMemo(
     () => offlineQueueToAdminSales(offlinePendingSales, sellers, session?.user.storeName),
@@ -1778,7 +1737,7 @@ function App() {
       setDashboardLoading(true);
     }
     const fetcher = async () => {
-      const response = await fetchWithTimeout(`${API_BASE_URL}/dashboard/overview`, {
+      const response = await fetchWithTimeout(`${getApiBaseUrl()}/dashboard/overview`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -1806,7 +1765,7 @@ function App() {
           }
         }
         const result = await loadSyncResource(
-          API_BASE_URL,
+          getApiBaseUrl(),
           uid!,
           'dashboard',
           fetcher,
@@ -1815,9 +1774,6 @@ function App() {
         );
         if (result.data) {
           setDashboard(result.data);
-        }
-        if (result.fromCache) {
-          markApiReachableSuccess();
         }
       } else {
         setDashboard(await fetcher());
@@ -1837,7 +1793,7 @@ function App() {
 
   const loadSellers = async (token: string) => {
     const fetcher = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/sellers`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/sellers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -1850,7 +1806,7 @@ function App() {
       session?.user?.id != null &&
       (roleUsesSyncCache(role) || roleUsesAdminDesktopOutbox(role, isDesktopShell))
     ) {
-      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'sellers', fetcher, [], {
+      const result = await loadSyncResource(getApiBaseUrl(), session.user.id, 'sellers', fetcher, [], {
         onFresh: (data) => setSellers(data),
         ...syncFreshGuard(),
       });
@@ -1879,7 +1835,7 @@ function App() {
       return;
     }
     const fetcher = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/products`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/products`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -1889,7 +1845,7 @@ function App() {
     };
     const role = session?.user?.role;
     if (uid != null && roleUsesSyncCache(role)) {
-      const result = await loadSyncResource(API_BASE_URL, uid, 'products', fetcher, [], {
+      const result = await loadSyncResource(getApiBaseUrl(), uid, 'products', fetcher, [], {
         onFresh: (data) => setProducts(data),
         ...syncFreshGuard(),
       });
@@ -1902,7 +1858,7 @@ function App() {
   const loadInventoryOverview = useCallback(
     async (token: string) => {
       const fetcher = async () => {
-        const response = await fetch(`${API_BASE_URL}/admin/inventory/overview`, {
+        const response = await fetch(`${getApiBaseUrl()}/admin/inventory/overview`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) {
@@ -1913,7 +1869,7 @@ function App() {
       const role = session?.user?.role;
       if (roleUsesSyncCache(role) && session?.user?.id != null) {
         const result = await loadSyncResource(
-          API_BASE_URL,
+          getApiBaseUrl(),
           session.user.id,
           'inventoryOverview',
           fetcher,
@@ -1941,7 +1897,7 @@ function App() {
   const loadStoreInventory = useCallback(
     async (token: string) => {
       const fetcher = async () => {
-        const response = await fetch(`${API_BASE_URL}/admin/inventory/my-store`, {
+        const response = await fetch(`${getApiBaseUrl()}/admin/inventory/my-store`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) {
@@ -1951,7 +1907,7 @@ function App() {
       };
       if (session?.user?.role === 'ADMIN' && session.user.id != null) {
         const result = await loadAdminResource(
-          API_BASE_URL,
+          getApiBaseUrl(),
           session.user.id,
           'storeInventory',
           fetcher,
@@ -1974,7 +1930,7 @@ function App() {
   );
 
   const addCatalogProduct = async (token: string, name: string, priceStr: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/products`, {
+    const response = await fetch(`${getApiBaseUrl()}/admin/products`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -1996,7 +1952,7 @@ function App() {
     };
     setProducts(data.catalog);
     setInventoryOverview(normalizeInventoryOverview(data.overview));
-    const costsResponse = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+    const costsResponse = await fetch(`${getApiBaseUrl()}/admin/products/procurement-costs`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (costsResponse.ok) {
@@ -2009,7 +1965,7 @@ function App() {
     if (!trimmedNew) {
       throw new Error('Укажите название товара');
     }
-    const response = await fetch(`${API_BASE_URL}/admin/products`, {
+    const response = await fetch(`${getApiBaseUrl()}/admin/products`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -2028,7 +1984,7 @@ function App() {
     };
     setProducts(data.catalog);
     setInventoryOverview(normalizeInventoryOverview(data.overview));
-    const costsResponse = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+    const costsResponse = await fetch(`${getApiBaseUrl()}/admin/products/procurement-costs`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (costsResponse.ok) {
@@ -2048,7 +2004,7 @@ function App() {
     ) {
       return;
     }
-    const response = await fetch(`${API_BASE_URL}/admin/products`, {
+    const response = await fetch(`${getApiBaseUrl()}/admin/products`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
@@ -2067,7 +2023,7 @@ function App() {
     };
     setProducts(data.catalog);
     setInventoryOverview(normalizeInventoryOverview(data.overview));
-    const costsResponse = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+    const costsResponse = await fetch(`${getApiBaseUrl()}/admin/products/procurement-costs`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (costsResponse.ok) {
@@ -2078,7 +2034,7 @@ function App() {
   const loadManagerStoreCommissions = useCallback(
     async (token: string) => {
       const fetcher = async () => {
-        const response = await fetch(`${API_BASE_URL}/admin/manager-store-commissions`, {
+        const response = await fetch(`${getApiBaseUrl()}/admin/manager-store-commissions`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (response.status === 404) {
@@ -2101,7 +2057,7 @@ function App() {
       const role = session?.user?.role;
       if (uid != null && roleUsesSyncCache(role)) {
         const result = await loadSyncResource(
-          API_BASE_URL,
+          getApiBaseUrl(),
           uid,
           'managerStoreCommissions',
           fetcher,
@@ -2127,7 +2083,7 @@ function App() {
     const body = { patchId, items, createdAt };
 
     const put = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/manager-store-commissions`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/manager-store-commissions`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -2173,7 +2129,7 @@ function App() {
     if (!Number.isFinite(qty) || qty <= 0) {
       throw new Error('Укажите количество больше нуля');
     }
-    const response = await fetch(`${API_BASE_URL}/admin/inventory/warehouse/replenish`, {
+    const response = await fetch(`${getApiBaseUrl()}/admin/inventory/warehouse/replenish`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2188,7 +2144,7 @@ function App() {
   };
 
   const resetWarehouseStock = async (token: string, warehouseKey: string) => {
-    const response = await fetch(`${API_BASE_URL}/admin/inventory/warehouse/reset`, {
+    const response = await fetch(`${getApiBaseUrl()}/admin/inventory/warehouse/reset`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2212,7 +2168,7 @@ function App() {
     if (!Number.isFinite(qty) || qty <= 0) {
       throw new Error('Укажите количество больше нуля');
     }
-    const response = await fetch(`${API_BASE_URL}/admin/inventory/transfer-from-warehouse`, {
+    const response = await fetch(`${getApiBaseUrl()}/admin/inventory/transfer-from-warehouse`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2229,7 +2185,7 @@ function App() {
   const loadProductProcurementCosts = useCallback(
     async (token: string) => {
       const fetcher = async () => {
-        const response = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+        const response = await fetch(`${getApiBaseUrl()}/admin/products/procurement-costs`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) {
@@ -2241,7 +2197,7 @@ function App() {
       const role = session?.user?.role;
       if (uid != null && roleUsesSyncCache(role)) {
         const result = await loadSyncResource(
-          API_BASE_URL,
+          getApiBaseUrl(),
           uid,
           'procurementCosts',
           fetcher,
@@ -2267,7 +2223,7 @@ function App() {
     const body = { patchId, items, createdAt };
 
     const put = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/products/procurement-costs`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/products/procurement-costs`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -2297,7 +2253,7 @@ function App() {
   const loadRevenuePlans = async (token: string, dayKey: string) => {
     const fetcher = async () => {
       const response = await fetch(
-        `${API_BASE_URL}/admin/revenue-plans?dayKey=${encodeURIComponent(dayKey)}`,
+        `${getApiBaseUrl()}/admin/revenue-plans?dayKey=${encodeURIComponent(dayKey)}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
       if (!response.ok) {
@@ -2308,7 +2264,7 @@ function App() {
     const uid = session?.user?.id;
     const role = session?.user?.role;
     if (uid != null && (role === 'DIRECTOR' || role === 'ACCOUNTANT')) {
-      const result = await loadRevenuePlansWithCache(API_BASE_URL, uid, dayKey, fetcher);
+      const result = await loadRevenuePlansWithCache(getApiBaseUrl(), uid, dayKey, fetcher);
       return result.data as StoreRevenuePlan[];
     }
     return fetcher();
@@ -2320,7 +2276,7 @@ function App() {
     items: Array<{ storeName: string; planRevenue: number }>,
   ) => {
     const putOnline = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/revenue-plans`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/revenue-plans`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -2362,7 +2318,7 @@ function App() {
   const loadAcquiringProfiles = useCallback(
     async (token: string) => {
       const fetcher = async () => {
-        const response = await fetch(`${API_BASE_URL}/admin/acquiring-percent`, {
+        const response = await fetch(`${getApiBaseUrl()}/admin/acquiring-percent`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) {
@@ -2389,14 +2345,17 @@ function App() {
         roleUsesSyncCache(role);
       if (useAcquiringCache) {
         const result = await loadSyncResource(
-          API_BASE_URL,
+          getApiBaseUrl(),
           uid,
           'acquiringProfiles',
           fetcher,
           defaultAcquiringProfiles(),
-          { onFresh: (data) => setAcquiringProfiles(data), ...syncFreshGuard() },
+          {
+            onFresh: (data) => setAcquiringProfiles(normalizeAcquiringProfiles(data)),
+            ...syncFreshGuard(),
+          },
         );
-        setAcquiringProfiles(result.data);
+        setAcquiringProfiles(normalizeAcquiringProfiles(result.data));
         return;
       }
       const fresh = await fetcher();
@@ -2411,7 +2370,7 @@ function App() {
   const saveAcquiringProfiles = async (token: string, profiles: AcquiringProfile[]) => {
     const uid = session?.user?.id;
     const role = session?.user?.role;
-    const directorOffline = role === 'DIRECTOR' && uid !== undefined;
+    const directorOffline = (role === 'DIRECTOR' || role === 'ACCOUNTANT') && uid !== undefined;
     const patchId = newClientId('acq');
     const createdAt = new Date().toISOString();
     const body = {
@@ -2421,7 +2380,7 @@ function App() {
     };
 
     const put = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/acquiring-profiles`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/acquiring-profiles`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -2500,7 +2459,7 @@ function App() {
 
   const loadFinanceOps = async (token: string, options?: { preferNetwork?: boolean }) => {
     const fetcher = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/finance/ops`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/finance/ops`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -2511,10 +2470,10 @@ function App() {
     const role = session?.user?.role;
     const empty = normalizeFinanceOps({});
     if (roleUsesSyncCache(role) && session?.user?.id != null) {
-      const result = await loadSyncResource(API_BASE_URL, session.user.id, 'financeOps', fetcher, empty, {
+      const result = await loadSyncResource(getApiBaseUrl(), session.user.id, 'financeOps', fetcher, empty, {
         onFresh: (data) => setFinanceOps(data),
         ...syncFreshGuard(),
-        preferNetwork: options?.preferNetwork,
+        preferNetwork: options?.preferNetwork && getApiReachableDisplayed(),
       });
       setFinanceOps(result.data);
       return;
@@ -2540,7 +2499,7 @@ function App() {
     const body = { patchId, title, amount: num, createdAt };
 
     const put = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/finance/expense-category-amount`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/finance/expense-category-amount`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -2590,7 +2549,7 @@ function App() {
     };
 
     const post = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/finance/incomes`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/finance/incomes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2651,7 +2610,7 @@ function App() {
     };
 
     const post = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/finance/expenses`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/finance/expenses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2721,7 +2680,7 @@ function App() {
     };
 
     const put = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/finance/incomes/${encodeURIComponent(id)}`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/finance/incomes/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -2786,7 +2745,7 @@ function App() {
     };
 
     const put = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/finance/expenses/${encodeURIComponent(id)}`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/finance/expenses/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -2853,7 +2812,7 @@ function App() {
     const body = { deleteId, incomeId: id, createdAt };
 
     const del = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/finance/incomes/${encodeURIComponent(id)}`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/finance/incomes/${encodeURIComponent(id)}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -2891,7 +2850,7 @@ function App() {
     const body = { deleteId, expenseId: id, createdAt };
 
     const del = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/finance/expenses/${encodeURIComponent(id)}`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/finance/expenses/${encodeURIComponent(id)}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -2932,7 +2891,7 @@ function App() {
 
     const put = async () => {
       const response = await fetch(
-        `${API_BASE_URL}/admin/finance/accounts/${encodeURIComponent(accountId)}/balance`,
+        `${getApiBaseUrl()}/admin/finance/accounts/${encodeURIComponent(accountId)}/balance`,
         {
           method: 'PUT',
           headers: {
@@ -2963,7 +2922,7 @@ function App() {
   const loadSales = useCallback(
     async (token: string) => {
       const fetcher = async () => {
-        const response = await fetch(`${API_BASE_URL}/admin/sales?ts=${Date.now()}`, {
+        const response = await fetch(`${getApiBaseUrl()}/admin/sales?ts=${Date.now()}`, {
           headers: { Authorization: `Bearer ${token}` },
           cache: 'no-store',
         });
@@ -2998,7 +2957,7 @@ function App() {
         if (cached) {
           setSales(await mergePending(cached));
         }
-        const result = await loadSyncResource(API_BASE_URL, uid, 'sales', fetcher, [], {
+        const result = await loadSyncResource(getApiBaseUrl(), uid, 'sales', fetcher, [], {
           onFresh: (data) => {
             void mergePending(data).then((merged) => setSales(merged));
           },
@@ -3021,7 +2980,7 @@ function App() {
 
   const loadCommissionRequests = async (token: string) => {
     const fetcher = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/commission-requests`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/commission-requests`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -3031,7 +2990,7 @@ function App() {
     };
     if (session?.user?.role === 'DIRECTOR' && session.user.id != null) {
       const result = await loadSyncResource(
-        API_BASE_URL,
+        getApiBaseUrl(),
         session.user.id,
         'commissionRequests',
         fetcher,
@@ -3046,7 +3005,7 @@ function App() {
 
   const loadShifts = async (token: string) => {
     const fetcher = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/shifts`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/shifts`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -3057,7 +3016,7 @@ function App() {
     const role = session?.user?.role;
     const uid = session?.user?.id;
     if (uid != null && roleUsesSyncCache(role)) {
-      const result = await loadSyncResource(API_BASE_URL, uid, 'shifts', fetcher, [], {
+      const result = await loadSyncResource(getApiBaseUrl(), uid, 'shifts', fetcher, [], {
         onFresh: (data) => setShifts(data),
         ...syncFreshGuard(),
       });
@@ -3069,7 +3028,7 @@ function App() {
 
   const loadStaff = async (token: string) => {
     const fetcher = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/staff`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/staff`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -3080,7 +3039,7 @@ function App() {
     const role = session?.user?.role;
     const uid = session?.user?.id;
     if (uid != null && roleUsesSyncCache(role)) {
-      const result = await loadSyncResource(API_BASE_URL, uid, 'staff', fetcher, [], {
+      const result = await loadSyncResource(getApiBaseUrl(), uid, 'staff', fetcher, [], {
         onFresh: (data) => setStaff(data),
         ...syncFreshGuard(),
       });
@@ -3092,7 +3051,7 @@ function App() {
 
   const loadGlobalEmployees = async (token: string) => {
     const fetcher = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/employees/global`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/employees/global`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -3102,7 +3061,7 @@ function App() {
     };
     if (isDesktopShell && session?.user?.role === 'ADMIN' && session.user.id != null) {
       const result = await loadAdminResource(
-        API_BASE_URL,
+        getApiBaseUrl(),
         session.user.id,
         'globalEmployees',
         fetcher,
@@ -3122,10 +3081,11 @@ function App() {
       return;
     }
     setOutboxSyncing(true);
-    markApiReachableSuccess();
-    setApiReachable(true);
+    if (isDesktopShell) {
+      await refreshApiBaseUrl();
+    }
     try {
-      await flushOutbox(API_BASE_URL, token, userId);
+      await flushOutbox(getApiBaseUrl(), token, userId);
       const loads: Promise<unknown>[] = [loadDashboard(token)];
       if (role === 'DIRECTOR') {
         loads.push(
@@ -3167,6 +3127,8 @@ function App() {
         );
       }
       await Promise.allSettled(loads);
+      markApiReachableSuccess();
+      setApiReachable(true);
       if (role === 'DIRECTOR' || role === 'ACCOUNTANT') {
         setEquipmentRefreshKey((k) => k + 1);
       }
@@ -3222,7 +3184,7 @@ function App() {
     const body = { clientId, sellerId, ratePercent, createdAt };
 
     const put = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/sellers/percent`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/sellers/percent`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -3258,7 +3220,7 @@ function App() {
 
     const post = async () => {
       const response = await fetch(
-        `${API_BASE_URL}/director/commission-requests/${requestId}/decision`,
+        `${getApiBaseUrl()}/director/commission-requests/${requestId}/decision`,
         {
           method: 'POST',
           headers: {
@@ -3310,7 +3272,7 @@ function App() {
     const adminDesktop = roleUsesAdminDesktopOutbox(session?.user?.role, isDesktopShell) && uid !== undefined;
 
     const postSale = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/sales`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/sales`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3395,7 +3357,7 @@ function App() {
     const payload = { requestId, name, qty, reason, createdAt };
 
     const postWriteOff = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/write-offs`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/write-offs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3498,7 +3460,7 @@ function App() {
       createdAt,
     };
     const postDelete = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/sales/delete`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/sales/delete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3572,7 +3534,7 @@ function App() {
       return;
     }
     const response = await fetch(
-      `${API_BASE_URL}/admin/sales/${encodeURIComponent(saleId)}/payment-type`,
+      `${getApiBaseUrl()}/admin/sales/${encodeURIComponent(saleId)}/payment-type`,
       {
         method: 'PATCH',
         headers: {
@@ -3665,7 +3627,7 @@ function App() {
       if (apiReachable && managerCommissions.length === 0) {
         try {
           const response = await fetchWithTimeout(
-            `${API_BASE_URL}/admin/manager-store-commissions`,
+            `${getApiBaseUrl()}/admin/manager-store-commissions`,
             { headers: { Authorization: `Bearer ${token}` } },
             6000,
           );
@@ -3776,7 +3738,7 @@ function App() {
     const payload = { clientShiftId, assignedSellerIds, createdAt };
 
     const postOpen = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/shifts/open`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/shifts/open`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ assignedSellerIds, clientShiftId }),
@@ -3809,7 +3771,7 @@ function App() {
     const payload = { assignedSellerIds, createdAt };
 
     const postClose = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/shifts/close`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/shifts/close`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ assignedSellerIds }),
@@ -3855,7 +3817,7 @@ function App() {
     };
 
     const postStaff = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/staff`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/staff`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ fullName, nickname }),
@@ -3917,7 +3879,7 @@ function App() {
     const payload = { employeeId, createdAt };
 
     const postFromBase = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/staff/from-base`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/staff/from-base`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ employeeId }),
@@ -3948,7 +3910,7 @@ function App() {
     const payload = { staffId: id, storeName, createdAt };
 
     const postRemove = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/staff/${id}/remove-from-store`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/staff/${id}/remove-from-store`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ storeName }),
@@ -3978,7 +3940,7 @@ function App() {
     const payload = { staffId, storeName, createdAt };
 
     const postRestore = async () => {
-      const response = await fetch(`${API_BASE_URL}/admin/staff/${staffId}/restore-to-store`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/staff/${staffId}/restore-to-store`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ storeName }),
@@ -4281,7 +4243,7 @@ function App() {
   };
 
   const loginWithNicknamePassword = async (loginNick: string, loginPwd: string) => {
-    if (!API_BASE_URL) {
+    if (!getApiBaseUrl()) {
       throw new Error(API_CONFIG_ERROR || 'Адрес сервера не задан.');
     }
 
@@ -4289,7 +4251,7 @@ function App() {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 15000);
       try {
-        return await fetch(`${API_BASE_URL}${path}`, {
+        return await fetch(`${getApiBaseUrl()}${path}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -4361,7 +4323,7 @@ function App() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
-    if (!API_BASE_URL) {
+    if (!getApiBaseUrl()) {
       setError(API_CONFIG_ERROR || 'Адрес сервера не задан.');
       return;
     }
@@ -4503,7 +4465,7 @@ function App() {
     const userId = session.user.id;
     const role = session.user.role;
     const stop = startSyncEngine({
-      apiBaseUrl: API_BASE_URL,
+      apiBaseUrl: getApiBaseUrl(),
       token,
       userId,
       enablePeriodicFlush: isDesktopShell,
@@ -4514,13 +4476,10 @@ function App() {
         setOfflineQueueTick((x) => x + 1);
         void refreshOutboxPendingCount();
         if (isDesktopShell) {
-          if (postFlushRefreshRef.current) {
-            window.clearTimeout(postFlushRefreshRef.current);
+          void applyCachedFinanceOps();
+          if (role === 'DIRECTOR' || role === 'ACCOUNTANT') {
+            void loadAcquiringProfiles(token).catch(() => undefined);
           }
-          postFlushRefreshRef.current = window.setTimeout(() => {
-            postFlushRefreshRef.current = null;
-            void runDesktopManualSync();
-          }, 400);
           return;
         }
         if (role === 'ADMIN') {
@@ -4619,7 +4578,7 @@ function App() {
       const remaining: OfflineQueuedSale[] = [];
       for (const entry of queueBefore) {
         try {
-          const response = await fetch(`${API_BASE_URL}/admin/sales`, {
+          const response = await fetch(`${getApiBaseUrl()}/admin/sales`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -4759,6 +4718,16 @@ function App() {
       if (path === '/home') {
         void fetchRouteDataIfStale(`${role}:acquiring`, () => loadAcquiringProfiles(token));
       }
+      if (role === 'DIRECTOR' && path === '/analytics') {
+        void fetchRouteDataIfStale('director:analytics', async () => {
+          await Promise.allSettled([
+            loadSales(token),
+            loadSellers(token),
+            loadFinanceOps(token),
+            loadDashboard(token),
+          ]);
+        });
+      }
       if (role === 'DIRECTOR' && (path === '/team' || path === '/payroll')) {
         void fetchRouteDataIfStale(`director:${path}:team`, async () => {
           await Promise.allSettled([
@@ -4846,6 +4815,9 @@ function App() {
       { to: '/home', label: 'Главная', icon: <HomeIcon />, end: true },
       { to: '/shift', label: shiftL, icon: <ShiftIcon /> },
     ];
+    if (r === 'DIRECTOR' && isDesktopShell) {
+      base.push({ to: '/analytics', label: 'Аналитика', icon: <AnalyticsIcon /> });
+    }
     if (!isDesktopShell && financeViewer) {
       base.push({ to: '/finance/expenses', label: 'Расходы', icon: <ExpensesIcon /> });
     }
@@ -4891,10 +4863,10 @@ function App() {
           <header className="brandHeader">
             <h1>Фотографы</h1>
             <p className="subtitle">Авторизация в системе</p>
-            {isDesktopShell && API_BASE_URL ? (
+            {isDesktopShell && getApiBaseUrl() ? (
               <p className="subtitle loginServerHint">
-                Сервер: {apiServerLabel(API_BASE_URL)}
-                {import.meta.env.DEV ? ` · ${API_BASE_URL}` : null}
+                Сервер: {apiServerLabel(getApiBaseUrl())}
+                {import.meta.env.DEV ? ` · ${getApiBaseUrl()}` : null}
               </p>
             ) : null}
           </header>
@@ -5181,6 +5153,7 @@ function App() {
                               onDeleteExpense={deleteFinanceExpense}
                               onSetAccountBalance={setFinanceAccountBalance}
                               onSetCategoryAmount={setFinanceExpenseCategoryAmount}
+                              onSaveAcquiringProfiles={saveAcquiringProfiles}
                               preferDesktopLayout={isDesktopShell}
                               desktopSection={isDesktopShell ? 'home' : undefined}
                               webSection={!isDesktopShell ? 'home' : undefined}
@@ -5404,6 +5377,27 @@ function App() {
                 </div>
               }
             />
+            <Route
+              path="/analytics"
+              element={
+                role === 'DIRECTOR' ? (
+                  <div className="dashboard dashboard--financeDesktop">
+                    <section className="sectionCard">
+                      <FinanceAnalyticsPanel
+                        sales={salesMerged}
+                        sellers={sellers}
+                        expenses={financeOps.expenses}
+                        incomes={financeOps.incomes}
+                        dashboardStores={dashboard?.stores}
+                        sensitiveVisible
+                      />
+                    </section>
+                  </div>
+                ) : (
+                  <Navigate to="/home" replace />
+                )
+              }
+            />
             <Route path="/finance/auto" element={<Navigate to="/shift" replace />} />
             <Route
               path="/finance/expenses"
@@ -5425,6 +5419,7 @@ function App() {
                           onDeleteExpense={deleteFinanceExpense}
                           onSetAccountBalance={setFinanceAccountBalance}
                           onSetCategoryAmount={setFinanceExpenseCategoryAmount}
+                          onSaveAcquiringProfiles={saveAcquiringProfiles}
                           preferDesktopLayout={false}
                           webSection="expenses"
                         />
@@ -5472,6 +5467,7 @@ function App() {
                           onDeleteExpense={deleteFinanceExpense}
                           onSetAccountBalance={setFinanceAccountBalance}
                           onSetCategoryAmount={setFinanceExpenseCategoryAmount}
+                          onSaveAcquiringProfiles={saveAcquiringProfiles}
                           preferDesktopLayout={isDesktopShell}
                           desktopSection={
                             isDesktopShell && directorFinanceHomeSplit ? 'shift' : undefined
@@ -6157,7 +6153,7 @@ function App() {
             directorAccountSwitcher={
               showDirectorAccountSwitcher && directorSwitcherToken ? (
                 <DirectorAccountSwitcher
-                  apiBaseUrl={API_BASE_URL}
+                  apiBaseUrl={getApiBaseUrl()}
                   directorToken={directorSwitcherToken}
                   activeNickname={session.user.nickname}
                   activeRole={session.user.role}
@@ -6812,7 +6808,7 @@ function DirectorHomeApprovalsCarousel({
 
   const load = useCallback(async () => {
     const fetcher = async () => {
-      const response = await fetch(`${API_BASE_URL}/director/control-requests`, {
+      const response = await fetch(`${getApiBaseUrl()}/director/control-requests`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -6824,7 +6820,7 @@ function DirectorHomeApprovalsCarousel({
       rows.filter((row) => row.kind === 'WRITE_OFF');
     if (userId !== undefined) {
       const result = await loadSyncResource(
-        API_BASE_URL,
+        getApiBaseUrl(),
         userId,
         'controlRequests',
         fetcher,
@@ -6878,7 +6874,7 @@ function DirectorHomeApprovalsCarousel({
       const clientId = `${id}-${decision}`;
       const body = { requestId: id, decision, createdAt };
       const post = async () => {
-        const response = await fetch(`${API_BASE_URL}/director/control-requests/${id}/decision`, {
+        const response = await fetch(`${getApiBaseUrl()}/director/control-requests/${id}/decision`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -7070,7 +7066,7 @@ function DirectorDemoAccountsPanel({ token, userId }: { token: string; userId?: 
     setLoading(true);
     setErr('');
     try {
-      const res = await fetch(`${API_BASE_URL}/director/demo-accounts`, {
+      const res = await fetch(`${getApiBaseUrl()}/director/demo-accounts`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -7132,7 +7128,7 @@ function DirectorDemoAccountsPanel({ token, userId }: { token: string; userId?: 
       const body = { patchId, nickname: current.nickname, password: pwd, createdAt };
       const patch = async () => {
         const res = await fetch(
-          `${API_BASE_URL}/director/demo-accounts/${encodeURIComponent(current.nickname)}/password`,
+          `${getApiBaseUrl()}/director/demo-accounts/${encodeURIComponent(current.nickname)}/password`,
           {
             method: 'PATCH',
             headers: {
@@ -8821,6 +8817,30 @@ function useWideFinanceLayout(preferDesktop: boolean) {
 
 const FINANCE_FLOW_ACCOUNT_OVERRIDE_CLICKS = 3;
 const FINANCE_FLOW_ACCOUNT_MULTI_CLICK_MS = 900;
+const FINANCE_ACQUIRING_OVERRIDE_KEY = 'sales-platform-finance-acquiring-override-v1';
+
+function readFinanceAcquiringOverrides(): Record<string, number> {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+  try {
+    const raw = window.localStorage.getItem(FINANCE_ACQUIRING_OVERRIDE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeFinanceAcquiringOverrides(values: Record<string, number>): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.localStorage.setItem(FINANCE_ACQUIRING_OVERRIDE_KEY, JSON.stringify(values));
+}
 
 function formatFinanceAcquiringPercent(percent: number): string {
   return percent.toLocaleString('ru-RU', { maximumFractionDigits: 3 });
@@ -8839,6 +8859,7 @@ function FinanceOpsPanel({
   onDeleteExpense,
   onSetAccountBalance,
   onSetCategoryAmount,
+  onSaveAcquiringProfiles,
   preferDesktopLayout = false,
   webSection,
   desktopSection,
@@ -8869,6 +8890,7 @@ function FinanceOpsPanel({
   onDeleteExpense?: (token: string, id: string) => Promise<void>;
   onSetAccountBalance: (token: string, accountId: string, balance: string) => Promise<void>;
   onSetCategoryAmount?: (token: string, title: string, amount: string) => Promise<void>;
+  onSaveAcquiringProfiles?: (token: string, profiles: AcquiringProfile[]) => Promise<void>;
   preferDesktopLayout?: boolean;
   webSection?: 'ops' | 'expenses' | 'home' | 'shift';
   desktopSection?: 'home' | 'shift';
@@ -8893,9 +8915,11 @@ function FinanceOpsPanel({
   const [incomeStoreDraft, setIncomeStoreDraft] = useState<string>(ALL_DEMO_STORE_NAMES[0]);
   const [incomeAcquiringPercentByAccount, setIncomeAcquiringPercentByAccount] = useState<
     Record<string, number>
-  >({});
+  >(() => readFinanceAcquiringOverrides());
   const [incomeAcquiringOverrideAccountId, setIncomeAcquiringOverrideAccountId] = useState('');
   const [incomeAcquiringOverrideDraft, setIncomeAcquiringOverrideDraft] = useState('');
+  const [acquiringSaveBusy, setAcquiringSaveBusy] = useState(false);
+  const [acquiringSaveNotice, setAcquiringSaveNotice] = useState('');
   const flowAccountClickRef = useRef({ accountId: '', count: 0, lastClickMs: 0 });
   const [busyId, setBusyId] = useState('');
   const [status, setStatus] = useState('');
@@ -9356,6 +9380,106 @@ function FinanceOpsPanel({
   );
 
   const activeIncomeAcquiringPercent = resolveIncomeAcquiringPercent(activeFlowAccountId);
+  const showAcquiringOverrideForAccount = useCallback(
+    (accountId: string) =>
+      Boolean(accountId) &&
+      Boolean(acquiringProfileIdForFinanceAccount(accountId)) &&
+      (compactFinanceUi || incomeAcquiringOverrideAccountId === accountId),
+    [compactFinanceUi, incomeAcquiringOverrideAccountId],
+  );
+
+  useEffect(() => {
+    writeFinanceAcquiringOverrides(incomeAcquiringPercentByAccount);
+  }, [incomeAcquiringPercentByAccount]);
+
+  useEffect(() => {
+    if (!compactFinanceUi || !resolvedFlowAccountId) {
+      return;
+    }
+    if (!acquiringProfileIdForFinanceAccount(resolvedFlowAccountId)) {
+      return;
+    }
+    const currentPercent = resolveIncomeAcquiringPercent(resolvedFlowAccountId);
+    setIncomeAcquiringOverrideDraft(
+      currentPercent > 0 ? String(currentPercent).replace('.', ',') : '',
+    );
+  }, [compactFinanceUi, resolvedFlowAccountId, acquiringProfiles, resolveIncomeAcquiringPercent]);
+
+  const saveAcquiringOverrideForAccount = async (accountId: string) => {
+    const profileId = acquiringProfileIdForFinanceAccount(accountId);
+    if (!profileId || !onSaveAcquiringProfiles) {
+      return;
+    }
+    const parsed = Number(incomeAcquiringOverrideDraft.replace(',', '.').trim());
+    if (!Number.isFinite(parsed)) {
+      setError('Укажите корректный процент эквайринга');
+      return;
+    }
+    const percent = Math.max(0, Math.min(100, Math.round(parsed * 1000) / 1000));
+    setAcquiringSaveBusy(true);
+    setAcquiringSaveNotice('');
+    setError('');
+    try {
+      const nextProfiles = setProfilePercent(acquiringProfiles, profileId, percent);
+      await onSaveAcquiringProfiles(token, nextProfiles);
+      setIncomeAcquiringPercentByAccount((current) => ({ ...current, [accountId]: percent }));
+      setAcquiringSaveNotice('Сохранено');
+      window.setTimeout(() => setAcquiringSaveNotice(''), 2200);
+    } catch {
+      setError('Не удалось сохранить % эквайринга');
+    } finally {
+      setAcquiringSaveBusy(false);
+    }
+  };
+
+  const renderAcquiringOverrideField = (accountId: string, compactLabels: boolean) => {
+    if (!showAcquiringOverrideForAccount(accountId)) {
+      return null;
+    }
+    return (
+      <div className="financeOpsIncomeAcquiringOverrideRow">
+        <label className={compactLabels ? 'financeOpsFlowSideField financeOpsIncomeAcquiringOverride' : 'financeOpsIncomeAcquiringOverride'}>
+          <span className={compactLabels ? 'financeOpsFlowSideFieldLabel' : 'financeOpsFieldLabel'}>
+            Эквайринг, %
+          </span>
+          <div className="financeOpsIncomeAcquiringOverrideControls">
+            <input
+              className="financeOpsIncomeAcquiringOverrideInput"
+              type="text"
+              inputMode="decimal"
+              aria-label="Процент эквайринга"
+              value={incomeAcquiringOverrideDraft}
+              onChange={(event) => {
+                setIncomeAcquiringOverrideDraft(event.target.value);
+                const parsed = Number(event.target.value.replace(',', '.').trim());
+                if (!Number.isFinite(parsed)) {
+                  return;
+                }
+                setIncomeAcquiringPercentByAccount((current) => ({
+                  ...current,
+                  [accountId]: Math.max(0, Math.min(100, Math.round(parsed * 1000) / 1000)),
+                }));
+              }}
+            />
+            <button
+              type="button"
+              className="financeOpsAcquiringSaveBtn"
+              title="Сохранить % эквайринга"
+              aria-label="Сохранить процент эквайринга"
+              disabled={acquiringSaveBusy || !onSaveAcquiringProfiles}
+              onClick={() => void saveAcquiringOverrideForAccount(accountId)}
+            >
+              {acquiringSaveBusy ? '…' : '✓'}
+            </button>
+          </div>
+        </label>
+        {acquiringSaveNotice ? (
+          <span className="financeOpsAcquiringSaveNotice">{acquiringSaveNotice}</span>
+        ) : null}
+      </div>
+    );
+  };
+
   const parsedIncomeGross = parseFinanceMoneyInput(incomeAmountDraft);
   const incomeAcquiringPreview =
     parsedIncomeGross !== null && activeIncomeAcquiringPercent > 0
@@ -9958,34 +10082,7 @@ function FinanceOpsPanel({
                   <strong>{incomeAcquiringPreview.net.toLocaleString('ru-RU')} ₽</strong>
                 </p>
               ) : null}
-              {incomeAcquiringOverrideAccountId === selectedFlowAccountId &&
-              acquiringProfileIdForFinanceAccount(selectedFlowAccountId) ? (
-                <label className="financeOpsFlowSideField financeOpsIncomeAcquiringOverride">
-                  <span className="financeOpsFlowSideFieldLabel">Эквайринг, % (вручную)</span>
-                  <input
-                    className="financeOpsIncomeAcquiringOverrideInput"
-                    type="text"
-                    inputMode="decimal"
-                    aria-label="Процент эквайринга для выбранного счёта"
-                    value={incomeAcquiringOverrideDraft}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setIncomeAcquiringOverrideDraft(value);
-                      const parsed = Number(value.replace(',', '.').trim());
-                      if (!Number.isFinite(parsed)) {
-                        return;
-                      }
-                      setIncomeAcquiringPercentByAccount((current) => ({
-                        ...current,
-                        [selectedFlowAccountId]: Math.max(
-                          0,
-                          Math.min(100, Math.round(parsed * 1000) / 1000),
-                        ),
-                      }));
-                    }}
-                  />
-                </label>
-              ) : null}
+              {renderAcquiringOverrideField(selectedFlowAccountId, true)}
               <label className="financeOpsFlowSideField financeOpsFlowSideField--comment">
                 <span className="financeOpsFlowSideFieldLabel">Точка прихода</span>
                 <select
@@ -10071,34 +10168,7 @@ function FinanceOpsPanel({
                 <strong>{incomeAcquiringPreview.net.toLocaleString('ru-RU')} ₽</strong>
               </p>
             ) : null}
-            {incomeAcquiringOverrideAccountId === selectedIncomeAccountId &&
-            acquiringProfileIdForFinanceAccount(selectedIncomeAccountId) ? (
-              <label className="financeOpsIncomeAcquiringOverride">
-                <span className="financeOpsFieldLabel">Эквайринг, % (вручную)</span>
-                <input
-                  className="financeOpsIncomeAcquiringOverrideInput"
-                  type="text"
-                  inputMode="decimal"
-                  aria-label="Процент эквайринга для выбранного счёта"
-                  value={incomeAcquiringOverrideDraft}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setIncomeAcquiringOverrideDraft(value);
-                    const parsed = Number(value.replace(',', '.').trim());
-                    if (!Number.isFinite(parsed)) {
-                      return;
-                    }
-                    setIncomeAcquiringPercentByAccount((current) => ({
-                      ...current,
-                      [selectedIncomeAccountId]: Math.max(
-                        0,
-                        Math.min(100, Math.round(parsed * 1000) / 1000),
-                      ),
-                    }));
-                  }}
-                />
-              </label>
-            ) : null}
+            {renderAcquiringOverrideField(selectedIncomeAccountId, false)}
             <button
               type="button"
               className="primaryAction addSaleSubmitBottom"
@@ -13270,7 +13340,7 @@ function StoreEquipmentReadAccordion({ token }: { token: string }) {
   const load = useCallback(async () => {
     setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/store-equipment/my-store`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/store-equipment/my-store`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -13433,7 +13503,7 @@ function AccountantStoreEquipmentStoresPanel({
 
       try {
         const response = await fetchWithTimeout(
-          `${API_BASE_URL}/admin/store-equipment`,
+          `${getApiBaseUrl()}/admin/store-equipment`,
           {
             headers: { Authorization: `Bearer ${token}` },
           },
@@ -13533,7 +13603,7 @@ function AccountantStoreEquipmentStoresPanel({
     setError('');
     setStatus('');
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/store-equipment/types`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin/store-equipment/types`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -13584,7 +13654,7 @@ function AccountantStoreEquipmentStoresPanel({
     setError('');
     try {
       const response = await fetchWithTimeout(
-        `${API_BASE_URL}/admin/store-equipment`,
+        `${getApiBaseUrl()}/admin/store-equipment`,
         {
           method: 'PUT',
           headers: {

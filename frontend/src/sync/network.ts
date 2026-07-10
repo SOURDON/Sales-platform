@@ -5,10 +5,10 @@
  * и если давно не было успешных запросов. Любой успешный fetch к API снова включает «онлайн».
  */
 
-const SUCCESS_GRACE_MS = 5 * 60_000;
-const OFFLINE_AFTER_FAILURES = 3;
-const PROBE_TIMEOUT_MS = 8_000;
-const DEFAULT_POLL_MS = 300_000;
+const SUCCESS_GRACE_MS = 12 * 60_000;
+const OFFLINE_AFTER_FAILURES = 8;
+const PROBE_TIMEOUT_MS = 12_000;
+const DEFAULT_POLL_MS = 900_000;
 
 let lastApiSuccessAt = 0;
 let consecutiveProbeFailures = 0;
@@ -61,8 +61,8 @@ export function resetApiReachabilityCache(): void {
 }
 
 /** Сразу проверить /health и обновить плашку связи (при старте приложения). */
-export async function bootstrapReachability(apiBaseUrl: string): Promise<boolean> {
-  const ok = await probeHealth(apiBaseUrl, 6_000);
+export async function bootstrapReachability(getBaseUrl: () => string): Promise<boolean> {
+  const ok = await probeAnyHealth(getBaseUrl, 6_000);
   if (ok) {
     markApiReachableSuccess();
     return true;
@@ -101,12 +101,33 @@ async function probeHealth(apiBaseUrl: string, timeoutMs = PROBE_TIMEOUT_MS): Pr
   }
 }
 
+async function probeAnyHealth(getBaseUrl: () => string, timeoutMs = PROBE_TIMEOUT_MS): Promise<boolean> {
+  if (await probeHealth(getBaseUrl(), timeoutMs)) {
+    return true;
+  }
+  try {
+    const { listApiBaseCandidates, setApiBaseUrl } = await import('../apiBase');
+    for (const candidate of listApiBaseCandidates()) {
+      if (candidate === getBaseUrl()) {
+        continue;
+      }
+      if (await probeHealth(candidate, timeoutMs)) {
+        setApiBaseUrl(candidate);
+        return true;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
 /** Для outbox: можно ли пробовать отправку (оптимистично при недавнем успехе). */
-export async function isApiReachable(apiBaseUrl: string): Promise<boolean> {
+export async function isApiReachable(getBaseUrl: () => string): Promise<boolean> {
   if (!shouldTreatAsOffline()) {
     return true;
   }
-  const ok = await probeHealth(apiBaseUrl);
+  const ok = await probeAnyHealth(getBaseUrl);
   if (ok) {
     markApiReachableSuccess();
     return true;
@@ -117,9 +138,8 @@ export async function isApiReachable(apiBaseUrl: string): Promise<boolean> {
 }
 
 /** Патч fetch: любой успешный ответ нашего API → «на связи». */
-export function installApiReachabilityHook(apiBaseUrl: string): () => void {
-  const base = apiBaseUrl.replace(/\/$/, '');
-  if (!base || typeof window === 'undefined') {
+export function installApiReachabilityHook(getBaseUrl: () => string): () => void {
+  if (typeof window === 'undefined') {
     return () => undefined;
   }
   const original = window.fetch.bind(window);
@@ -132,7 +152,8 @@ export function installApiReachabilityHook(apiBaseUrl: string): () => void {
           : input instanceof URL
             ? input.href
             : input.url;
-      if (url.startsWith(base) && response.ok) {
+      const bases = [getBaseUrl(), ...(await import('../apiBase')).listApiBaseCandidates()];
+      if (bases.some((base) => url.startsWith(base.replace(/\/$/, ''))) && response.ok) {
         markApiReachableSuccess();
       }
     } catch {
@@ -161,7 +182,7 @@ export type SubscribeNetworkOptions = {
  * Фоновые healthcheck'и; UI «офлайн» не включается от одного сбоя.
  */
 export function subscribeNetwork(
-  apiBaseUrl: string,
+  getBaseUrl: () => string,
   onChange: (reachable: boolean) => void,
   options?: SubscribeNetworkOptions | number,
 ): NetworkSubscription {
@@ -190,7 +211,7 @@ export function subscribeNetwork(
     if (disposed) {
       return;
     }
-    const ok = await probeHealth(apiBaseUrl);
+    const ok = await probeAnyHealth(getBaseUrl);
     if (ok) {
       markApiReachableSuccess();
     } else {
@@ -213,8 +234,7 @@ export function subscribeNetwork(
   };
 
   emit(displayedReachable);
-  void runCheck();
-  const initialProbeDelay = window.setTimeout(() => void runCheck(), 2_500);
+  const initialProbeDelay = window.setTimeout(() => void runCheck(), 4_000);
   window.addEventListener('online', onNavigatorOnline);
   window.addEventListener('offline', onNavigatorOffline);
   const interval = window.setInterval(() => void runCheck(), pollMs);

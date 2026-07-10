@@ -8,6 +8,7 @@ import { flushDirectorEntry } from './handlers/director';
 import { flushFinanceEntry } from './handlers/finance';
 import { flushManagerRevenuePlansEntry } from './handlers/managerRevenuePlans';
 import type { FlushOutcome } from './handlers/flushEntry';
+import { getApiBaseUrl } from '../apiBase';
 import { isApiReachable, markApiReachableSuccess } from './network';
 import { listOutboxForUser } from './outbox';
 import type { OutboxEntry } from './types';
@@ -64,11 +65,12 @@ async function flushEntry(
 }
 
 export async function flushOutbox(
-  apiBaseUrl: string,
+  _apiBaseUrl: string,
   token: string,
   userId: number,
 ): Promise<FlushOutboxResult> {
-  if (!(await isApiReachable(apiBaseUrl))) {
+  const baseUrl = getApiBaseUrl();
+  if (!(await isApiReachable(getApiBaseUrl))) {
     const remaining = (await listOutboxForUser(userId)).length;
     return { sent: 0, remaining, stoppedAuth: false };
   }
@@ -78,7 +80,7 @@ export async function flushOutbox(
   let stoppedAuth = false;
 
   for (const entry of entries) {
-    const outcome = await flushEntry(apiBaseUrl, token, entry);
+    const outcome = await flushEntry(baseUrl, token, entry);
     if (outcome === 'ok') {
       sent += 1;
       markApiReachableSuccess();

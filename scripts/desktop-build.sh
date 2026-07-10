@@ -54,7 +54,7 @@ find_bundle_artifact() {
   local root dmg
   for root in "${roots[@]}"; do
     [[ -n "$root" && -d "$root" ]] || continue
-    dmg="$(find "$root" -path "*/bundle/$kind/$pattern" 2>/dev/null | head -1)"
+    dmg="$(find "$root" -path "*/bundle/$kind/$pattern" -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1)"
     [[ -n "$dmg" ]] && { echo "$dmg"; return 0; }
   done
   return 1

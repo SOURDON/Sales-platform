@@ -1709,6 +1709,52 @@
     0 0 0 2px rgba(154, 163, 173, 0.14);
 }
 
+.app.app--desktop .financeOpsIncomeAcquiringOverrideRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app.app--desktop .financeOpsIncomeAcquiringOverrideControls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app.app--desktop .financeOpsIncomeAcquiringOverrideControls .financeOpsIncomeAcquiringOverrideInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app.app--desktop .financeOpsAcquiringSaveBtn {
+  flex-shrink: 0;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: var(--dt-radius-md);
+  border: 1px solid rgba(154, 163, 173, 0.35);
+  background: rgba(154, 163, 173, 0.16);
+  color: var(--dt-text);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app.app--desktop .financeOpsAcquiringSaveBtn:hover:not(:disabled) {
+  border-color: rgba(212, 182, 123, 0.55);
+  background: rgba(212, 182, 123, 0.18);
+}
+
+.app.app--desktop .financeOpsAcquiringSaveBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.app.app--desktop .financeOpsAcquiringSaveNotice {
+  font-size: 11px;
+  color: #9ed4b8;
+}
+
 /* Фильтры истории — компактные кнопки и выпадающее меню */
 .app.app--desktop .financeOpsHistoryMini--page .financeOpsHistoryFilters {
   display: block;

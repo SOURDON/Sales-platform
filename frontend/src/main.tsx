@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import './styles/ui.css'
 import App from './App.tsx'
+import { bootstrapApiBaseUrl } from './apiBase'
 import { installIosVisualViewportHeightVar } from './iosVisualViewportHeight'
 
 installIosVisualViewportHeightVar()
@@ -21,6 +22,12 @@ async function startApp() {
       void backup.flushDesktopLocalBackup()
     } catch (error) {
       console.error('Desktop local backup init failed:', error)
+    }
+    try {
+      const resolved = await bootstrapApiBaseUrl()
+      console.info('[api] endpoint:', resolved)
+    } catch (error) {
+      console.error('API bootstrap failed:', error)
     }
   }
 

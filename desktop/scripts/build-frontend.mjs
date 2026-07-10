@@ -35,8 +35,9 @@ function loadEnvFile(filePath) {
   return out;
 }
 
-// desktop/.env имеет приоритет; Render в .env не используем
+// Продакшен API: прямой IP VPS + запасной HTTPS-домен (после правки DNS).
 const TIMEWEB_API = 'http://77.233.223.48';
+const TIMEWEB_API_FALLBACKS = 'https://fotografy.ru';
 const profile = process.env.DESKTOP_BUILD_PROFILE || '';
 const profileEnvFile =
   profile === 'store-offline' ? resolve(desktopRoot, '.env.store-offline') : null;
@@ -46,7 +47,7 @@ const fromDesktop = loadEnvFile(resolve(desktopRoot, '.env'));
 let apiUrl =
   fromProfile.VITE_API_URL || fromDesktop.VITE_API_URL || fromFrontend.VITE_API_URL || TIMEWEB_API;
 if (String(apiUrl).includes('onrender.com')) {
-  console.warn(`[build-frontend] Render → Timeweb: ${TIMEWEB_API}`);
+  console.warn(`[build-frontend] Render → ${TIMEWEB_API}`);
   apiUrl = TIMEWEB_API;
 }
 const appVersion = readAppVersion();
@@ -56,6 +57,7 @@ const env = {
   ...fromDesktop,
   ...fromProfile,
   VITE_API_URL: apiUrl,
+  VITE_API_FALLBACKS: TIMEWEB_API_FALLBACKS,
   ...(appVersion ? { VITE_APP_VERSION: appVersion } : {}),
 };
 if (profile === 'store-offline') {

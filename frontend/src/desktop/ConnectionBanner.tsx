@@ -9,7 +9,12 @@ export function ConnectionBanner({ online, syncing, variant = 'bar' }: Props) {
   if (online && !syncing) {
     if (variant === 'pill') {
       return (
-        <span className="desktopConnPill desktopConnPill--ok" role="status" aria-live="polite">
+        <span
+          className="desktopConnPill desktopConnPill--ok"
+          role="status"
+          aria-live="polite"
+          title="Связь с сервером установлена"
+        >
           <span className="desktopConnPillDot" aria-hidden />
           На связи
         </span>
@@ -19,9 +24,10 @@ export function ConnectionBanner({ online, syncing, variant = 'bar' }: Props) {
   }
 
   const syncingNow = syncing;
-  const message = syncingNow
-    ? 'Синхронизация…'
-    : 'Нет связи с сервером — изменения сохраняются локально и уйдут при подключении';
+  const shortLabel = syncingNow ? 'Синхр.' : 'Оффлайн';
+  const fullMessage = syncingNow
+    ? 'Синхронизация с сервером'
+    : 'Нет связи — изменения сохраняются локально и отправятся при подключении';
 
   if (variant === 'pill') {
     return (
@@ -29,9 +35,10 @@ export function ConnectionBanner({ online, syncing, variant = 'bar' }: Props) {
         className={`desktopConnPill${syncingNow ? ' desktopConnPill--sync' : ' desktopConnPill--offline'}`}
         role="status"
         aria-live="polite"
+        title={fullMessage}
       >
         <span className="desktopConnPillDot" aria-hidden />
-        {message}
+        {shortLabel}
       </span>
     );
   }
@@ -42,7 +49,7 @@ export function ConnectionBanner({ online, syncing, variant = 'bar' }: Props) {
       role="status"
       aria-live="polite"
     >
-      {message}
+      {fullMessage}
     </div>
   );
 }

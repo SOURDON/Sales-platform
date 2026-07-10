@@ -129,10 +129,6 @@ export function DesktopAppLayout({
           </div>
         </header>
 
-        {(hideConnectionStatus ? false : connection.syncing || !connection.online) && (
-          <ConnectionBanner {...connection} variant="bar" />
-        )}
-
         {adminError ? (
           <p className="error desktopMainError" role="alert">
             {adminError}
