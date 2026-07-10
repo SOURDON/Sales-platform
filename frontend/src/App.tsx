@@ -8944,10 +8944,12 @@ function FinanceOpsPanel({
   const showOpsHero =
     isHomeFinanceView ||
     isFullFinanceView ||
-    (isWebSplit && webSection === 'ops');
+    (isWebSplit && (webSection === 'ops' || webSection === 'shift'));
+  const showWebOperativkaIncomeEntry =
+    isWebSplit && (webSection === 'shift' || webSection === 'ops');
   const showIncomeDayForm =
     !isHomeFinanceView &&
-    (isFullFinanceView || (isWebSplit && webSection === 'ops'));
+    (isFullFinanceView || showWebOperativkaIncomeEntry);
   const showExpensesSection = isDesktopSplit
     ? desktopSection === 'shift'
     : !isWebSplit || webSection === 'expenses';
@@ -8962,7 +8964,7 @@ function FinanceOpsPanel({
   const showIncomeThroughputPanel = isHomeFinanceView;
   const showHomePayrollCashStrip = isHomeFinanceView;
   const showCompactFlows =
-    compactFinanceUi && (isShiftFinanceView || isFullFinanceView);
+    compactFinanceUi && !isWebSplit && (isShiftFinanceView || isFullFinanceView);
   const showWebIncomeHistory = isWebSplit && webSection === 'shift';
   const showAccordionHistory = !isWebSplit && !showCompactFlows && !isHomeFinanceView;
   const [expenseArticlesSheetOpen, setExpenseArticlesSheetOpen] = useState(
@@ -9751,6 +9753,75 @@ function FinanceOpsPanel({
     }
   };
 
+  const incomeDayFormSection = showIncomeDayForm ? (
+    <section className="financeOpsZone financeOpsZone--income financeOpsIncomeBlock addSaleForm">
+      <h4 className="financeOpsZoneTitle">Приход за день</h4>
+      <label className="financeOpsAccountsPick">
+        <span className="financeOpsFieldLabel">Счёт прихода</span>
+        <div className="financeOpsAccountBtnRow" role="group" aria-label="Счёт для записи прихода">
+          {primaryFinanceAccounts.map((acc) => (
+            <button
+              key={acc.id}
+              type="button"
+              className={`ghost paymentTypeBtn financeOpsAccountPickBtn ${financeAccountToneClass(acc.id)}${
+                selectedIncomeAccountId === acc.id ? ' paymentTypeBtnActive' : ''
+              }`}
+              onClick={() => selectIncomeFlowAccount(acc.id)}
+            >
+              {acc.name}
+            </button>
+          ))}
+        </div>
+      </label>
+      <div className="addSaleRow financeOpsIncomeFieldsRow">
+        <label className="financeOpsAmountField">
+          <span className="financeOpsFieldLabel">Сумма, ₽</span>
+          <input
+            inputMode="decimal"
+            value={incomeAmountDraft}
+            onChange={(event) => setIncomeAmountDraft(event.target.value)}
+            placeholder="Например, 15000"
+          />
+        </label>
+        <label className="financeOpsCommentField">
+          <span className="financeOpsFieldLabel">Точка прихода</span>
+          <select
+            className="financeOpsExpenseUnifiedSelect"
+            value={incomeStoreDraft}
+            onChange={(event) => setIncomeStoreDraft(event.target.value)}
+            aria-label="Точка прихода"
+          >
+            {ALL_DEMO_STORE_NAMES.map((storeName) => (
+              <option key={storeName} value={storeName}>
+                {storeName}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {incomeAcquiringPreview && incomeAcquiringPreview.fee > 0 ? (
+        <p className="financeOpsIncomeAcquiringHint">
+          Эквайринг {formatFinanceAcquiringPercent(incomeAcquiringPreview.percent)}%: −
+          {incomeAcquiringPreview.fee.toLocaleString('ru-RU')} ₽ → на счёт{' '}
+          <strong>{incomeAcquiringPreview.net.toLocaleString('ru-RU')} ₽</strong>
+        </p>
+      ) : null}
+      {renderAcquiringOverrideField(selectedIncomeAccountId, false)}
+      <button
+        type="button"
+        className="primaryAction addSaleSubmitBottom"
+        disabled={
+          !selectedIncomeAccountId ||
+          busyId === `income-${selectedIncomeAccountId}` ||
+          primaryFinanceAccounts.length === 0
+        }
+        onClick={submitIncomeForSelectedAccount}
+      >
+        Записать приход
+      </button>
+    </section>
+  ) : null;
+
   return (
     <div
       className={`opsCard financeOpsCard ${isDirector ? 'financeOpsCardDirector' : ''}${
@@ -10115,74 +10186,7 @@ function FinanceOpsPanel({
         </section>
       ) : (
         <>
-          {showIncomeDayForm ? (
-          <section className="financeOpsZone financeOpsZone--income financeOpsIncomeBlock addSaleForm">
-            <h4 className="financeOpsZoneTitle">Приход за день</h4>
-            <label className="financeOpsAccountsPick">
-              <span className="financeOpsFieldLabel">Счёт прихода</span>
-              <div className="financeOpsAccountBtnRow" role="group" aria-label="Счёт для записи прихода">
-                {primaryFinanceAccounts.map((acc) => (
-                  <button
-                    key={acc.id}
-                    type="button"
-                    className={`ghost paymentTypeBtn financeOpsAccountPickBtn ${financeAccountToneClass(acc.id)}${
-                      selectedIncomeAccountId === acc.id ? ' paymentTypeBtnActive' : ''
-                    }`}
-                    onClick={() => selectIncomeFlowAccount(acc.id)}
-                  >
-                    {acc.name}
-                  </button>
-                ))}
-              </div>
-            </label>
-            <div className="addSaleRow financeOpsIncomeFieldsRow">
-              <label className="financeOpsAmountField">
-                <span className="financeOpsFieldLabel">Сумма, ₽</span>
-                <input
-                  inputMode="decimal"
-                  value={incomeAmountDraft}
-                  onChange={(event) => setIncomeAmountDraft(event.target.value)}
-                  placeholder="Например, 15000"
-                />
-              </label>
-              <label className="financeOpsCommentField">
-                <span className="financeOpsFieldLabel">Точка прихода</span>
-                <select
-                  className="financeOpsExpenseUnifiedSelect"
-                  value={incomeStoreDraft}
-                  onChange={(event) => setIncomeStoreDraft(event.target.value)}
-                  aria-label="Точка прихода"
-                >
-                  {ALL_DEMO_STORE_NAMES.map((storeName) => (
-                    <option key={storeName} value={storeName}>
-                      {storeName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            {incomeAcquiringPreview && incomeAcquiringPreview.fee > 0 ? (
-              <p className="financeOpsIncomeAcquiringHint">
-                Эквайринг {formatFinanceAcquiringPercent(incomeAcquiringPreview.percent)}%: −
-                {incomeAcquiringPreview.fee.toLocaleString('ru-RU')} ₽ → на счёт{' '}
-                <strong>{incomeAcquiringPreview.net.toLocaleString('ru-RU')} ₽</strong>
-              </p>
-            ) : null}
-            {renderAcquiringOverrideField(selectedIncomeAccountId, false)}
-            <button
-              type="button"
-              className="primaryAction addSaleSubmitBottom"
-              disabled={
-                !selectedIncomeAccountId ||
-                busyId === `income-${selectedIncomeAccountId}` ||
-                primaryFinanceAccounts.length === 0
-              }
-              onClick={submitIncomeForSelectedAccount}
-            >
-              Записать приход
-            </button>
-          </section>
-          ) : null}
+          {!isWebSplit ? incomeDayFormSection : null}
 
           {showExpensesSection ? (
           <section className={`financeOpsZone financeOpsZone--expense addSaleForm${isWebSplit ? ' financeOpsZone--expenseWeb' : ''}`}>
@@ -10605,6 +10609,7 @@ function FinanceOpsPanel({
         </section>
       ) : isWebSplit ? (
         <>
+          {showWebOperativkaIncomeEntry ? incomeDayFormSection : null}
           {showWebIncomeHistory ? (
             <section className="financeOpsZone financeOpsZone--historyPage financeOpsZone--historyIncomes">
               <FinanceOpsHistoryList

@@ -392,12 +392,14 @@
 }
 
 /* ——— Оперативные финансы: акценты, ширина, градиенты выбора (как десктоп) ——— */
-.app.app--web .cardWorkspace:has(.financeOpsCard--web-ops) {
+.app.app--web .cardWorkspace:has(.financeOpsCard--web-ops),
+.app.app--web .cardWorkspace:has(.financeOpsCard--web-shift) {
   padding-left: max(6px, env(safe-area-inset-left, 0px)) !important;
   padding-right: max(6px, env(safe-area-inset-right, 0px)) !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsShell {
+.app.app--web .financeOpsCard--web-ops .financeOpsShell,
+.app.app--web .financeOpsCard--web-shift .financeOpsShell{
   padding: 14px 12px calc(14px + env(safe-area-inset-bottom)) !important;
   border-radius: 18px !important;
   background:
@@ -409,13 +411,15 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsHero {
+.app.app--web .financeOpsCard--web-ops .financeOpsHero,
+.app.app--web .financeOpsCard--web-shift .financeOpsHero{
   margin-bottom: 4px !important;
   padding-bottom: 14px !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsHeroTop {
+.app.app--web .financeOpsCard--web-ops .financeOpsHeroTop,
+.app.app--web .financeOpsCard--web-shift .financeOpsHeroTop{
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
@@ -423,7 +427,8 @@
   margin-bottom: 12px !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsPageTitle {
+.app.app--web .financeOpsCard--web-ops .financeOpsPageTitle,
+.app.app--web .financeOpsCard--web-shift .financeOpsPageTitle{
   margin: 0 !important;
   font-size: 11px !important;
   font-weight: 700 !important;
@@ -434,7 +439,8 @@
   text-shadow: none !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsSensitiveToggle {
+.app.app--web .financeOpsCard--web-ops .financeOpsSensitiveToggle,
+.app.app--web .financeOpsCard--web-shift .financeOpsSensitiveToggle{
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -450,21 +456,24 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsSensitiveToggle[aria-pressed='true'] {
+.app.app--web .financeOpsCard--web-ops .financeOpsSensitiveToggle[aria-pressed='true'],
+.app.app--web .financeOpsCard--web-shift .financeOpsSensitiveToggle[aria-pressed='true']{
   color: #d4c49a !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     inset 0 0 0 1px rgba(212, 182, 123, 0.38) !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsHeroMain {
+.app.app--web .financeOpsCard--web-ops .financeOpsHeroMain,
+.app.app--web .financeOpsCard--web-shift .financeOpsHeroMain{
   display: flex !important;
   flex-direction: column !important;
   gap: 12px !important;
   width: 100% !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsBankTotalCallout {
+.app.app--web .financeOpsCard--web-ops .financeOpsBankTotalCallout,
+.app.app--web .financeOpsCard--web-shift .financeOpsBankTotalCallout{
   width: 100% !important;
   max-width: 100% !important;
   padding: 14px 16px !important;
@@ -480,28 +489,32 @@
     0 8px 24px rgba(0, 0, 0, 0.22) !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsBankTotalCalloutLabel {
+.app.app--web .financeOpsCard--web-ops .financeOpsBankTotalCalloutLabel,
+.app.app--web .financeOpsCard--web-shift .financeOpsBankTotalCalloutLabel{
   font-size: 12px !important;
   color: #9aa3ad !important;
   font-weight: 600 !important;
   max-width: none !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsBankTotalCalloutValue {
+.app.app--web .financeOpsCard--web-ops .financeOpsBankTotalCalloutValue,
+.app.app--web .financeOpsCard--web-shift .financeOpsBankTotalCalloutValue{
   font-size: clamp(1.5rem, 6vw, 1.85rem) !important;
   font-weight: 700 !important;
   color: #e8eaed !important;
   letter-spacing: -0.03em !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsBalancesGrid {
+.app.app--web .financeOpsCard--web-ops .financeOpsBalancesGrid,
+.app.app--web .financeOpsCard--web-shift .financeOpsBalancesGrid{
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 10px !important;
   width: 100% !important;
   margin: 0 !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsBalanceCard.metricCard {
+.app.app--web .financeOpsCard--web-ops .financeOpsBalanceCard.metricCard,
+.app.app--web .financeOpsCard--web-shift .financeOpsBalanceCard.metricCard{
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
@@ -521,7 +534,8 @@
     0 6px 16px rgba(0, 0, 0, 0.2) !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsBalanceCard p {
+.app.app--web .financeOpsCard--web-ops .financeOpsBalanceCard p,
+.app.app--web .financeOpsCard--web-shift .financeOpsBalanceCard p{
   margin: 0 !important;
   font-size: 11px !important;
   font-weight: 600 !important;
@@ -534,7 +548,8 @@
   line-height: 1.3 !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsBalanceCardTail {
+.app.app--web .financeOpsCard--web-ops .financeOpsBalanceCardTail,
+.app.app--web .financeOpsCard--web-shift .financeOpsBalanceCardTail{
   display: flex !important;
   align-items: center !important;
   justify-content: flex-end !important;
@@ -542,14 +557,16 @@
   flex-shrink: 0 !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsBalanceCardTail .financeOpsSensitiveAmount {
+.app.app--web .financeOpsCard--web-ops .financeOpsBalanceCardTail .financeOpsSensitiveAmount,
+.app.app--web .financeOpsCard--web-shift .financeOpsBalanceCardTail .financeOpsSensitiveAmount{
   font-size: 1rem !important;
   font-weight: 700 !important;
   color: #ffffff !important;
   font-variant-numeric: tabular-nums !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsBalanceAdjustBtn {
+.app.app--web .financeOpsCard--web-ops .financeOpsBalanceAdjustBtn,
+.app.app--web .financeOpsCard--web-shift .financeOpsBalanceAdjustBtn{
   width: 28px !important;
   min-width: 28px !important;
   height: 28px !important;
@@ -563,32 +580,38 @@
 }
 
 .app.app--web .financeOpsCard--web-ops .financeOpsZoneTitle,
-.app.app--web .financeOpsCard--web-ops .financeOpsIncomeBlock h4 {
+.app.app--web .financeOpsCard--web-shift .financeOpsZoneTitle,
+.app.app--web .financeOpsCard--web-ops .financeOpsIncomeBlock h4,
+.app.app--web .financeOpsCard--web-shift .financeOpsIncomeBlock h4{
   font-size: 11px !important;
   letter-spacing: 0.12em !important;
   color: #b4bcc4 !important;
   margin-bottom: 10px !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsAccountsPick {
+.app.app--web .financeOpsCard--web-ops .financeOpsAccountsPick,
+.app.app--web .financeOpsCard--web-shift .financeOpsAccountsPick{
   font-size: 10px !important;
   gap: 8px !important;
   margin-bottom: 10px !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsFieldLabel {
+.app.app--web .financeOpsCard--web-ops .financeOpsFieldLabel,
+.app.app--web .financeOpsCard--web-shift .financeOpsFieldLabel{
   font-size: 10px !important;
   font-weight: 700 !important;
   letter-spacing: 0.08em !important;
   color: #9aa3ad !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsAccountBtnRow {
+.app.app--web .financeOpsCard--web-ops .financeOpsAccountBtnRow,
+.app.app--web .financeOpsCard--web-shift .financeOpsAccountBtnRow{
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 8px !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsAccountPickBtn.paymentTypeBtn {
+.app.app--web .financeOpsCard--web-ops .financeOpsAccountPickBtn.paymentTypeBtn,
+.app.app--web .financeOpsCard--web-shift .financeOpsAccountPickBtn.paymentTypeBtn{
   min-height: 46px !important;
   padding: 10px 8px !important;
   font-size: 12px !important;
@@ -602,7 +625,8 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .financeOpsAccountPickBtn.paymentTypeBtnActive {
+.app.app--web .financeOpsCard--web-ops .financeOpsAccountPickBtn.paymentTypeBtnActive,
+.app.app--web .financeOpsCard--web-shift .financeOpsAccountPickBtn.paymentTypeBtnActive{
   background:
     linear-gradient(145deg, var(--finance-tone-bg, rgba(154, 163, 173, 0.18)) 0%, transparent 68%),
     rgba(18, 28, 24, 0.72) !important;
@@ -682,7 +706,9 @@
 }
 
 .app.app--web .financeOpsCard--web-ops .financeOpsIncomeFieldsRow input,
-.app.app--web .financeOpsCard--web-ops .financeOpsExpenseUnifiedSelect {
+.app.app--web .financeOpsCard--web-shift .financeOpsIncomeFieldsRow input,
+.app.app--web .financeOpsCard--web-ops .financeOpsExpenseUnifiedSelect,
+.app.app--web .financeOpsCard--web-shift .financeOpsExpenseUnifiedSelect{
   min-height: 44px !important;
   padding: 10px 14px !important;
   border-radius: 12px !important;
@@ -693,7 +719,9 @@
 }
 
 .app.app--web .financeOpsCard--web-ops .financeOpsIncomeFieldsRow input:focus,
-.app.app--web .financeOpsCard--web-ops .financeOpsExpenseUnifiedSelect:focus {
+.app.app--web .financeOpsCard--web-shift .financeOpsIncomeFieldsRow input:focus,
+.app.app--web .financeOpsCard--web-ops .financeOpsExpenseUnifiedSelect:focus,
+.app.app--web .financeOpsCard--web-shift .financeOpsExpenseUnifiedSelect:focus{
   border-color: rgba(154, 163, 173, 0.45) !important;
   box-shadow:
     inset 0 2px 6px rgba(0, 0, 0, 0.25),
@@ -701,7 +729,8 @@
   outline: none !important;
 }
 
-.app.app--web .financeOpsCard--web-ops .addSaleSubmitBottom.primaryAction {
+.app.app--web .financeOpsCard--web-ops .addSaleSubmitBottom.primaryAction,
+.app.app--web .financeOpsCard--web-shift .addSaleSubmitBottom.primaryAction{
   min-height: 48px !important;
   padding: 12px 18px !important;
   font-size: 12px !important;
@@ -713,6 +742,21 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
 }
 
+
+.app.app--web .financeOpsCard--web-shift .financeOpsZone--income,
+.app.app--web .financeOpsCard--web-ops .financeOpsZone--income {
+  margin-bottom: 12px !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.app.app--web .financeOpsCard--web-shift .financeOpsIncomeAcquiringHint,
+.app.app--web .financeOpsCard--web-ops .financeOpsIncomeAcquiringHint {
+  margin: 0 0 10px !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+  color: #b4bcc4 !important;
+}
 .app.app--web .financeOpsCard--web-expenses .financeOpsHero--expensesWeb {
   margin-bottom: 4px !important;
   padding-bottom: 14px !important;
