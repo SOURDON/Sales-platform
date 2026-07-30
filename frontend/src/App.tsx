@@ -7689,6 +7689,42 @@ const FINANCE_MANAGER_SALARY_STORE_SET = new Set<string>(FINANCE_MANAGER_SALARY_
 const FINANCE_MANAGER_SALARY_DEDUCTION_STEPS = [5000, 7500, 10000, 12500, 15000] as const;
 const FINANCE_MANAGER_SALARY_TOOLBAR_CLICKS = 5;
 const FINANCE_MANAGER_SALARY_TOOLBAR_CLICK_MS = 900;
+const FINANCE_MANAGER_SALARY_DEDUCTION_KEY = 'sales-platform-finance-manager-salary-deductions-v1';
+
+function readFinanceManagerSalaryDeductions(): Record<string, number> {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+  try {
+    const raw = window.localStorage.getItem(FINANCE_MANAGER_SALARY_DEDUCTION_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeFinanceManagerSalaryDeduction(dayKey: string, amount: number): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  const next = { ...readFinanceManagerSalaryDeductions() };
+  const rounded = Math.max(0, Math.round(amount * 100) / 100);
+  if (rounded <= 0) {
+    delete next[dayKey];
+  } else {
+    next[dayKey] = rounded;
+  }
+  window.localStorage.setItem(FINANCE_MANAGER_SALARY_DEDUCTION_KEY, JSON.stringify(next));
+}
+
+function readFinanceManagerSalaryDeduction(dayKey: string): number {
+  const value = readFinanceManagerSalaryDeductions()[dayKey];
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
+}
 
 function isFinanceManagerSalaryStore(store: string | null): boolean {
   if (!store) {
@@ -8207,15 +8243,23 @@ function FinanceOpsHistoryDayTotalBar({
   managerMode: boolean;
   dayLabel: string;
 }) {
-  const [deduction, setDeduction] = useState(0);
+  const [deduction, setDeduction] = useState(() => readFinanceManagerSalaryDeduction(dayKey));
   const [toolbarOpen, setToolbarOpen] = useState(false);
   const toolbarClickRef = useRef({ count: 0, lastClickMs: 0 });
 
   useEffect(() => {
-    setDeduction(0);
+    setDeduction(readFinanceManagerSalaryDeduction(dayKey));
     setToolbarOpen(false);
     toolbarClickRef.current = { count: 0, lastClickMs: 0 };
-  }, [dayKey, managerMode]);
+  }, [dayKey]);
+
+  const applyDeduction = (nextAmount: number) => {
+    const rounded = Math.max(0, Math.round(nextAmount * 100) / 100);
+    setDeduction(rounded);
+    writeFinanceManagerSalaryDeduction(dayKey, rounded);
+    setToolbarOpen(false);
+    toolbarClickRef.current = { count: 0, lastClickMs: 0 };
+  };
 
   const revealToolbar = () => {
     if (!managerMode || toolbarOpen) {
@@ -8234,7 +8278,9 @@ function FinanceOpsHistoryDayTotalBar({
     }
   };
 
-  const displayTotal = Math.max(0, Math.round((rawTotal - deduction) * 100) / 100);
+  const displayTotal = managerMode
+    ? Math.max(0, Math.round((rawTotal - deduction) * 100) / 100)
+    : rawTotal;
 
   return (
     <div
@@ -8260,9 +8306,7 @@ function FinanceOpsHistoryDayTotalBar({
               key={stepAmount}
               type="button"
               className="financeOpsHistoryDayTotalStepBtn"
-              onClick={() =>
-                setDeduction((current) => Math.round((current + stepAmount) * 100) / 100)
-              }
+              onClick={() => applyDeduction(deduction + stepAmount)}
             >
               {index + 1}
             </button>
@@ -8271,10 +8315,7 @@ function FinanceOpsHistoryDayTotalBar({
             type="button"
             className="financeOpsHistoryDayTotalCancelBtn"
             aria-label="Отмена"
-            onClick={() => {
-              setDeduction(0);
-              setToolbarOpen(false);
-            }}
+            onClick={() => applyDeduction(0)}
           >
             ✕
           </button>

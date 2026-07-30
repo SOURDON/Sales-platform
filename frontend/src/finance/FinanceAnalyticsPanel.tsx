@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ALL_DEMO_STORE_NAMES } from '../inventory/normalizeInventoryOverview';
 import {
+  ANALYTICS_CASH_OVERHEAD_LABEL,
   computeFinanceAnalytics,
   financeThroughputJuneStartKey,
   formatAnalyticsDayKey,
@@ -40,7 +41,7 @@ type AnalyticsTab = 'overview' | 'net' | 'netOverhead' | 'payments' | 'payroll';
 const TAB_LABELS: Record<AnalyticsTab, string> = {
   overview: 'Сводка',
   net: 'Чистая',
-  netOverhead: '−10%',
+  netOverhead: `−${ANALYTICS_CASH_OVERHEAD_LABEL}`,
   payments: 'Оплата',
   payroll: 'ЗП',
 };
@@ -272,7 +273,7 @@ export function FinanceAnalyticsPanel({
   const displayValue = (value: number) => (sensitiveVisible ? fmtRub(value) : '••••••');
   const chartTitle =
     tab === 'netOverhead'
-      ? 'Чистая − 10% − аренда'
+      ? `Чистая − ${ANALYTICS_CASH_OVERHEAD_LABEL} − аренда`
       : tab === 'net'
         ? 'Чистая прибыль'
         : tab === 'payroll'
@@ -350,7 +351,7 @@ export function FinanceAnalyticsPanel({
           <strong>{displayValue(summary.totals.netProfit)}</strong>
         </div>
         <div className="financeAnalyticsKpi financeAnalyticsKpi--accent">
-          <span>−10% − аренда</span>
+          <span>−{ANALYTICS_CASH_OVERHEAD_LABEL} − аренда</span>
           <strong>{displayValue(summary.totals.netAfterOverhead)}</strong>
         </div>
       </div>
@@ -391,7 +392,7 @@ export function FinanceAnalyticsPanel({
               <th>Выручка</th>
               <th>ЗП</th>
               <th>Чистая</th>
-              <th>−10%</th>
+              <th>−{ANALYTICS_CASH_OVERHEAD_LABEL}</th>
               <th>Аренда</th>
               <th>Итого</th>
               <th>Окупаемость</th>
@@ -404,7 +405,7 @@ export function FinanceAnalyticsPanel({
                 <td>{displayValue(row.revenue)}</td>
                 <td>{displayValue(row.payroll)}</td>
                 <td>{displayValue(row.netProfit)}</td>
-                <td>{displayValue(row.overheadTenPct)}</td>
+                <td>{displayValue(row.overheadCashPct)}</td>
                 <td className="financeAnalyticsTdRent">
                   <input
                     type="number"
@@ -426,7 +427,7 @@ export function FinanceAnalyticsPanel({
                 <td className="financeAnalyticsTdPayback">
                   {row.paybackDays != null
                     ? `${row.paybackDays} дн.`
-                    : row.rentTotal > 0 && row.netProfit - row.overheadTenPct <= 0
+                    : row.rentTotal > 0 && row.netProfit - row.overheadCashPct <= 0
                       ? '—'
                       : '—'}
                 </td>
@@ -435,7 +436,8 @@ export function FinanceAnalyticsPanel({
           </tbody>
         </table>
         <p className="financeAnalyticsTableHint">
-          Аренда — общая сумма. Окупаемость: сколько дней точка отбивает её с чистой прибыли (минус 10% кассы).
+          Аренда — общая сумма. Окупаемость: сколько дней точка отбивает её с чистой прибыли (минус{' '}
+          {ANALYTICS_CASH_OVERHEAD_LABEL} кассы).
         </p>
       </section>
     </div>

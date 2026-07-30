@@ -4,6 +4,10 @@ export type StoreRentSettings = Record<string, number>;
 
 const RENT_STORAGE_KEY = 'sales-platform-store-rent-v1';
 
+/** Доля кассы (выручки), вычитаемая из чистой в аналитике. */
+export const ANALYTICS_CASH_OVERHEAD_RATE = 0.16;
+export const ANALYTICS_CASH_OVERHEAD_LABEL = '16%';
+
 export function readStoreRentSettings(): StoreRentSettings {
   if (typeof window === 'undefined') {
     return {};
@@ -52,7 +56,8 @@ export type StoreAnalyticsRow = {
   payroll: number;
   acquiringEstimate: number;
   netProfit: number;
-  overheadTenPct: number;
+  /** Доля кассы, удерживаемая сверху чистой (сейчас 16%). */
+  overheadCashPct: number;
   rentTotal: number;
   netAfterOverhead: number;
   paybackDays: number | null;
@@ -204,9 +209,9 @@ export function computeFinanceAnalytics(input: {
 
     const acquiringEstimate = Math.round(paymentBreakdown.nonCash * acqPct);
     const netProfit = revenue - payroll - acquiringEstimate;
-    const overheadTenPct = Math.round(revenue * 0.1);
+    const overheadCashPct = Math.round(revenue * ANALYTICS_CASH_OVERHEAD_RATE);
     const rentTotal = input.rentSettings[storeName] ?? 0;
-    const netBeforeRent = netProfit - overheadTenPct;
+    const netBeforeRent = netProfit - overheadCashPct;
     const netAfterOverhead = netBeforeRent - rentTotal;
     const dailyRecoverable = netBeforeRent / days;
     const paybackDays =
@@ -218,7 +223,7 @@ export function computeFinanceAnalytics(input: {
       payroll,
       acquiringEstimate,
       netProfit,
-      overheadTenPct,
+      overheadCashPct,
       rentTotal,
       netAfterOverhead,
       paybackDays,
@@ -232,7 +237,7 @@ export function computeFinanceAnalytics(input: {
       payroll: acc.payroll + row.payroll,
       acquiringEstimate: acc.acquiringEstimate + row.acquiringEstimate,
       netProfit: acc.netProfit + row.netProfit,
-      overheadTenPct: acc.overheadTenPct + row.overheadTenPct,
+      overheadCashPct: acc.overheadCashPct + row.overheadCashPct,
       rentTotal: acc.rentTotal + row.rentTotal,
       netAfterOverhead: acc.netAfterOverhead + row.netAfterOverhead,
       paymentBreakdown: {
@@ -246,7 +251,7 @@ export function computeFinanceAnalytics(input: {
       payroll: 0,
       acquiringEstimate: 0,
       netProfit: 0,
-      overheadTenPct: 0,
+      overheadCashPct: 0,
       rentTotal: 0,
       netAfterOverhead: 0,
       paymentBreakdown: { cash: 0, nonCash: 0, transfer: 0 },
