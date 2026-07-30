@@ -3895,6 +3895,43 @@ button.financeRangePresetBtn {
   color: #0b4f82;
 }
 
+.financeOpsHistoryDayTotal--manager {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.financeOpsHistoryDayTotalMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.financeOpsHistoryDayTotalToolbar {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.financeOpsHistoryDayTotalStepBtn,
+.financeOpsHistoryDayTotalCancelBtn {
+  min-height: 30px;
+  padding: 0 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.financeOpsHistoryDayTotalCancelBtn {
+  color: #b45353;
+}
+
 /* Панель админа: кассы сотрудников */
 .adminSellerRegister {
   margin-top: 14px;

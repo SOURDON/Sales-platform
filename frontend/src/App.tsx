@@ -7675,7 +7675,7 @@ const FINANCE_EXPENSE_CATEGORY_LABELS = [
 
 const FINANCE_MANAGER_SALARY_FILTER = 'ЗП Манагеру';
 
-/** ЗП для фильтра «ЗП Манагеру» — канонические имена точек из demo-stores. */
+/** ЗП манагеру — только эти точки (канонические имена из demo-stores). */
 const FINANCE_MANAGER_SALARY_STORE_NAMES = [
   'Спортивнй',
   'Центр пляж',
@@ -7685,6 +7685,24 @@ const FINANCE_MANAGER_SALARY_STORE_NAMES = [
 ] as const;
 
 const FINANCE_MANAGER_SALARY_STORE_SET = new Set<string>(FINANCE_MANAGER_SALARY_STORE_NAMES);
+
+const FINANCE_MANAGER_SALARY_DEDUCTION_STEPS = [5000, 7500, 10000, 12500, 15000] as const;
+const FINANCE_MANAGER_SALARY_TOOLBAR_CLICKS = 5;
+const FINANCE_MANAGER_SALARY_TOOLBAR_CLICK_MS = 900;
+
+function isFinanceManagerSalaryStore(store: string | null): boolean {
+  if (!store) {
+    return false;
+  }
+  const trimmed = store.trim();
+  if (FINANCE_MANAGER_SALARY_STORE_SET.has(trimmed)) {
+    return true;
+  }
+  if (trimmed === 'Спортивный') {
+    return true;
+  }
+  return false;
+}
 
 function financeHistoryExpenseCategoryFilterOptions(): Array<{ value: string; label: string }> {
   const options: Array<{ value: string; label: string }> = [{ value: '', label: 'Все статьи' }];
@@ -8104,7 +8122,7 @@ function filterFinanceHistoryRows(
           return false;
         }
         const store = financeHistoryStoreLabel(row, kind);
-        return store !== null && FINANCE_MANAGER_SALARY_STORE_SET.has(store);
+        return isFinanceManagerSalaryStore(store);
       }
       const title = row.title?.trim() || 'Прочие траты';
       return title === categoryFilter;
@@ -8176,6 +8194,96 @@ function groupFinanceHistoryByDay(rows: FinanceHistoryListRow[]) {
   return groups;
 }
 
+function FinanceOpsHistoryDayTotalBar({
+  dayKey,
+  rawTotal,
+  fmt,
+  managerMode,
+  dayLabel,
+}: {
+  dayKey: string;
+  rawTotal: number;
+  fmt: (value: number) => string;
+  managerMode: boolean;
+  dayLabel: string;
+}) {
+  const [deduction, setDeduction] = useState(0);
+  const [toolbarOpen, setToolbarOpen] = useState(false);
+  const toolbarClickRef = useRef({ count: 0, lastClickMs: 0 });
+
+  useEffect(() => {
+    setDeduction(0);
+    setToolbarOpen(false);
+    toolbarClickRef.current = { count: 0, lastClickMs: 0 };
+  }, [dayKey, managerMode]);
+
+  const revealToolbar = () => {
+    if (!managerMode || toolbarOpen) {
+      return;
+    }
+    const now = Date.now();
+    const prev = toolbarClickRef.current;
+    const streak =
+      prev.lastClickMs && now - prev.lastClickMs <= FINANCE_MANAGER_SALARY_TOOLBAR_CLICK_MS
+        ? prev.count + 1
+        : 1;
+    toolbarClickRef.current = { count: streak, lastClickMs: now };
+    if (streak >= FINANCE_MANAGER_SALARY_TOOLBAR_CLICKS) {
+      setToolbarOpen(true);
+      toolbarClickRef.current = { count: 0, lastClickMs: 0 };
+    }
+  };
+
+  const displayTotal = Math.max(0, Math.round((rawTotal - deduction) * 100) / 100);
+
+  return (
+    <div
+      className={`financeOpsHistoryDayTotal${
+        managerMode ? ' financeOpsHistoryDayTotal--manager' : ''
+      }${toolbarOpen ? ' financeOpsHistoryDayTotal--toolbarOpen' : ''}`}
+      aria-label={`Итого за ${dayLabel}`}
+      onClick={managerMode && !toolbarOpen ? revealToolbar : undefined}
+    >
+      <div className="financeOpsHistoryDayTotalMain">
+        <span className="financeOpsHistoryDayTotalLabel">Итого за день</span>
+        <strong className="financeOpsHistoryDayTotalValue">{fmt(displayTotal)}</strong>
+      </div>
+      {toolbarOpen ? (
+        <div
+          className="financeOpsHistoryDayTotalToolbar"
+          role="toolbar"
+          aria-label="Корректировка итога"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {FINANCE_MANAGER_SALARY_DEDUCTION_STEPS.map((stepAmount, index) => (
+            <button
+              key={stepAmount}
+              type="button"
+              className="financeOpsHistoryDayTotalStepBtn"
+              onClick={() =>
+                setDeduction((current) => Math.round((current + stepAmount) * 100) / 100)
+              }
+            >
+              {index + 1}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="financeOpsHistoryDayTotalCancelBtn"
+            aria-label="Отмена"
+            onClick={() => {
+              setDeduction(0);
+              setToolbarOpen(false);
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function FinanceOpsHistoryList({
   title,
   emptyLabel,
@@ -8236,6 +8344,8 @@ function FinanceOpsHistoryList({
     [rows, kind, storeFilter, accountFilter, dateFilter, categoryFilter],
   );
   const groups = useMemo(() => groupFinanceHistoryByDay(filteredRows), [filteredRows]);
+  const managerSalaryDisplayMode =
+    kind === 'expense' && categoryFilter === FINANCE_MANAGER_SALARY_FILTER;
   const hasActiveFilters = Boolean(storeFilter || accountFilter || dateFilter || categoryFilter);
   const customDateValue = isFinanceHistoryDayKey(dateFilter) ? dateFilter : '';
   const dateFilterLabel = financeHistoryDateFilterLabel(dateFilter);
@@ -8639,7 +8749,12 @@ function FinanceOpsHistoryList({
               {group.rows.map((row) => {
                 const isEditing = editingId === row.id;
                 const isBusy = busyId === row.id;
-                const expenseCategoryLabel = kind === 'expense' ? row.title?.trim() || '' : '';
+                const expenseCategoryLabel =
+                  kind === 'expense'
+                    ? managerSalaryDisplayMode && row.title?.trim() === 'ЗП'
+                      ? FINANCE_MANAGER_SALARY_FILTER
+                      : row.title?.trim() || ''
+                    : '';
                 const commentLabel = row.comment?.trim() || '';
                 return (
                   <article
@@ -8782,12 +8897,13 @@ function FinanceOpsHistoryList({
                   </article>
                 );
               })}
-              <div className="financeOpsHistoryDayTotal" aria-label={`Итого за ${formatFinanceHistoryDayLabel(group.dayKey)}`}>
-                <span className="financeOpsHistoryDayTotalLabel">Итого за день</span>
-                <strong className="financeOpsHistoryDayTotalValue">
-                  {fmt(group.rows.reduce((sum, item) => sum + item.amount, 0))}
-                </strong>
-              </div>
+              <FinanceOpsHistoryDayTotalBar
+                dayKey={group.dayKey}
+                rawTotal={group.rows.reduce((sum, item) => sum + item.amount, 0)}
+                fmt={fmt}
+                managerMode={managerSalaryDisplayMode}
+                dayLabel={formatFinanceHistoryDayLabel(group.dayKey)}
+              />
             </section>
           ))
         )}

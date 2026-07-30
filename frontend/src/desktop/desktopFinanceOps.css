@@ -1097,6 +1097,55 @@
   color: #9cc9b4;
 }
 
+.app.app--desktop .financeOpsHistoryDayTotal--manager {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  cursor: default;
+}
+
+.app.app--desktop .financeOpsHistoryDayTotal--manager:not(.financeOpsHistoryDayTotal--toolbarOpen) {
+  cursor: pointer;
+}
+
+.app.app--desktop .financeOpsHistoryDayTotalMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.app.app--desktop .financeOpsHistoryDayTotalToolbar {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.app.app--desktop .financeOpsHistoryDayTotalStepBtn,
+.app.app--desktop .financeOpsHistoryDayTotalCancelBtn {
+  min-height: 28px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--dt-text);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.app.app--desktop .financeOpsHistoryDayTotalStepBtn:hover,
+.app.app--desktop .financeOpsHistoryDayTotalCancelBtn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.app.app--desktop .financeOpsHistoryDayTotalCancelBtn {
+  color: #d4a5a5;
+}
+
 .app.app--desktop .financeOpsHistoryMini--expense .financeOpsHistoryMiniTitle {
   color: #9cc9b4;
 }

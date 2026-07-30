@@ -51,13 +51,18 @@ find_bundle_artifact() {
     "$REPO/desktop/releases"
     "${CARGO_TARGET_DIR:-}"
   )
-  local root dmg
+  local root
+  local -a matches=()
   for root in "${roots[@]}"; do
     [[ -n "$root" && -d "$root" ]] || continue
-    dmg="$(find "$root" -path "*/bundle/$kind/$pattern" -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1)"
-    [[ -n "$dmg" ]] && { echo "$dmg"; return 0; }
+    while IFS= read -r -d '' artifact; do
+      matches+=("$artifact")
+    done < <(find "$root" -path "*/bundle/$kind/$pattern" -print0 2>/dev/null)
   done
-  return 1
+  if ((${#matches[@]} == 0)); then
+    return 1
+  fi
+  ls -t "${matches[@]}" 2>/dev/null | head -1
 }
 
 OUT_DIR="$REPO/desktop/dist"
