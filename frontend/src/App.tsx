@@ -7673,82 +7673,18 @@ const FINANCE_EXPENSE_CATEGORY_LABELS = [
   'Прочие траты',
 ] as const;
 
-const FINANCE_MANAGER_SALARY_FILTER = 'зп манагер*';
-const FINANCE_MANAGER_SALARY_DEDUCTION_KEY = 'sales-platform-finance-manager-salary-deduction-v1';
-const FINANCE_MANAGER_SALARY_DEFAULT_PERCENT = 5;
-const FINANCE_MANAGER_SALARY_EDITOR_CLICKS = 3;
-const FINANCE_MANAGER_SALARY_EDITOR_CLICK_MS = 900;
+const FINANCE_MANAGER_SALARY_FILTER = 'ЗП Манагеру';
 
-function readManagerSalaryDeductionRates(): Record<string, number> {
-  if (typeof window === 'undefined') {
-    return {};
-  }
-  try {
-    const raw = window.localStorage.getItem(FINANCE_MANAGER_SALARY_DEDUCTION_KEY);
-    if (!raw) {
-      return {};
-    }
-    const parsed = JSON.parse(raw) as Record<string, number>;
-    if (!parsed || typeof parsed !== 'object') {
-      return {};
-    }
-    const out: Record<string, number> = {};
-    for (const [store, value] of Object.entries(parsed)) {
-      if (typeof value === 'number' && Number.isFinite(value)) {
-        out[store] = Math.max(0, Math.min(100, value));
-      }
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
+/** ЗП для фильтра «ЗП Манагеру» — канонические имена точек из demo-stores. */
+const FINANCE_MANAGER_SALARY_STORE_NAMES = [
+  'Спортивнй',
+  'Центр пляж',
+  'Центр Тех. зона',
+  'Дельфин Тех. зона',
+  'Сады морей Пляж',
+] as const;
 
-function writeManagerSalaryDeductionRates(values: Record<string, number>): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  window.localStorage.setItem(FINANCE_MANAGER_SALARY_DEDUCTION_KEY, JSON.stringify(values));
-}
-
-function managerSalaryDeductionPercentForStore(
-  storeName: string | null,
-  rates: Record<string, number>,
-): number {
-  if (!storeName) {
-    return 0;
-  }
-  const manual = rates[storeName];
-  if (manual !== undefined && Number.isFinite(manual)) {
-    return Math.max(0, Math.min(100, manual));
-  }
-  return FINANCE_MANAGER_SALARY_DEFAULT_PERCENT;
-}
-
-function financeManagerSalaryDisplayAmount(
-  amount: number,
-  storeName: string | null,
-  rates: Record<string, number>,
-): number {
-  const percent = managerSalaryDeductionPercentForStore(storeName, rates);
-  if (percent <= 0) {
-    return amount;
-  }
-  return Math.round(amount * (1 - percent / 100) * 100) / 100;
-}
-
-function financeHistoryRowDisplayAmount(
-  row: FinanceHistoryListRow,
-  kind: 'expense' | 'income',
-  categoryFilter: string,
-  managerSalaryRates: Record<string, number>,
-): number {
-  if (kind === 'expense' && categoryFilter === FINANCE_MANAGER_SALARY_FILTER) {
-    const store = financeHistoryStoreLabel(row, kind);
-    return financeManagerSalaryDisplayAmount(row.amount, store, managerSalaryRates);
-  }
-  return row.amount;
-}
+const FINANCE_MANAGER_SALARY_STORE_SET = new Set<string>(FINANCE_MANAGER_SALARY_STORE_NAMES);
 
 function financeHistoryExpenseCategoryFilterOptions(): Array<{ value: string; label: string }> {
   const options: Array<{ value: string; label: string }> = [{ value: '', label: 'Все статьи' }];
@@ -8167,7 +8103,8 @@ function filterFinanceHistoryRows(
         if (row.title?.trim() !== 'ЗП') {
           return false;
         }
-        return financeHistoryStoreLabel(row, kind) !== null;
+        const store = financeHistoryStoreLabel(row, kind);
+        return store !== null && FINANCE_MANAGER_SALARY_STORE_SET.has(store);
       }
       const title = row.title?.trim() || 'Прочие траты';
       return title === categoryFilter;
@@ -8282,12 +8219,6 @@ function FinanceOpsHistoryList({
   const [dateFilter, setDateFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [openFilter, setOpenFilter] = useState<'store' | 'account' | 'date' | 'category' | null>(null);
-  const [managerSalaryRates, setManagerSalaryRates] = useState<Record<string, number>>(
-    () => readManagerSalaryDeductionRates(),
-  );
-  const [managerSalaryEditorOpen, setManagerSalaryEditorOpen] = useState(false);
-  const [managerSalaryEditorDraft, setManagerSalaryEditorDraft] = useState<Record<string, string>>({});
-  const managerSalaryHintClickRef = useRef({ count: 0, lastClickMs: 0 });
   const accountFilterOptions = useMemo(
     () => financeHistoryAccountFilterOptions(accounts),
     [accounts],
@@ -8304,60 +8235,7 @@ function FinanceOpsHistoryList({
       ),
     [rows, kind, storeFilter, accountFilter, dateFilter, categoryFilter],
   );
-  const managerSalaryDisplayMode =
-    kind === 'expense' && categoryFilter === FINANCE_MANAGER_SALARY_FILTER;
   const groups = useMemo(() => groupFinanceHistoryByDay(filteredRows), [filteredRows]);
-
-  useEffect(() => {
-    if (!managerSalaryDisplayMode) {
-      setManagerSalaryEditorOpen(false);
-    }
-  }, [managerSalaryDisplayMode]);
-
-  useEffect(() => {
-    if (!managerSalaryEditorOpen) {
-      return;
-    }
-    const draft: Record<string, string> = {};
-    for (const storeName of ALL_DEMO_STORE_NAMES) {
-      const percent = managerSalaryDeductionPercentForStore(storeName, managerSalaryRates);
-      draft[storeName] = percent > 0 ? String(percent).replace('.', ',') : '';
-    }
-    setManagerSalaryEditorDraft(draft);
-  }, [managerSalaryEditorOpen, managerSalaryRates]);
-
-  const revealManagerSalaryEditor = () => {
-    const now = Date.now();
-    const prev = managerSalaryHintClickRef.current;
-    const streak =
-      prev.lastClickMs && now - prev.lastClickMs <= FINANCE_MANAGER_SALARY_EDITOR_CLICK_MS
-        ? prev.count + 1
-        : 1;
-    managerSalaryHintClickRef.current = { count: streak, lastClickMs: now };
-    if (streak >= FINANCE_MANAGER_SALARY_EDITOR_CLICKS) {
-      setManagerSalaryEditorOpen((open) => !open);
-      managerSalaryHintClickRef.current = { count: 0, lastClickMs: 0 };
-    }
-  };
-
-  const saveManagerSalaryRates = () => {
-    const next: Record<string, number> = {};
-    for (const storeName of ALL_DEMO_STORE_NAMES) {
-      const raw = (managerSalaryEditorDraft[storeName] ?? '').replace(',', '.').trim();
-      if (!raw) {
-        continue;
-      }
-      const parsed = Number(raw);
-      if (!Number.isFinite(parsed)) {
-        continue;
-      }
-      next[storeName] = Math.max(0, Math.min(100, Math.round(parsed * 1000) / 1000));
-    }
-    setManagerSalaryRates(next);
-    writeManagerSalaryDeductionRates(next);
-    setManagerSalaryEditorOpen(false);
-  };
-
   const hasActiveFilters = Boolean(storeFilter || accountFilter || dateFilter || categoryFilter);
   const customDateValue = isFinanceHistoryDayKey(dateFilter) ? dateFilter : '';
   const dateFilterLabel = financeHistoryDateFilterLabel(dateFilter);
@@ -8704,49 +8582,6 @@ function FinanceOpsHistoryList({
                   </button>
                 </div>
               ) : null}
-              {managerSalaryDisplayMode ? (
-                <>
-                  <p
-                    className="financeOpsHistoryManagerSalaryHint"
-                    onClick={revealManagerSalaryEditor}
-                    title="Только просмотр"
-                  >
-                    Суммы с учётом вычета по каждой точке (данные на «Главной» и в учёте не меняются).
-                  </p>
-                  {managerSalaryEditorOpen ? (
-                    <div className="financeOpsHistoryManagerSalaryEditor" aria-label="Процент вычета по точкам">
-                      <p className="financeOpsHistoryManagerSalaryEditorTitle">Вычет по точкам, %</p>
-                      <div className="financeOpsHistoryManagerSalaryEditorGrid">
-                        {ALL_DEMO_STORE_NAMES.map((storeName) => (
-                          <label key={storeName} className="financeOpsHistoryManagerSalaryEditorRow">
-                            <span>{storeName}</span>
-                            <input
-                              inputMode="decimal"
-                              aria-label={`Вычет для ${storeName}`}
-                              value={managerSalaryEditorDraft[storeName] ?? ''}
-                              placeholder={String(FINANCE_MANAGER_SALARY_DEFAULT_PERCENT)}
-                              onChange={(event) =>
-                                setManagerSalaryEditorDraft((current) => ({
-                                  ...current,
-                                  [storeName]: event.target.value,
-                                }))
-                              }
-                            />
-                          </label>
-                        ))}
-                      </div>
-                      <div className="financeOpsHistoryManagerSalaryEditorActions">
-                        <button type="button" className="ghost" onClick={() => setManagerSalaryEditorOpen(false)}>
-                          Скрыть
-                        </button>
-                        <button type="button" className="primaryAction" onClick={saveManagerSalaryRates}>
-                          Сохранить локально
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-                </>
-              ) : null}
             </>
           ) : (
             <>
@@ -8804,18 +8639,7 @@ function FinanceOpsHistoryList({
               {group.rows.map((row) => {
                 const isEditing = editingId === row.id;
                 const isBusy = busyId === row.id;
-                const expenseCategoryLabel =
-                  kind === 'expense'
-                    ? managerSalaryDisplayMode && row.title?.trim() === 'ЗП'
-                      ? FINANCE_MANAGER_SALARY_FILTER
-                      : row.title?.trim() || ''
-                    : '';
-                const displayAmount = financeHistoryRowDisplayAmount(
-                  row,
-                  kind,
-                  categoryFilter,
-                  managerSalaryRates,
-                );
+                const expenseCategoryLabel = kind === 'expense' ? row.title?.trim() || '' : '';
                 const commentLabel = row.comment?.trim() || '';
                 return (
                   <article
@@ -8925,7 +8749,7 @@ function FinanceOpsHistoryList({
                         <span className="financeOpsHistoryMiniChipAccount" title={row.accountName}>
                           {row.accountName}
                         </span>
-                        <strong className="financeOpsHistoryMiniChipValue">{fmt(displayAmount)}</strong>
+                        <strong className="financeOpsHistoryMiniChipValue">{fmt(row.amount)}</strong>
                         {expenseCategoryLabel ? (
                           <span
                             className="financeOpsHistoryMiniChipCategory"
@@ -8961,14 +8785,7 @@ function FinanceOpsHistoryList({
               <div className="financeOpsHistoryDayTotal" aria-label={`Итого за ${formatFinanceHistoryDayLabel(group.dayKey)}`}>
                 <span className="financeOpsHistoryDayTotalLabel">Итого за день</span>
                 <strong className="financeOpsHistoryDayTotalValue">
-                  {fmt(
-                    group.rows.reduce(
-                      (sum, item) =>
-                        sum +
-                        financeHistoryRowDisplayAmount(item, kind, categoryFilter, managerSalaryRates),
-                      0,
-                    ),
-                  )}
+                  {fmt(group.rows.reduce((sum, item) => sum + item.amount, 0))}
                 </strong>
               </div>
             </section>
