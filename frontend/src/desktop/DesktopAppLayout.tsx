@@ -39,6 +39,7 @@ export function DesktopAppLayout({
   syncToolbar,
   desktopTheme,
   onDesktopThemeChange,
+  versionLabel,
   children,
 }: {
   connection: DesktopConnectionState;
@@ -53,6 +54,7 @@ export function DesktopAppLayout({
   syncToolbar?: ReactNode;
   desktopTheme: DesktopTheme;
   onDesktopThemeChange: (theme: DesktopTheme) => void;
+  versionLabel?: string | null;
   children: ReactNode;
 }) {
   const { pathname } = useLocation();
@@ -108,6 +110,7 @@ export function DesktopAppLayout({
             </div>
           )}
           <DesktopThemeToggle theme={desktopTheme} onChange={onDesktopThemeChange} />
+          {versionLabel ? <p className="desktopSidebarVersion">{versionLabel}</p> : null}
           {hideLogout ? null : (
           <button type="button" className="desktopSidebarLogout" onClick={onLogout}>
             Выйти

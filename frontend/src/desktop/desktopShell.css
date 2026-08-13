@@ -364,6 +364,16 @@ html[data-dt-theme='light'] .app.app--desktop.loginScreen .loginAppVersion {
   gap: 10px;
 }
 
+.desktopSidebarVersion {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  color: var(--dt-text-dim);
+  text-align: center;
+}
+
 .desktopSidebarUserCard {
   display: flex;
   align-items: center;

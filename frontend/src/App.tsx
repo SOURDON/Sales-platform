@@ -71,7 +71,7 @@ import {
   clearOpsDayUnlock,
 } from './opsDayUnlock';
 import { isOfflineStoreApp } from './offlineStore';
-import { ensureOfflineStoreDefaults, ensureOfflineStoreProducts, pullOfflineAdminSnapshot, renameOfflineStoreAssignments, saveOfflineManagerCommission } from './offlineStoreSeed';
+import { ensureOfflineStoreDefaults, ensureOfflineStoreProducts, pullOfflineAdminSnapshot, renameOfflineStaffPerson, renameOfflineStoreAssignments, saveOfflineManagerCommission, setOfflineRetoucherPercent } from './offlineStoreSeed';
 import {
   effectiveStoreName,
   persistOfflineStoreSession,
@@ -1792,6 +1792,10 @@ function App() {
   };
 
   const loadSellers = async (token: string) => {
+    if (offlineStoreMode) {
+      await applyOfflineAdminSnapshot();
+      return;
+    }
     const fetcher = async () => {
       const response = await fetch(`${getApiBaseUrl()}/admin/sellers`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -1811,7 +1815,7 @@ function App() {
         ...syncFreshGuard(),
       });
       setSellers(result.data);
-      if (role === 'ADMIN') {
+      if (role === 'ADMIN' && !offlineStoreMode) {
         setAdminError(
           result.fromCache && result.data.length === 0 ? 'Нет сети — продавцы из кэша недоступны.' : '',
         );
@@ -3027,6 +3031,10 @@ function App() {
   };
 
   const loadStaff = async (token: string) => {
+    if (offlineStoreMode) {
+      await applyOfflineAdminSnapshot();
+      return;
+    }
     const fetcher = async () => {
       const response = await fetch(`${getApiBaseUrl()}/admin/staff`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -3924,6 +3932,12 @@ function App() {
       const mode = await runAdminMutation(uid, clientId, 'ADMIN_STAFF_REMOVE', payload, postRemove);
       if (mode === 'queued') {
         setOfflineQueueTick((x) => x + 1);
+      }
+      if (offlineStoreMode) {
+        await applyOfflineAdminSnapshot();
+        return;
+      }
+      if (mode === 'queued') {
         return;
       }
     } else {
@@ -4751,6 +4765,9 @@ function App() {
         await Promise.allSettled([loadSales(token), loadSellers(token)]);
       });
     }
+    if (offlineStoreMode) {
+      return;
+    }
     if (isDesktopShell && role === 'ADMIN' && (path === '/shift' || path === '/home')) {
       void Promise.allSettled([
         loadStaff(token),
@@ -4767,7 +4784,7 @@ function App() {
     if (role === 'ADMIN' && path === '/home') {
       void refreshOfflinePending();
     }
-  }, [isDesktopShell, location.pathname, session?.token, session?.user?.role, refreshOfflinePending, onlineSectionsTrimmed]);
+  }, [isDesktopShell, location.pathname, session?.token, session?.user?.role, refreshOfflinePending, onlineSectionsTrimmed, offlineStoreMode]);
 
   const refreshAdminWebLive = useCallback(() => {
     if (!session?.token || isDesktopShell || session.user.role !== 'ADMIN') {
@@ -4849,7 +4866,7 @@ function App() {
       <main
         className={`app loginScreen app--desktop${isDesktopShell ? '' : ' app--web'}`}
       >
-        {isDesktopShell ? (
+        {isDesktopShell && !offlineStoreMode ? (
           <div className="desktopLoginStatus">
             <ConnectionBanner {...desktopConnection} variant="pill" />
           </div>
@@ -5091,20 +5108,43 @@ function App() {
                           {offlineStoreMode && homeDashboard.role === 'ADMIN' && opsDayUnlocked && session ? (
                             <StoreDirectorConsole
                               sellers={sellers
-                                .filter((seller) => seller.storeName === storeDisplayName)
+                                .filter((seller) => {
+                                  if (seller.storeName !== storeDisplayName) {
+                                    return false;
+                                  }
+                                  return staff.some(
+                                    (member) =>
+                                      member.id === seller.id &&
+                                      member.isActive &&
+                                      member.staffPosition === 'SALES' &&
+                                      staffAssignedStores(member).includes(storeDisplayName),
+                                  );
+                                })
                                 .map((seller) => ({
                                   id: seller.id,
                                   fullName: seller.fullName,
                                   nickname: seller.nickname,
                                   ratePercent: seller.ratePercent,
                                 }))}
-                              managerPercent={readOfflineStoreSettings().managerPercent}
-                              hasManager={staff.some(
-                                (member) =>
-                                  member.isActive &&
-                                  member.staffPosition === 'MANAGER' &&
-                                  staffAssignedStores(member).includes(storeDisplayName),
-                              )}
+                              manager={(() => {
+                                const member = staff.find(
+                                  (row) =>
+                                    row.isActive &&
+                                    row.staffPosition === 'MANAGER' &&
+                                    staffAssignedStores(row).includes(storeDisplayName),
+                                );
+                                return member
+                                  ? {
+                                      id: member.id,
+                                      fullName: member.fullName,
+                                      nickname: member.nickname,
+                                    }
+                                  : null;
+                              })()}
+                              managerPercent={
+                                managerPercentForStore(storeDisplayName, managerStoreCommissions) ||
+                                readOfflineStoreSettings().managerPercent
+                              }
                               onStoreNameChange={(name) => {
                                 if (!session) {
                                   return;
@@ -5112,8 +5152,7 @@ function App() {
                                 const prevName = storeDisplayName;
                                 void renameOfflineStoreAssignments(session.user.id, prevName, name).then(
                                   async () => {
-                                    await loadStaff(session.token).catch(() => undefined);
-                                    await loadSellers(session.token).catch(() => undefined);
+                                    await applyOfflineAdminSnapshot();
                                   },
                                 );
                                 const nextSession = {
@@ -5126,6 +5165,38 @@ function App() {
                               }}
                               onAcquiringChange={() => undefined}
                               onSellerPercentChange={setStoreSellerPercent.bind(null, session.token)}
+                              onRenamePerson={async (id, fullName, nickname) => {
+                                await renameOfflineStaffPerson(session.user.id, id, fullName, nickname);
+                                await applyOfflineAdminSnapshot();
+                              }}
+                              onSaveManagerPercent={async (percent) => {
+                                await saveOfflineManagerCommission(
+                                  session.user.id,
+                                  storeDisplayName,
+                                  percent,
+                                );
+                                await applyOfflineAdminSnapshot();
+                              }}
+                              retoucher={(() => {
+                                const member = staff.find(
+                                  (row) =>
+                                    row.isActive &&
+                                    row.staffPosition === 'RETOUCHER' &&
+                                    staffAssignedStores(row).includes(storeDisplayName),
+                                );
+                                return member
+                                  ? {
+                                      id: member.id,
+                                      fullName: member.fullName,
+                                      nickname: member.nickname,
+                                      ratePercent: member.retoucherRatePercent ?? 5,
+                                    }
+                                  : null;
+                              })()}
+                              onSaveRetoucherPercent={async (staffId, percent) => {
+                                await setOfflineRetoucherPercent(session.user.id, staffId, percent);
+                                await applyOfflineAdminSnapshot();
+                              }}
                               onAddManager={addOfflineManagerStaff.bind(null, session.token)}
                               onExitDirector={exitDirectorManagement}
                             />
@@ -5510,6 +5581,17 @@ function App() {
                               ? setStoreSellerPercent
                               : setDirectorPercent
                           }
+                          onSetRetoucherPercent={
+                            offlineStoreMode && opsDayUnlocked
+                              ? async (_token, staffId, percent) => {
+                                  if (!session) {
+                                    return;
+                                  }
+                                  await setOfflineRetoucherPercent(session.user.id, staffId, percent);
+                                  await applyOfflineAdminSnapshot();
+                                }
+                              : undefined
+                          }
                           hideFromBase={offlineStoreMode}
                           storeDirectorEdit={offlineStoreMode && opsDayUnlocked}
                           showOnlyCards
@@ -5531,6 +5613,17 @@ function App() {
                               offlineStoreMode && opsDayUnlocked
                                 ? setStoreSellerPercent
                                 : setDirectorPercent
+                            }
+                            onSetRetoucherPercent={
+                              offlineStoreMode && opsDayUnlocked
+                                ? async (_token, staffId, percent) => {
+                                    if (!session) {
+                                      return;
+                                    }
+                                    await setOfflineRetoucherPercent(session.user.id, staffId, percent);
+                                    await applyOfflineAdminSnapshot();
+                                  }
+                                : undefined
                             }
                             hideFromBase={offlineStoreMode}
                             storeDirectorEdit={offlineStoreMode && opsDayUnlocked}
@@ -6131,13 +6224,14 @@ function App() {
         <section className="card cardWorkspace cardWorkspace--desktop">
           <DesktopAppLayout
             connection={desktopConnection}
-            adminError={adminError || undefined}
+            adminError={offlineStoreMode ? undefined : adminError || undefined}
             navItems={desktopNavItems}
             userLabel={offlineStoreMode ? storeDisplayName : session.user.nickname}
             roleLabel={desktopRoleLabel}
             onLogout={handleLogout}
             hideLogout={offlineStoreMode}
             hideConnectionStatus={offlineStoreMode}
+            versionLabel={appVersionLabel()}
             syncToolbar={
               offlineStoreMode ? null : (
               <DesktopSyncToolbar
@@ -11002,6 +11096,33 @@ function ShiftPanel({
         >
           Закрыть смену
         </button>
+        <button
+          type="button"
+          className="ghost shiftCloseAllBtn"
+          disabled={busy || !openShift || readOnly}
+          onClick={async () => {
+            if (!openShift) {
+              return;
+            }
+            const closeAllIds = [
+              ...new Set([
+                ...openShift.assignedSellerIds,
+                ...shiftAssignableStaff
+                  .filter((member) => member.assignedShiftId === openShift.id)
+                  .map((member) => member.id),
+              ]),
+            ];
+            setBusy(true);
+            try {
+              await onClose(token, closeAllIds);
+              setSelectedStaffIds([]);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Закрыть все смены
+        </button>
       </div>
       {role !== 'ADMIN' && (
         <div className="opsList">
@@ -11024,6 +11145,7 @@ function TeamMemberCard({
   role,
   openShiftId,
   onDirectorSetPercent,
+  onSetRetoucherPercent,
   storeDirectorEdit = false,
 }: {
   token: string;
@@ -11033,6 +11155,7 @@ function TeamMemberCard({
   openShiftId?: string;
   storeDirectorEdit?: boolean;
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
+  onSetRetoucherPercent?: (token: string, staffId: number, ratePercent: number) => Promise<void>;
 }) {
   const isRetoucher = member.staffPosition === 'RETOUCHER';
   const isShiftOpen = Boolean(openShiftId && member.assignedShiftId === openShiftId);
@@ -11042,7 +11165,9 @@ function TeamMemberCard({
     isRetoucher && retoucherRatePct > 0
       ? Math.round(member.earningsAmount / (retoucherRatePct / 100))
       : 0;
-  const [newPercent, setNewPercent] = useState(String(seller?.ratePercent ?? 0));
+  const [newPercent, setNewPercent] = useState(
+    String(seller?.ratePercent ?? member.retoucherRatePercent ?? 5),
+  );
   const [busy, setBusy] = useState(false);
 
   const applyDirector = async () => {
@@ -11052,6 +11177,18 @@ function TeamMemberCard({
     setBusy(true);
     try {
       await onDirectorSetPercent(token, seller.id, Number(newPercent) || 0);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyRetoucher = async () => {
+    if (!onSetRetoucherPercent) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await onSetRetoucherPercent(token, member.id, Number(newPercent) || 0);
     } finally {
       setBusy(false);
     }
@@ -11121,6 +11258,18 @@ function TeamMemberCard({
           </div>
         </div>
       )}
+
+      {isRetoucher && storeDirectorEdit && onSetRetoucherPercent ? (
+        <div className="directorPercent teamPercentEdit">
+          <label>
+            Новый % ретушёра
+            <input value={newPercent} onChange={(event) => setNewPercent(event.target.value)} />
+          </label>
+          <button className="primaryAction" type="button" onClick={() => void applyRetoucher()} disabled={busy}>
+            OK
+          </button>
+        </div>
+      ) : null}
 
       {!isRetoucher && seller && (role === 'DIRECTOR' || (role === 'ADMIN' && storeDirectorEdit)) && (
         <div className="directorPercent teamPercentEdit">
@@ -12034,6 +12183,7 @@ function StaffPanel({
   onAddFromBase,
   onRemoveFromStore,
   onDirectorSetPercent,
+  onSetRetoucherPercent,
   hideFromBase = false,
   storeDirectorEdit = false,
 }: {
@@ -12054,6 +12204,7 @@ function StaffPanel({
   onAddFromBase: (token: string, employeeId: number) => Promise<void>;
   onRemoveFromStore: (token: string, id: number, storeName?: string) => Promise<void>;
   onDirectorSetPercent: (token: string, sellerId: number, ratePercent: number) => Promise<void>;
+  onSetRetoucherPercent?: (token: string, staffId: number, ratePercent: number) => Promise<void>;
 }) {
   const [fullName, setFullName] = useState('');
   const [nickname, setNickname] = useState('');
@@ -12096,7 +12247,7 @@ function StaffPanel({
       <TeamMemberCard
         key={
           member.staffPosition === 'RETOUCHER'
-            ? `reto-${member.id}`
+            ? `reto-${member.id}-${member.retoucherRatePercent ?? 5}`
             : seller
               ? `${member.id}-${seller.ratePercent}`
               : String(member.id)
@@ -12107,6 +12258,7 @@ function StaffPanel({
         role={role}
         openShiftId={openShift?.id}
         onDirectorSetPercent={onDirectorSetPercent}
+        onSetRetoucherPercent={onSetRetoucherPercent}
         storeDirectorEdit={storeDirectorEdit}
       />
     );

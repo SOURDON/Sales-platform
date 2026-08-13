@@ -83,6 +83,70 @@ export async function ensureOfflineStoreDefaults(userId: number): Promise<void> 
   writeSeedFlag();
 }
 
+export async function renameOfflineStaffPerson(
+  userId: number,
+  staffId: number,
+  fullName: string,
+  nickname: string,
+): Promise<void> {
+  const name = fullName.trim();
+  const nick = nickname.trim();
+  if (!name || !nick) {
+    return;
+  }
+  const staff = (await loadAdminCache<StaffSeedRow[]>(userId, 'staff')) ?? [];
+  if (staff.length > 0) {
+    await saveAdminCache(
+      userId,
+      'staff',
+      staff.map((member) =>
+        member.id === staffId ? { ...member, fullName: name, nickname: nick } : member,
+      ),
+    );
+  }
+  const sellers =
+    (await loadAdminCache<
+      Array<{
+        id: number;
+        fullName: string;
+        nickname: string;
+        storeName: string;
+        ratePercent: number;
+        salesAmount: number;
+        checksCount: number;
+        commissionAmount: number;
+      }>
+    >(userId, 'sellers')) ?? [];
+  if (sellers.length > 0) {
+    await saveAdminCache(
+      userId,
+      'sellers',
+      sellers.map((seller) =>
+        seller.id === staffId ? { ...seller, fullName: name, nickname: nick } : seller,
+      ),
+    );
+  }
+}
+
+export async function setOfflineRetoucherPercent(
+  userId: number,
+  staffId: number,
+  percent: number,
+): Promise<void> {
+  const pct = Math.max(0, Math.min(100, percent));
+  const staff = (await loadAdminCache<StaffSeedRow[]>(userId, 'staff')) ?? [];
+  if (staff.length === 0) {
+    return;
+  }
+  await saveAdminCache(
+    userId,
+    'staff',
+    staff.map((member) =>
+      member.id === staffId ? { ...member, retoucherRatePercent: pct } : member,
+    ),
+  );
+}
+
 export async function renameOfflineStoreAssignments(
   userId: number,
   oldName: string,

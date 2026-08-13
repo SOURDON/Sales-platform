@@ -376,6 +376,14 @@ async function applyStaffRemove(
     'staff',
     staff.filter((m) => m.id !== payload.staffId),
   );
+  const sellers = (await loadAdminCache<SellerLike[]>(userId, 'sellers')) ?? [];
+  if (sellers.some((seller) => seller.id === payload.staffId)) {
+    await saveAdminCache(
+      userId,
+      'sellers',
+      sellers.filter((seller) => seller.id !== payload.staffId),
+    );
+  }
 }
 
 async function applyStaffRestore(

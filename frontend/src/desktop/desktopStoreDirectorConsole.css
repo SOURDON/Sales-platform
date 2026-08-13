@@ -90,19 +90,36 @@
 .app.app--desktop .storeDirectorConsoleSellers {
   display: grid;
   gap: 8px;
+  max-height: min(36vh, 280px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
 }
 
-.app.app--desktop .storeDirectorConsoleSellerRow {
+.app.app--desktop .storeDirectorConsolePersonRow {
   display: grid;
-  grid-template-columns: 1fr 160px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 150px;
+  gap: 8px;
   align-items: center;
-  font-size: 12px;
+}
+
+.app.app--desktop .storeDirectorConsolePersonRow input {
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--dt-border, rgba(255, 255, 255, 0.14));
+  background: var(--dt-input-bg, rgba(0, 0, 0, 0.2));
   color: var(--dt-text);
+  font-size: 12px;
 }
 
 @media (max-width: 900px) {
   .app.app--desktop .storeDirectorConsoleGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .app.app--desktop .storeDirectorConsolePersonRow {
     grid-template-columns: 1fr;
   }
 }

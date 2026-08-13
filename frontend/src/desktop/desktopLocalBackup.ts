@@ -98,20 +98,26 @@ async function restoreFromBackup(backup: DesktopLocalBackup): Promise<void> {
   });
 }
 
+function snapshotWeight(snapshot: { outbox: unknown[]; cache: unknown[] }): number {
+  return snapshot.outbox.length + snapshot.cache.length;
+}
+
 export async function ensureDesktopLocalDataRestored(): Promise<void> {
   if (!isTauriRuntime()) {
     return;
   }
   const db = await import('../sync/db');
   await db.migrateLegacySyncDatabases();
-  if (await hasMeaningfulLocalData()) {
-    return;
-  }
   const backup = await readBackupFile();
   if (!backup) {
     return;
   }
-  await restoreFromBackup(backup);
+  const current = await db.exportSyncSnapshot();
+  const currentEmpty = snapshotWeight(current) === 0;
+  const backupHasData = snapshotWeight(backup.indexedDb) > 0;
+  if ((currentEmpty && backupHasData) || !(await hasMeaningfulLocalData())) {
+    await restoreFromBackup(backup);
+  }
 }
 
 export async function flushDesktopLocalBackup(): Promise<void> {

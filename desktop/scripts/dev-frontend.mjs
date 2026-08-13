@@ -1,8 +1,10 @@
 /**
  * Запуск Vite (frontend) для Tauri dev.
- * VITE_API_URL — из desktop/.env. Порт 5173 строго фиксирован (как в tauri.conf.json).
+ * Обычный профиль: VITE_API_URL из desktop/.env.
+ * store-offline: desktop/.env.store-offline (VITE_OFFLINE_STORE=1), без сети.
+ * Порт 5173 строго фиксирован (как в tauri.conf.json).
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,25 +19,47 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../..');
 const frontendDir = path.resolve(repoRoot, 'frontend');
 const desktopEnvPath = path.resolve(repoRoot, 'desktop/.env');
+const storeEnvPath = path.resolve(repoRoot, 'desktop/.env.store-offline');
 const viteBin = path.resolve(frontendDir, 'node_modules/vite/bin/vite.js');
+const profile = process.env.DESKTOP_BUILD_PROFILE || '';
+const isStoreOffline = profile === 'store-offline';
 
-function readDesktopApiUrl() {
-  try {
-    const text = readFileSync(desktopEnvPath, 'utf8');
-    for (const line of text.split('\n')) {
-      const m = line.match(/^VITE_API_URL=(.+)$/);
-      if (m) {
-        return m[1].trim().replace(/^["']|["']$/g, '');
-      }
-    }
-  } catch {
-    /* ignore */
+function loadEnvFile(filePath) {
+  if (!existsSync(filePath)) {
+    return {};
   }
-  return undefined;
+  const out = {};
+  for (const line of readFileSync(filePath, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+    const eq = trimmed.indexOf('=');
+    if (eq < 0) {
+      continue;
+    }
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    out[key] = value;
+  }
+  return out;
 }
 
-let apiUrl = readDesktopApiUrl() || TIMEWEB_API;
-if (apiUrl.includes('onrender.com')) {
+function readDesktopApiUrl() {
+  return loadEnvFile(desktopEnvPath).VITE_API_URL;
+}
+
+const storeEnv = isStoreOffline ? loadEnvFile(storeEnvPath) : {};
+let apiUrl = isStoreOffline
+  ? storeEnv.VITE_API_URL || 'http://127.0.0.1:9'
+  : readDesktopApiUrl() || TIMEWEB_API;
+if (!isStoreOffline && apiUrl.includes('onrender.com')) {
   console.warn(
     `[dev-frontend] Render отключён — используем Timeweb: ${TIMEWEB_API} (обновите desktop/.env)`,
   );
@@ -45,10 +69,16 @@ if (apiUrl.includes('onrender.com')) {
 const appVersion = readAppVersion();
 const env = {
   ...process.env,
+  ...storeEnv,
   VITE_API_URL: apiUrl,
+  ...(isStoreOffline ? { VITE_OFFLINE_STORE: '1' } : {}),
   ...(appVersion ? { VITE_APP_VERSION: appVersion } : {}),
 };
-console.log(`[dev-frontend] API Timeweb → ${apiUrl}`);
+if (isStoreOffline) {
+  console.log('[dev-frontend] Профиль: store-offline (магазин, полный офлайн)');
+} else {
+  console.log(`[dev-frontend] API Timeweb → ${apiUrl}`);
+}
 if (appVersion) {
   console.log(`[dev-frontend] Версия: ${appVersion}`);
 }

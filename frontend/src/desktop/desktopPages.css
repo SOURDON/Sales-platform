@@ -365,8 +365,10 @@
   flex: 1 1 auto;
   min-height: 0;
   max-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -386,6 +388,9 @@
   border-bottom: 1px solid var(--dt-border-subtle) !important;
   background: transparent !important;
   transition: background 0.1s ease;
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  min-height: 40px !important;
 }
 
 .app.app--desktop .shiftPanelCard--desktop .shiftSellerRow:last-child {
@@ -415,6 +420,10 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.app.app--desktop .shiftPanelCard--desktop .shiftActionsRow .shiftCloseAllBtn {
+  grid-column: 1 / -1;
 }
 
 .app.app--desktop .shiftPanelCard--desktop .shiftActionsRow .primaryAction,

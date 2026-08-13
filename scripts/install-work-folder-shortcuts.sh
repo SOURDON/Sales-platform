@@ -10,7 +10,7 @@ mkdir -p "$DESKTOP_WORK_DIR"
 bash "$REPO/scripts/install-desktop-restart-shortcut.sh"
 bash "$REPO/scripts/install-fix-a1-desktop-shortcut.sh"
 
-for base in "Деплой-Timeweb.command" "Отключить-Render-инструкция.command"; do
+for base in "Деплой-Timeweb.command" "Отключить-Render-инструкция.command" "Запуск-офлайн-магазин-1.1.3.command"; do
   src="$REPO/scripts/mac/$base"
   [[ -f "$src" ]] || continue
   cp "$src" "$DESKTOP_WORK_DIR/$base"

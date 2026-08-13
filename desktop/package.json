@@ -5,6 +5,7 @@
   "description": "Tauri shell for Sales Platform (Windows + macOS)",
   "scripts": {
     "dev": "tauri dev",
+    "dev:store": "tauri dev --config src-tauri/tauri.store.conf.json",
     "build": "tauri build",
     "build:store": "tauri build --config src-tauri/tauri.store.conf.json",
     "build:frontend": "node scripts/build-frontend.mjs",

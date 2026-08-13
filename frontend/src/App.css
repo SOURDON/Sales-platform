@@ -6223,7 +6223,7 @@ h1 {
 
 .appWorkspace .shiftSellerListGrouped {
   border-radius: 11px !important;
-  overflow: hidden !important;
+  overflow: auto !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   background: rgba(0, 0, 0, 0.22) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
@@ -6232,7 +6232,10 @@ h1 {
 .appWorkspace .shiftSellerRow {
   gap: 10px !important;
   align-items: center !important;
-  min-height: 0 !important;
+  min-height: 40px !important;
+  height: auto !important;
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
   padding: 7px 10px 8px !important;
   margin: 0 !important;
   border: none !important;
@@ -6364,6 +6367,10 @@ h1 {
   border-radius: 11px !important;
   font-size: 12px !important;
   padding: 9px 10px !important;
+}
+
+.appWorkspace .shiftCloseAllBtn {
+  grid-column: 1 / -1;
 }
 
 .appWorkspace .opsList p {
@@ -7028,7 +7035,7 @@ h1 {
 
 .shiftSellerListGrouped {
   border-radius: 10px;
-  overflow: hidden;
+  overflow: auto;
   border: 1px solid rgba(41, 68, 58, 0.12);
   background: rgba(255, 255, 255, 0.55);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
@@ -7044,6 +7051,8 @@ h1 {
   border-bottom: 1px solid rgba(41, 68, 58, 0.08);
   background: transparent;
   min-width: 0;
+  min-height: 40px;
+  flex: 0 0 auto;
   overflow: hidden;
   cursor: pointer;
   transition: background 0.12s ease;
@@ -7159,6 +7168,10 @@ h1 {
 
 .shiftActionsRow button {
   width: 100%;
+}
+
+.shiftCloseAllBtn {
+  grid-column: 1 / -1;
 }
 
 /* Карточка фин. отчёта: один столбец периода без обрыва сетки/полей даты; компактнее */
