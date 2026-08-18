@@ -39,6 +39,7 @@ export function StoreDirectorConsole({
   onSaveManagerPercent,
   onSaveRetoucherPercent,
   onAddManager,
+  onExportForDirector,
   onExitDirector,
 }: {
   sellers: SellerRow[];
@@ -52,6 +53,7 @@ export function StoreDirectorConsole({
   onSaveManagerPercent: (percent: number) => Promise<void>;
   onSaveRetoucherPercent: (staffId: number, percent: number) => Promise<void>;
   onAddManager: (fullName: string, nickname: string, percent: number) => Promise<void>;
+  onExportForDirector?: () => Promise<void>;
   onExitDirector: () => void;
 }) {
   const settings = useMemo(() => readOfflineStoreSettings(), []);
@@ -73,6 +75,7 @@ export function StoreDirectorConsole({
   const [busyId, setBusyId] = useState<number | null>(null);
   const [managerBusy, setManagerBusy] = useState(false);
   const [retoucherBusy, setRetoucherBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
 
   useEffect(() => {
     setManagerFullName(manager?.fullName ?? '');
@@ -360,6 +363,24 @@ export function StoreDirectorConsole({
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+      {onExportForDirector ? (
+        <div className="storeDirectorConsoleExport">
+          <button
+            type="button"
+            className="ghost"
+            disabled={exportBusy}
+            onClick={() => {
+              setExportBusy(true);
+              void onExportForDirector()
+                .then(() => setStatus('Файл для директора сохранён'))
+                .catch(() => setStatus('Не удалось сохранить файл'))
+                .finally(() => setExportBusy(false));
+            }}
+          >
+            {exportBusy ? 'Сохраняем…' : 'Выгрузить для директора'}
+          </button>
         </div>
       ) : null}
     </section>

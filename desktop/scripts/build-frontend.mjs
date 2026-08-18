@@ -40,7 +40,11 @@ const TIMEWEB_API = 'http://77.233.223.48';
 const TIMEWEB_API_FALLBACKS = 'https://fotografy.ru';
 const profile = process.env.DESKTOP_BUILD_PROFILE || '';
 const profileEnvFile =
-  profile === 'store-offline' ? resolve(desktopRoot, '.env.store-offline') : null;
+  profile === 'store-offline'
+    ? resolve(desktopRoot, '.env.store-offline')
+    : profile === 'director-offline'
+      ? resolve(desktopRoot, '.env.director-offline')
+      : null;
 const fromProfile = profileEnvFile ? loadEnvFile(profileEnvFile) : {};
 const fromFrontend = loadEnvFile(resolve(frontendRoot, '.env'));
 const fromDesktop = loadEnvFile(resolve(desktopRoot, '.env'));
@@ -62,6 +66,9 @@ const env = {
 };
 if (profile === 'store-offline') {
   console.log('[build-frontend] Профиль: store-offline (магазин, полный офлайн)');
+}
+if (profile === 'director-offline') {
+  console.log('[build-frontend] Профиль: director-offline (директор, полный офлайн)');
 }
 if (appVersion) {
   console.log(`[build-frontend] Версия приложения: ${appVersion}`);

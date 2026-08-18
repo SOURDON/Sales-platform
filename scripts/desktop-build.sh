@@ -25,11 +25,13 @@ if [[ "$API_URL" == *localhost* ]]; then
   fi
 fi
 
-if [[ -x "$REPO/scripts/desktop-smoke.sh" ]]; then
-  bash "$REPO/scripts/desktop-smoke.sh" "$API_URL" || {
-    echo "Smoke не прошёл. Исправьте API/CORS или запустите с DESKTOP_BUILD_SKIP_SMOKE=1"
-    [[ "${DESKTOP_BUILD_SKIP_SMOKE:-}" == "1" ]] || exit 1
-  }
+if [[ "${DESKTOP_BUILD_PROFILE:-}" != "store-offline" && "${DESKTOP_BUILD_PROFILE:-}" != "director-offline" ]]; then
+  if [[ -x "$REPO/scripts/desktop-smoke.sh" ]]; then
+    bash "$REPO/scripts/desktop-smoke.sh" "$API_URL" || {
+      echo "Smoke не прошёл. Исправьте API/CORS или запустите с DESKTOP_BUILD_SKIP_SMOKE=1"
+      [[ "${DESKTOP_BUILD_SKIP_SMOKE:-}" == "1" ]] || exit 1
+    }
+  fi
 fi
 
 command -v node >/dev/null || { echo "Установите Node.js LTS"; exit 1; }
@@ -41,7 +43,13 @@ if [[ ! -f "$REPO/desktop/src-tauri/icons/icon.icns" ]] && [[ "$(uname -s)" == "
 fi
 
 (cd "$REPO/frontend" && npm install)
-(cd "$REPO/desktop" && npm install && npm run build)
+if [[ "${DESKTOP_BUILD_PROFILE:-}" == "store-offline" ]]; then
+  (cd "$REPO/desktop" && npm install && npm run build:store)
+elif [[ "${DESKTOP_BUILD_PROFILE:-}" == "director-offline" ]]; then
+  (cd "$REPO/desktop" && npm install && npm run icon:director && npm run build:director)
+else
+  (cd "$REPO/desktop" && npm install && npm run build)
+fi
 
 find_bundle_artifact() {
   local kind="$1"

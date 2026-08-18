@@ -37,6 +37,11 @@ if (-not (Test-Path 'src-tauri\icons\icon.ico')) {
 npm install
 if ($env:DESKTOP_BUILD_PROFILE -eq 'store-offline') {
   npm run build:store
+} elseif ($env:DESKTOP_BUILD_PROFILE -eq 'director-offline') {
+  if (-not (Test-Path 'src-tauri\icons-director\icon.ico')) {
+    npm run icon:director
+  }
+  npm run build:director
 } else {
   npm run build
 }

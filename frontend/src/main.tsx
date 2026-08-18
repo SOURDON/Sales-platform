@@ -23,11 +23,15 @@ async function startApp() {
     } catch (error) {
       console.error('Desktop local backup init failed:', error)
     }
-    try {
-      const resolved = await bootstrapApiBaseUrl()
-      console.info('[api] endpoint:', resolved)
-    } catch (error) {
-      console.error('API bootstrap failed:', error)
+    const localOffline =
+      import.meta.env.VITE_OFFLINE_STORE === '1' || import.meta.env.VITE_OFFLINE_DIRECTOR === '1'
+    if (!localOffline) {
+      try {
+        const resolved = await bootstrapApiBaseUrl()
+        console.info('[api] endpoint:', resolved)
+      } catch (error) {
+        console.error('API bootstrap failed:', error)
+      }
     }
   }
 

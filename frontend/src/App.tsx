@@ -70,8 +70,12 @@ import {
   writeOpsDayUnlock,
   clearOpsDayUnlock,
 } from './opsDayUnlock';
-import { isOfflineStoreApp } from './offlineStore';
+import { isLocalOfflineApp, isOfflineDirectorApp, isOfflineStoreApp } from './offlineStore';
 import { ensureOfflineStoreDefaults, ensureOfflineStoreProducts, pullOfflineAdminSnapshot, renameOfflineStaffPerson, renameOfflineStoreAssignments, saveOfflineManagerCommission, setOfflineRetoucherPercent } from './offlineStoreSeed';
+import { ensureOfflineDirectorDefaults } from './offlineDirectorDefaults';
+import { buildDirectorHomeDashboard, buildEmptyDirectorDashboard } from './offlineDirectorDashboard';
+import { exportStoreTransferToFile } from './offlineStoreTransfer';
+import { resolveOfflineDirectorSession } from './offlineDirectorSession';
 import {
   effectiveStoreName,
   persistOfflineStoreSession,
@@ -1131,11 +1135,18 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const offlineStoreMode = isOfflineStoreApp();
+  const offlineDirectorMode = isOfflineDirectorApp();
+  const localOfflineMode = isLocalOfflineApp();
   /** Веб и онлайн-десктоп: без продаж, склада, зарплат и спецтехники. Офлайн-магазин — полный UI. */
   const onlineSectionsTrimmed = !offlineStoreMode;
   const restoredSession = useMemo(
-    () => (offlineStoreMode ? resolveOfflineStoreSession() : readStoredSession()),
-    [offlineStoreMode],
+    () =>
+      offlineStoreMode
+        ? resolveOfflineStoreSession()
+        : offlineDirectorMode
+          ? resolveOfflineDirectorSession()
+          : readStoredSession(),
+    [offlineStoreMode, offlineDirectorMode],
   );
   const restoredPersistence = useMemo(() => readSessionPersistence(), []);
   const [nickname, setNickname] = useState(() => readLastOfflineNickname());
@@ -1167,7 +1178,7 @@ function App() {
   const [outboxPendingCount, setOutboxPendingCount] = useState(0);
   const [equipmentRefreshKey, setEquipmentRefreshKey] = useState(0);
   const [apiReachable, setApiReachable] = useState(() =>
-    offlineStoreMode ? false : typeof navigator !== 'undefined' ? navigator.onLine : true,
+    localOfflineMode ? false : typeof navigator !== 'undefined' ? navigator.onLine : true,
   );
   const isDesktopShell = isTauriRuntime();
   const [desktopTheme, setDesktopTheme] = useState<DesktopTheme>(() =>
@@ -1268,11 +1279,11 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!getApiBaseUrl() || !isDesktopShell || offlineStoreMode) {
+    if (!getApiBaseUrl() || !isDesktopShell || localOfflineMode) {
       return;
     }
     void bootstrapReachability(getApiBaseUrl).then((ok) => setApiReachable(ok));
-  }, [isDesktopShell, offlineStoreMode]);
+  }, [isDesktopShell, localOfflineMode]);
   const [commissionRequests, setCommissionRequests] = useState<CommissionRequest[]>([]);
   const [shifts, setShifts] = useState<ShiftInfo[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -1634,11 +1645,14 @@ function App() {
         adminDayKey,
       );
     }
+    if (offlineDirectorMode && session.user.role === 'DIRECTOR') {
+      return buildDirectorHomeDashboard(sellers, salesMerged, staff);
+    }
     if (!dashboard) {
       return null;
     }
     return dashboard;
-  }, [dashboard, session, sellers, salesMerged, shifts, staff, adminDayKey, storeDisplayName]);
+  }, [dashboard, session, sellers, salesMerged, shifts, staff, adminDayKey, storeDisplayName, offlineDirectorMode]);
 
   const todayStoreSales = useMemo(() => {
     if (!session) {
@@ -1750,6 +1764,14 @@ function App() {
     const storeName = session?.user?.storeName;
     const desktopDashboardCache = roleUsesSyncCache(role) && uid != null;
     try {
+      if (offlineDirectorMode) {
+        const built = buildDirectorHomeDashboard(sellers, sales, staff);
+        setDashboard(built);
+        if (uid != null) {
+          await saveAdminCache(uid, 'dashboard', built);
+        }
+        return;
+      }
       if (desktopDashboardCache) {
         const cached =
           (await loadSyncCache<DashboardResponse>(uid!, 'dashboard')) ?? null;
@@ -4155,6 +4177,18 @@ function App() {
       }
       return;
     }
+    if (offlineDirectorMode) {
+      if (data.user.id != null) {
+        await ensureOfflineDirectorDefaults(data.user.id);
+      }
+      await hydrateRoleCacheForUser(data);
+      const uid = data.user.id;
+      const cachedDash =
+        uid != null ? await loadSyncCache<DashboardResponse>(uid, 'dashboard') : null;
+      setDashboard(cachedDash ?? buildEmptyDirectorDashboard());
+      setDashboardLoading(false);
+      return;
+    }
     if (isDesktopShell) {
       setStaff([]);
       setSellers([]);
@@ -4406,7 +4440,7 @@ function App() {
   };
 
   const handleLogout = () => {
-    if (offlineStoreMode) {
+    if (localOfflineMode) {
       return;
     }
     setSalesNotice('');
@@ -4472,7 +4506,7 @@ function App() {
   }, [session?.token, session?.user?.id, session?.user?.role]);
 
   useEffect(() => {
-    if (offlineStoreMode || !session?.token || session.user.id == null || !roleUsesSyncEngine(session.user.role, isDesktopShell)) {
+    if (localOfflineMode || !session?.token || session.user.id == null || !roleUsesSyncEngine(session.user.role, isDesktopShell)) {
       return;
     }
     const token = session.token;
@@ -4860,13 +4894,13 @@ function App() {
 
   const desktopNavItems = mobileNavItems;
 
-  if (!session && !offlineStoreMode) {
+  if (!session && !localOfflineMode) {
     const loginVersionLabel = isDesktopShell ? appVersionLabel() : null;
     return (
       <main
         className={`app loginScreen app--desktop${isDesktopShell ? '' : ' app--web'}`}
       >
-        {isDesktopShell && !offlineStoreMode ? (
+        {isDesktopShell && !localOfflineMode ? (
           <div className="desktopLoginStatus">
             <ConnectionBanner {...desktopConnection} variant="pill" />
           </div>
@@ -5198,6 +5232,12 @@ function App() {
                                 await applyOfflineAdminSnapshot();
                               }}
                               onAddManager={addOfflineManagerStaff.bind(null, session.token)}
+                              onExportForDirector={async () => {
+                                const result = await exportStoreTransferToFile(session.user.id);
+                                if (result === 'saved') {
+                                  setSalesNotice('Файл для директора сохранён');
+                                }
+                              }}
                               onExitDirector={exitDirectorManagement}
                             />
                           ) : null}
@@ -6224,16 +6264,16 @@ function App() {
         <section className="card cardWorkspace cardWorkspace--desktop">
           <DesktopAppLayout
             connection={desktopConnection}
-            adminError={offlineStoreMode ? undefined : adminError || undefined}
+            adminError={localOfflineMode ? undefined : adminError || undefined}
             navItems={desktopNavItems}
             userLabel={offlineStoreMode ? storeDisplayName : session.user.nickname}
             roleLabel={desktopRoleLabel}
             onLogout={handleLogout}
-            hideLogout={offlineStoreMode}
-            hideConnectionStatus={offlineStoreMode}
+            hideLogout={localOfflineMode}
+            hideConnectionStatus={localOfflineMode}
             versionLabel={appVersionLabel()}
             syncToolbar={
-              offlineStoreMode ? null : (
+              localOfflineMode ? null : (
               <DesktopSyncToolbar
                 online={desktopConnection.online}
                 syncing={desktopConnection.syncing}
@@ -6245,7 +6285,7 @@ function App() {
             desktopTheme={desktopTheme}
             onDesktopThemeChange={handleDesktopThemeChange}
             directorAccountSwitcher={
-              showDirectorAccountSwitcher && directorSwitcherToken ? (
+              showDirectorAccountSwitcher && directorSwitcherToken && !offlineDirectorMode ? (
                 <DirectorAccountSwitcher
                   apiBaseUrl={getApiBaseUrl()}
                   directorToken={directorSwitcherToken}

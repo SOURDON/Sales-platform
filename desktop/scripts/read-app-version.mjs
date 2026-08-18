@@ -5,7 +5,11 @@ import { fileURLToPath } from 'node:url';
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const profile = process.env.DESKTOP_BUILD_PROFILE || '';
 const configName =
-  profile === 'store-offline' ? 'tauri.store.conf.json' : 'tauri.conf.json';
+  profile === 'store-offline'
+    ? 'tauri.store.conf.json'
+    : profile === 'director-offline'
+      ? 'tauri.director.conf.json'
+      : 'tauri.conf.json';
 const configPath = resolve(desktopRoot, 'src-tauri', configName);
 
 export function readAppVersion() {

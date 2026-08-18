@@ -114,6 +114,10 @@
   font-size: 12px;
 }
 
+.app.app--desktop .storeDirectorConsoleExport {
+  margin-top: 12px;
+}
+
 @media (max-width: 900px) {
   .app.app--desktop .storeDirectorConsoleGrid {
     grid-template-columns: 1fr;

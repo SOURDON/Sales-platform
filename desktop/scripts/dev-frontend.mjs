@@ -2,6 +2,7 @@
  * Запуск Vite (frontend) для Tauri dev.
  * Обычный профиль: VITE_API_URL из desktop/.env.
  * store-offline: desktop/.env.store-offline (VITE_OFFLINE_STORE=1), без сети.
+ * director-offline: desktop/.env.director-offline (VITE_OFFLINE_DIRECTOR=1), без сети.
  * Порт 5173 строго фиксирован (как в tauri.conf.json).
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -20,9 +21,12 @@ const repoRoot = path.resolve(here, '../..');
 const frontendDir = path.resolve(repoRoot, 'frontend');
 const desktopEnvPath = path.resolve(repoRoot, 'desktop/.env');
 const storeEnvPath = path.resolve(repoRoot, 'desktop/.env.store-offline');
+const directorEnvPath = path.resolve(repoRoot, 'desktop/.env.director-offline');
 const viteBin = path.resolve(frontendDir, 'node_modules/vite/bin/vite.js');
 const profile = process.env.DESKTOP_BUILD_PROFILE || '';
 const isStoreOffline = profile === 'store-offline';
+const isDirectorOffline = profile === 'director-offline';
+const isLocalOffline = isStoreOffline || isDirectorOffline;
 
 function loadEnvFile(filePath) {
   if (!existsSync(filePath)) {
@@ -55,11 +59,15 @@ function readDesktopApiUrl() {
   return loadEnvFile(desktopEnvPath).VITE_API_URL;
 }
 
-const storeEnv = isStoreOffline ? loadEnvFile(storeEnvPath) : {};
-let apiUrl = isStoreOffline
-  ? storeEnv.VITE_API_URL || 'http://127.0.0.1:9'
+const profileEnv = isStoreOffline
+  ? loadEnvFile(storeEnvPath)
+  : isDirectorOffline
+    ? loadEnvFile(directorEnvPath)
+    : {};
+let apiUrl = isLocalOffline
+  ? profileEnv.VITE_API_URL || 'http://127.0.0.1:9'
   : readDesktopApiUrl() || TIMEWEB_API;
-if (!isStoreOffline && apiUrl.includes('onrender.com')) {
+if (!isLocalOffline && apiUrl.includes('onrender.com')) {
   console.warn(
     `[dev-frontend] Render отключён — используем Timeweb: ${TIMEWEB_API} (обновите desktop/.env)`,
   );
@@ -69,13 +77,16 @@ if (!isStoreOffline && apiUrl.includes('onrender.com')) {
 const appVersion = readAppVersion();
 const env = {
   ...process.env,
-  ...storeEnv,
+  ...profileEnv,
   VITE_API_URL: apiUrl,
   ...(isStoreOffline ? { VITE_OFFLINE_STORE: '1' } : {}),
+  ...(isDirectorOffline ? { VITE_OFFLINE_DIRECTOR: '1' } : {}),
   ...(appVersion ? { VITE_APP_VERSION: appVersion } : {}),
 };
 if (isStoreOffline) {
   console.log('[dev-frontend] Профиль: store-offline (магазин, полный офлайн)');
+} else if (isDirectorOffline) {
+  console.log('[dev-frontend] Профиль: director-offline (директор, полный офлайн)');
 } else {
   console.log(`[dev-frontend] API Timeweb → ${apiUrl}`);
 }

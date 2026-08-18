@@ -35,6 +35,10 @@ export type LoadSyncResourceOptions<T> = {
   preferNetwork?: boolean;
 };
 
+function isLocalOfflineBuild(): boolean {
+  return import.meta.env.VITE_OFFLINE_STORE === '1' || import.meta.env.VITE_OFFLINE_DIRECTOR === '1';
+}
+
 export async function loadSyncResource<T>(
   _apiBaseUrl: string,
   userId: number,
@@ -44,6 +48,7 @@ export async function loadSyncResource<T>(
   options?: LoadSyncResourceOptions<T>,
 ): Promise<LoadResourceResult<T>> {
   const cached = await loadSyncCache<T>(userId, cacheKey);
+  const cacheOnly = options?.cacheOnly === true || isLocalOfflineBuild();
 
   const fetchFresh = async (): Promise<LoadResourceResult<T>> => {
     if (await shouldDeferNetworkFetch(userId)) {
@@ -79,7 +84,7 @@ export async function loadSyncResource<T>(
     }
   };
 
-  if (options?.cacheOnly) {
+  if (cacheOnly) {
     if (cached !== null) {
       return { data: cached, fromCache: true };
     }
